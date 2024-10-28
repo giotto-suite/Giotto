@@ -26,7 +26,7 @@ URL: https://drieslab.github.io/Giotto/, https://github.com/drieslab/Giotto
 BugReports: https://github.com/drieslab/Giotto/issues
 RoxygenNote: 7.3.2
 Depends:
-    R (>= 4.4.1),
+    R (>= 4.4.0),
     methods,
     GiottoClass (>= 0.3.3)
 Imports:
