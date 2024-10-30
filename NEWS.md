@@ -1,3 +1,15 @@
+
+# Giotto 4.1.4 (2024/10/30)
+
+## Changes
+* `createGiottoVisiumObject()` apply a modifier of 0.8461538 to visium spot diameter to reflect actual spot size
+* `doLeidenClusterIgraph()` deprecate param `resolution_parameter` in favor of `resolution`
+
+## Enhancements
+* `createGiottoVisiumObject()` append multiplicative scalefactor to get micron 
+  values from the current coordinate units during Visium object creation. 
+  Accessible through `instructions(gobject, "micron_scale")`
+
 # Giotto 4.1.3 (2024/10/27)
 
 ## New

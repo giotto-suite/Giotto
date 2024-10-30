@@ -511,6 +511,9 @@ createGiottoVisiumObject <- function(
             verbose = FALSE,
             initialize = TRUE
         )
+        
+        ms <- 65 / json_info$spot_diameter_fullres
+        instructions(giotto_object, "micron_scale") <- ms
     }
 
     return(giotto_object)
@@ -782,9 +785,12 @@ addVisiumPolygons <- function(
     if (inherits(spatlocs, "spatLocsObj")) {
         spatlocs <- spatlocs[]
     }
+    
+    spot_adj <- 55 / 65
 
     vis_spot_poly <- GiottoClass::circleVertices(
-        radius = json_scalefactors$spot_diameter_fullres / 2
+        radius = json_scalefactors$spot_diameter_fullres / 2 * spot_adj,
+        npoints = 100
     )
 
     GiottoClass::polyStamp(

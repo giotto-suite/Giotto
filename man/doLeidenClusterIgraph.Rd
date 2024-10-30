@@ -13,7 +13,8 @@ doLeidenClusterIgraph(
   network_name = "sNN.pca",
   objective_function = c("modularity", "CPM"),
   weights = NULL,
-  resolution_parameter = 1,
+  resolution = 1,
+  resolution_parameter = deprecated(),
   beta = 0.01,
   initial_membership = NULL,
   n_iterations = 1000,
@@ -41,7 +42,9 @@ doLeidenClusterIgraph(
 
 \item{weights}{weights of edges}
 
-\item{resolution_parameter}{resolution, default = 1}
+\item{resolution}{resolution, default = 1}
+
+\item{resolution_parameter}{deprecated. Use `resolution` instead}
 
 \item{beta}{leiden randomness}
 

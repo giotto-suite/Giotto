@@ -237,7 +237,8 @@ doLeidenCluster <- function(gobject,
 #' @param network_name name of NN network to use, default to "sNN.pca"
 #' @param objective_function objective function for the leiden algo
 #' @param weights weights of edges
-#' @param resolution_parameter resolution, default = 1
+#' @param resolution resolution, default = 1
+#' @param resolution_parameter deprecated. Use `resolution` instead
 #' @param beta leiden randomness
 #' @param initial_membership initial membership of cells for the partition
 #' @param n_iterations number of interations to run the Leiden algorithm.
@@ -246,6 +247,7 @@ doLeidenCluster <- function(gobject,
 #' @param seed_number number for seed
 #' @inheritDotParams igraph::cluster_leiden -graph -objective_function
 #' -resolution_parameter -beta -weights -initial_membership -n_iterations
+#' -resolution
 #' @returns giotto object with new clusters appended to cell metadata
 #' @details
 #' This function is a wrapper for the Leiden algorithm implemented in igraph,
@@ -270,7 +272,8 @@ doLeidenClusterIgraph <- function(gobject,
     network_name = "sNN.pca",
     objective_function = c("modularity", "CPM"),
     weights = NULL,
-    resolution_parameter = 1,
+    resolution = 1,
+    resolution_parameter = deprecated(),
     beta = 0.01,
     initial_membership = NULL,
     n_iterations = 1000,
@@ -287,6 +290,13 @@ doLeidenClusterIgraph <- function(gobject,
         gobject = gobject,
         spat_unit = spat_unit,
         feat_type = feat_type
+    )
+    
+    resolution <- deprecate_param(
+        x = resolution_parameter, 
+        y = resolution,
+        fun = "doLeidenClusterIgraph",
+        when = "4.1.4"
     )
 
     ## get cell IDs ##
@@ -321,7 +331,7 @@ doLeidenClusterIgraph <- function(gobject,
     leiden_clusters <- igraph::cluster_leiden(
         graph = graph_object_undirected,
         objective_function = objective_function,
-        resolution_parameter = resolution_parameter,
+        resolution = resolution,
         beta = beta,
         weights = weights,
         initial_membership = initial_membership,
