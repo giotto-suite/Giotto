@@ -11,7 +11,7 @@
 
 \item{y}{target image from .sift_preprocess}
 
-\item{model}{estimated transformation object from 
+\item{model}{estimated transformation object from
 .estimate_transform_from_matched_descriptor}
 }
 \value{

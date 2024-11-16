@@ -4,7 +4,7 @@
 \alias{plot_params}
 \title{Params documentation template: plot_params}
 \arguments{
-\item{group_by}{character. Create multiple plots based on cell annotation 
+\item{group_by}{character. Create multiple plots based on cell annotation
 column}
 
 \item{group_by_subset}{character. subset the group_by factor column}
@@ -19,7 +19,7 @@ or 'sequential' (scaled based on data range)}
 \item{gradient_color}{character. continuous colors to use. palette to
 use or vector of colors to use (minimum of 2).}
 
-\item{select_cell_groups}{select subset of cells/clusters based on 
+\item{select_cell_groups}{select subset of cells/clusters based on
 cell_color parameter}
 
 \item{select_cells}{select subset of cells based on cell IDs}

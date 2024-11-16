@@ -27,16 +27,15 @@
 #' installGiottoONTraCEnvironment()
 #'
 #' @export
-installGiottoONTraCEnvironment <- function(
-        python_version = "3.11.9",
-        ontrac_version = "latest",
-        mini_install_path = NULL,
-        confirm = TRUE,
-        envname = "giotto_ontrac_env",
-        conda = "auto",
-        force_miniconda = FALSE,
-        force_environment = FALSE,
-        verbose = NULL) {
+installGiottoONTraCEnvironment <- function(python_version = "3.11.9",
+    ontrac_version = "latest",
+    mini_install_path = NULL,
+    confirm = TRUE,
+    envname = "giotto_ontrac_env",
+    conda = "auto",
+    force_miniconda = FALSE,
+    force_environment = FALSE,
+    verbose = NULL) {
     # handle ontrac version
     if (ontrac_version == "latest") {
         ontrac <- "ONTraC"
@@ -93,12 +92,13 @@ installGiottoONTraCEnvironment <- function(
 #'     cell_type = "custom_leiden"
 #' )
 #' @export
-getONTraCv1Input <- function(gobject,
-    cell_type,
-    output_path = getwd(),
-    spat_unit = NULL,
-    feat_type = NULL,
-    verbose = TRUE) {
+getONTraCv1Input <- function(
+        gobject,
+        cell_type,
+        output_path = getwd(),
+        spat_unit = NULL,
+        feat_type = NULL,
+        verbose = TRUE) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -198,30 +198,29 @@ getONTraCv1Input <- function(gobject,
 #'     envname = "giotto_ontrac_env"
 #' )
 #' @export
-runONTraCV1 <- function(
-        ONTraC_input,
-        dataset,
-        preprocessing_dir,
-        GNN_dir,
-        NTScore_dir,
-        n_cpu = 4L,
-        n_neighbors = 50L,
-        n_local = 20L,
-        device = c("cpu", "cuda"),
-        epochs = 1000L,
-        patience = 100L,
-        min_delta = 0.001,
-        min_epochs = 50L,
-        batch_size = 0L,
-        seed = 42L,
-        lr = 0.03,
-        hidden_feats = 4L,
-        k = 6L,
-        modularity_loss_weight = 0.3,
-        purity_loss_weight = 300.0,
-        regularization_loss_weight = 0.1,
-        beta = 0.03,
-        python_path = "giotto_ontrac_env") {
+runONTraCV1 <- function(ONTraC_input,
+    dataset,
+    preprocessing_dir,
+    GNN_dir,
+    NTScore_dir,
+    n_cpu = 4L,
+    n_neighbors = 50L,
+    n_local = 20L,
+    device = c("cpu", "cuda"),
+    epochs = 1000L,
+    patience = 100L,
+    min_delta = 0.001,
+    min_epochs = 50L,
+    batch_size = 0L,
+    seed = 42L,
+    lr = 0.03,
+    hidden_feats = 4L,
+    k = 6L,
+    modularity_loss_weight = 0.3,
+    purity_loss_weight = 300.0,
+    regularization_loss_weight = 0.1,
+    beta = 0.03,
+    python_path = "giotto_ontrac_env") {
     # parameters check
     device <- match.arg(device)
 
@@ -279,13 +278,14 @@ runONTraCV1 <- function(
 #' @param NTScore_reverse whether to reverse the NTScore. Default is FALSE
 #' @returns gobject with cell-level NT score
 #' @details This function loads the ONTraC outputed cell-level NT score
-load_cell_NT_score <- function(gobject,
-    ontrac_results_dir = getwd(),
-    NTScore_dir = file.path(
-        ontrac_results_dir,
-        "NTScore_dir"
-    ),
-    NTScore_reverse = FALSE) {
+load_cell_NT_score <- function(
+        gobject,
+        ontrac_results_dir = getwd(),
+        NTScore_dir = file.path(
+            ontrac_results_dir,
+            "NTScore_dir"
+        ),
+        NTScore_reverse = FALSE) {
     NT_score_df <- read.csv(file = file.path(
         NTScore_dir, "NTScore.csv.gz"
     ))[c("Cell_ID", "Cell_NTScore")]
@@ -316,15 +316,16 @@ load_cell_NT_score <- function(gobject,
 #' @returns gobject with cell-niche cluster probability matrix
 #' @details This function loads the ONTraC outputed cell-niche cluster
 #' probability as an exprObj into the giotto object.
-load_cell_niche_cluster_prob <- function(gobject,
-    ontrac_results_dir = getwd(),
-    GNN_dir = file.path(
-        ontrac_results_dir,
-        "GNN_dir"
-    ),
-    spat_unit = "cell",
-    feat_type = "niche cluster",
-    name = "prob") {
+load_cell_niche_cluster_prob <- function(
+        gobject,
+        ontrac_results_dir = getwd(),
+        GNN_dir = file.path(
+            ontrac_results_dir,
+            "GNN_dir"
+        ),
+        spat_unit = "cell",
+        feat_type = "niche cluster",
+        name = "prob") {
     niche_cluster_prob_df <- read.csv(file = file.path(
         GNN_dir, "cell_level_niche_cluster.csv.gz"
     ))
@@ -359,15 +360,16 @@ load_cell_niche_cluster_prob <- function(gobject,
 #' @returns gobject with niche cluster connectivity matrix
 #' @details This function loads the ONTraC outputed niche cluster connectivity
 #' matrix as an exprObj into the giotto object.
-load_nc_connectivity <- function(gobject,
-    ontrac_results_dir = getwd(),
-    GNN_dir = file.path(
-        ontrac_results_dir,
-        "GNN_dir"
-    ),
-    spat_unit = "niche cluster",
-    feat_type = "connectivity",
-    name = "normalized") {
+load_nc_connectivity <- function(
+        gobject,
+        ontrac_results_dir = getwd(),
+        GNN_dir = file.path(
+            ontrac_results_dir,
+            "GNN_dir"
+        ),
+        spat_unit = "niche cluster",
+        feat_type = "connectivity",
+        name = "normalized") {
     connectivity_df <- read.csv(file = file.path(
         GNN_dir, "consolidate_out_adj.csv.gz"
     ), header = FALSE)
@@ -408,13 +410,14 @@ load_nc_connectivity <- function(gobject,
 #' @returns gobject with niche cluster NT score
 #' @details This function loads the ONTraC outputed niche cluster NT score
 #' into the giotto object.
-load_niche_cluster_nt_score <- function(gobject,
-    ontrac_results_dir = getwd(),
-    NTScore_dir = file.path(
-        ontrac_results_dir,
-        "NTScore_dir"
-    ),
-    NTScore_reverse = FALSE) {
+load_niche_cluster_nt_score <- function(
+        gobject,
+        ontrac_results_dir = getwd(),
+        NTScore_dir = file.path(
+            ontrac_results_dir,
+            "NTScore_dir"
+        ),
+        NTScore_reverse = FALSE) {
     niche_cluster_df <- read.csv(file = file.path(
         NTScore_dir, "niche_cluster_score.csv.gz"
     ), header = FALSE)
@@ -452,10 +455,9 @@ load_niche_cluster_nt_score <- function(gobject,
 #' @inheritParams data_access_params
 #' @inheritParams read_data_params
 #' @returns gobject with binarized cell-level niche cluster assignment
-cal_cell_niche_cluster_bin <- function(
-        gobject,
-        spat_unit = "cell",
-        feat_type = "niche cluster") {
+cal_cell_niche_cluster_bin <- function(gobject,
+    spat_unit = "cell",
+    feat_type = "niche cluster") {
     # calculate the binarized cell-level niche cluster assignment
     expr_values <- getExpression(
         gobject = gobject,
@@ -512,21 +514,22 @@ cal_cell_niche_cluster_bin <- function(
 #' @returns gobject with ONTraC results
 #' @details This function loads the ONTraC results into the giotto object.
 #' @export
-loadOntraCResults <- function(gobject,
-    ontrac_results_dir = getwd(),
-    preprocessing_dir = file.path(
-        ontrac_results_dir,
-        "preprocessing_dir"
-    ),
-    GNN_dir = file.path(
-        ontrac_results_dir,
-        "GNN_dir"
-    ),
-    NTScore_dir = file.path(
-        ontrac_results_dir,
-        "NTScore_dir"
-    ),
-    NTScore_reverse = FALSE) {
+loadOntraCResults <- function(
+        gobject,
+        ontrac_results_dir = getwd(),
+        preprocessing_dir = file.path(
+            ontrac_results_dir,
+            "preprocessing_dir"
+        ),
+        GNN_dir = file.path(
+            ontrac_results_dir,
+            "GNN_dir"
+        ),
+        NTScore_dir = file.path(
+            ontrac_results_dir,
+            "NTScore_dir"
+        ),
+        NTScore_reverse = FALSE) {
     gobject <- load_cell_NT_score(
         gobject = gobject,
         ontrac_results_dir = ontrac_results_dir,
@@ -579,13 +582,12 @@ loadOntraCResults <- function(gobject,
 #' @details This function plots the spatial niche cluster probability
 #' @returns ggplot
 #' @export
-plotSpatNicheClusterProb <- function(
-        gobject,
-        spat_unit = "cell",
-        feat_type = "niche cluster",
-        expression_values = "prob",
-        ...,
-        default_save_name = "spatNicheClusterProb") {
+plotSpatNicheClusterProb <- function(gobject,
+    spat_unit = "cell",
+    feat_type = "niche cluster",
+    expression_values = "prob",
+    ...,
+    default_save_name = "spatNicheClusterProb") {
     nc_meta_df <- fDataDT(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -616,12 +618,11 @@ plotSpatNicheClusterProb <- function(
 #' @details This function plots the spatial niche cluster binarized
 #' @returns ggplot
 #' @export
-plotSpatNicheClusterBin <- function(
-        gobject,
-        spat_unit = "cell",
-        feat_type = "niche cluster",
-        ...,
-        default_save_name = "spatNicheClusterBin") {
+plotSpatNicheClusterBin <- function(gobject,
+    spat_unit = "cell",
+    feat_type = "niche cluster",
+    ...,
+    default_save_name = "spatNicheClusterBin") {
     # determine the color code
     nc_meta_df <- fDataDT(
         gobject = gobject,
@@ -658,16 +659,15 @@ plotSpatNicheClusterBin <- function(
 #' @details This function plots the niche cluster connectivity matrix
 #' @returns ggplot
 #' @export
-plotNicheClusterConnectivity <- function(
-        gobject,
-        spat_unit = "niche cluster",
-        feat_type = "connectivity",
-        values = "normalized",
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL,
-        save_param = list(),
-        default_save_name = "NicheClusterConnectivity") {
+plotNicheClusterConnectivity <- function(gobject,
+    spat_unit = "niche cluster",
+    feat_type = "connectivity",
+    values = "normalized",
+    show_plot = NULL,
+    return_plot = NULL,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "NicheClusterConnectivity") {
     # load `guide_edge_colourbar` function in ggraph,
     # otherwise it will raise an error when using `scale_edge_colour_gradientn`
     library(ggraph)
@@ -804,18 +804,17 @@ plotNicheClusterConnectivity <- function(
 #' cluster
 #' @returns ggplot
 #' @export
-plotCTCompositionInNicheCluster <- function(
-        gobject,
-        cell_type,
-        values = "prob",
-        spat_unit = "cell",
-        feat_type = "niche cluster",
-        normalization = c("by_niche_cluster", "by_cell_type", NULL),
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL,
-        save_param = list(),
-        default_save_name = "CellTypeCompositionInNicheCluster") {
+plotCTCompositionInNicheCluster <- function(gobject,
+    cell_type,
+    values = "prob",
+    spat_unit = "cell",
+    feat_type = "niche cluster",
+    normalization = c("by_niche_cluster", "by_cell_type", NULL),
+    show_plot = NULL,
+    return_plot = NULL,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "CellTypeCompositionInNicheCluster") {
     normalization <- match.arg(normalization)
 
     # Get the cell type composition within each niche cluster
@@ -897,8 +896,8 @@ plotCTCompositionInNicheCluster <- function(
     )
     avg_scores <- data_df %>%
         dplyr::group_by(!!rlang::sym(cell_type)) %>%
-        dplyr::summarise(Avg_NTScore = mean(NTScore)) 
-        # nolint: object_usage_linter.
+        dplyr::summarise(Avg_NTScore = mean(NTScore))
+    # nolint: object_usage_linter.
     df_long[[cell_type]] <- factor(df_long[[cell_type]],
         levels = avg_scores[[cell_type]][order(avg_scores$Avg_NTScore)]
     )
@@ -913,7 +912,7 @@ plotCTCompositionInNicheCluster <- function(
         viridis::scale_fill_viridis(option = "inferno", limits = c(0, 1)) +
         theme_minimal() +
         labs(
-            title = "Normalized cell type compositions within each niche 
+            title = "Normalized cell type compositions within each niche
             cluster",
             x = "Cell_Type",
             y = "Cluster"
@@ -942,16 +941,17 @@ plotCTCompositionInNicheCluster <- function(
 #' @inheritParams plot_output_params
 #' @returns ggplot
 #' @export
-plotCellTypeNTScore <- function(gobject,
-    cell_type,
-    values = "NTScore",
-    spat_unit = "cell",
-    feat_type = "niche cluster",
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "CellTypeNTScore") {
+plotCellTypeNTScore <- function(
+        gobject,
+        cell_type,
+        values = "NTScore",
+        spat_unit = "cell",
+        feat_type = "niche cluster",
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "CellTypeNTScore") {
     # Get the cell type composition within each niche cluster
     data_df <- pDataDT(
         gobject = gobject,

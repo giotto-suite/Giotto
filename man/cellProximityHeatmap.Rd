@@ -38,10 +38,10 @@ and maximum}
 
 \item{save_plot}{logical. save the plot}
 
-\item{save_param}{list of saving parameters, see 
+\item{save_param}{list of saving parameters, see
 \code{\link{showSaveParameters}}}
 
-\item{default_save_name}{default save name for saving, don't change, 
+\item{default_save_name}{default save name for saving, don't change,
 change save_name in save_param}
 }
 \value{

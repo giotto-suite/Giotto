@@ -13,16 +13,17 @@
 #'
 #' @returns A Giotto object with a new multiomics slot containing the theta_weighted_matrix and individual weight matrices.
 #' @export
-runWNN <- function(gobject,
-    spat_unit = "cell",
-    feat_types = c("rna", "protein"),
-    reduction_methods = c("pca", "pca"),
-    reduction_names = c("rna.pca", "protein.pca"),
-    k = 20,
-    integrated_feat_type = NULL,
-    matrix_result_name = NULL,
-    w_names = c(NULL, NULL),
-    verbose = FALSE) {
+runWNN <- function(
+        gobject,
+        spat_unit = "cell",
+        feat_types = c("rna", "protein"),
+        reduction_methods = c("pca", "pca"),
+        reduction_names = c("rna.pca", "protein.pca"),
+        k = 20,
+        integrated_feat_type = NULL,
+        matrix_result_name = NULL,
+        w_names = c(NULL, NULL),
+        verbose = FALSE) {
     # validate Giotto object
     if (!inherits(gobject, "giotto")) {
         stop("gobject needs to be a giotto object")
@@ -436,17 +437,18 @@ runWNN <- function(gobject,
 #'
 #' @returns A Giotto object with integrated UMAP
 #' @export
-runIntegratedUMAP <- function(gobject,
-    spat_unit = "cell",
-    feat_types = c("rna", "protein"),
-    integrated_feat_type = NULL,
-    integration_method = "WNN",
-    matrix_result_name = "theta_weighted_matrix",
-    k = 20,
-    spread = 5,
-    min_dist = 0.01,
-    force = FALSE,
-    ...) {
+runIntegratedUMAP <- function(
+        gobject,
+        spat_unit = "cell",
+        feat_types = c("rna", "protein"),
+        integrated_feat_type = NULL,
+        integration_method = "WNN",
+        matrix_result_name = "theta_weighted_matrix",
+        k = 20,
+        spread = 5,
+        min_dist = 0.01,
+        force = FALSE,
+        ...) {
     # validate feat_types
     for (feat_type in feat_types) {
         if (!feat_type %in% names(

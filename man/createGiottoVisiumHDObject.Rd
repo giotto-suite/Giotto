@@ -38,9 +38,9 @@ Giotto object
 }
 \details{
 \itemize{
-  \item{expr_data: raw will take expression data from raw_feature_bc_matrix 
+  \item{expr_data: raw will take expression data from raw_feature_bc_matrix
   and filter from filtered_feature_bc_matrix}
-  \item{gene_column_index: which gene identifiers (names) to use if there 
+  \item{gene_column_index: which gene identifiers (names) to use if there
   are multiple columns (e.g. ensemble and gene symbol)}
 }
 }

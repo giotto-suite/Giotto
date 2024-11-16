@@ -10,7 +10,7 @@
 
 \item{image_name}{name of a giotto image or multiple images with group_by}
 
-\item{largeImage_name}{name of a giottoLargeImage or multiple images with 
+\item{largeImage_name}{name of a giottoLargeImage or multiple images with
 group_by}
 }
 \value{

@@ -24,7 +24,7 @@ These files can be in one of the following formats: (i) scATAC tabix files,
 (ii) fragment files, or (iii) bam files.}
 
 \item{genome}{A string indicating the default genome to be used for all ArchR
-functions. Currently supported values include "hg19","hg38","mm9", and 
+functions. Currently supported values include "hg19","hg38","mm9", and
 "mm10".
 This value is stored as a global environment variable, not part of the
 ArchRProject.

@@ -50,7 +50,7 @@ exportGiottoViewer(
 
 \item{dim_red_rescale}{numericals to rescale the coordinates}
 
-\item{expression_rounding}{numerical indicating how to round the expression 
+\item{expression_rounding}{numerical indicating how to round the expression
 data}
 
 \item{overwrite_dir}{overwrite files in the directory if it already existed}
@@ -64,9 +64,9 @@ writes the necessary output to use in Giotto Viewer
 compute highly variable genes
 }
 \details{
-Giotto Viewer expects the results from Giotto Analyzer in a 
-specific format, which is provided by this function. To include enrichment 
-results from {\code{\link{createSpatialEnrich}}} include the provided 
-spatial enrichment name (default PAGE or rank) and add the gene signature 
+Giotto Viewer expects the results from Giotto Analyzer in a
+specific format, which is provided by this function. To include enrichment
+results from {\code{\link{createSpatialEnrich}}} include the provided
+spatial enrichment name (default PAGE or rank) and add the gene signature
 names (.e.g cell types) to the numeric annotations parameter.
 }

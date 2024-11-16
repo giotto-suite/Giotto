@@ -12,16 +12,16 @@
 
 \item{polygon_color}{color for polygon border}
 
-\item{polygon_bg_color}{color for polygon background (overruled by 
+\item{polygon_bg_color}{color for polygon background (overruled by
 polygon_fill)}
 
-\item{polygon_fill}{character. what to color to fill polgyons by (e.g. 
+\item{polygon_fill}{character. what to color to fill polgyons by (e.g.
 metadata col or spatial enrichment col)}
 
-\item{polygon_fill_gradient}{polygon fill gradient colors given in order 
+\item{polygon_fill_gradient}{polygon fill gradient colors given in order
 from low to high}
 
-\item{polygon_fill_gradient_midpoint}{value to set as gradient midpoint 
+\item{polygon_fill_gradient_midpoint}{value to set as gradient midpoint
 (optional). If left as \code{NULL}, the median value detected will be chosen}
 
 \item{polygon_fill_gradient_style}{either 'divergent' (midpoint is used in

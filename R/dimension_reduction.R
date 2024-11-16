@@ -23,12 +23,11 @@
 #' x <- reduceDims(x, method = "nmf")
 #' @export
 reduceDims <- function(
-    gobject,
-    method = c("pca", "nmf", "umap", "tsne"),
-    projection = FALSE,
-    toplevel = 1L,
-    ...
-) {
+        gobject,
+        method = c("pca", "nmf", "umap", "tsne"),
+        projection = FALSE,
+        toplevel = 1L,
+        ...) {
     a <- list(...)
     method <- match.arg(method, choices = c("pca", "nmf", "umap", "tsne"))
     if (projection) method <- paste(method, "proj", sep = "_")
@@ -73,13 +72,14 @@ reduceDims <- function(
 #' @param seed_number seed number to use
 #' @keywords internal
 #' @returns list of eigenvalues, loadings and pca coordinates
-.run_pca_factominer <- function(x,
-    ncp = 100,
-    scale = TRUE,
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    ...) {
+.run_pca_factominer <- function(
+        x,
+        ncp = 100,
+        scale = TRUE,
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        ...) {
     # verify if optional package is installed
     package_check(pkg_name = "FactoMineR", repository = "CRAN")
 
@@ -192,16 +192,17 @@ reduceDims <- function(
 #' @param BPPARAM BiocParallelParam object
 #' @keywords internal
 #' @returns list of eigenvalues, loadings and pca coordinates
-.run_pca_biocsingular <- function(x,
-    ncp = 100,
-    center = TRUE,
-    scale = TRUE,
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    BSPARAM = c("irlba", "exact", "random"),
-    BPPARAM = BiocParallel::SerialParam(),
-    ...) {
+.run_pca_biocsingular <- function(
+        x,
+        ncp = 100,
+        center = TRUE,
+        scale = TRUE,
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        BSPARAM = c("irlba", "exact", "random"),
+        BPPARAM = BiocParallel::SerialParam(),
+        ...) {
     BSPARAM <- match.arg(BSPARAM, choices = c("irlba", "exact", "random"))
 
     min_ncp <- min(dim(x))
@@ -289,12 +290,13 @@ reduceDims <- function(
 #' @keywords internal
 #' @noRd
 #' @returns subsetted matrix based on selected features
-.create_feats_to_use_matrix <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    sel_matrix,
-    feats_to_use,
-    verbose = FALSE) {
+.create_feats_to_use_matrix <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        sel_matrix,
+        feats_to_use,
+        verbose = FALSE) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -392,25 +394,26 @@ reduceDims <- function(
 #'
 #' runPCA(g)
 #' @export
-runPCA <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    name = NULL,
-    feats_to_use = "hvf",
-    return_gobject = TRUE,
-    center = TRUE,
-    scale_unit = TRUE,
-    ncp = 100,
-    method = c("irlba", "exact", "random", "factominer"),
-    method_params = BiocParallel::SerialParam(),
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    toplevel = 1L,
-    ...) {
+runPCA <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        name = NULL,
+        feats_to_use = "hvf",
+        return_gobject = TRUE,
+        center = TRUE,
+        scale_unit = TRUE,
+        ncp = 100,
+        method = c("irlba", "exact", "random", "factominer"),
+        method_params = BiocParallel::SerialParam(),
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        toplevel = 1L,
+        ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -559,7 +562,8 @@ runPCA <- function(gobject,
 
         ## update parameters used ##
         gobject <- update_giotto_params(
-            gobject, description = "_pca", toplevel = toplevel + 1L
+            gobject,
+            description = "_pca", toplevel = toplevel + 1L
         )
         return(gobject)
     } else {
@@ -594,17 +598,18 @@ runPCA <- function(gobject,
 #' @param verbose verbosity level
 #' @keywords internal
 #' @returns list of eigenvalues, loadings and pca coordinates
-.run_pca_biocsingular_irlba_projection <- function(x,
-    ncp = 100,
-    center = TRUE,
-    scale = TRUE,
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    BPPARAM = BiocParallel::SerialParam(),
-    random_subset = 500,
-    verbose = TRUE,
-    ...) {
+.run_pca_biocsingular_irlba_projection <- function(
+        x,
+        ncp = 100,
+        center = TRUE,
+        scale = TRUE,
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        BPPARAM = BiocParallel::SerialParam(),
+        random_subset = 500,
+        verbose = TRUE,
+        ...) {
     x <- scale(x, center = center, scale = scale)
 
     min_ncp <- min(dim(x))
@@ -787,26 +792,27 @@ runPCA <- function(gobject,
 #'
 #' runPCAprojection(g)
 #' @export
-runPCAprojection <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    random_subset = 500,
-    name = "pca.projection",
-    feats_to_use = "hvf",
-    return_gobject = TRUE,
-    center = TRUE,
-    scale_unit = TRUE,
-    ncp = 100,
-    method = c("irlba"),
-    method_params = BiocParallel::SerialParam(),
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    toplevel = 1L,
-    ...) {
+runPCAprojection <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        random_subset = 500,
+        name = "pca.projection",
+        feats_to_use = "hvf",
+        return_gobject = TRUE,
+        center = TRUE,
+        scale_unit = TRUE,
+        ncp = 100,
+        method = c("irlba"),
+        method_params = BiocParallel::SerialParam(),
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        toplevel = 1L,
+        ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -923,7 +929,6 @@ runPCAprojection <- function(gobject,
     }
 
     if (isTRUE(return_gobject)) {
-
         if (reduction == "cells") {
             my_row_names <- colnames(expr_values)
         } else {
@@ -952,7 +957,8 @@ runPCAprojection <- function(gobject,
 
         ## update parameters used ##
         gobject <- update_giotto_params(
-            gobject, description = "_pca", toplevel = toplevel + 1L
+            gobject,
+            description = "_pca", toplevel = toplevel + 1L
         )
         return(gobject)
     } else {
@@ -1012,27 +1018,28 @@ runPCAprojection <- function(gobject,
 #' # (only 48 in this mini dataset)
 #' runPCAprojectionBatch(g, feats_to_use = NULL)
 #' @export
-runPCAprojectionBatch <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    random_subset = 500,
-    batch_number = 5,
-    name = "pca.projection.batch",
-    feats_to_use = "hvf",
-    return_gobject = TRUE,
-    center = TRUE,
-    scale_unit = TRUE,
-    ncp = 100,
-    method = c("irlba"),
-    method_params = BiocParallel::SerialParam(),
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    toplevel = 1L,
-    ...) {
+runPCAprojectionBatch <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        random_subset = 500,
+        batch_number = 5,
+        name = "pca.projection.batch",
+        feats_to_use = "hvf",
+        return_gobject = TRUE,
+        center = TRUE,
+        scale_unit = TRUE,
+        ncp = 100,
+        method = c("irlba"),
+        method_params = BiocParallel::SerialParam(),
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        toplevel = 1L,
+        ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -1319,7 +1326,6 @@ runPCAprojectionBatch <- function(gobject,
 
 
     if (return_gobject == TRUE) {
-
         if (reduction == "cells") {
             my_row_names <- colnames(expr_values)
         } else {
@@ -1348,7 +1354,8 @@ runPCAprojectionBatch <- function(gobject,
 
         ## update parameters used ##
         gobject <- update_giotto_params(
-            gobject, description = "_pca", toplevel = toplevel + 1L
+            gobject,
+            description = "_pca", toplevel = toplevel + 1L
         )
         return(gobject)
     } else {
@@ -1394,27 +1401,28 @@ runPCAprojectionBatch <- function(gobject,
 #'
 #' screePlot(g)
 #' @export
-screePlot <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    dim_reduction_name = NULL,
-    name = deprecated(),
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    method = c("irlba", "exact", "random", "factominer"),
-    rev = FALSE,
-    feats_to_use = NULL,
-    center = FALSE,
-    scale_unit = FALSE,
-    ncp = 100,
-    ylim = c(0, 20),
-    verbose = TRUE,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "screePlot",
-    ...) {
+screePlot <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        dim_reduction_name = NULL,
+        name = deprecated(),
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        method = c("irlba", "exact", "random", "factominer"),
+        rev = FALSE,
+        feats_to_use = NULL,
+        center = FALSE,
+        scale_unit = FALSE,
+        ncp = 100,
+        ylim = c(0, 20),
+        verbose = TRUE,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "screePlot",
+        ...) {
     if (is_present(name)) {
         deprecate_warn(
             when = "4.1.1",
@@ -1695,28 +1703,28 @@ create_screeplot <- function(eigs, ncp = 20, ylim = c(0, 20)) {
 #' jackstrawPlot(gobject = g)
 #' @md
 #' @export
-jackstrawPlot <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    feats_to_use = "hvf",
-    center = TRUE,
-    scale_unit = TRUE,
-    ncp = 20,
-    ylim = c(0, 1),
-    iter = 10,
-    threshold = 0.01,
-    random_subset = NULL,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "jackstrawPlot") {
-
+jackstrawPlot <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        feats_to_use = "hvf",
+        center = TRUE,
+        scale_unit = TRUE,
+        ncp = 20,
+        ylim = c(0, 1),
+        iter = 10,
+        threshold = 0.01,
+        random_subset = NULL,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "jackstrawPlot") {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -1769,7 +1777,6 @@ jackstrawPlot <- function(gobject,
             ))
             expr_values <- expr_values[, random_selection]
         }
-
     }
 
 
@@ -1817,9 +1824,11 @@ jackstrawPlot <- function(gobject,
 
         ## results ##
         nr_sign_components <- jtest$r
-        vmsg(.v = verbose,
-             "\nnumber of estimated significant components: ",
-             nr_sign_components)
+        vmsg(
+            .v = verbose,
+            "\nnumber of estimated significant components: ",
+            nr_sign_components
+        )
 
         if (ncp <= nr_sign_components) {
             warning(wrap_txt(
@@ -1866,11 +1875,12 @@ jackstrawPlot <- function(gobject,
 #' @keywords internal
 #' @returns ggplot
 #' @noRd
-.create_jackstrawplot <- function(jackstraw_data,
-    ncp = 20,
-    ylim = c(0, 1),
-    threshold = 0.01,
-    iter = 100) {
+.create_jackstrawplot <- function(
+        jackstraw_data,
+        ncp = 20,
+        ylim = c(0, 1),
+        threshold = 0.01,
+        iter = 100) {
     checkmate::assert_numeric(ncp, len = 1L)
     checkmate::assert_numeric(ylim, len = 2L)
     checkmate::assert_numeric(threshold, len = 1L)
@@ -1912,10 +1922,10 @@ jackstrawPlot <- function(gobject,
 
 
 # based on the `permutationPA`() implementation in jackstraw package
-.perm_pa <- function (dat, iter = 100, threshold = 0.05, ncp, verbose = TRUE)
-{
-    if (missing(dat))
+.perm_pa <- function(dat, iter = 100, threshold = 0.05, ncp, verbose = TRUE) {
+    if (missing(dat)) {
         stop("`dat` is required!")
+    }
     n <- ncol(dat)
     m <- nrow(dat)
     ndf <- min(m, n - 1, ncp) # this is a limitation of svd singular values
@@ -1923,8 +1933,11 @@ jackstrawPlot <- function(gobject,
 
     # pick SVD fun based on whether partial or full is appropriate
     # These biocsingular functions should not scale or center
-    svd_fun <- if (ndf >= 0.5 * m || ndf >= 100) BiocSingular::runExactSVD
-    else BiocSingular::runIrlbaSVD # partial SVDs
+    svd_fun <- if (ndf >= 0.5 * m || ndf >= 100) {
+        BiocSingular::runExactSVD
+    } else {
+        BiocSingular::runIrlbaSVD
+    } # partial SVDs
 
     .calc_svd_var_explained <- function(x, k) {
         res <- svd_fun(x, k = k)
@@ -1937,8 +1950,10 @@ jackstrawPlot <- function(gobject,
 
     # randomize and compare
     dstat0 <- matrix(0, nrow = iter, ncol = ndf)
-    vmsg(.v = verbose,
-         "Estimating number of significant principal components: ")
+    vmsg(
+        .v = verbose,
+        "Estimating number of significant principal components: "
+    )
 
     with_pbar({
         pb <- pbar(steps = iter)
@@ -2001,29 +2016,30 @@ jackstrawPlot <- function(gobject,
 #'
 #' signPCA(g)
 #' @export
-signPCA <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    name = NULL,
-    method = c("screeplot", "jackstraw"),
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    pca_method = c("irlba", "factominer"),
-    rev = FALSE,
-    feats_to_use = NULL,
-    center = TRUE,
-    scale_unit = TRUE,
-    ncp = 50,
-    scree_ylim = c(0, 10),
-    jack_iter = 10,
-    jack_threshold = 0.01,
-    jack_ylim = c(0, 1),
-    verbose = TRUE,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "signPCA") {
+signPCA <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        name = NULL,
+        method = c("screeplot", "jackstraw"),
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        pca_method = c("irlba", "factominer"),
+        rev = FALSE,
+        feats_to_use = NULL,
+        center = TRUE,
+        scale_unit = TRUE,
+        ncp = 50,
+        scree_ylim = c(0, 10),
+        jack_iter = 10,
+        jack_threshold = 0.01,
+        jack_ylim = c(0, 1),
+        verbose = TRUE,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "signPCA") {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -2196,24 +2212,24 @@ signPCA <- function(gobject,
 #' plotUMAP(x, dim_reduction_name = "nmf_umap", cell_color = "nmf_leiden")
 #' spatPlot2D(x, cell_color = "nmf_leiden")
 #' @export
-runNMF <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    name = NULL,
-    feats_to_use = "hvf",
-    return_gobject = TRUE,
-    scale_unit = TRUE,
-    k = 20,
-    method = c("rcppml"),
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    toplevel = 1L,
-    ...
-) {
+runNMF <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        name = NULL,
+        feats_to_use = "hvf",
+        return_gobject = TRUE,
+        scale_unit = TRUE,
+        k = 20,
+        method = c("rcppml"),
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        toplevel = 1L,
+        ...) {
     checkmate::assert_class(gobject, "giotto")
     reduction <- match.arg(reduction, c("cells", "feats"))
     # Set feat_type and spat_unit
@@ -2287,7 +2303,6 @@ runNMF <- function(gobject,
     )
 
     if (return_gobject) {
-
         if (reduction == "cells") {
             my_row_names <- rownames(expr_values)
         } else {
@@ -2317,22 +2332,23 @@ runNMF <- function(gobject,
 
         ## update parameters used ##
         gobject <- update_giotto_params(
-            gobject, description = "_nmf", toplevel = toplevel + 1L
+            gobject,
+            description = "_nmf", toplevel = toplevel + 1L
         )
     } else {
         return(nmf_res)
     }
 }
 
-.run_nmf_rcppml <- function(x,
-    k = 50,
-    scale = TRUE,
-    rev = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    ...
-) {
+.run_nmf_rcppml <- function(
+        x,
+        k = 50,
+        scale = TRUE,
+        rev = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        ...) {
     package_check("RcppML", repository = "CRAN")
     .rcppml_cite()
 
@@ -2381,13 +2397,15 @@ runNMF <- function(gobject,
     colnames(loadings) <- paste0("Dim.", seq_len(ncol(loadings)))
     colnames(coords) <- paste0("Dim.", seq_len(ncol(coords)))
 
-    result = list(
+    result <- list(
         coords = coords, loadings = loadings, d = d,
         iter = nmf_res$iter, tol = nmf_res$tol
     )
 
-    vmsg(.is_debug = TRUE,
-         "finished .run_nmf_rcppml")
+    vmsg(
+        .is_debug = TRUE,
+        "finished .run_nmf_rcppml"
+    )
 
     return(result)
 }
@@ -2461,34 +2479,36 @@ runNMF <- function(gobject,
 #'
 #' runUMAP(g)
 #' @export
-runUMAP <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    dim_reduction_to_use = "pca",
-    dim_reduction_name = NULL,
-    dimensions_to_use = 1:10,
-    name = NULL,
-    feats_to_use = NULL,
-    return_gobject = TRUE,
-    n_neighbors = 40,
-    n_components = 2,
-    n_epochs = 400,
-    min_dist = 0.01,
-    n_threads = NA,
-    spread = 5,
-    set_seed = TRUE,
-    seed_number = 1234L,
-    verbose = TRUE,
-    toplevel_params = deprecated(),
-    toplevel = 1L,
-    ...) {
+runUMAP <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        dim_reduction_to_use = "pca",
+        dim_reduction_name = NULL,
+        dimensions_to_use = 1:10,
+        name = NULL,
+        feats_to_use = NULL,
+        return_gobject = TRUE,
+        n_neighbors = 40,
+        n_components = 2,
+        n_epochs = 400,
+        min_dist = 0.01,
+        n_threads = NA,
+        spread = 5,
+        set_seed = TRUE,
+        seed_number = 1234L,
+        verbose = TRUE,
+        toplevel_params = deprecated(),
+        toplevel = 1L,
+        ...) {
     # NSE vars
     cell_ID <- NULL
 
     toplevel <- deprecate_param(
-        toplevel_params, toplevel, fun = "runUMAP",when = "4.1.2"
+        toplevel_params, toplevel,
+        fun = "runUMAP", when = "4.1.2"
     )
 
     # Set feat_type and spat_unit
@@ -2632,7 +2652,6 @@ runUMAP <- function(gobject,
 
 
         if (return_gobject == TRUE) {
-
             coordinates <- uwot_clus
             rownames(coordinates) <- rownames(matrix_to_use)
 
@@ -2721,35 +2740,37 @@ runUMAP <- function(gobject,
 #'
 #' runUMAPprojection(g)
 #' @export
-runUMAPprojection <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    dim_reduction_to_use = "pca",
-    dim_reduction_name = NULL,
-    dimensions_to_use = 1:10,
-    random_subset = 500,
-    name = NULL,
-    feats_to_use = NULL,
-    return_gobject = TRUE,
-    n_neighbors = 40,
-    n_components = 2,
-    n_epochs = 400,
-    min_dist = 0.01,
-    n_threads = NA,
-    spread = 5,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    toplevel_params = deprecated(),
-    toplevel = 1L,
-    ...) {
+runUMAPprojection <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        dim_reduction_to_use = "pca",
+        dim_reduction_name = NULL,
+        dimensions_to_use = 1:10,
+        random_subset = 500,
+        name = NULL,
+        feats_to_use = NULL,
+        return_gobject = TRUE,
+        n_neighbors = 40,
+        n_components = 2,
+        n_epochs = 400,
+        min_dist = 0.01,
+        n_threads = NA,
+        spread = 5,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        toplevel_params = deprecated(),
+        toplevel = 1L,
+        ...) {
     # NSE vars
     cell_ID <- NULL
 
     toplevel <- deprecate_param(
-        toplevel_params, toplevel, fun = "runUMAPprojection", when = "4.1.2"
+        toplevel_params, toplevel,
+        fun = "runUMAPprojection", when = "4.1.2"
     )
 
     # Set feat_type and spat_unit
@@ -2902,7 +2923,6 @@ runUMAPprojection <- function(gobject,
 
 
     if (isTRUE(return_gobject)) {
-
         coordinates <- coords_umap
 
         dimObject <- create_dim_obj(
@@ -2983,27 +3003,27 @@ runUMAPprojection <- function(gobject,
 #'
 #' runtSNE(g)
 #' @export
-runtSNE <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    reduction = c("cells", "feats"),
-    dim_reduction_to_use = "pca",
-    dim_reduction_name = NULL,
-    dimensions_to_use = 1:10,
-    name = NULL,
-    feats_to_use = NULL,
-    return_gobject = TRUE,
-    dims = 2,
-    perplexity = 30,
-    theta = 0.5,
-    do_PCA_first = FALSE,
-    set_seed = TRUE,
-    seed_number = 1234,
-    verbose = TRUE,
-    toplevel = 1L,
-    ...) {
-
+runtSNE <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        reduction = c("cells", "feats"),
+        dim_reduction_to_use = "pca",
+        dim_reduction_name = NULL,
+        dimensions_to_use = 1:10,
+        name = NULL,
+        feats_to_use = NULL,
+        return_gobject = TRUE,
+        dims = 2,
+        perplexity = 30,
+        theta = 0.5,
+        do_PCA_first = FALSE,
+        set_seed = TRUE,
+        seed_number = 1234,
+        verbose = TRUE,
+        toplevel = 1L,
+        ...) {
     package_check("Rtsne")
 
     # Set feat_type and spat_unit
@@ -3124,7 +3144,6 @@ runtSNE <- function(gobject,
 
 
         if (isTRUE(return_gobject)) {
-
             coordinates <- tsne_clus$Y
             rownames(coordinates) <- rownames(matrix_to_use)
 
@@ -3145,7 +3164,8 @@ runtSNE <- function(gobject,
 
             ## update parameters used ##
             gobject <- update_giotto_params(
-                gobject, description = "_tsne", toplevel = toplevel + 1L
+                gobject,
+                description = "_tsne", toplevel = toplevel + 1L
             )
             return(gobject)
         } else {
@@ -3193,25 +3213,26 @@ runtSNE <- function(gobject,
 #'
 #' runGiottoHarmony(g, vars_use = "leiden_clus")
 #' @export
-runGiottoHarmony <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    vars_use = "list_ID",
-    reduction = "cells",
-    dim_reduction_to_use = "pca",
-    dim_reduction_name = NULL,
-    dimensions_to_use = 1:10,
-    name = NULL,
-    set_seed = TRUE,
-    seed_number = 1234,
-    toplevel_params = deprecated(),
-    toplevel = 1L,
-    return_gobject = TRUE,
-    verbose = NULL,
-    ...) {
-
+runGiottoHarmony <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        vars_use = "list_ID",
+        reduction = "cells",
+        dim_reduction_to_use = "pca",
+        dim_reduction_name = NULL,
+        dimensions_to_use = 1:10,
+        name = NULL,
+        set_seed = TRUE,
+        seed_number = 1234,
+        toplevel_params = deprecated(),
+        toplevel = 1L,
+        return_gobject = TRUE,
+        verbose = NULL,
+        ...) {
     toplevel <- deprecate_param(
-        toplevel_params, toplevel, fun = "runGiottoHarmony", when = "4.1.2"
+        toplevel_params, toplevel,
+        fun = "runGiottoHarmony", when = "4.1.2"
     )
 
     # verify if optional package is installed

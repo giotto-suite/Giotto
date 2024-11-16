@@ -36,17 +36,18 @@
 #' pDataDT(g) # doublet_scores and doublet cols are added
 #' dimPlot2D(g, cell_color = "doublet_scores", color_as_factor = FALSE)
 #' @export
-doScrubletDetect <- function(gobject,
-    feat_type = NULL,
-    spat_unit = "cell",
-    expression_values = "raw",
-    expected_doublet_rate = 0.06,
-    min_counts = 1,
-    min_cells = 1,
-    min_gene_variability_pctl = 85,
-    n_prin_comps = 30,
-    return_gobject = TRUE,
-    seed = 1234) {
+doScrubletDetect <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = "cell",
+        expression_values = "raw",
+        expected_doublet_rate = 0.06,
+        min_counts = 1,
+        min_cells = 1,
+        min_gene_variability_pctl = 85,
+        n_prin_comps = 30,
+        return_gobject = TRUE,
+        seed = 1234) {
     # verify if optional package is installed
     package_check(
         pkg_name = "scrublet",

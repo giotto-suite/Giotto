@@ -26,13 +26,14 @@
 #' condensed to align with the smaller number of clusters and ensure overlap.
 #'
 #' @export
-showPolygonSizeInfluence <- function(gobject = NULL,
-    spat_unit = NULL,
-    alt_spat_unit = NULL,
-    feat_type = NULL,
-    clus_name = "kmeans",
-    return_plot = FALSE,
-    verbose = FALSE) {
+showPolygonSizeInfluence <- function(
+        gobject = NULL,
+        spat_unit = NULL,
+        alt_spat_unit = NULL,
+        feat_type = NULL,
+        clus_name = "kmeans",
+        return_plot = FALSE,
+        verbose = FALSE) {
     # NSE vars
     cell_ID <- total_expr <- cluster_interactions <- N <- resize_switch <- NULL
 
@@ -186,9 +187,10 @@ showPolygonSizeInfluence <- function(gobject = NULL,
 #' in each cluster.
 #'
 #' @keywords internal
-.determine_switch_string_equal <- function(cell_meta = NULL,
-    cell_meta_new = NULL,
-    clus_name = NULL) {
+.determine_switch_string_equal <- function(
+        cell_meta = NULL,
+        cell_meta_new = NULL,
+        clus_name = NULL) {
     k_clusters <- sort(unique(cell_meta[[clus_name]]))
     num_clusters <- k_clusters[length(k_clusters)]
 
@@ -236,8 +238,9 @@ showPolygonSizeInfluence <- function(gobject = NULL,
 #' Essentially determines iteration order for .create_switch_string_unequal()
 #'
 #' @keywords internal
-.determine_switch_string_unequal <- function(num_orig = NULL,
-    num_new = NULL) {
+.determine_switch_string_unequal <- function(
+        num_orig = NULL,
+        num_new = NULL) {
     switch_strs <- c()
 
     orig_first <- TRUE
@@ -274,9 +277,10 @@ showPolygonSizeInfluence <- function(gobject = NULL,
 #'    n is the number of clusters in the original spatial unit
 #'    m is the number of clusters in the new spatial unit
 #' @keywords internal
-.create_switch_string_unequal <- function(num_first = NULL,
-    num_second = NULL,
-    switch_strs = NULL) {
+.create_switch_string_unequal <- function(
+        num_first = NULL,
+        num_second = NULL,
+        switch_strs = NULL) {
     for (o in num_first) {
         for (n in num_second) {
             if (as.integer(o) == as.integer(n)) {
@@ -308,9 +312,10 @@ showPolygonSizeInfluence <- function(gobject = NULL,
 #' The function showPolygonSizeInfluence() must have been run on the Giotto
 #' Object for this function to run.
 #' @export
-showCellProportionSwitchedPie <- function(gobject = NULL,
-    spat_unit = NULL,
-    feat_type = NULL) {
+showCellProportionSwitchedPie <- function(
+        gobject = NULL,
+        spat_unit = NULL,
+        feat_type = NULL) {
     # NSE vars
     cluster_status <- num_cells <- resize_switch <- perc <- ypos <- NULL
 
@@ -382,10 +387,11 @@ showCellProportionSwitchedPie <- function(gobject = NULL,
 #' @details Creates a Sankey Diagram to illustrate cluster switching behavior.
 #' Currently only supports displaying cluster switching for kmeans clusters.
 #' @export
-showCellProportionSwitchedSanKey <- function(gobject = NULL,
-    spat_unit = NULL,
-    alt_spat_unit = NULL,
-    feat_type = NULL) {
+showCellProportionSwitchedSanKey <- function(
+        gobject = NULL,
+        spat_unit = NULL,
+        alt_spat_unit = NULL,
+        feat_type = NULL) {
     # NSE vars
     kmeans_small <- cell_ID <- NULL
 

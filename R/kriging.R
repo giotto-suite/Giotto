@@ -43,19 +43,20 @@ NULL
 #' @export
 setMethod(
     "interpolateFeature", signature(x = "giotto", y = "missing"),
-    function(x,
-    spat_unit = NULL,
-    feat_type = NULL,
-    feats,
-    spatvalues_params = list(),
-    spat_loc_name = "raw",
-    ext = NULL,
-    buffer = 50,
-    name_fmt = "%s",
-    savedir = file.path(getwd(), "interp_rasters"),
-    overwrite = FALSE,
-    verbose = NULL,
-    ...) {
+    function(
+        x,
+        spat_unit = NULL,
+        feat_type = NULL,
+        feats,
+        spatvalues_params = list(),
+        spat_loc_name = "raw",
+        ext = NULL,
+        buffer = 50,
+        name_fmt = "%s",
+        savedir = file.path(getwd(), "interp_rasters"),
+        overwrite = FALSE,
+        verbose = NULL,
+        ...) {
         sl <- NULL
 
         # This method prepares the data from the giotto object to pass
@@ -141,15 +142,16 @@ setMethod(
 setMethod(
     "interpolateFeature",
     signature(x = "spatLocsObj", y = "data.frame"),
-    function(x, y,
-    ext = NULL,
-    buffer = 50,
-    rastersize = 500,
-    name_fmt = "%s",
-    savedir = file.path(getwd(), "interp_rasters"),
-    overwrite = FALSE,
-    # cores = GiottoUtils::determine_cores(),
-    ...) {
+    function(
+        x, y,
+        ext = NULL,
+        buffer = 50,
+        rastersize = 500,
+        name_fmt = "%s",
+        savedir = file.path(getwd(), "interp_rasters"),
+        overwrite = FALSE,
+        # cores = GiottoUtils::determine_cores(),
+        ...) {
         checkmate::assert_character(savedir)
         checkmate::assert_character(name_fmt)
         checkmate::assert_logical(overwrite)

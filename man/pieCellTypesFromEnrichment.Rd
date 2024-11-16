@@ -32,10 +32,10 @@ Default value is "PAGE_Z_score"}
 \item{title}{Title of the generated plot.
 Default `paste0(spat_unit,"cell types (maximum", enrichment_name, ")")`}
 
-\item{save_param}{list of saving parameters, see 
+\item{save_param}{list of saving parameters, see
 \code{\link{showSaveParameters}}}
 
-\item{default_save_name}{default save name for saving, don't change, 
+\item{default_save_name}{default save name for saving, don't change,
 change save_name in save_param}
 
 \item{save_plot}{logical. save the plot}

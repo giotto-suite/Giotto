@@ -82,11 +82,12 @@ setMethod("print", signature("XeniumReader"), function(x, ...) show(x))
 # * init ####
 setMethod(
     "initialize", signature("XeniumReader"),
-    function(.Object,
-    xenium_dir,
-    filetype,
-    qv_cutoff,
-    micron) {
+    function(
+        .Object,
+        xenium_dir,
+        filetype,
+        qv_cutoff,
+        micron) {
         obj <- callNextMethod(.Object)
 
         # provided params (if any)
@@ -220,23 +221,24 @@ setMethod(
         }
 
         # transcripts load call
-        tx_fun <- function(path = tx_path,
-    feat_type = c(
-        "rna",
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    split_keyword = list(
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    flip_vertical = TRUE,
-    dropcols = c(),
-    qv_threshold = obj@qv,
-    cores = determine_cores(),
-    verbose = NULL) {
+        tx_fun <- function(
+        path = tx_path,
+        feat_type = c(
+            "rna",
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        split_keyword = list(
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        flip_vertical = TRUE,
+        dropcols = c(),
+        qv_threshold = obj@qv,
+        cores = determine_cores(),
+        verbose = NULL) {
             .xenium_transcript(
                 path = path,
                 feat_type = feat_type,
@@ -251,12 +253,13 @@ setMethod(
         obj@calls$load_transcripts <- tx_fun
 
         # load polys call
-        poly_fun <- function(path = cell_bound_path,
-    name = "cell",
-    flip_vertical = TRUE,
-    calc_centroids = TRUE,
-    cores = determine_cores(),
-    verbose = NULL) {
+        poly_fun <- function(
+        path = cell_bound_path,
+        name = "cell",
+        flip_vertical = TRUE,
+        calc_centroids = TRUE,
+        cores = determine_cores(),
+        verbose = NULL) {
             .xenium_poly(
                 path = path,
                 name = name,
@@ -269,10 +272,11 @@ setMethod(
         obj@calls$load_polys <- poly_fun
 
         # load cellmeta
-        cmeta_fun <- function(path = cell_meta_path,
-    dropcols = c("x_centroid", "y_centroid"),
-    cores = determine_cores(),
-    verbose = NULL) {
+        cmeta_fun <- function(
+        path = cell_meta_path,
+        dropcols = c("x_centroid", "y_centroid"),
+        cores = determine_cores(),
+        verbose = NULL) {
             .xenium_cellmeta(
                 path = path,
                 dropcols = dropcols,
@@ -283,11 +287,12 @@ setMethod(
         obj@calls$load_cellmeta <- cmeta_fun
 
         # load featmeta
-        fmeta_fun <- function(path = panel_meta_path,
-    gene_ids = "symbols",
-    dropcols = c(),
-    cores = determine_cores(),
-    verbose = NULL) {
+        fmeta_fun <- function(
+        path = panel_meta_path,
+        gene_ids = "symbols",
+        dropcols = c(),
+        cores = determine_cores(),
+        verbose = NULL) {
             .xenium_featmeta(
                 path = path,
                 gene_ids = gene_ids,
@@ -299,11 +304,12 @@ setMethod(
         obj@calls$load_featmeta <- fmeta_fun
 
         # load expression call
-        expr_fun <- function(path = expr_path,
-    gene_ids = "symbols",
-    remove_zero_rows = TRUE,
-    split_by_type = TRUE,
-    verbose = NULL) {
+        expr_fun <- function(
+        path = expr_path,
+        gene_ids = "symbols",
+        remove_zero_rows = TRUE,
+        split_by_type = TRUE,
+        verbose = NULL) {
             .xenium_expression(
                 path = path,
                 gene_ids = gene_ids,
@@ -315,15 +321,16 @@ setMethod(
         obj@calls$load_expression <- expr_fun
 
         # load image call
-        img_fun <- function(path = img_focus_path,
-    name = "image",
-    output_dir,
-    micron = obj@micron,
-    negative_y = TRUE,
-    flip_vertical = FALSE,
-    flip_horizontal = FALSE,
-    verbose = NULL,
-    ...) {
+        img_fun <- function(
+        path = img_focus_path,
+        name = "image",
+        output_dir,
+        micron = obj@micron,
+        negative_y = TRUE,
+        flip_vertical = FALSE,
+        flip_horizontal = FALSE,
+        verbose = NULL,
+        ...) {
             .xenium_image(
                 path = path,
                 name = name,
@@ -339,11 +346,12 @@ setMethod(
         obj@calls$load_image <- img_fun
 
         # load aligned image call
-        img_aff_fun <- function(path,
-    imagealignment_path,
-    name = "aligned_image",
-    micron = obj@micron,
-    verbose = NULL) {
+        img_aff_fun <- function(
+        path,
+        imagealignment_path,
+        name = "aligned_image",
+        micron = obj@micron,
+        verbose = NULL) {
             read10xAffineImage(
                 file = path,
                 imagealignment_path = imagealignment_path,
@@ -356,36 +364,37 @@ setMethod(
 
 
         # create giotto object call
-        gobject_fun <- function(transcript_path = tx_path,
-    load_bounds = list(
-        cell = "cell",
-        nucleus = "nucleus"
-    ),
-    gene_panel_json_path = panel_meta_path,
-    expression_path = expr_path,
-    metadata_path = cell_meta_path,
-    feat_type = c(
-        "rna",
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    split_keyword = list(
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    load_images = "focus",
-    load_aligned_images = NULL,
-    load_transcripts = TRUE,
-    load_expression = FALSE,
-    load_cellmeta = FALSE,
-    instructions = NULL,
-    verbose = NULL) {
+        gobject_fun <- function(
+        transcript_path = tx_path,
+        load_bounds = list(
+            cell = "cell",
+            nucleus = "nucleus"
+        ),
+        gene_panel_json_path = panel_meta_path,
+        expression_path = expr_path,
+        metadata_path = cell_meta_path,
+        feat_type = c(
+            "rna",
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        split_keyword = list(
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        load_images = "focus",
+        load_aligned_images = NULL,
+        load_transcripts = TRUE,
+        load_expression = FALSE,
+        load_cellmeta = FALSE,
+        instructions = NULL,
+        verbose = NULL) {
             load_transcripts <- as.logical(load_transcripts)
             load_expression <- as.logical(load_expression)
             load_cellmeta <- as.logical(load_cellmeta)
-            
+
             if (!load_transcripts && !load_expression) {
                 warning(wrap_txt(
                     "One of either transcripts or expression info should be loaded for a fully functioning object"
@@ -436,7 +445,7 @@ setMethod(
                 g <- setGiotto(g, tx_list, verbose = FALSE) # lists are fine
             }
 
-            
+
             # polys
             if (!is.null(load_bounds)) {
                 # replace convenient shortnames
@@ -455,8 +464,8 @@ setMethod(
                 }
                 g <- setGiotto(g, blist, verbose = FALSE)
             }
-            
-            
+
+
             # expression
             if (load_expression) {
                 ex <- funs$load_expression(
@@ -496,12 +505,12 @@ setMethod(
             if (!is.null(load_images)) {
                 load_images <- lapply(load_images, normalizePath, mustWork = FALSE)
                 img_focus_path <- normalizePath(img_focus_path, mustWork = FALSE)
-                
+
                 # [exception] handle focus image dir
                 is_focus <- load_images == "focus" | load_images == img_focus_path
                 # split the focus image dir away from other entries
                 load_images <- load_images[!is_focus]
-                
+
                 if (any(is_focus)) {
                     focus_dir <- img_focus_path
                     focus_files <- list.files(focus_dir, full.names = TRUE)
@@ -509,17 +518,17 @@ setMethod(
                     nbound <- length(focus_files) - 1L
                     focus_names <- c("dapi", sprintf("bound%d", seq_len(nbound)))
                     names(focus_files) <- focus_names
-                    
+
                     # append to rest of entries
                     load_images <- c(load_images, focus_files)
                 }
-                
+
                 # ensure that input is list
                 checkmate::assert_list(load_images)
                 if (is.null(names(load_images))) {
                     stop("'load_images' must be a named list of filepaths\n")
                 }
-                
+
                 imglist <- list()
                 imnames <- names(load_images)
                 for (impath_i in seq_along(load_images)) {
@@ -552,16 +561,16 @@ setMethod(
                 }
                 g <- setGiotto(g, aimglist)
             }
-            
+
             # centroids
             vmsg(.v = verbose, "calculating centroids")
             spat_units_to_calc <- list_spatial_info_names(g)
-            g <- addSpatialCentroidLocations(g, 
+            g <- addSpatialCentroidLocations(g,
                 poly_info = spat_units_to_calc,
                 provenance = as.list(spat_units_to_calc),
                 verbose = FALSE
             )
-            
+
             vmsg(.v = verbose, "done")
 
             return(g)
@@ -650,23 +659,24 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 ## transcript ####
 
-.xenium_transcript <- function(path,
-    feat_type = c(
-        "rna",
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    split_keyword = list(
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    flip_vertical = TRUE,
-    dropcols = c(),
-    qv_threshold = 20,
-    cores = determine_cores(),
-    verbose = NULL) {
+.xenium_transcript <- function(
+        path,
+        feat_type = c(
+            "rna",
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        split_keyword = list(
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        flip_vertical = TRUE,
+        dropcols = c(),
+        qv_threshold = 20,
+        cores = determine_cores(),
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to tx file provided or auto-detected"
@@ -718,11 +728,12 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 }
 
 
-.xenium_transcript_csv <- function(path,
-    dropcols = c(),
-    qv_threshold = 20,
-    cores = determine_cores(),
-    verbose = NULL) {
+.xenium_transcript_csv <- function(
+        path,
+        dropcols = c(),
+        qv_threshold = 20,
+        cores = determine_cores(),
+        verbose = NULL) {
     tx_dt <- data.table::fread(
         path,
         nThread = cores,
@@ -755,10 +766,11 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     return(tx_dt)
 }
 
-.xenium_transcript_parquet <- function(path,
-    dropcols = c(),
-    qv_threshold = 20,
-    verbose = NULL) {
+.xenium_transcript_parquet <- function(
+        path,
+        dropcols = c(),
+        qv_threshold = 20,
+        verbose = NULL) {
     package_check("dplyr")
     package_check("arrow", custom_msg = sprintf(
         "package 'arrow' is not yet installed\n\n To install:\n%s\n%s%s",
@@ -804,12 +816,13 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 ## polygon ####
 
-.xenium_poly <- function(path,
-    name = "cell",
-    flip_vertical = TRUE,
-    calc_centroids = TRUE,
-    cores = determine_cores(),
-    verbose = NULL) {
+.xenium_poly <- function(
+        path,
+        name = "cell",
+        flip_vertical = TRUE,
+        calc_centroids = TRUE,
+        cores = determine_cores(),
+        verbose = NULL) {
     checkmate::assert_file_exists(path)
     checkmate::assert_character(name, len = 1L)
 
@@ -866,10 +879,11 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 ## cellmeta ####
 
-.xenium_cellmeta <- function(path,
-    dropcols = c(),
-    cores = determine_cores(),
-    verbose = NULL) {
+.xenium_cellmeta <- function(
+        path,
+        dropcols = c(),
+        cores = determine_cores(),
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to metadata file provided or auto-detected"
@@ -905,7 +919,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 }
 
 .xenium_cellmeta_csv <- function(path, dropcols = c(),
-                                cores = determine_cores()) {
+    cores = determine_cores()) {
     data.table::fread(path, nThread = cores, drop = dropcols)
 }
 
@@ -919,11 +933,12 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 ## featmeta ####
 
-.xenium_featmeta <- function(path,
-    gene_ids = "symbols",
-    dropcols = c(),
-    cores = determine_cores(),
-    verbose = NULL) {
+.xenium_featmeta <- function(
+        path,
+        gene_ids = "symbols",
+        dropcols = c(),
+        cores = determine_cores(),
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to panel metadata file provided or auto-detected"
@@ -994,11 +1009,12 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 ## expression ####
 
-.xenium_expression <- function(path,
-    gene_ids = "symbols",
-    remove_zero_rows = TRUE,
-    split_by_type = TRUE,
-    verbose = NULL) {
+.xenium_expression <- function(
+        path,
+        gene_ids = "symbols",
+        remove_zero_rows = TRUE,
+        split_by_type = TRUE,
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to expression dir (mtx) or file (h5) provided or
@@ -1038,7 +1054,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     # set correct feature name
     fname <- "rna"
     if (length(names(ex_list)) > 1L) fname <- names(ex_list)
-    
+
     # specific feat type naming updates
     fname[fname == "Gene Expression"] <- "rna"
     fname[fname == "Negative Control Codeword"] <- "NegControlCodeword"
@@ -1047,10 +1063,10 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     fname[fname == "Genomic Control"] <- "GenomicControl"
     fname[fname == "Unassigned Codeword"] <- "UnassignedCodeword"
     fname[fname == "Deprecated Codeword"] <- "DeprecatedCodeword"
-    
-    # catch for " " characters in feat type 
+
+    # catch for " " characters in feat type
     # (no major reason for doing this. spaces just make it harder to read)
-    fname <- gsub(" ", "_", fname) 
+    fname <- gsub(" ", "_", fname)
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
@@ -1066,10 +1082,11 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     return(eo_list)
 }
 
-.xenium_expression_h5 <- function(path,
-    gene_ids = "symbols",
-    remove_zero_rows = TRUE,
-    split_by_type = TRUE) {
+.xenium_expression_h5 <- function(
+        path,
+        gene_ids = "symbols",
+        remove_zero_rows = TRUE,
+        split_by_type = TRUE) {
     get10Xmatrix_h5(
         path_to_data = path,
         gene_ids = gene_ids,
@@ -1078,10 +1095,11 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     )
 }
 
-.xenium_expression_mtx <- function(path,
-    gene_ids = "symbols",
-    remove_zero_rows = TRUE,
-    split_by_type = TRUE) {
+.xenium_expression_mtx <- function(
+        path,
+        gene_ids = "symbols",
+        remove_zero_rows = TRUE,
+        split_by_type = TRUE) {
     gene_ids <- switch(gene_ids,
         "ensembl" = 1,
         "symbols" = 2
@@ -1099,28 +1117,29 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 ## image ####
 
 
-.xenium_image <- function(path,
-    name,
-    output_dir,
-    micron,
-    negative_y = TRUE,
-    flip_vertical = FALSE,
-    flip_horizontal = FALSE,
-    verbose = NULL,
-    ...) {
+.xenium_image <- function(
+        path,
+        name,
+        output_dir,
+        micron,
+        negative_y = TRUE,
+        flip_vertical = FALSE,
+        flip_horizontal = FALSE,
+        verbose = NULL,
+        ...) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to image file provided or auto-detected"
         ), call. = FALSE)
     }
-    
+
     # *** whether .ome or not does not matter for this function *** #
 
     # set default if still missing
     if (missing(name)) name <- "image"
     # default = new tif_exports folder one layer down
     if (missing(output_dir)) output_dir <- "default"
-    
+
     # [names]
     if (length(name) != length(path) &&
         length(name) != 1) {
@@ -1138,17 +1157,17 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     dir_name <- name[is_dir]
     path <- path[!is_dir]
     name <- name[!is_dir]
-    
+
     # expand directory inputs
     if (length(dir_path) > 0L) {
         for (dir_i in seq_along(dir_path)) {
             dp_i <- dir_path[[dir_i]] # dir path
             dn_i <- dir_name[[dir_i]] # dir name
             vmsg(.is_debug = TRUE, "img dir input:", dp_i)
-            
+
             # expand and update to per-image
             dfp_i <- list.files(dp_i, full.names = TRUE) # dir file paths
-            dfp_i <- dfp_i[!dir.exists(dfp_i)] # ignore dir matches 
+            dfp_i <- dfp_i[!dir.exists(dfp_i)] # ignore dir matches
             # (such as the export directory)
             dfn_i <- sprintf("%s_%d", dn_i, seq_along(dfp_i)) # dir file names
             vmsg(.is_debug = TRUE, "* [img paths]:\n", paste(dfp_i, collapse = "\n"))
@@ -1159,7 +1178,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             name <- c(name, dfn_i)
         }
     }
-    
+
     # [paths]
     # check files exist
     vapply(path, checkmate::assert_file_exists, FUN.VALUE = character(1L))
@@ -1195,15 +1214,16 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 #   if exists && if overwrite : remove converted image
 #   if still not exist : create converted image
 # use image
-.xenium_image_single <- function(path,
-    name = "image",
-    output_dir,
-    micron,
-    negative_y = TRUE,
-    flip_vertical = FALSE,
-    flip_horizontal = FALSE,
-    overwrite = FALSE,
-    verbose = NULL) {
+.xenium_image_single <- function(
+        path,
+        name = "image",
+        output_dir,
+        micron,
+        negative_y = TRUE,
+        flip_vertical = FALSE,
+        flip_horizontal = FALSE,
+        overwrite = FALSE,
+        verbose = NULL) {
     vmsg(.v = verbose, sprintf("loading image as '%s'", name))
     vmsg(.v = verbose, .is_debug = TRUE, path)
     vmsg(
@@ -1215,7 +1235,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         .prefix = ""
     )
 
-    # terra::rast() and gdal still have difficulties with 10x single channel 
+    # terra::rast() and gdal still have difficulties with 10x single channel
     # .ome.tif images. May be related to JP2OpenJPEG driver but even loading
     # this does not seem to fix it.
     if ("ome" %in% file_extension(path)) {
@@ -1223,7 +1243,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             # default output dir is a new folder under the same directory
             output_dir <- file.path(dirname(path), "tif_exports")
         }
-        
+
         # check for existence of converted tiff file in output dir
         # fullpath of tiff to write
         tiff_path <- file.path(output_dir, basename(path))
@@ -1239,7 +1259,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             # the convenience fun can be run multiple times on the dataset
             # So, we allow directly using already converted imgs
         }
-        
+
         # check the fullpath again
         if (!checkmate::test_file_exists(tiff_path)) {
             vmsg(.is_debug = TRUE, sprintf(
@@ -1253,7 +1273,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
                 overwrite = overwrite
             )
         }
-    
+
         path <- tiff_path
     }
 
@@ -1366,34 +1386,35 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 #'
 #' @md
 #' @export
-createGiottoXeniumObject <- function(xenium_dir,
-    transcript_path = NULL, # optional
-    bounds_path = list( # looks for parquets by default
-        cell = "cell",
-        nucleus = "nucleus"
-    ),
-    gene_panel_json_path = NULL, # optional
-    expression_path = NULL, # optional
-    cell_metadata_path = NULL, # optional
-    feat_type = c(
-        "rna",
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    split_keyword = list(
-        "NegControlProbe",
-        "UnassignedCodeword",
-        "NegControlCodeword"
-    ),
-    qv_threshold = 20,
-    load_images = "focus",
-    load_aligned_images = NULL,
-    load_transcripts = TRUE,
-    load_expression = FALSE,
-    load_cellmeta = FALSE,
-    instructions = NULL,
-    verbose = NULL) {
+createGiottoXeniumObject <- function(
+        xenium_dir,
+        transcript_path = NULL, # optional
+        bounds_path = list( # looks for parquets by default
+            cell = "cell",
+            nucleus = "nucleus"
+        ),
+        gene_panel_json_path = NULL, # optional
+        expression_path = NULL, # optional
+        cell_metadata_path = NULL, # optional
+        feat_type = c(
+            "rna",
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        split_keyword = list(
+            "NegControlProbe",
+            "UnassignedCodeword",
+            "NegControlCodeword"
+        ),
+        qv_threshold = 20,
+        load_images = "focus",
+        load_aligned_images = NULL,
+        load_transcripts = TRUE,
+        load_expression = FALSE,
+        load_cellmeta = FALSE,
+        instructions = NULL,
+        verbose = NULL) {
     x <- importXenium(xenium_dir)
     # apply reader params
     x$qv <- qv_threshold

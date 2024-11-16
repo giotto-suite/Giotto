@@ -11,10 +11,11 @@
 #' @returns A `data.table` containing x,y coordinates from the plotted polygons.
 #'
 #' @export
-plotInteractivePolygons <- function(x,
-    width = "auto",
-    height = "auto",
-    ...) {
+plotInteractivePolygons <- function(
+        x,
+        width = "auto",
+        height = "auto",
+        ...) {
     package_check(pkg_name = "miniUI", repository = "CRAN")
     package_check(pkg_name = "shiny", repository = "CRAN")
 
@@ -178,11 +179,12 @@ plotInteractivePolygons <- function(x,
 #' getCellsFromPolygon(g)
 #'
 #' @export
-getCellsFromPolygon <- function(gobject,
-    polygon_name = "selections",
-    spat_unit = "cell",
-    spat_loc_name = "raw",
-    polygons = NULL) {
+getCellsFromPolygon <- function(
+        gobject,
+        polygon_name = "selections",
+        spat_unit = "cell",
+        spat_loc_name = "raw",
+        polygons = NULL) {
     if (!inherits(gobject, "giotto")) {
         stop("gobject needs to be a giotto object")
     }
@@ -261,13 +263,14 @@ getCellsFromPolygon <- function(gobject,
 #' g <- addPolygonCells(g)
 #' pDataDT(g)
 #' @export
-addPolygonCells <- function(gobject,
-    polygon_name = "selections",
-    spat_unit = "cell",
-    spat_loc_name = "raw",
-    feat_type = "rna",
-    polygons = NULL,
-    na.label = "no_polygon") {
+addPolygonCells <- function(
+        gobject,
+        polygon_name = "selections",
+        spat_unit = "cell",
+        spat_loc_name = "raw",
+        feat_type = "rna",
+        polygons = NULL,
+        na.label = "no_polygon") {
     ## verify gobject
     if (!inherits(gobject, "giotto")) {
         stop("gobject needs to be a giotto object")
@@ -362,14 +365,15 @@ addPolygonCells <- function(gobject,
 #'
 #' comparePolygonExpression(g)
 #' @export
-comparePolygonExpression <- function(gobject,
-    polygon_name = "selections",
-    spat_unit = "cell",
-    feat_type = "rna",
-    selected_feats = "top_genes",
-    expression_values = "normalized",
-    method = "scran",
-    ...) {
+comparePolygonExpression <- function(
+        gobject,
+        polygon_name = "selections",
+        spat_unit = "cell",
+        feat_type = "rna",
+        selected_feats = "top_genes",
+        expression_values = "normalized",
+        method = "scran",
+        ...) {
     # verify gobject
     if (!inherits(gobject, "giotto")) {
         stop("gobject needs to be a giotto object")
@@ -483,12 +487,13 @@ comparePolygonExpression <- function(gobject,
 #'
 #' compareCellAbundance(g)
 #' @export
-compareCellAbundance <- function(gobject,
-    polygon_name = "selections",
-    spat_unit = "cell",
-    feat_type = "rna",
-    cell_type_column = "leiden_clus",
-    ...) {
+compareCellAbundance <- function(
+        gobject,
+        polygon_name = "selections",
+        spat_unit = "cell",
+        feat_type = "rna",
+        cell_type_column = "leiden_clus",
+        ...) {
     # verify gobject
     if (!inherits(gobject, "giotto")) {
         stop("gobject needs to be a giotto object")
@@ -564,12 +569,13 @@ compareCellAbundance <- function(gobject,
 #'
 #' plotPolygons(g, x = x)
 #' @export
-plotPolygons <- function(gobject,
-    polygon_name = "selections",
-    x,
-    spat_unit = "cell",
-    polygons = NULL,
-    ...) {
+plotPolygons <- function(
+        gobject,
+        polygon_name = "selections",
+        x,
+        spat_unit = "cell",
+        polygons = NULL,
+        ...) {
     ## verify gobject
     if (!inherits(gobject, "giotto")) {
         stop("gobject must be a Giotto object")
@@ -638,10 +644,11 @@ plotPolygons <- function(gobject,
 #' @returns data.table with selected cell_IDs, spatial coordinates, and
 #' cluster_ID.
 #' @export
-plotInteractive3D <- function(gobject, spat_unit = "cell", feat_type = "rna",
-    cell_color = "leiden_clus",
-    cell_color_code = NULL, point_size = 0.5,
-    width = "100%", height = "400px") {
+plotInteractive3D <- function(
+        gobject, spat_unit = "cell", feat_type = "rna",
+        cell_color = "leiden_clus",
+        cell_color_code = NULL, point_size = 0.5,
+        width = "100%", height = "400px") {
     package_check(
         c("plotly", "miniUI", "shiny"),
         repository = c("CRAN:plotly", "CRAN:miniUI", "CRAN:shiny")
@@ -752,7 +759,7 @@ plotInteractive3D <- function(gobject, spat_unit = "cell", feat_type = "rna",
 #' @param gobject giotto object
 #' @param spat_unit spatial unit (e.g. "cell")
 #' @param feat_type feature type (e.g. "rna", "dna", "protein")
-#' @param expression expression values to extract (e.g. "raw", "normalized", 
+#' @param expression expression values to extract (e.g. "raw", "normalized",
 #' "scaled")
 #' @param output_path path to create and save the anndata zarr folder
 #'
@@ -776,9 +783,10 @@ plotInteractive3D <- function(gobject, spat_unit = "cell", feat_type = "rna",
 #'     expression = "scaled",
 #'     output_path = tempdir()
 #' )
-giottoToAnndataZarr <- function(gobject, spat_unit = NULL,
-    feat_type = NULL, expression = "raw",
-    output_path) {
+giottoToAnndataZarr <- function(
+        gobject, spat_unit = NULL,
+        feat_type = NULL, expression = "raw",
+        output_path) {
     proc <- basilisk::basiliskStart(GiottoClass::instructions(
         gobject = gobject,
         param = "python_path"
@@ -787,9 +795,10 @@ giottoToAnndataZarr <- function(gobject, spat_unit = NULL,
 
     success <- basilisk::basiliskRun(
         proc,
-        function(gobject,
-    output_path,
-    expression) {
+        function(
+        gobject,
+        output_path,
+        expression) {
             anndata <- reticulate::import("anndata")
             zarr <- reticulate::import("zarr")
 

@@ -18,14 +18,15 @@
 #'
 #' spdepAutoCorr(g)
 #' @export
-spdepAutoCorr <- function(gobject,
-    method = c("geary.test", "lee.test", "lm.morantest", "moran.test"),
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = "normalized",
-    spatial_network_to_use = "spatial_network",
-    return_gobject = FALSE,
-    verbose = FALSE) {
+spdepAutoCorr <- function(
+        gobject,
+        method = c("geary.test", "lee.test", "lm.morantest", "moran.test"),
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = "normalized",
+        spatial_network_to_use = "spatial_network",
+        return_gobject = FALSE,
+        verbose = FALSE) {
     # Check and match the specified method argument
     method <- match.arg(method)
 

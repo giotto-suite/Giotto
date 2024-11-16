@@ -4,6 +4,19 @@
 ## Enhancements
 * `createGiottoXeniumObject()` auto loading for morphology focus images, image directory loading, auto centroid calculation, allow skipping transcript loading
 
+## Website changes
+* New Analysis mini tutorials for showing common processing functions independently of the spatial technology.
+* New Slide-seq and OpenST examples.
+* New Contributing tab with guidelines for contributing to the package and the website.
+* New Visualizations tutorials.
+* New Giotto workflow and Core Functions tutorials under Get Started tab.
+* New Create and change Giotto instructions tutorial.
+* New Spatial Patterns tutorials section.
+* New tutorials under Interactivity for regions selection with vitessceR.
+* New Multi-samples tutorials section.
+* Updated technologies examples.
+* Updated tutorials for using Docker and Singularity Giotto containers.
+* Homogenized variable names across examples and tutorials.
 
 # Giotto 4.1.4 (2024/10/30)
 
