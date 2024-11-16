@@ -76,7 +76,7 @@ within the directory where the \strong{bolded} portions are what this
 function matches against:
 \itemize{
   \item{\strong{cell_boundaries} (folder .hdf5 files)}
-  \item{\strong{images} (folder of .tif images and a 
+  \item{\strong{images} (folder of .tif images and a
   scalefactor/transfrom table)}
   \item{\strong{cell_by_gene}.csv (file)}
   \item{cell_metadata\strong{fov_positions_file}.csv (file)}

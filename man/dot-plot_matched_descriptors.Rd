@@ -13,13 +13,13 @@
 
 \item{keypoints1}{keypoints extracted from target image via .sift_detect}
 
-\item{match}{a 2 col matrix of x to y index matched descriptors via 
+\item{match}{a 2 col matrix of x to y index matched descriptors via
 .match_descriptor_single}
 }
 \value{
 None
 }
 \description{
-A wrapper function for the plot_matches for the SIFT feature extractor and 
+A wrapper function for the plot_matches for the SIFT feature extractor and
 descriptor pipeline
 }

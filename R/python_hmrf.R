@@ -37,28 +37,27 @@
 #'     output_folder = tempdir()
 #' )
 #' @export
-doHMRF <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        expression_values = c("normalized", "scaled", "custom"),
-        spatial_network_name = "Delaunay_network",
-        spat_loc_name = "raw",
-        spatial_genes = NULL,
-        spatial_dimensions = c("sdimx", "sdimy", "sdimz"),
-        dim_reduction_to_use = NULL,
-        dim_reduction_name = "pca",
-        dimensions_to_use = 1:10,
-        seed = 100,
-        name = "test",
-        k = 10,
-        betas = c(0, 2, 50),
-        tolerance = 1e-10,
-        zscore = c("none", "rowcol", "colrow"),
-        numinit = 100,
-        python_path = NULL,
-        output_folder = NULL,
-        overwrite_output = TRUE) {
+doHMRF <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    expression_values = c("normalized", "scaled", "custom"),
+    spatial_network_name = "Delaunay_network",
+    spat_loc_name = "raw",
+    spatial_genes = NULL,
+    spatial_dimensions = c("sdimx", "sdimy", "sdimz"),
+    dim_reduction_to_use = NULL,
+    dim_reduction_name = "pca",
+    dimensions_to_use = 1:10,
+    seed = 100,
+    name = "test",
+    k = 10,
+    betas = c(0, 2, 50),
+    tolerance = 1e-10,
+    zscore = c("none", "rowcol", "colrow"),
+    numinit = 100,
+    python_path = NULL,
+    output_folder = NULL,
+    overwrite_output = TRUE) {
     package_check("smfishHmrf", repository = "pip")
 
     # data.table set global variable
@@ -145,7 +144,7 @@ doHMRF <- function(
 
     # overwrite if exists
     if (file.exists(expression_file) & overwrite_output == TRUE) {
-        message("\n expression_matrix.txt already exists at this location, 
+        message("\n expression_matrix.txt already exists at this location,
         will be overwritten")
         data.table::fwrite(
             data.table::as.data.table(expr_values, keep.rownames = "gene"),
@@ -153,7 +152,7 @@ doHMRF <- function(
             row.names = FALSE, sep = " "
         )
     } else if (file.exists(expression_file) & overwrite_output == FALSE) {
-        message("\n expression_matrix.txt already exists at this location, 
+        message("\n expression_matrix.txt already exists at this location,
         will be used again")
     } else {
         data.table::fwrite(
@@ -362,11 +361,12 @@ doHMRF <- function(
 #' )
 #'
 #' @export
-loadHMRF <- function(name_used = "test",
-    output_folder_used,
-    k_used = 10,
-    betas_used,
-    python_path_used) {
+loadHMRF <- function(
+        name_used = "test",
+        output_folder_used,
+        k_used = 10,
+        betas_used,
+        python_path_used) {
     output_data <- paste0(output_folder_used, "/", "result.spatial.zscore")
     if (!file.exists(output_data)) {
         stop("\n doHMRF was not run in this output directory")
@@ -402,12 +402,13 @@ loadHMRF <- function(name_used = "test",
 #' @returns spatial plots with HMRF domains
 #' @seealso \code{\link{spatPlot2D}} and \code{\link{spatPlot3D}}
 #' @export
-viewHMRFresults <- function(gobject,
-    HMRFoutput,
-    k = NULL,
-    betas_to_view = NULL,
-    third_dim = FALSE,
-    ...) {
+viewHMRFresults <- function(
+        gobject,
+        HMRFoutput,
+        k = NULL,
+        betas_to_view = NULL,
+        third_dim = FALSE,
+        ...) {
     if (!"HMRFoutput" %in% class(HMRFoutput)) {
         stop("\n HMRFoutput needs to be output from doHMRFextend")
     }
@@ -488,11 +489,12 @@ viewHMRFresults <- function(gobject,
 #' @param print_command see the python command
 #' @returns data.table with HMRF results for each b and the selected k
 #' @export
-writeHMRFresults <- function(gobject,
-    HMRFoutput,
-    k = NULL,
-    betas_to_view = NULL,
-    print_command = FALSE) {
+writeHMRFresults <- function(
+        gobject,
+        HMRFoutput,
+        k = NULL,
+        betas_to_view = NULL,
+        print_command = FALSE) {
     if (!"HMRFoutput" %in% class(HMRFoutput)) {
         stop("\n HMRFoutput needs to be output from doHMRFextend")
     }
@@ -597,13 +599,14 @@ writeHMRFresults <- function(gobject,
 #'     gobject = g, cell_color = "HMRF_k6_b.20",
 #' )
 #' @export
-addHMRF <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    HMRFoutput,
-    k = NULL,
-    betas_to_add = NULL,
-    hmrf_name = NULL) {
+addHMRF <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        HMRFoutput,
+        k = NULL,
+        betas_to_add = NULL,
+        hmrf_name = NULL) {
     if (!"HMRFoutput" %in% class(HMRFoutput)) {
         stop("\n HMRFoutput needs to be output from doHMRFextend")
     }
@@ -723,13 +726,14 @@ addHMRF <- function(gobject,
 #' @returns spatial plots with HMRF domains
 #' @seealso \code{\link{spatPlot2D}}
 #' @export
-viewHMRFresults2D <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    HMRFoutput,
-    k = NULL,
-    betas_to_view = NULL,
-    ...) {
+viewHMRFresults2D <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        HMRFoutput,
+        k = NULL,
+        betas_to_view = NULL,
+        ...) {
     spat_unit <- set_default_spat_unit(
         gobject = gobject, spat_unit = spat_unit
     )
@@ -839,13 +843,14 @@ viewHMRFresults2D <- function(gobject,
 #' @returns spatial plots with HMRF domains
 #' @seealso \code{\link{spatPlot3D}}
 #' @export
-viewHMRFresults3D <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    HMRFoutput,
-    k = NULL,
-    betas_to_view = NULL,
-    ...) {
+viewHMRFresults3D <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        HMRFoutput,
+        k = NULL,
+        betas_to_view = NULL,
+        ...) {
     if (!"HMRFoutput" %in% class(HMRFoutput)) {
         stop("\n HMRFoutput needs to be output from doHMRFextend")
     }
@@ -962,10 +967,11 @@ viewHMRFresults3D <- function(gobject,
 #' Changing from equal size by setting sample_rate = 1 to with exact proportion
 #' of each cluster by setting sample_rate = +Inf
 #' @keywords internal
-sampling_sp_genes <- function(clust,
-    sample_rate = 2,
-    target = 500,
-    seed = 10) {
+sampling_sp_genes <- function(
+        clust,
+        sample_rate = 2,
+        target = 500,
+        seed = 10) {
     tot <- 0
     num_cluster <- length(unique(clust))
     gene_list <- list()
@@ -1019,9 +1025,10 @@ sampling_sp_genes <- function(clust,
 #' This function calculates the number of data points in a sorted sequence
 #' below a line with given slope through a certain point on this sequence.
 #' @keywords internal
-numPts_below_line <- function(myVector,
-    slope,
-    x) {
+numPts_below_line <- function(
+        myVector,
+        slope,
+        x) {
     yPt <- myVector[x]
     b <- yPt - (slope * x)
     xPts <- seq_along(myVector)
@@ -1050,8 +1057,8 @@ numPts_below_line <- function(myVector,
 #'
 #' filterSpatialGenes(g, spatial_genes = "Gm19935")
 #' @export
-filterSpatialGenes <- function(gobject, spat_unit = NULL, feat_type = NULL, 
-                                spatial_genes, max = 2500,
+filterSpatialGenes <- function(gobject, spat_unit = NULL, feat_type = NULL,
+    spatial_genes, max = 2500,
     name = c("binSpect", "silhouetteRank", "silhouetteRankTest"),
     method = c("none", "elbow")) {
     name <- match.arg(
@@ -1145,8 +1152,8 @@ filterSpatialGenes <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' Priorities for showing the spatial gene test names are ‘binSpect’ >
 #' ‘silhouetteRankTest’ > ‘silhouetteRank’.
 #' @keywords internal
-chooseAvailableSpatialGenes <- function(gobject, 
-                                        spat_unit = NULL, feat_type = NULL) {
+chooseAvailableSpatialGenes <- function(gobject,
+    spat_unit = NULL, feat_type = NULL) {
     gx <- fDataDT(gobject, spat_unit = NULL, feat_type = NULL)
     eval1 <- "binSpect.pval" %in% names(gx)
     eval2 <- "silhouetteRankTest.pval" %in% names(gx)
@@ -1180,11 +1187,12 @@ chooseAvailableSpatialGenes <- function(gobject,
 #' SilhouetteRank works only with score, and SilhouetteRankTest works only
 #' with pval. Use parameter use_score to specify.
 #' @keywords internal
-checkAndFixSpatialGenes <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    use_spatial_genes,
-    use_score = FALSE) {
+checkAndFixSpatialGenes <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        use_spatial_genes,
+        use_score = FALSE) {
     gx <- fDataDT(gobject, spat_unit = NULL, feat_type = NULL)
 
     if (use_spatial_genes == "silhouetteRank") {
@@ -1318,37 +1326,38 @@ checkAndFixSpatialGenes <- function(gobject,
 #' initHMRF_V2(gobject = g, cl.method = "km")
 #' @export
 initHMRF_V2 <-
-    function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("scaled", "normalized", "custom"),
-    spatial_network_name = "Delaunay_network",
-    use_spatial_genes = c("binSpect", "silhouetteRank"),
-    use_score = FALSE,
-    gene_list_from_top = 2500,
-    filter_method = c("none", "elbow"),
-    user_gene_list = NULL,
-    use_pca = FALSE,
-    use_pca_dim = 1:20,
-    gene_samples = 500,
-    gene_sampling_rate = 2,
-    gene_sampling_seed = 10,
-    use_metagene = FALSE,
-    cluster_metagene = 50,
-    top_metagene = 20,
-    existing_spatial_enrichm_to_use = NULL,
-    use_neighborhood_composition = FALSE,
-    spatial_network_name_for_neighborhood = NULL,
-    metadata_to_use = NULL,
-    hmrf_seed = 100,
-    cl.method = c("km", "leiden", "louvain"),
-    resolution.cl = 1,
-    k = 10,
-    tolerance = 1e-05,
-    zscore = c("none", "rowcol", "colrow"),
-    nstart = 1000,
-    factor_step = 1.05,
-    python_path = NULL) {
+    function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("scaled", "normalized", "custom"),
+        spatial_network_name = "Delaunay_network",
+        use_spatial_genes = c("binSpect", "silhouetteRank"),
+        use_score = FALSE,
+        gene_list_from_top = 2500,
+        filter_method = c("none", "elbow"),
+        user_gene_list = NULL,
+        use_pca = FALSE,
+        use_pca_dim = 1:20,
+        gene_samples = 500,
+        gene_sampling_rate = 2,
+        gene_sampling_seed = 10,
+        use_metagene = FALSE,
+        cluster_metagene = 50,
+        top_metagene = 20,
+        existing_spatial_enrichm_to_use = NULL,
+        use_neighborhood_composition = FALSE,
+        spatial_network_name_for_neighborhood = NULL,
+        metadata_to_use = NULL,
+        hmrf_seed = 100,
+        cl.method = c("km", "leiden", "louvain"),
+        resolution.cl = 1,
+        k = 10,
+        tolerance = 1e-05,
+        zscore = c("none", "rowcol", "colrow"),
+        nstart = 1000,
+        factor_step = 1.05,
+        python_path = NULL) {
         wrap_msg(
             "\n If used in published research, please cite:
         Q Zhu, S Shah, R Dries, L Cai, GC Yuan.
@@ -1770,8 +1779,8 @@ initHMRF_V2 <-
             gobject@dimension_reduction$cells$spatial$spatial_feat$coordinates <- y
 
             gobject <- createNearestNetwork(
-                gobject = gobject, 
-                spat_unit = spat_unit, 
+                gobject = gobject,
+                spat_unit = spat_unit,
                 feat_type = feat_type,
                 dim_reduction_to_use = "spatial",
                 dim_reduction_name = "spatial_feat",
@@ -1782,8 +1791,8 @@ initHMRF_V2 <-
             if (cl.method == "leiden") {
                 message("\n Leiden clustering initialization...")
                 leiden.cl <- doLeidenCluster(
-                    gobject = gobject, 
-                    spat_unit = spat_unit, 
+                    gobject = gobject,
+                    spat_unit = spat_unit,
                     feat_type = feat_type,
                     nn_network_to_use = "sNN",
                     network_name = "sNN.initHMRF",
@@ -1799,8 +1808,8 @@ initHMRF_V2 <-
             } else if (cl.method == "louvain") {
                 message("\n Louvain clustering initialization...")
                 louvain.cl <- doLouvainCluster(
-                    gobject = gobject, 
-                    spat_unit = spat_unit, 
+                    gobject = gobject,
+                    spat_unit = spat_unit,
                     feat_type = feat_type,
                     nn_network_to_use = "sNN",
                     network_name = "sNN.initHMRF",
@@ -2073,21 +2082,22 @@ addHMRF_V2 <- function(gobject, HMRFoutput, name = "hmrf") {
 #' (for example name of ‘hmrf1 k=8 b=0.00’ is ‘hmrf1’)
 #' @export
 viewHMRFresults_V2 <-
-    function(gobject, k, betas,
-    hmrf_name,
-    spat_unit = NULL,
-    feat_type = NULL,
-    third_dim = FALSE,
-    cow_n_col = 2,
-    cow_rel_h = 1,
-    cow_rel_w = 1,
-    cow_align = "h",
-    show_plot = TRUE,
-    save_plot = TRUE,
-    return_plot = TRUE,
-    default_save_name = "HMRF_result",
-    save_param = list(),
-    ...) {
+    function(
+        gobject, k, betas,
+        hmrf_name,
+        spat_unit = NULL,
+        feat_type = NULL,
+        third_dim = FALSE,
+        cow_n_col = 2,
+        cow_rel_h = 1,
+        cow_rel_w = 1,
+        cow_align = "h",
+        show_plot = TRUE,
+        save_plot = TRUE,
+        return_plot = TRUE,
+        default_save_name = "HMRF_result",
+        save_param = list(),
+        ...) {
         # beta_seq = round(betas,digits = 2)
         # t_key = paste0(hmrf_name,'_k', k, '_b.',beta_seq)
         t_key <- paste(hmrf_name, sprintf("k=%d b=%.2f", k, betas))

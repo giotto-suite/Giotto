@@ -7,12 +7,12 @@
 interactiveLandmarkSelection(source, target)
 }
 \arguments{
-\item{source_image}{the image to be plotted on the left, and landmarks will 
-output in the first of the list. Input can be a ggplot object, 
+\item{source_image}{the image to be plotted on the left, and landmarks will
+output in the first of the list. Input can be a ggplot object,
 a GiottoImage, or a character represent a path to a image}
 
-\item{target_image}{the image to be plotted on the right, and landmarks will 
-output in the second of the list. Input can be a ggplot object, a 
+\item{target_image}{the image to be plotted on the right, and landmarks will
+output in the second of the list. Input can be a ggplot object, a
 GiottoImage, or a character represent a path to a image}
 }
 \value{

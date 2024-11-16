@@ -7,16 +7,16 @@
 calculateAffineMatrixFromLandmarks(source_df, target_df)
 }
 \arguments{
-\item{source_df}{source landmarks, two columns, first column represent 
+\item{source_df}{source landmarks, two columns, first column represent
 x coordinate and second column represent y coordinate.}
 
-\item{target_df}{target landmarks, two columns, first column represent 
+\item{target_df}{target landmarks, two columns, first column represent
 x coordinate and second column represent y coordinate.}
 }
 \value{
 a 3 by 3 matrix with the third row close to (0,0,1)
 }
 \description{
-calculate a affine transformation matrix from two set of 
+calculate a affine transformation matrix from two set of
 landmarks
 }

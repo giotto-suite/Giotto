@@ -7,7 +7,7 @@
 \item{cell_color}{character. what to color cells by (e.g. metadata col or
 spatial enrichment col)}
 
-\item{color_as_factor}{logical. convert color column to factor. discrete 
+\item{color_as_factor}{logical. convert color column to factor. discrete
 colors are used when this is TRUE. continuous colors when FALSE.}
 
 \item{cell_color_code}{character. discrete colors to use. palette to use or

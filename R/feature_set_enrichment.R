@@ -49,26 +49,27 @@
 #' please reference GSEA's documentation here:
 #' https://www.gsea-msigdb.org/gsea/doc/GSEAUserGuideTEXT.htm#_Syntax
 #' @export
-doFeatureSetEnrichment <- function(dryrun = TRUE,
-    path_to_GSEA = NULL,
-    GSEA_dataset = NULL,
-    GSEA_ranked_file = NULL,
-    output_folder = NULL,
-    name_analysis_folder = "my_GSEA_analysis",
-    collapse = "false",
-    mode = c(
-        "Abs_max_of_probes",
-        "Max_probe",
-        "Median_of_probes",
-        "Mean_of_probes",
-        "Sum_of_probes"
-    ),
-    norm = "meandiv",
-    nperm = 1000,
-    scoring_scheme = "weighted",
-    plot_top_x = 20,
-    set_max = 500,
-    set_min = 15) {
+doFeatureSetEnrichment <- function(
+        dryrun = TRUE,
+        path_to_GSEA = NULL,
+        GSEA_dataset = NULL,
+        GSEA_ranked_file = NULL,
+        output_folder = NULL,
+        name_analysis_folder = "my_GSEA_analysis",
+        collapse = "false",
+        mode = c(
+            "Abs_max_of_probes",
+            "Max_probe",
+            "Median_of_probes",
+            "Mean_of_probes",
+            "Sum_of_probes"
+        ),
+        norm = "meandiv",
+        nperm = 1000,
+        scoring_scheme = "weighted",
+        plot_top_x = 20,
+        set_max = 500,
+        set_min = 15) {
     # set don't run to false as a start
     dont_run <- FALSE
 

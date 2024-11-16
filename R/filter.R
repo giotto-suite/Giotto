@@ -43,25 +43,24 @@
 #'
 #' filterDistributions(g)
 #' @export
-filterDistributions <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        expression_values = c("raw", "normalized", "scaled", "custom"),
-        method = c("threshold", "sum", "mean"),
-        expression_threshold = 1,
-        detection = c("feats", "cells"),
-        plot_type = c("histogram", "violin"),
-        scale_y = NULL,
-        nr_bins = 30,
-        fill_color = "lightblue",
-        scale_axis = "identity",
-        axis_offset = 0,
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL,
-        save_param = list(),
-        default_save_name = "filterDistributions") {
+filterDistributions <- function(gobject,
+    feat_type = NULL,
+    spat_unit = NULL,
+    expression_values = c("raw", "normalized", "scaled", "custom"),
+    method = c("threshold", "sum", "mean"),
+    expression_threshold = 1,
+    detection = c("feats", "cells"),
+    plot_type = c("histogram", "violin"),
+    scale_y = NULL,
+    nr_bins = 30,
+    fill_color = "lightblue",
+    scale_axis = "identity",
+    axis_offset = 0,
+    show_plot = NULL,
+    return_plot = NULL,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "filterDistributions") {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -240,23 +239,22 @@ filterDistributions <- function(
 #'
 #' filterCombinations(g)
 #' @export
-filterCombinations <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        expression_values = c("raw", "normalized", "scaled", "custom"),
-        expression_thresholds = c(1, 2),
-        feat_det_in_min_cells = c(5, 50),
-        min_det_feats_per_cell = c(200, 400),
-        scale_x_axis = "identity",
-        x_axis_offset = 0,
-        scale_y_axis = "identity",
-        y_axis_offset = 0,
-        show_plot = TRUE,
-        return_plot = FALSE,
-        save_plot = NULL,
-        save_param = list(),
-        default_save_name = "filterCombinations") {
+filterCombinations <- function(gobject,
+    feat_type = NULL,
+    spat_unit = NULL,
+    expression_values = c("raw", "normalized", "scaled", "custom"),
+    expression_thresholds = c(1, 2),
+    feat_det_in_min_cells = c(5, 50),
+    min_det_feats_per_cell = c(200, 400),
+    scale_x_axis = "identity",
+    x_axis_offset = 0,
+    scale_y_axis = "identity",
+    y_axis_offset = 0,
+    show_plot = TRUE,
+    return_plot = FALSE,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "filterCombinations") {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -440,24 +438,23 @@ filterCombinations <- function(
 #'
 #' filterGiotto(g)
 #' @export
-filterGiotto <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        expression_values = c("raw", "normalized", "scaled", "custom"),
-        expression_threshold = 1,
-        feat_det_in_min_cells = 100,
-        min_det_feats_per_cell = 100,
-        spat_unit_fsub = ":all:",
-        feat_type_ssub = ":all:",
-        all_spat_units = NULL,
-        all_feat_types = NULL,
-        poly_info = NULL,
-        tag_cells = FALSE,
-        tag_cell_name = "tag",
-        tag_feats = FALSE,
-        tag_feats_name = "tag",
-        verbose = TRUE) {
+filterGiotto <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    expression_values = c("raw", "normalized", "scaled", "custom"),
+    expression_threshold = 1,
+    feat_det_in_min_cells = 100,
+    min_det_feats_per_cell = 100,
+    spat_unit_fsub = ":all:",
+    feat_type_ssub = ":all:",
+    all_spat_units = NULL,
+    all_feat_types = NULL,
+    poly_info = NULL,
+    tag_cells = FALSE,
+    tag_cell_name = "tag",
+    tag_feats = FALSE,
+    tag_feats_name = "tag",
+    verbose = TRUE) {
     # data.table vars
     cell_ID <- feat_ID <- NULL
 

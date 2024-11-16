@@ -18,16 +18,17 @@
 #'     CPscore = cellProximityEnrichment(g, cluster_column = "leiden_clus")
 #' )
 #' @export
-cellProximityBarplot <- function(gobject,
-    CPscore,
-    min_orig_ints = 5,
-    min_sim_ints = 5,
-    p_val = 0.05,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "cellProximityBarplot") {
+cellProximityBarplot <- function(
+        gobject,
+        CPscore,
+        min_orig_ints = 5,
+        min_sim_ints = 5,
+        p_val = 0.05,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "cellProximityBarplot") {
     table_mean_results_dc <- CPscore$enrichm_res
 
     ## filter to remove low number of cell-cell proximity interactions ##
@@ -107,17 +108,18 @@ cellProximityBarplot <- function(gobject,
 #'
 #' cellProximityHeatmap(gobject = g, CPscore = x)
 #' @export
-cellProximityHeatmap <- function(gobject,
-    CPscore,
-    scale = TRUE,
-    order_cell_types = TRUE,
-    color_breaks = NULL,
-    color_names = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "cellProximityHeatmap") {
+cellProximityHeatmap <- function(
+        gobject,
+        CPscore,
+        scale = TRUE,
+        order_cell_types = TRUE,
+        color_breaks = NULL,
+        color_names = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "cellProximityHeatmap") {
     enrich_res <- CPscore$enrichm_res
 
     # data.table variables
@@ -249,26 +251,27 @@ cellProximityHeatmap <- function(gobject,
 #'
 #' cellProximityNetwork(gobject = g, CPscore = x)
 #' @export
-cellProximityNetwork <- function(gobject,
-    CPscore,
-    remove_self_edges = FALSE,
-    self_loop_strength = 0.1,
-    color_depletion = "lightgreen",
-    color_enrichment = "red",
-    rescale_edge_weights = TRUE,
-    edge_weight_range_depletion = c(0.1, 1),
-    edge_weight_range_enrichment = c(1, 5),
-    layout = c("Fruchterman", "DrL", "Kamada-Kawai"),
-    only_show_enrichment_edges = FALSE,
-    edge_width_range = c(0.1, 2),
-    node_size = 4,
-    node_color_code = NULL,
-    node_text_size = 6,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "cellProximityNetwork") {
+cellProximityNetwork <- function(
+        gobject,
+        CPscore,
+        remove_self_edges = FALSE,
+        self_loop_strength = 0.1,
+        color_depletion = "lightgreen",
+        color_enrichment = "red",
+        rescale_edge_weights = TRUE,
+        edge_weight_range_depletion = c(0.1, 1),
+        edge_weight_range_enrichment = c(1, 5),
+        layout = c("Fruchterman", "DrL", "Kamada-Kawai"),
+        only_show_enrichment_edges = FALSE,
+        edge_width_range = c(0.1, 2),
+        node_size = 4,
+        node_color_code = NULL,
+        node_text_size = 6,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "cellProximityNetwork") {
     # extract scores
 
     # data.table variables
@@ -443,32 +446,33 @@ NULL
 #' @describeIn cellProximityVisPlot_internals Visualize 2D cell-cell
 #' interactions according to spatial coordinates in ggplot mode
 #' @keywords internal
-.cellProximityVisPlot_2D_ggplot <- function(gobject,
-    interaction_name = NULL,
-    cluster_column = NULL,
-    sdimx = NULL,
-    sdimy = NULL,
-    cell_color = NULL,
-    cell_color_code = NULL,
-    color_as_factor = TRUE,
-    show_other_cells = FALSE,
-    show_network = FALSE,
-    show_other_network = FALSE,
-    network_color = NULL,
-    spatial_network_name = "Delaunay_network",
-    show_grid = FALSE,
-    grid_color = NULL,
-    spatial_grid_name = "spatial_grid",
-    coord_fix_ratio = 1,
-    show_legend = TRUE,
-    point_size_select = 2,
-    point_select_border_col = "black",
-    point_select_border_stroke = 0.05,
-    point_size_other = 1,
-    point_alpha_other = 0.3,
-    point_other_border_col = "lightgrey",
-    point_other_border_stroke = 0.01,
-    ...) {
+.cellProximityVisPlot_2D_ggplot <- function(
+        gobject,
+        interaction_name = NULL,
+        cluster_column = NULL,
+        sdimx = NULL,
+        sdimy = NULL,
+        cell_color = NULL,
+        cell_color_code = NULL,
+        color_as_factor = TRUE,
+        show_other_cells = FALSE,
+        show_network = FALSE,
+        show_other_network = FALSE,
+        network_color = NULL,
+        spatial_network_name = "Delaunay_network",
+        show_grid = FALSE,
+        grid_color = NULL,
+        spatial_grid_name = "spatial_grid",
+        coord_fix_ratio = 1,
+        show_legend = TRUE,
+        point_size_select = 2,
+        point_select_border_col = "black",
+        point_select_border_stroke = 0.05,
+        point_size_other = 1,
+        point_alpha_other = 0.3,
+        point_other_border_col = "lightgrey",
+        point_other_border_stroke = 0.01,
+        ...) {
     # data.table variables
     unified_int <- sdimx_begin <- sdimy_begin <- sdimx_end <- sdimy_end <-
         x_start <- x_end <- NULL
@@ -690,31 +694,32 @@ NULL
 #' @describeIn cellProximityVisPlot_internals Visualize 2D cell-cell
 #' interactions according to spatial coordinates in plotly mode
 #' @keywords internal
-.cellProximityVisPlot_2D_plotly <- function(gobject,
-    interaction_name = NULL,
-    cluster_column = NULL,
-    sdimx = NULL,
-    sdimy = NULL,
-    cell_color = NULL,
-    cell_color_code = NULL,
-    color_as_factor = TRUE,
-    show_other_cells = FALSE,
-    show_network = FALSE,
-    show_other_network = FALSE,
-    network_color = NULL,
-    spatial_network_name = "Delaunay_network",
-    show_grid = FALSE,
-    grid_color = NULL,
-    spatial_grid_name = "spatial_grid",
-    show_legend = TRUE,
-    point_size_select = 2,
-    point_size_other = 1,
-    point_alpha_other = 0.3,
-    axis_scale = c("cube", "real", "custom"),
-    custom_ratio = NULL,
-    x_ticks = NULL,
-    y_ticks = NULL,
-    ...) {
+.cellProximityVisPlot_2D_plotly <- function(
+        gobject,
+        interaction_name = NULL,
+        cluster_column = NULL,
+        sdimx = NULL,
+        sdimy = NULL,
+        cell_color = NULL,
+        cell_color_code = NULL,
+        color_as_factor = TRUE,
+        show_other_cells = FALSE,
+        show_network = FALSE,
+        show_other_network = FALSE,
+        network_color = NULL,
+        spatial_network_name = "Delaunay_network",
+        show_grid = FALSE,
+        grid_color = NULL,
+        spatial_grid_name = "spatial_grid",
+        show_legend = TRUE,
+        point_size_select = 2,
+        point_size_other = 1,
+        point_alpha_other = 0.3,
+        axis_scale = c("cube", "real", "custom"),
+        custom_ratio = NULL,
+        x_ticks = NULL,
+        y_ticks = NULL,
+        ...) {
     package_check("plotly")
 
     # data.table variables
@@ -953,33 +958,34 @@ NULL
 #' @describeIn cellProximityVisPlot_internals Visualize 3D cell-cell
 #' interactions according to spatial coordinates in plotly mode
 #' @keywords internal
-.cellProximityVisPlot_3D_plotly <- function(gobject,
-    interaction_name = NULL,
-    cluster_column = NULL,
-    sdimx = NULL,
-    sdimy = NULL,
-    sdimz = NULL,
-    cell_color = NULL,
-    cell_color_code = NULL,
-    color_as_factor = TRUE,
-    show_other_cells = FALSE,
-    show_network = FALSE,
-    show_other_network = FALSE,
-    network_color = NULL,
-    spatial_network_name = "Delaunay_network",
-    show_grid = FALSE,
-    grid_color = NULL,
-    spatial_grid_name = "spatial_grid",
-    show_legend = TRUE,
-    point_size_select = 2,
-    point_size_other = 1,
-    point_alpha_other = 0.5,
-    axis_scale = c("cube", "real", "custom"),
-    custom_ratio = NULL,
-    x_ticks = NULL,
-    y_ticks = NULL,
-    z_ticks = NULL,
-    ...) {
+.cellProximityVisPlot_3D_plotly <- function(
+        gobject,
+        interaction_name = NULL,
+        cluster_column = NULL,
+        sdimx = NULL,
+        sdimy = NULL,
+        sdimz = NULL,
+        cell_color = NULL,
+        cell_color_code = NULL,
+        color_as_factor = TRUE,
+        show_other_cells = FALSE,
+        show_network = FALSE,
+        show_other_network = FALSE,
+        network_color = NULL,
+        spatial_network_name = "Delaunay_network",
+        show_grid = FALSE,
+        grid_color = NULL,
+        spatial_grid_name = "spatial_grid",
+        show_legend = TRUE,
+        point_size_select = 2,
+        point_size_other = 1,
+        point_alpha_other = 0.5,
+        axis_scale = c("cube", "real", "custom"),
+        custom_ratio = NULL,
+        x_ticks = NULL,
+        y_ticks = NULL,
+        z_ticks = NULL,
+        ...) {
     package_check("plotly")
 
     # data.table variables
@@ -1241,39 +1247,40 @@ NULL
 #'     cluster_column = "leiden_clus", sdimx = "sdimx", sdimy = "sdimy"
 #' )
 #' @export
-cellProximityVisPlot <- function(gobject,
-    interaction_name = NULL,
-    cluster_column = NULL,
-    sdimx = NULL,
-    sdimy = NULL,
-    sdimz = NULL,
-    cell_color = NULL,
-    cell_color_code = NULL,
-    color_as_factor = TRUE,
-    show_other_cells = FALSE,
-    show_network = FALSE,
-    show_other_network = FALSE,
-    network_color = NULL,
-    spatial_network_name = "Delaunay_network",
-    show_grid = FALSE,
-    grid_color = NULL,
-    spatial_grid_name = "spatial_grid",
-    coord_fix_ratio = 1,
-    show_legend = TRUE,
-    point_size_select = 2,
-    point_select_border_col = "black",
-    point_select_border_stroke = 0.05,
-    point_size_other = 1,
-    point_alpha_other = 0.3,
-    point_other_border_col = "lightgrey",
-    point_other_border_stroke = 0.01,
-    axis_scale = c("cube", "real", "custom"),
-    custom_ratio = NULL,
-    x_ticks = NULL,
-    y_ticks = NULL,
-    z_ticks = NULL,
-    plot_method = c("ggplot", "plotly"),
-    ...) {
+cellProximityVisPlot <- function(
+        gobject,
+        interaction_name = NULL,
+        cluster_column = NULL,
+        sdimx = NULL,
+        sdimy = NULL,
+        sdimz = NULL,
+        cell_color = NULL,
+        cell_color_code = NULL,
+        color_as_factor = TRUE,
+        show_other_cells = FALSE,
+        show_network = FALSE,
+        show_other_network = FALSE,
+        network_color = NULL,
+        spatial_network_name = "Delaunay_network",
+        show_grid = FALSE,
+        grid_color = NULL,
+        spatial_grid_name = "spatial_grid",
+        coord_fix_ratio = 1,
+        show_legend = TRUE,
+        point_size_select = 2,
+        point_select_border_col = "black",
+        point_select_border_stroke = 0.05,
+        point_size_other = 1,
+        point_alpha_other = 0.3,
+        point_other_border_col = "lightgrey",
+        point_other_border_stroke = 0.01,
+        axis_scale = c("cube", "real", "custom"),
+        custom_ratio = NULL,
+        x_ticks = NULL,
+        y_ticks = NULL,
+        z_ticks = NULL,
+        plot_method = c("ggplot", "plotly"),
+        ...) {
     ## decide plot method
     plot_method <- match.arg(plot_method, choices = c("ggplot", "plotly"))
     axis_scale <- match.arg(axis_scale, c("cube", "real", "custom"))
@@ -1430,28 +1437,29 @@ cellProximityVisPlot <- function(gobject,
 #'     show_plot = TRUE, save_plot = FALSE, return_plot = FALSE
 #' )
 #' @export
-plotCellProximityFeats <- function(gobject,
-    icfObject,
-    method = c(
-        "volcano", "cell_barplot", "cell-cell", "cell_sankey",
-        "heatmap", "dotplot"
-    ),
-    min_cells = 4,
-    min_cells_expr = 1,
-    min_int_cells = 4,
-    min_int_cells_expr = 1,
-    min_fdr = 0.1,
-    min_spat_diff = 0.2,
-    min_log2_fc = 0.2,
-    min_zscore = 2,
-    zscores_column = c("cell_type", "feats"),
-    direction = c("both", "up", "down"),
-    cell_color_code = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCellProximityFeats") {
+plotCellProximityFeats <- function(
+        gobject,
+        icfObject,
+        method = c(
+            "volcano", "cell_barplot", "cell-cell", "cell_sankey",
+            "heatmap", "dotplot"
+        ),
+        min_cells = 4,
+        min_cells_expr = 1,
+        min_int_cells = 4,
+        min_int_cells_expr = 1,
+        min_fdr = 0.1,
+        min_spat_diff = 0.2,
+        min_log2_fc = 0.2,
+        min_zscore = 2,
+        zscores_column = c("cell_type", "feats"),
+        direction = c("both", "up", "down"),
+        cell_color_code = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCellProximityFeats") {
     if (!"icfObject" %in% class(icfObject)) {
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
@@ -1818,28 +1826,29 @@ plotCellProximityFeats <- function(gobject,
 #'     save_plot = FALSE, return_plot = FALSE
 #' )
 #' @export
-plotCPF <- function(gobject,
-    icfObject,
-    method = c(
-        "volcano", "cell_barplot", "cell-cell", "cell_sankey",
-        "heatmap", "dotplot"
-    ),
-    min_cells = 5,
-    min_cells_expr = 1,
-    min_int_cells = 3,
-    min_int_cells_expr = 1,
-    min_fdr = 0.05,
-    min_spat_diff = 0.2,
-    min_log2_fc = 0.2,
-    min_zscore = 2,
-    zscores_column = c("cell_type", "feats"),
-    direction = c("both", "up", "down"),
-    cell_color_code = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCPG") {
+plotCPF <- function(
+        gobject,
+        icfObject,
+        method = c(
+            "volcano", "cell_barplot", "cell-cell", "cell_sankey",
+            "heatmap", "dotplot"
+        ),
+        min_cells = 5,
+        min_cells_expr = 1,
+        min_int_cells = 3,
+        min_int_cells_expr = 1,
+        min_fdr = 0.05,
+        min_spat_diff = 0.2,
+        min_log2_fc = 0.2,
+        min_zscore = 2,
+        zscores_column = c("cell_type", "feats"),
+        direction = c("both", "up", "down"),
+        cell_color_code = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCPG") {
     plotCellProximityFeats(
         gobject = gobject,
         icfObject = icfObject,
@@ -1889,17 +1898,18 @@ plotCPF <- function(gobject,
 #'     ICF_feats = c("3" = "Gna12", "1" = "Ccnd2", "8" = "Btbd17")
 #' )
 #' @export
-plotInteractionChangedFeats <- function(gobject,
-    icfObject,
-    source_type,
-    source_markers,
-    ICF_feats,
-    cell_color_code = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotInteractionChangedFeats") {
+plotInteractionChangedFeats <- function(
+        gobject,
+        icfObject,
+        source_type,
+        source_markers,
+        ICF_feats,
+        cell_color_code = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotInteractionChangedFeats") {
     # data.table variables
     cell_type <- int_cell_type <- log2fc <- NULL
 
@@ -2011,17 +2021,18 @@ plotInteractionChangedFeats <- function(gobject,
 #'     ICF_feats = c("3" = "Gna12", "1" = "Ccnd2", "8" = "Btbd17")
 #' )
 #' @export
-plotICF <- function(gobject,
-    icfObject,
-    source_type,
-    source_markers,
-    ICF_feats,
-    cell_color_code = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotICF") {
+plotICF <- function(
+        gobject,
+        icfObject,
+        source_type,
+        source_markers,
+        ICF_feats,
+        cell_color_code = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotICF") {
     plotInteractionChangedFeats(
         gobject = gobject,
         icfObject = icfObject,
@@ -2077,22 +2088,23 @@ plotICF <- function(gobject,
 #'     selected_interactions = "1--8"
 #' )
 #' @export
-plotCombineInteractionChangedFeats <- function(gobject,
-    combIcfObject,
-    selected_interactions = NULL,
-    selected_feat_to_feat = NULL,
-    detail_plot = TRUE,
-    simple_plot = FALSE,
-    simple_plot_facet = c("interaction", "feats"),
-    facet_scales = "fixed",
-    facet_ncol = length(selected_feat_to_feat),
-    facet_nrow = length(selected_interactions),
-    colors = c("#9932CC", "#FF8C00"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCombineICF") {
+plotCombineInteractionChangedFeats <- function(
+        gobject,
+        combIcfObject,
+        selected_interactions = NULL,
+        selected_feat_to_feat = NULL,
+        detail_plot = TRUE,
+        simple_plot = FALSE,
+        simple_plot_facet = c("interaction", "feats"),
+        facet_scales = "fixed",
+        facet_ncol = length(selected_feat_to_feat),
+        facet_nrow = length(selected_interactions),
+        colors = c("#9932CC", "#FF8C00"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCombineICF") {
     ## check validity
     if (!"combIcfObject" %in% class(combIcfObject)) {
         stop("combIcfObject needs to be the output from
@@ -2287,22 +2299,23 @@ plotCombineInteractionChangedFeats <- function(gobject,
 #'     selected_interactions = "1--8"
 #' )
 #' @export
-plotCombineICF <- function(gobject,
-    combIcfObject,
-    selected_interactions = NULL,
-    selected_feat_to_feat = NULL,
-    detail_plot = TRUE,
-    simple_plot = FALSE,
-    simple_plot_facet = c("interaction", "feats"),
-    facet_scales = "fixed",
-    facet_ncol = length(selected_feat_to_feat),
-    facet_nrow = length(selected_interactions),
-    colors = c("#9932CC", "#FF8C00"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCombineICF") {
+plotCombineICF <- function(
+        gobject,
+        combIcfObject,
+        selected_interactions = NULL,
+        selected_feat_to_feat = NULL,
+        detail_plot = TRUE,
+        simple_plot = FALSE,
+        simple_plot_facet = c("interaction", "feats"),
+        facet_scales = "fixed",
+        facet_ncol = length(selected_feat_to_feat),
+        facet_nrow = length(selected_interactions),
+        colors = c("#9932CC", "#FF8C00"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCombineICF") {
     plotCombineInteractionChangedFeats(
         gobject = gobject,
         combIcfObject = combIcfObject,
@@ -2380,22 +2393,23 @@ plotCombineICF <- function(gobject,
 #'     selected_LR = c("Gm19935-9630013A20Rik"), selected_cell_LR = c("1--1")
 #' )
 #' @export
-plotCombineCellCellCommunication <- function(gobject,
-    combCCcom,
-    selected_LR = NULL,
-    selected_cell_LR = NULL,
-    detail_plot = TRUE,
-    simple_plot = FALSE,
-    simple_plot_facet = c("interaction", "genes"),
-    facet_scales = "fixed",
-    facet_ncol = length(selected_LR),
-    facet_nrow = length(selected_cell_LR),
-    colors = c("#9932CC", "#FF8C00"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCombineCellCellCommunication") {
+plotCombineCellCellCommunication <- function(
+        gobject,
+        combCCcom,
+        selected_LR = NULL,
+        selected_cell_LR = NULL,
+        detail_plot = TRUE,
+        simple_plot = FALSE,
+        simple_plot_facet = c("interaction", "genes"),
+        facet_scales = "fixed",
+        facet_ncol = length(selected_LR),
+        facet_nrow = length(selected_cell_LR),
+        colors = c("#9932CC", "#FF8C00"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCombineCellCellCommunication") {
     # data.table variables
     LR_comb <- LR_cell_comb <- lig_expr <- lig_expr_spat <- rec_expr <-
         rec_expr_spat <- LR_expr <- LR_expr_spat <- NULL
@@ -2591,22 +2605,23 @@ plotCombineCellCellCommunication <- function(gobject,
 #'     selected_LR = c("Gm19935-9630013A20Rik"), selected_cell_LR = c("1--1")
 #' )
 #' @export
-plotCombineCCcom <- function(gobject,
-    combCCcom,
-    selected_LR = NULL,
-    selected_cell_LR = NULL,
-    detail_plot = TRUE,
-    simple_plot = FALSE,
-    simple_plot_facet = c("interaction", "genes"),
-    facet_scales = "fixed",
-    facet_ncol = length(selected_LR),
-    facet_nrow = length(selected_cell_LR),
-    colors = c("#9932CC", "#FF8C00"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCombineCCcom") {
+plotCombineCCcom <- function(
+        gobject,
+        combCCcom,
+        selected_LR = NULL,
+        selected_cell_LR = NULL,
+        detail_plot = TRUE,
+        simple_plot = FALSE,
+        simple_plot_facet = c("interaction", "genes"),
+        facet_scales = "fixed",
+        facet_ncol = length(selected_LR),
+        facet_nrow = length(selected_cell_LR),
+        colors = c("#9932CC", "#FF8C00"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCombineCCcom") {
     plotCombineCellCellCommunication(
         gobject = gobject,
         combCCcom = combCCcom,
@@ -2658,25 +2673,26 @@ plotCombineCCcom <- function(gobject,
 #'
 #' plotCCcomHeatmap(gobject = g, comScores = comScores, show_plot = TRUE)
 #' @export
-plotCCcomHeatmap <- function(gobject,
-    comScores,
-    selected_LR = NULL,
-    selected_cell_LR = NULL,
-    show_LR_names = TRUE,
-    show_cell_LR_names = TRUE,
-    show = c("PI", "LR_expr", "log2fc"),
-    cor_method = c("pearson", "kendall", "spearman"),
-    aggl_method = c(
-        "ward.D", "ward.D2", "single", "complete", "average",
-        "mcquitty", "median", "centroid"
-    ),
-    gradient_color = NULL,
-    gradient_style = c("divergent", "sequential"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCCcomHeatmap") {
+plotCCcomHeatmap <- function(
+        gobject,
+        comScores,
+        selected_LR = NULL,
+        selected_cell_LR = NULL,
+        show_LR_names = TRUE,
+        show_cell_LR_names = TRUE,
+        show = c("PI", "LR_expr", "log2fc"),
+        cor_method = c("pearson", "kendall", "spearman"),
+        aggl_method = c(
+            "ward.D", "ward.D2", "single", "complete", "average",
+            "mcquitty", "median", "centroid"
+        ),
+        gradient_color = NULL,
+        gradient_style = c("divergent", "sequential"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCCcomHeatmap") {
     # get parameters
     cor_method <- match.arg(
         cor_method,
@@ -2813,25 +2829,26 @@ plotCCcomHeatmap <- function(gobject,
 #'
 #' plotCCcomDotplot(gobject = g, comScores = comScores, show_plot = TRUE)
 #' @export
-plotCCcomDotplot <- function(gobject,
-    comScores,
-    selected_LR = NULL,
-    selected_cell_LR = NULL,
-    show_LR_names = TRUE,
-    show_cell_LR_names = TRUE,
-    cluster_on = c("PI", "LR_expr", "log2fc"),
-    cor_method = c("pearson", "kendall", "spearman"),
-    aggl_method = c(
-        "ward.D", "ward.D2", "single", "complete", "average",
-        "mcquitty", "median", "centroid"
-    ),
-    dot_color_gradient = NULL,
-    gradient_style = c("divergent", "sequential"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotCCcomDotplot") {
+plotCCcomDotplot <- function(
+        gobject,
+        comScores,
+        selected_LR = NULL,
+        selected_cell_LR = NULL,
+        show_LR_names = TRUE,
+        show_cell_LR_names = TRUE,
+        cluster_on = c("PI", "LR_expr", "log2fc"),
+        cor_method = c("pearson", "kendall", "spearman"),
+        aggl_method = c(
+            "ward.D", "ward.D2", "single", "complete", "average",
+            "mcquitty", "median", "centroid"
+        ),
+        dot_color_gradient = NULL,
+        gradient_style = c("divergent", "sequential"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotCCcomDotplot") {
     # get parameters
     cor_method <- match.arg(
         cor_method,
@@ -2999,23 +3016,24 @@ plotCCcomDotplot <- function(gobject,
 #'
 #' plotRankSpatvsExpr(gobject = g, combCC = combCC)
 #' @export
-plotRankSpatvsExpr <- function(gobject,
-    combCC,
-    expr_rnk_column = "LR_expr_rnk",
-    spat_rnk_column = "LR_spat_rnk",
-    dot_color_gradient = NULL,
-    midpoint = deprecated(),
-    gradient_midpoint = 10,
-    gradient_style = c("divergent", "sequential"),
-    size_range = c(0.01, 1.5),
-    xlims = NULL,
-    ylims = NULL,
-    selected_ranks = c(1, 10, 20),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotRankSpatvsExpr") {
+plotRankSpatvsExpr <- function(
+        gobject,
+        combCC,
+        expr_rnk_column = "LR_expr_rnk",
+        spat_rnk_column = "LR_spat_rnk",
+        dot_color_gradient = NULL,
+        midpoint = deprecated(),
+        gradient_midpoint = 10,
+        gradient_style = c("divergent", "sequential"),
+        size_range = c(0.01, 1.5),
+        xlims = NULL,
+        ylims = NULL,
+        selected_ranks = c(1, 10, 20),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotRankSpatvsExpr") {
     # deprecate
     if (GiottoUtils::is_present(midpoint)) {
         deprecate_warn(
@@ -3119,9 +3137,10 @@ plotRankSpatvsExpr <- function(gobject,
 #' @param second_col second column to use
 #' @returns ggplot
 #' @keywords internal
-.plotRecovery_sub <- function(combCC,
-    first_col = "LR_expr_rnk",
-    second_col = "LR_spat_rnk") {
+.plotRecovery_sub <- function(
+        combCC,
+        first_col = "LR_expr_rnk",
+        second_col = "LR_spat_rnk") {
     # data.table variables
     concord <- perc <- not_concord <- secondrank <- secondrank_perc <- NULL
 
@@ -3197,16 +3216,17 @@ plotRankSpatvsExpr <- function(gobject,
 #'
 #' plotRecovery(gobject = g, combCC = combCC)
 #' @export
-plotRecovery <- function(gobject,
-    combCC,
-    expr_rnk_column = "exprPI_rnk",
-    spat_rnk_column = "spatPI_rnk",
-    ground_truth = c("spatial", "expression"),
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "plotRecovery") {
+plotRecovery <- function(
+        gobject,
+        combCC,
+        expr_rnk_column = "exprPI_rnk",
+        spat_rnk_column = "spatPI_rnk",
+        ground_truth = c("spatial", "expression"),
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "plotRecovery") {
     ground_truth <- match.arg(
         ground_truth,
         choices = c("spatial", "expression")
@@ -3299,39 +3319,40 @@ plotRecovery <- function(gobject,
 #'     interaction_name = x
 #' )
 #' @export
-cellProximitySpatPlot2D <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    spat_loc_name = NULL,
-    interaction_name = NULL,
-    cluster_column = NULL,
-    sdimx = "sdimx",
-    sdimy = "sdimy",
-    cell_color = NULL,
-    cell_color_code = NULL,
-    color_as_factor = TRUE,
-    show_other_cells = FALSE,
-    show_network = FALSE,
-    show_other_network = FALSE,
-    network_color = NULL,
-    spatial_network_name = "Delaunay_network",
-    show_grid = FALSE,
-    grid_color = NULL,
-    spatial_grid_name = "spatial_grid",
-    coord_fix_ratio = 1,
-    show_legend = TRUE,
-    point_size_select = 2,
-    point_select_border_col = "black",
-    point_select_border_stroke = 0.05,
-    point_size_other = 1,
-    point_alpha_other = 0.3,
-    point_other_border_col = "lightgrey",
-    point_other_border_stroke = 0.01,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "cellProximitySpatPlot2D") {
+cellProximitySpatPlot2D <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        spat_loc_name = NULL,
+        interaction_name = NULL,
+        cluster_column = NULL,
+        sdimx = "sdimx",
+        sdimy = "sdimy",
+        cell_color = NULL,
+        cell_color_code = NULL,
+        color_as_factor = TRUE,
+        show_other_cells = FALSE,
+        show_network = FALSE,
+        show_other_network = FALSE,
+        network_color = NULL,
+        spatial_network_name = "Delaunay_network",
+        show_grid = FALSE,
+        grid_color = NULL,
+        spatial_grid_name = "spatial_grid",
+        coord_fix_ratio = 1,
+        show_legend = TRUE,
+        point_size_select = 2,
+        point_select_border_col = "black",
+        point_select_border_stroke = 0.05,
+        point_size_other = 1,
+        point_alpha_other = 0.3,
+        point_other_border_col = "lightgrey",
+        point_other_border_stroke = 0.01,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "cellProximitySpatPlot2D") {
     if (is.null(interaction_name)) {
         stop("you need to specific at least one interaction name, run
              cellProximityEnrichment")
@@ -3627,38 +3648,39 @@ cellProximitySpatPlot <- function(gobject, ...) {
 #' @returns plotly
 #' @details Description of parameters.
 #' @export
-cellProximitySpatPlot3D <- function(gobject,
-    interaction_name = NULL,
-    cluster_column = NULL,
-    sdimx = "sdimx",
-    sdimy = "sdimy",
-    sdimz = "sdimz",
-    cell_color = NULL,
-    cell_color_code = NULL,
-    color_as_factor = TRUE,
-    show_other_cells = TRUE,
-    show_network = TRUE,
-    show_other_network = FALSE,
-    network_color = NULL,
-    spatial_network_name = "Delaunay_network",
-    show_grid = FALSE,
-    grid_color = NULL,
-    spatial_grid_name = "spatial_grid",
-    show_legend = TRUE,
-    point_size_select = 4,
-    point_size_other = 2,
-    point_alpha_other = 0.5,
-    axis_scale = c("cube", "real", "custom"),
-    custom_ratio = NULL,
-    x_ticks = NULL,
-    y_ticks = NULL,
-    z_ticks = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "cellProximitySpatPlot3D",
-    ...) {
+cellProximitySpatPlot3D <- function(
+        gobject,
+        interaction_name = NULL,
+        cluster_column = NULL,
+        sdimx = "sdimx",
+        sdimy = "sdimy",
+        sdimz = "sdimz",
+        cell_color = NULL,
+        cell_color_code = NULL,
+        color_as_factor = TRUE,
+        show_other_cells = TRUE,
+        show_network = TRUE,
+        show_other_network = FALSE,
+        network_color = NULL,
+        spatial_network_name = "Delaunay_network",
+        show_grid = FALSE,
+        grid_color = NULL,
+        spatial_grid_name = "spatial_grid",
+        show_legend = TRUE,
+        point_size_select = 4,
+        point_size_other = 2,
+        point_alpha_other = 0.5,
+        axis_scale = c("cube", "real", "custom"),
+        custom_ratio = NULL,
+        x_ticks = NULL,
+        y_ticks = NULL,
+        z_ticks = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "cellProximitySpatPlot3D",
+        ...) {
     if (is.null(sdimz)) {
         pl <- .cellProximityVisPlot_2D_plotly(
             gobject = gobject,

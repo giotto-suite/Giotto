@@ -35,18 +35,19 @@
 #'
 #' findScranMarkers(g, cluster_column = "leiden_clus")
 #' @export
-findScranMarkers <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    subset_clusters = NULL,
-    group_1 = NULL,
-    group_1_name = NULL,
-    group_2 = NULL,
-    group_2_name = NULL,
-    verbose = TRUE,
-    ...) {
+findScranMarkers <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        subset_clusters = NULL,
+        group_1 = NULL,
+        group_1_name = NULL,
+        group_2 = NULL,
+        group_2_name = NULL,
+        verbose = TRUE,
+        ...) {
     # verify if optional package is installed
     package_check(pkg_name = "scran", repository = "Bioc")
 
@@ -188,18 +189,19 @@ findScranMarkers <- function(gobject,
 #'
 #' findScranMarkers_one_vs_all(g, cluster_column = "leiden_clus")
 #' @export
-findScranMarkers_one_vs_all <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    subset_clusters = NULL,
-    pval = 0.01,
-    logFC = 0.5,
-    min_feats = 10,
-    min_genes = NULL,
-    verbose = TRUE,
-    ...) {
+findScranMarkers_one_vs_all <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        subset_clusters = NULL,
+        pval = 0.01,
+        logFC = 0.5,
+        min_feats = 10,
+        min_genes = NULL,
+        verbose = TRUE,
+        ...) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
@@ -401,22 +403,23 @@ findScranMarkers_one_vs_all <- function(gobject,
 #'
 #' findGiniMarkers(g, cluster_column = "leiden_clus")
 #' @export
-findGiniMarkers <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    subset_clusters = NULL,
-    group_1 = NULL,
-    group_1_name = NULL,
-    group_2 = NULL,
-    group_2_name = NULL,
-    min_expr_gini_score = 0.2,
-    min_det_gini_score = 0.2,
-    detection_threshold = 0,
-    rank_score = 1,
-    min_feats = 5,
-    min_genes = NULL) {
+findGiniMarkers <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        subset_clusters = NULL,
+        group_1 = NULL,
+        group_1_name = NULL,
+        group_2 = NULL,
+        group_2_name = NULL,
+        min_expr_gini_score = 0.2,
+        min_det_gini_score = 0.2,
+        detection_threshold = 0,
+        rank_score = 1,
+        min_feats = 5,
+        min_genes = NULL) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
@@ -654,19 +657,20 @@ findGiniMarkers <- function(gobject,
 #'
 #' findGiniMarkers_one_vs_all(g, cluster_column = "leiden_clus")
 #' @export
-findGiniMarkers_one_vs_all <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    subset_clusters = NULL,
-    min_expr_gini_score = 0.5,
-    min_det_gini_score = 0.5,
-    detection_threshold = 0,
-    rank_score = 1,
-    min_feats = 4,
-    min_genes = NULL,
-    verbose = TRUE) {
+findGiniMarkers_one_vs_all <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        subset_clusters = NULL,
+        min_expr_gini_score = 0.5,
+        min_det_gini_score = 0.5,
+        detection_threshold = 0,
+        rank_score = 1,
+        min_feats = 4,
+        min_genes = NULL,
+        verbose = TRUE) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
@@ -804,18 +808,19 @@ findGiniMarkers_one_vs_all <- function(gobject,
 #'     group_2 = 2
 #' )
 #' @export
-findMastMarkers <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    group_1 = NULL,
-    group_1_name = NULL,
-    group_2 = NULL,
-    group_2_name = NULL,
-    adjust_columns = NULL,
-    verbose = FALSE,
-    ...) {
+findMastMarkers <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        group_1 = NULL,
+        group_1_name = NULL,
+        group_2 = NULL,
+        group_2_name = NULL,
+        adjust_columns = NULL,
+        verbose = FALSE,
+        ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -1018,19 +1023,20 @@ findMastMarkers <- function(gobject,
 #'
 #' findMastMarkers_one_vs_all(gobject = g, cluster_column = "leiden_clus")
 #' @export
-findMastMarkers_one_vs_all <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    subset_clusters = NULL,
-    adjust_columns = NULL,
-    pval = 0.001,
-    logFC = 1,
-    min_feats = 10,
-    min_genes = NULL,
-    verbose = TRUE,
-    ...) {
+findMastMarkers_one_vs_all <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        subset_clusters = NULL,
+        adjust_columns = NULL,
+        pval = 0.001,
+        logFC = 1,
+        min_feats = 10,
+        min_genes = NULL,
+        verbose = TRUE,
+        ...) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
@@ -1178,25 +1184,26 @@ findMastMarkers_one_vs_all <- function(gobject,
 #'
 #' findMarkers(g, cluster_column = "leiden_clus")
 #' @export
-findMarkers <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column = NULL,
-    method = c("scran", "gini", "mast"),
-    subset_clusters = NULL,
-    group_1 = NULL,
-    group_2 = NULL,
-    min_expr_gini_score = 0.5,
-    min_det_gini_score = 0.5,
-    detection_threshold = 0,
-    rank_score = 1,
-    min_feats = 4,
-    min_genes = NULL,
-    group_1_name = NULL,
-    group_2_name = NULL,
-    adjust_columns = NULL,
-    ...) {
+findMarkers <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column = NULL,
+        method = c("scran", "gini", "mast"),
+        subset_clusters = NULL,
+        group_1 = NULL,
+        group_2 = NULL,
+        min_expr_gini_score = 0.5,
+        min_det_gini_score = 0.5,
+        detection_threshold = 0,
+        rank_score = 1,
+        min_feats = 4,
+        min_genes = NULL,
+        group_1_name = NULL,
+        group_2_name = NULL,
+        adjust_columns = NULL,
+        ...) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
@@ -1300,27 +1307,28 @@ findMarkers <- function(gobject,
 #'
 #' findMarkers_one_vs_all(g, cluster_column = "leiden_clus")
 #' @export
-findMarkers_one_vs_all <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    cluster_column,
-    subset_clusters = NULL,
-    method = c("scran", "gini", "mast"),
-    # scran & mast
-    pval = 0.01,
-    logFC = 0.5,
-    min_feats = 10,
-    min_genes = NULL,
-    # gini
-    min_expr_gini_score = 0.5,
-    min_det_gini_score = 0.5,
-    detection_threshold = 0,
-    rank_score = 1,
-    # mast specific
-    adjust_columns = NULL,
-    verbose = TRUE,
-    ...) {
+findMarkers_one_vs_all <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        subset_clusters = NULL,
+        method = c("scran", "gini", "mast"),
+        # scran & mast
+        pval = 0.01,
+        logFC = 0.5,
+        min_feats = 10,
+        min_genes = NULL,
+        # gini
+        min_expr_gini_score = 0.5,
+        min_det_gini_score = 0.5,
+        detection_threshold = 0,
+        rank_score = 1,
+        # mast specific
+        adjust_columns = NULL,
+        verbose = TRUE,
+        ...) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes

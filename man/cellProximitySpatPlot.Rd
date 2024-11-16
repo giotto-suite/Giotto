@@ -37,13 +37,13 @@ cellProximitySpatPlot(gobject, ...)
     \item{\code{show_plot}}{logical. show plot}
     \item{\code{return_plot}}{logical. return ggplot object}
     \item{\code{save_plot}}{logical. save the plot}
-    \item{\code{save_param}}{list of saving parameters, see 
+    \item{\code{save_param}}{list of saving parameters, see
 \code{\link{showSaveParameters}}}
-    \item{\code{default_save_name}}{default save name for saving, don't change, 
+    \item{\code{default_save_name}}{default save name for saving, don't change,
 change save_name in save_param}
     \item{\code{cell_color}}{character. what to color cells by (e.g. metadata col or
 spatial enrichment col)}
-    \item{\code{color_as_factor}}{logical. convert color column to factor. discrete 
+    \item{\code{color_as_factor}}{logical. convert color column to factor. discrete
 colors are used when this is TRUE. continuous colors when FALSE.}
     \item{\code{cell_color_code}}{character. discrete colors to use. palette to use or
 named vector of colors}

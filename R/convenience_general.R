@@ -30,8 +30,8 @@
 #' \itemize{
 #'   \item{1. detection of items within \code{data_dir} by looking for keywords
 #'   assigned through \code{dir_items}}
-#'   \item{2. check of detected items to see if everything needed has been 
-#'   found. Dictionary of necessary vs optional items for each 
+#'   \item{2. check of detected items to see if everything needed has been
+#'   found. Dictionary of necessary vs optional items for each
 #'   \code{data_to_use} *workflow* is provided through \code{require_data_DT}}
 #'   \item{3. if multiple filepaths are found to be matching then select the
 #'   first one. This function is only intended to find the first level
@@ -82,16 +82,15 @@ NULL
 
 #' @describeIn read_data_folder Should not be used directly
 #' @keywords internal
-.read_data_folder <- function(
-        spat_method = NULL,
-        data_dir = NULL,
-        dir_items,
-        data_to_use,
-        load_format = NULL,
-        require_data_DT,
-        cores = NA,
-        verbose = NULL,
-        toplevel = 2L) {
+.read_data_folder <- function(spat_method = NULL,
+    data_dir = NULL,
+    dir_items,
+    data_to_use,
+    load_format = NULL,
+    require_data_DT,
+    cores = NA,
+    verbose = NULL,
+    toplevel = 2L) {
     ch <- box_chars()
 
     # 0. check params
@@ -227,10 +226,12 @@ abbrev_path <- function(path, head = 15, tail = 35L) {
 # pattern - list.files pattern to use to search for specific files/dirs
 # warn - whether to warn when a pattern does not find any files
 # first - whether to only return the first match
-.detect_in_dir <- function(path, pattern, recursive = FALSE, 
-                            platform, warn = TRUE, first = TRUE) {
-    f <- list.files(path, pattern = pattern, recursive = recursive, 
-                    full.names = TRUE)
+.detect_in_dir <- function(path, pattern, recursive = FALSE,
+    platform, warn = TRUE, first = TRUE) {
+    f <- list.files(path,
+        pattern = pattern, recursive = recursive,
+        full.names = TRUE
+    )
     lenf <- length(f)
     if (lenf == 1L) {
         return(f)
@@ -301,48 +302,47 @@ abbrev_path <- function(path, head = 15, tail = 35L) {
 #' @details
 #' If starting from a Visium 10X directory:
 #' \itemize{
-#'   \item{expr_data: raw will take expression data from 
+#'   \item{expr_data: raw will take expression data from
 #'   raw_feature_bc_matrix and filter from filtered_feature_bc_matrix}
-#'   \item{gene_column_index: which gene identifiers (names) to use if there 
+#'   \item{gene_column_index: which gene identifiers (names) to use if there
 #'   are multiple columns (e.g. ensemble and gene symbol)}
-#'   \item{png_name: by default the first png will be selected, provide the png 
+#'   \item{png_name: by default the first png will be selected, provide the png
 #'   name to override this (e.g. myimage.png)}
-#'   \item{the file scalefactors_json.json will be detected automatically and 
+#'   \item{the file scalefactors_json.json will be detected automatically and
 #'   used to attempt to align the data}
 #' }
 #'
 #' If starting from a Visium 10X .h5 file
 #' \itemize{
 #'   \item{h5_visium_path: full path to .h5 file: /your/path/to/visium_file.h5}
-#'   \item{h5_tissue_positions_path: full path to spatial locations file: 
+#'   \item{h5_tissue_positions_path: full path to spatial locations file:
 #'   /you/path/to/tissue_positions_list.csv}
-#'   \item{h5_image_png_path: full path to png: 
+#'   \item{h5_image_png_path: full path to png:
 #'   /your/path/to/images/tissue_lowres_image.png}
-#'   \item{h5_json_scalefactors_path: full path to .json file: 
+#'   \item{h5_json_scalefactors_path: full path to .json file:
 #'   /your/path/to/scalefactors_json.json}
 #' }
 #'
 #' @export
-createGiottoVisiumObject <- function(
-        visium_dir = NULL,
-        expr_data = c("raw", "filter"),
-        gene_column_index = 1,
-        h5_visium_path = NULL,
-        h5_gene_ids = c("symbols", "ensembl"),
-        h5_tissue_positions_path = NULL,
-        h5_image_png_path = NULL,
-        h5_json_scalefactors_path = NULL,
-        png_name = NULL,
-        do_manual_adj = FALSE, # deprecated
-        xmax_adj = 0, # deprecated
-        xmin_adj = 0, # deprecated
-        ymax_adj = 0, # deprecated
-        ymin_adj = 0, # deprecated
-        instructions = NULL,
-        expression_matrix_class = c("dgCMatrix", "DelayedArray"),
-        h5_file = NULL,
-        cores = NA,
-        verbose = NULL) {
+createGiottoVisiumObject <- function(visium_dir = NULL,
+    expr_data = c("raw", "filter"),
+    gene_column_index = 1,
+    h5_visium_path = NULL,
+    h5_gene_ids = c("symbols", "ensembl"),
+    h5_tissue_positions_path = NULL,
+    h5_image_png_path = NULL,
+    h5_json_scalefactors_path = NULL,
+    png_name = NULL,
+    do_manual_adj = FALSE, # deprecated
+    xmax_adj = 0, # deprecated
+    xmin_adj = 0, # deprecated
+    ymax_adj = 0, # deprecated
+    ymin_adj = 0, # deprecated
+    instructions = NULL,
+    expression_matrix_class = c("dgCMatrix", "DelayedArray"),
+    h5_file = NULL,
+    cores = NA,
+    verbose = NULL) {
     # NSE vars
     barcode <- row_pxl <- col_pxl <- in_tissue <- array_row <- array_col <- NULL
 
@@ -401,17 +401,18 @@ createGiottoVisiumObject <- function(
 
 
 
-.visium_create <- function(expr_counts_path,
-    h5_gene_ids = NULL, # h5
-    gene_column_index = NULL, # folder
-    tissue_positions_path,
-    image_path = NULL,
-    scale_json_path = NULL,
-    png_name = NULL,
-    instructions = NULL,
-    expression_matrix_class = c("dgCMatrix", "DelayedArray"),
-    h5_file = NULL,
-    verbose = NULL) {
+.visium_create <- function(
+        expr_counts_path,
+        h5_gene_ids = NULL, # h5
+        gene_column_index = NULL, # folder
+        tissue_positions_path,
+        image_path = NULL,
+        scale_json_path = NULL,
+        png_name = NULL,
+        instructions = NULL,
+        expression_matrix_class = c("dgCMatrix", "DelayedArray"),
+        h5_file = NULL,
+        verbose = NULL) {
     # NSE vars
     barcode <- cell_ID <- row_pxl <- col_pxl <- in_tissue <- array_row <-
         array_col <- NULL
@@ -511,7 +512,7 @@ createGiottoVisiumObject <- function(
             verbose = FALSE,
             initialize = TRUE
         )
-        
+
         ms <- 65 / json_info$spot_diameter_fullres
         instructions(giotto_object, "micron_scale") <- ms
     }
@@ -522,11 +523,12 @@ createGiottoVisiumObject <- function(
 
 
 # Find and check the filepaths within a structured visium directory
-.visium_read_folder <- function(visium_dir = NULL,
-    expr_data = c("raw", "filter"),
-    gene_column_index = 1,
-    png_name = NULL,
-    verbose = NULL) {
+.visium_read_folder <- function(
+        visium_dir = NULL,
+        expr_data = c("raw", "filter"),
+        gene_column_index = 1,
+        png_name = NULL,
+        verbose = NULL) {
     vmsg(.v = verbose, "A structured visium directory will be used")
 
     ## check arguments
@@ -582,12 +584,13 @@ createGiottoVisiumObject <- function(
 
 
 
-.visium_read_h5 <- function(h5_visium_path = h5_visium_path, # expression matrix
-    h5_gene_ids = h5_gene_ids,
-    h5_tissue_positions_path = h5_tissue_positions_path,
-    h5_image_png_path = h5_image_png_path,
-    h5_json_scalefactors_path = h5_json_scalefactors_path,
-    verbose = NULL) {
+.visium_read_h5 <- function(
+        h5_visium_path = h5_visium_path, # expression matrix
+        h5_gene_ids = h5_gene_ids,
+        h5_tissue_positions_path = h5_tissue_positions_path,
+        h5_image_png_path = h5_image_png_path,
+        h5_json_scalefactors_path = h5_json_scalefactors_path,
+        verbose = NULL) {
     # 1. filepaths
     vmsg(
         .v = verbose,
@@ -655,9 +658,8 @@ createGiottoVisiumObject <- function(
 #' Adds circular giottoPolygons to the spatial_info slot of a Giotto Object
 #' for the "cell" spatial unit.
 #' @export
-addVisiumPolygons <- function(
-        gobject,
-        scalefactor_path = NULL) {
+addVisiumPolygons <- function(gobject,
+    scalefactor_path = NULL) {
     assert_giotto(gobject)
 
     visium_spat_locs <- getSpatialLocations(
@@ -779,13 +781,12 @@ addVisiumPolygons <- function(
 #' Visium spots.
 #' @keywords internal
 #' @md
-.visium_spot_poly <- function(
-        spatlocs = NULL,
-        json_scalefactors) {
+.visium_spot_poly <- function(spatlocs = NULL,
+    json_scalefactors) {
     if (inherits(spatlocs, "spatLocsObj")) {
         spatlocs <- spatlocs[]
     }
-    
+
     spot_adj <- 55 / 65
 
     vis_spot_poly <- GiottoClass::circleVertices(
@@ -812,10 +813,11 @@ addVisiumPolygons <- function(
 # json_info expects the list read output from .visium_read_scalefactors
 # image_path should be expected to be full filepath
 # should only be used when do_manual_adj (deprecated) is FALSE
-.visium_image <- function(image_path,
-    json_info = NULL,
-    micron_scale = FALSE,
-    verbose = NULL) {
+.visium_image <- function(
+        image_path,
+        json_info = NULL,
+        micron_scale = FALSE,
+        verbose = NULL) {
     # assume image already checked
     vmsg(.v = verbose, .initial = " - ", "found image")
 
@@ -905,10 +907,9 @@ addVisiumPolygons <- function(
 #' if image_file is a list.
 #' @returns giottoLargeImage
 #' @export
-createMerscopeLargeImage <- function(
-        image_file,
-        transforms_file,
-        name = "image") {
+createMerscopeLargeImage <- function(image_file,
+    transforms_file,
+    name = "image") {
     checkmate::assert_character(transforms_file)
     tfsDT <- data.table::fread(transforms_file)
     if (inherits(image_file, "character")) {
@@ -970,29 +971,28 @@ createMerscopeLargeImage <- function(
 #' function matches against:
 #' \itemize{
 #'   \item{\strong{cell_boundaries} (folder .hdf5 files)}
-#'   \item{\strong{images} (folder of .tif images and a 
+#'   \item{\strong{images} (folder of .tif images and a
 #'   scalefactor/transfrom table)}
 #'   \item{\strong{cell_by_gene}.csv (file)}
 #'   \item{cell_metadata\strong{fov_positions_file}.csv (file)}
 #'   \item{detected_transcripts\strong{metadata_file}.csv (file)}
 #' }
 #' @export
-createGiottoMerscopeObject <- function(
-        merscope_dir,
-        data_to_use = c("subcellular", "aggregate"),
-        FOVs = NULL,
-        poly_z_indices = seq(from = 1, to = 7),
-        calculate_overlap = TRUE,
-        overlap_to_matrix = TRUE,
-        aggregate_stack = TRUE,
-        aggregate_stack_param = list(
-            summarize_expression = "sum",
-            summarize_locations = "mean",
-            new_spat_unit = "cell"
-        ),
-        instructions = NULL,
-        cores = NA,
-        verbose = TRUE) {
+createGiottoMerscopeObject <- function(merscope_dir,
+    data_to_use = c("subcellular", "aggregate"),
+    FOVs = NULL,
+    poly_z_indices = seq(from = 1, to = 7),
+    calculate_overlap = TRUE,
+    overlap_to_matrix = TRUE,
+    aggregate_stack = TRUE,
+    aggregate_stack_param = list(
+        summarize_expression = "sum",
+        summarize_locations = "mean",
+        new_spat_unit = "cell"
+    ),
+    instructions = NULL,
+    cores = NA,
+    verbose = TRUE) {
     fovs <- NULL
 
     # 0. setup
@@ -1001,7 +1001,7 @@ createGiottoMerscopeObject <- function(
     poly_z_indices <- as.integer(poly_z_indices)
     if (any(poly_z_indices < 1)) {
         stop(wrap_txt(
-            "poly_z_indices is a vector of one or more integers starting 
+            "poly_z_indices is a vector of one or more integers starting
             from 1.",
             errWidth = TRUE
         ))
@@ -1064,18 +1064,17 @@ createGiottoMerscopeObject <- function(
 #' 'subcellular' workflow
 #' @param data_list list of loaded data from \code{\link{load_merscope_folder}}
 #' @keywords internal
-.createGiottoMerscopeObject_subcellular <- function(
-        data_list,
-        calculate_overlap = TRUE,
-        overlap_to_matrix = TRUE,
-        aggregate_stack = TRUE,
-        aggregate_stack_param = list(
-            summarize_expression = "sum",
-            summarize_locations = "mean",
-            new_spat_unit = "cell"
-        ),
-        cores = NA,
-        verbose = TRUE) {
+.createGiottoMerscopeObject_subcellular <- function(data_list,
+    calculate_overlap = TRUE,
+    overlap_to_matrix = TRUE,
+    aggregate_stack = TRUE,
+    aggregate_stack_param = list(
+        summarize_expression = "sum",
+        summarize_locations = "mean",
+        new_spat_unit = "cell"
+    ),
+    cores = NA,
+    verbose = TRUE) {
     feat_coord <- neg_coord <- cellLabel_dir <- instructions <- NULL
 
     # unpack data_list
@@ -1137,10 +1136,9 @@ createGiottoMerscopeObject <- function(
 #' workflow
 #' @param data_list list of loaded data from \code{\link{load_merscope_folder}}
 #' @keywords internal
-.createGiottoMerscopeObject_aggregate <- function(
-        data_list,
-        cores = NA,
-        verbose = TRUE) {
+.createGiottoMerscopeObject_aggregate <- function(data_list,
+    cores = NA,
+    verbose = TRUE) {
     # unpack data_list
     micronToPixelScale <- data_list$micronToPixelScale
     expr_dt <- data_list$expr_dt
@@ -1166,9 +1164,8 @@ createGiottoMerscopeObject <- function(
 #' @description Given the path to a Spatial Genomics data directory, creates a
 #' Giotto object.
 #' @export
-createSpatialGenomicsObject <- function(
-        sg_dir = NULL,
-        instructions = NULL) {
+createSpatialGenomicsObject <- function(sg_dir = NULL,
+    instructions = NULL) {
     # Find files in Spatial Genomics directory
     dapi <- list.files(sg_dir, full.names = TRUE, pattern = "DAPI")
     mask <- list.files(sg_dir, full.names = TRUE, pattern = "mask")
@@ -1216,11 +1213,10 @@ createSpatialGenomicsObject <- function(
 
 #' @describeIn read_data_folder Read a structured MERSCOPE folder
 #' @keywords internal
-.read_merscope_folder <- function(
-        merscope_dir,
-        data_to_use,
-        cores = NA,
-        verbose = NULL) {
+.read_merscope_folder <- function(merscope_dir,
+    data_to_use,
+    cores = NA,
+    verbose = NULL) {
     # prepare dir_items list
     dir_items <- list(
         `boundary info` = "*cell_boundaries*",
@@ -1295,13 +1291,12 @@ NULL
 
 #' @rdname load_merscope_folder
 #' @keywords internal
-.load_merscope_folder <- function(
-        dir_items,
-        data_to_use,
-        fovs = NULL,
-        poly_z_indices = seq(from = 1, to = 7),
-        cores = NA,
-        verbose = TRUE) {
+.load_merscope_folder <- function(dir_items,
+    data_to_use,
+    fovs = NULL,
+    poly_z_indices = seq(from = 1, to = 7),
+    cores = NA,
+    verbose = TRUE) {
     # 1. load data_to_use-specific
     if (data_to_use == "subcellular") {
         data_list <- .load_merscope_folder_subcellular(
@@ -1372,13 +1367,12 @@ NULL
 
 #' @describeIn load_merscope_folder Load items for 'subcellular' workflow
 #' @keywords internal
-.load_merscope_folder_subcellular <- function(
-        dir_items,
-        data_to_use,
-        cores = NA,
-        poly_z_indices = 1L:7L,
-        verbose = TRUE,
-        fovs = NULL) {
+.load_merscope_folder_subcellular <- function(dir_items,
+    data_to_use,
+    cores = NA,
+    poly_z_indices = 1L:7L,
+    verbose = TRUE,
+    fovs = NULL) {
     if (isTRUE(verbose)) message("Loading transcript level info...")
     if (is.null(fovs)) {
         tx_dt <- data.table::fread(
@@ -1422,11 +1416,10 @@ NULL
 
 #' @describeIn load_merscope_folder Load items for 'aggregate' workflow
 #' @keywords internal
-.load_merscope_folder_aggregate <- function(
-        dir_items,
-        data_to_use,
-        cores = NA,
-        verbose = TRUE) {
+.load_merscope_folder_aggregate <- function(dir_items,
+    data_to_use,
+    cores = NA,
+    verbose = TRUE) {
     # metadata is polygon-related measurements
     vmsg("Loading cell metadata...", .v = verbose)
     cell_metadata_file <- data.table::fread(
@@ -1476,7 +1469,7 @@ NULL
 #' These files can be in one of the following formats: (i) scATAC tabix files,
 #' (ii) fragment files, or (iii) bam files.
 #' @param genome A string indicating the default genome to be used for all ArchR
-#' functions. Currently supported values include "hg19","hg38","mm9", and 
+#' functions. Currently supported values include "hg19","hg38","mm9", and
 #' "mm10".
 #' This value is stored as a global environment variable, not part of the
 #' ArchRProject.
@@ -1496,28 +1489,27 @@ NULL
 #' @returns An ArchR project with GeneScoreMatrix, TileMatrix, and
 #' TileMatrix-based LSI
 #' @export
-createArchRProj <- function(
-        fragmentsPath,
-        genome = c("hg19", "hg38", "mm9", "mm10"),
-        createArrowFiles_params = list(
-            sampleNames = "sample1",
-            minTSS = 0,
-            minFrags = 0,
-            maxFrags = 1e+07,
-            minFragSize = 10,
-            maxFragSize = 2000,
-            offsetPlus = 0,
-            offsetMinus = 0,
-            TileMatParams = list(tileSize = 5000)
-        ),
-        ArchRProject_params = list(
-            outputDirectory = getwd(),
-            copyArrows = FALSE
-        ),
-        addIterativeLSI_params = list(),
-        threads = ArchR::getArchRThreads(),
-        force = FALSE,
-        verbose = TRUE) {
+createArchRProj <- function(fragmentsPath,
+    genome = c("hg19", "hg38", "mm9", "mm10"),
+    createArrowFiles_params = list(
+        sampleNames = "sample1",
+        minTSS = 0,
+        minFrags = 0,
+        maxFrags = 1e+07,
+        minFragSize = 10,
+        maxFragSize = 2000,
+        offsetPlus = 0,
+        offsetMinus = 0,
+        TileMatParams = list(tileSize = 5000)
+    ),
+    ArchRProject_params = list(
+        outputDirectory = getwd(),
+        copyArrows = FALSE
+    ),
+    addIterativeLSI_params = list(),
+    threads = ArchR::getArchRThreads(),
+    force = FALSE,
+    verbose = TRUE) {
     if (!requireNamespace("ArchR")) {
         message('ArchR is needed. Install the package using
                 remotes::install_github("GreenleafLab/ArchR")')
@@ -1578,13 +1570,12 @@ createArchRProj <- function(
 #' @returns A Giotto object with at least an atac or epigenetic modality
 #'
 #' @export
-createGiottoObjectfromArchR <- function(
-        archRproj,
-        expression = NULL,
-        expression_feat = "atac",
-        spatial_locs = NULL,
-        sampleNames = "sample1",
-        ...) {
+createGiottoObjectfromArchR <- function(archRproj,
+    expression = NULL,
+    expression_feat = "atac",
+    spatial_locs = NULL,
+    sampleNames = "sample1",
+    ...) {
     # extract GeneScoreMatrix
     GeneScoreMatrix_summarizedExperiment <- ArchR::getMatrixFromProject(
         archRproj

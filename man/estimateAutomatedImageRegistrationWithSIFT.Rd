@@ -15,10 +15,10 @@ estimateAutomatedImageRegistrationWithSIFT(
 )
 }
 \arguments{
-\item{x}{required. Source matrix input, could be generated from 
+\item{x}{required. Source matrix input, could be generated from
 preprocessImageToMatrix}
 
-\item{y}{required. Source matrix input, could be generated from 
+\item{y}{required. Source matrix input, could be generated from
 preprocessImageToMatrix}
 
 \item{plot_match}{whether or not to plot the matching descriptors.
@@ -26,20 +26,21 @@ Default False}
 
 \item{max_ratio}{max_ratio parameter for matching descriptors, default 0.6}
 
-\item{estimate_fun}{default Affine. The transformation model to use 
+\item{estimate_fun}{default Affine. The transformation model to use
 estimation}
 
-\item{save_warp}{default NULL, if not NULL, please provide an output image 
+\item{save_warp}{default NULL, if not NULL, please provide an output image
 path to save the warpped image.}
 }
 \value{
 a list of the estimated transformation object
 }
 \description{
-Automatically estimate a transform with SIFT feature detection, descriptor 
+Automatically estimate a transform with SIFT feature detection, descriptor
 match and returns a transformation object to use
 }
 \examples{
 estimation <- estimateAutomatedImageRegistrationWithSIFT(
-x = image_mtx1, y = image_mtx2)
+    x = image_mtx1, y = image_mtx2
+)
 }

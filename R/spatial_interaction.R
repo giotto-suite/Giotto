@@ -5,15 +5,14 @@
 #' @description Simulate random network.
 #' @returns data.table
 #' @keywords internal
-make_simulated_network <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        spatial_network_name = "Delaunay_network",
-        cluster_column,
-        number_of_simulations = 100,
-        set_seed = TRUE,
-        seed_number = 1234) {
+make_simulated_network <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    spatial_network_name = "Delaunay_network",
+    cluster_column,
+    number_of_simulations = 100,
+    set_seed = TRUE,
+    seed_number = 1234) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -127,20 +126,19 @@ make_simulated_network <- function(
 #'
 #' cellProximityEnrichment(g, cluster_column = "leiden_clus")
 #' @export
-cellProximityEnrichment <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        spatial_network_name = "Delaunay_network",
-        cluster_column,
-        number_of_simulations = 1000,
-        adjust_method = c(
-            "none", "fdr", "bonferroni", "BH",
-            "holm", "hochberg", "hommel",
-            "BY"
-        ),
-        set_seed = TRUE,
-        seed_number = 1234) {
+cellProximityEnrichment <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    spatial_network_name = "Delaunay_network",
+    cluster_column,
+    number_of_simulations = 1000,
+    adjust_method = c(
+        "none", "fdr", "bonferroni", "BH",
+        "holm", "hochberg", "hommel",
+        "BY"
+    ),
+    set_seed = TRUE,
+    seed_number = 1234) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -390,15 +388,14 @@ cellProximityEnrichment <- function(
 #'     cell_interaction = "custom_leiden"
 #' )
 #' @export
-addCellIntMetadata <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        spatial_network = "spatial_network",
-        cluster_column,
-        cell_interaction,
-        name = "select_int",
-        return_gobject = TRUE) {
+addCellIntMetadata <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    spatial_network = "spatial_network",
+    cluster_column,
+    cell_interaction,
+    name = "select_int",
+    return_gobject = TRUE) {
     # set spatial unit and feature type
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -503,13 +500,12 @@ NULL
 
 #' @describeIn cell_proximity_tests t.test
 #' @keywords internal
-.do_ttest <- function(
-        expr_values,
-        select_ind,
-        other_ind,
-        adjust_method,
-        mean_method,
-        offset = 0.1) {
+.do_ttest <- function(expr_values,
+    select_ind,
+    other_ind,
+    adjust_method,
+    mean_method,
+    offset = 0.1) {
     vmsg(.is_debug = TRUE, ".do_ttest")
 
     # data.table variables
@@ -554,12 +550,11 @@ NULL
 
 #' @describeIn cell_proximity_tests limma t.test
 #' @keywords internal
-.do_limmatest <- function(
-        expr_values,
-        select_ind,
-        other_ind,
-        mean_method,
-        offset = 0.1) {
+.do_limmatest <- function(expr_values,
+    select_ind,
+    other_ind,
+    mean_method,
+    offset = 0.1) {
     vmsg(.is_debug = TRUE, ".do_limmatest")
 
     package_check("limma")
@@ -636,13 +631,12 @@ NULL
 
 #' @describeIn cell_proximity_tests wilcoxon
 #' @keywords internal
-.do_wilctest <- function(
-        expr_values,
-        select_ind,
-        other_ind,
-        adjust_method,
-        mean_method,
-        offset = 0.1) {
+.do_wilctest <- function(expr_values,
+    select_ind,
+    other_ind,
+    adjust_method,
+    mean_method,
+    offset = 0.1) {
     vmsg(.is_debug = TRUE, ".do_wilctest")
 
     # data.table variables
@@ -686,13 +680,12 @@ NULL
 
 
 # calculate original values
-.do_permuttest_original <- function(
-        expr_values,
-        select_ind,
-        other_ind,
-        name = "orig",
-        mean_method,
-        offset = 0.1) {
+.do_permuttest_original <- function(expr_values,
+    select_ind,
+    other_ind,
+    name = "orig",
+    mean_method,
+    offset = 0.1) {
     # data.table variables
     feats <- NULL
 
@@ -718,15 +711,14 @@ NULL
 
 
 # calculate random values
-.do_permuttest_random <- function(
-        expr_values,
-        select_ind,
-        other_ind,
-        name = "perm_1",
-        mean_method,
-        offset = 0.1,
-        set_seed = TRUE,
-        seed_number = 1234) {
+.do_permuttest_random <- function(expr_values,
+    select_ind,
+    other_ind,
+    name = "perm_1",
+    mean_method,
+    offset = 0.1,
+    set_seed = TRUE,
+    seed_number = 1234) {
     # data.table variables
     feats <- NULL
 
@@ -767,15 +759,14 @@ NULL
 
 
 # calculate multiple random values
-.do_multi_permuttest_random <- function(
-        expr_values,
-        select_ind,
-        other_ind,
-        mean_method,
-        offset = 0.1,
-        n = 100,
-        set_seed = TRUE,
-        seed_number = 1234) {
+.do_multi_permuttest_random <- function(expr_values,
+    select_ind,
+    other_ind,
+    mean_method,
+    offset = 0.1,
+    n = 100,
+    set_seed = TRUE,
+    seed_number = 1234) {
     if (set_seed == TRUE) {
         seed_number_list <- seed_number:(seed_number + (n - 1))
     }
@@ -801,15 +792,14 @@ NULL
 
 #' @describeIn cell_proximity_tests random permutation
 #' @keywords internal
-.do_permuttest <- function(
-        expr_values,
-        select_ind, other_ind,
-        n_perm = 1000,
-        adjust_method = "fdr",
-        mean_method,
-        offset = 0.1,
-        set_seed = TRUE,
-        seed_number = 1234) {
+.do_permuttest <- function(expr_values,
+    select_ind, other_ind,
+    n_perm = 1000,
+    adjust_method = "fdr",
+    mean_method,
+    offset = 0.1,
+    set_seed = TRUE,
+    seed_number = 1234) {
     # data.table variables
     log2fc_diff <- log2fc <- sel <- other <- feats <- p_higher <- p_lower <-
         perm_sel <- NULL
@@ -889,20 +879,19 @@ NULL
 #' @returns differential test on subsets of a matrix
 #' @keywords internal
 #' @seealso [cell_proximity_tests]
-.do_cell_proximity_test <- function(
-        expr_values,
-        select_ind, other_ind,
-        diff_test = c("permutation", "limma", "t.test", "wilcox"),
-        mean_method = c("arithmic", "geometric"),
-        offset = 0.1,
-        n_perm = 100,
-        adjust_method = c(
-            "bonferroni", "BH", "holm", "hochberg", "hommel",
-            "BY", "fdr", "none"
-        ),
-        set_seed = TRUE,
-        seed_number = 1234,
-        verbose = FALSE) {
+.do_cell_proximity_test <- function(expr_values,
+    select_ind, other_ind,
+    diff_test = c("permutation", "limma", "t.test", "wilcox"),
+    mean_method = c("arithmic", "geometric"),
+    offset = 0.1,
+    n_perm = 100,
+    adjust_method = c(
+        "bonferroni", "BH", "holm", "hochberg", "hommel",
+        "BY", "fdr", "none"
+    ),
+    set_seed = TRUE,
+    seed_number = 1234,
+    verbose = FALSE) {
     # get parameters
     diff_test <- match.arg(
         diff_test,
@@ -961,22 +950,21 @@ NULL
 #' @returns data.table
 #' @keywords internal
 #' @seealso [.do_cell_proximity_test()] for specific tests
-.findCellProximityFeats_per_interaction <- function(
-        sel_int,
-        expr_values,
-        cell_metadata,
-        annot_spatnetwork,
-        cluster_column = NULL,
-        minimum_unique_cells = 1,
-        minimum_unique_int_cells = 1,
-        exclude_selected_cells_from_test = TRUE,
-        diff_test = c("permutation", "limma", "t.test", "wilcox"),
-        mean_method = c("arithmic", "geometric"),
-        offset = 0.1,
-        adjust_method = "bonferroni",
-        nr_permutations = 100,
-        set_seed = TRUE,
-        seed_number = 1234) {
+.findCellProximityFeats_per_interaction <- function(sel_int,
+    expr_values,
+    cell_metadata,
+    annot_spatnetwork,
+    cluster_column = NULL,
+    minimum_unique_cells = 1,
+    minimum_unique_int_cells = 1,
+    exclude_selected_cells_from_test = TRUE,
+    diff_test = c("permutation", "limma", "t.test", "wilcox"),
+    mean_method = c("arithmic", "geometric"),
+    offset = 0.1,
+    adjust_method = "bonferroni",
+    nr_permutations = 100,
+    set_seed = TRUE,
+    seed_number = 1234) {
     # data.table variables
     unified_int <- to_cell_type <- from_cell_type <- cell_type <-
         int_cell_type <- NULL
@@ -1220,28 +1208,27 @@ NULL
 #'     nr_permutations = 10
 #' )
 #' @export
-findInteractionChangedFeats <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        expression_values = "normalized",
-        selected_feats = NULL,
-        cluster_column,
-        spatial_network_name = "Delaunay_network",
-        minimum_unique_cells = 1,
-        minimum_unique_int_cells = 1,
-        diff_test = c("permutation", "limma", "t.test", "wilcox"),
-        mean_method = c("arithmic", "geometric"),
-        offset = 0.1,
-        adjust_method = c(
-            "bonferroni", "BH", "holm", "hochberg", "hommel",
-            "BY", "fdr", "none"
-        ),
-        nr_permutations = 1000,
-        exclude_selected_cells_from_test = TRUE,
-        do_parallel = TRUE,
-        set_seed = TRUE,
-        seed_number = 1234) {
+findInteractionChangedFeats <- function(gobject,
+    feat_type = NULL,
+    spat_unit = NULL,
+    expression_values = "normalized",
+    selected_feats = NULL,
+    cluster_column,
+    spatial_network_name = "Delaunay_network",
+    minimum_unique_cells = 1,
+    minimum_unique_int_cells = 1,
+    diff_test = c("permutation", "limma", "t.test", "wilcox"),
+    mean_method = c("arithmic", "geometric"),
+    offset = 0.1,
+    adjust_method = c(
+        "bonferroni", "BH", "holm", "hochberg", "hommel",
+        "BY", "fdr", "none"
+    ),
+    nr_permutations = 1000,
+    exclude_selected_cells_from_test = TRUE,
+    do_parallel = TRUE,
+    set_seed = TRUE,
+    seed_number = 1234) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -1446,18 +1433,17 @@ print.icfObject <- function(x, ...) {
 #' force(icf_filter2)
 #'
 #' @export
-filterInteractionChangedFeats <- function(
-        icfObject,
-        min_cells = 4,
-        min_cells_expr = 1,
-        min_int_cells = 4,
-        min_int_cells_expr = 1,
-        min_fdr = 0.1,
-        min_spat_diff = 0.2,
-        min_log2_fc = 0.2,
-        min_zscore = 2,
-        zscores_column = c("cell_type", "feats"),
-        direction = c("both", "up", "down")) {
+filterInteractionChangedFeats <- function(icfObject,
+    min_cells = 4,
+    min_cells_expr = 1,
+    min_int_cells = 4,
+    min_int_cells_expr = 1,
+    min_fdr = 0.1,
+    min_spat_diff = 0.2,
+    min_log2_fc = 0.2,
+    min_zscore = 2,
+    zscores_column = c("cell_type", "feats"),
+    direction = c("both", "up", "down")) {
     # NSE vars
     nr_select <- int_nr_select <- zscores <- log2fc <- sel <- other <-
         p.adj <- NULL
@@ -1535,17 +1521,16 @@ filterICF <- filterInteractionChangedFeats
 #' @description Combine ICF scores per interaction
 #' @returns data.table
 #' @keywords internal
-.combineInteractionChangedFeatures_per_interaction <- function(
-        icfObject,
-        sel_int,
-        selected_feats = NULL,
-        specific_feats_1 = NULL,
-        specific_feats_2 = NULL,
-        min_cells = 5,
-        min_int_cells = 3,
-        min_fdr = 0.05,
-        min_spat_diff = 0,
-        min_log2_fc = 0.5) {
+.combineInteractionChangedFeatures_per_interaction <- function(icfObject,
+    sel_int,
+    selected_feats = NULL,
+    specific_feats_1 = NULL,
+    specific_feats_2 = NULL,
+    min_cells = 5,
+    min_int_cells = 3,
+    min_fdr = 0.05,
+    min_spat_diff = 0,
+    min_log2_fc = 0.5) {
     # data.table variables
     unif_int <- feats <- cell_type <- p.adj <- nr_select <-
         int_nr_select <- log2fc <- sel <- NULL
@@ -1935,19 +1920,18 @@ filterICF <- filterInteractionChangedFeats
 #' force(cicf)
 #' combineICF(g_icf) # this is a shortened alias
 #' @export
-combineInteractionChangedFeats <- function(
-        icfObject,
-        selected_ints = NULL,
-        selected_feats = NULL,
-        specific_feats_1 = NULL,
-        specific_feats_2 = NULL,
-        min_cells = 5,
-        min_int_cells = 3,
-        min_fdr = 0.05,
-        min_spat_diff = 0,
-        min_log2_fc = 0.5,
-        do_parallel = TRUE,
-        verbose = TRUE) {
+combineInteractionChangedFeats <- function(icfObject,
+    selected_ints = NULL,
+    selected_feats = NULL,
+    specific_feats_1 = NULL,
+    specific_feats_2 = NULL,
+    min_cells = 5,
+    min_int_cells = 3,
+    min_fdr = 0.05,
+    min_spat_diff = 0,
+    min_log2_fc = 0.5,
+    do_parallel = TRUE,
+    verbose = TRUE) {
     # NSE vars
     unif_int <- feat1_feat2 <- feats_1 <- feats_2 <- comb_logfc <-
         log2fc_1 <- log2fc_2 <- direction <- NULL
@@ -2091,13 +2075,12 @@ print.combIcfObject <- function(x, ...) {
 #' @param feat_set_2 second specific feat set from feat pairs
 #' @returns data.table with average expression scores for each cluster
 #' @keywords internal
-.average_feat_feat_expression_in_groups <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        cluster_column = "cell_types",
-        feat_set_1,
-        feat_set_2) {
+.average_feat_feat_expression_in_groups <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    cluster_column = "cell_types",
+    feat_set_1,
+    feat_set_2) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -2235,24 +2218,23 @@ print.combIcfObject <- function(x, ...) {
 #'
 #' force(res)
 #' @export
-exprCellCellcom <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        cluster_column = "cell_types",
-        random_iter = 1000,
-        feat_set_1,
-        feat_set_2,
-        log2FC_addendum = 0.1,
-        detailed = FALSE,
-        adjust_method = c(
-            "fdr", "bonferroni", "BH", "holm", "hochberg", "hommel",
-            "BY", "none"
-        ),
-        adjust_target = c("feats", "cells"),
-        set_seed = TRUE,
-        seed_number = 1234,
-        verbose = TRUE) {
+exprCellCellcom <- function(gobject,
+    feat_type = NULL,
+    spat_unit = NULL,
+    cluster_column = "cell_types",
+    random_iter = 1000,
+    feat_set_1,
+    feat_set_2,
+    log2FC_addendum = 0.1,
+    detailed = FALSE,
+    adjust_method = c(
+        "fdr", "bonferroni", "BH", "holm", "hochberg", "hommel",
+        "BY", "none"
+    ),
+    adjust_target = c("feats", "cells"),
+    set_seed = TRUE,
+    seed_number = 1234,
+    verbose = TRUE) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -2431,14 +2413,13 @@ exprCellCellcom <- function(
 #' @param seed_number seed number
 #' @returns list of randomly sampled cell ids with same cell type composition
 #' @keywords internal
-.create_cell_type_random_cell_IDs <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        cluster_column = "cell_types",
-        needed_cell_types,
-        set_seed = FALSE,
-        seed_number = 1234) {
+.create_cell_type_random_cell_IDs <- function(gobject,
+    feat_type = NULL,
+    spat_unit = NULL,
+    cluster_column = "cell_types",
+    needed_cell_types,
+    set_seed = FALSE,
+    seed_number = 1234) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -2565,30 +2546,29 @@ exprCellCellcom <- function(
 #'
 #' force(res2)
 #' @export
-spatCellCellcom <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        spatial_network_name = "Delaunay_network",
-        cluster_column = NULL,
-        random_iter = 1000,
-        feat_set_1,
-        feat_set_2,
-        gene_set_1 = NULL,
-        gene_set_2 = NULL,
-        log2FC_addendum = 0.1,
-        min_observations = 2,
-        detailed = FALSE,
-        adjust_method = c(
-            "fdr", "bonferroni", "BH", "holm", "hochberg", "hommel",
-            "BY", "none"
-        ),
-        adjust_target = c("feats", "cells"),
-        do_parallel = TRUE,
-        cores = NA,
-        set_seed = TRUE,
-        seed_number = 1234,
-        verbose = c("a little", "a lot", "none")) {
+spatCellCellcom <- function(gobject,
+    feat_type = NULL,
+    spat_unit = NULL,
+    spatial_network_name = "Delaunay_network",
+    cluster_column = NULL,
+    random_iter = 1000,
+    feat_set_1,
+    feat_set_2,
+    gene_set_1 = NULL,
+    gene_set_2 = NULL,
+    log2FC_addendum = 0.1,
+    min_observations = 2,
+    detailed = FALSE,
+    adjust_method = c(
+        "fdr", "bonferroni", "BH", "holm", "hochberg", "hommel",
+        "BY", "none"
+    ),
+    adjust_target = c("feats", "cells"),
+    do_parallel = TRUE,
+    cores = NA,
+    set_seed = TRUE,
+    seed_number = 1234,
+    verbose = c("a little", "a lot", "none")) {
     verbose <- match.arg(verbose, choices = c("a little", "a lot", "none"))
 
     # Set feat_type and spat_unit
@@ -2738,29 +2718,30 @@ spatCellCellcom <- function(
 #' @param cell_type_1 character. First cell type
 #' @param cell_type_2 character. Second cell type
 #' @export
-specificCellCellcommunicationScores <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    spatial_network_name = "Delaunay_network",
-    cluster_column = NULL,
-    random_iter = 100,
-    cell_type_1 = NULL,
-    cell_type_2 = NULL,
-    feat_set_1,
-    feat_set_2,
-    gene_set_1 = NULL,
-    gene_set_2 = NULL,
-    log2FC_addendum = 0.1,
-    min_observations = 2,
-    detailed = FALSE,
-    adjust_method = c(
-        "fdr", "bonferroni", "BH", "holm", "hochberg", "hommel",
-        "BY", "none"
-    ),
-    adjust_target = c("feats", "cells"),
-    set_seed = FALSE,
-    seed_number = 1234,
-    verbose = TRUE) {
+specificCellCellcommunicationScores <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        spatial_network_name = "Delaunay_network",
+        cluster_column = NULL,
+        random_iter = 100,
+        cell_type_1 = NULL,
+        cell_type_2 = NULL,
+        feat_set_1,
+        feat_set_2,
+        gene_set_1 = NULL,
+        gene_set_2 = NULL,
+        log2FC_addendum = 0.1,
+        min_observations = 2,
+        detailed = FALSE,
+        adjust_method = c(
+            "fdr", "bonferroni", "BH", "holm", "hochberg", "hommel",
+            "BY", "none"
+        ),
+        adjust_target = c("feats", "cells"),
+        set_seed = FALSE,
+        seed_number = 1234,
+        verbose = TRUE) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -3048,15 +3029,14 @@ specificCellCellcommunicationScores <- function(gobject,
 #' combCC <- combCCcom(spatialCC = spatialCC, exprCC = exprCC)
 #' force(combCC)
 #' @export
-combCCcom <- function(
-        spatialCC,
-        exprCC,
-        min_lig_nr = 3,
-        min_rec_nr = 3,
-        min_padj_value = 1,
-        min_log2fc = 0,
-        min_av_diff = 0,
-        detailed = FALSE) {
+combCCcom <- function(spatialCC,
+    exprCC,
+    min_lig_nr = 3,
+    min_rec_nr = 3,
+    min_padj_value = 1,
+    min_log2fc = 0,
+    min_av_diff = 0,
+    detailed = FALSE) {
     # data.table variables
     lig_nr <- rec_nr <- p.adj <- log2fc <- av_diff <- NULL
 

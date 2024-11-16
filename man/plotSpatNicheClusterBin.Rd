@@ -21,7 +21,7 @@ plotSpatNicheClusterBin(
 
 \item{...}{additional arguments to be passed to the spatFeatPlot2D function}
 
-\item{default_save_name}{default save name for saving, don't change, 
+\item{default_save_name}{default save name for saving, don't change,
 change save_name in save_param}
 
 \item{niche_cluster_label}{name of the niche cluster label}
