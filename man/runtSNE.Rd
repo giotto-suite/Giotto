@@ -23,6 +23,7 @@ runtSNE(
   set_seed = TRUE,
   seed_number = 1234,
   verbose = TRUE,
+  toplevel = 1L,
   ...
 )
 }
@@ -63,10 +64,12 @@ runtSNE(
 
 \item{verbose}{verbosity of the function}
 
+\item{toplevel}{relative stackframe where call was made from}
+
 \item{...}{additional tSNE parameters}
 }
 \value{
-giotto object with updated tSNE dimension recuction
+giotto object with updated tSNE dimension reduction
 }
 \description{
 run tSNE
@@ -75,11 +78,14 @@ run tSNE
 See \code{\link[Rtsne]{Rtsne}} for more information about these and
 other parameters. \cr
 \itemize{
-  \item Input for tSNE dimension reduction can be another dimension reduction (default = 'pca')
+  \item Input for tSNE dimension reduction can be another dimension
+  reduction (default = 'pca')
   \item To use gene expression as input set dim_reduction_to_use = NULL
-  \item If dim_reduction_to_use = NULL, feats_to_use can be used to select a column name of
-  highly variable genes (see \code{\link{calculateHVF}}) or simply provide a vector of genes
-  \item multiple tSNE results can be stored by changing the \emph{name} of the analysis
+  \item If dim_reduction_to_use = NULL, feats_to_use can be used to select
+  a column name of highly variable genes
+  (see \code{\link{calculateHVF}}) or simply provide a vector of genes
+  \item multiple tSNE results can be stored by changing the \emph{name} of
+  the analysis
 }
 }
 \examples{

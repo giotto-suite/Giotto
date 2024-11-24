@@ -23,6 +23,7 @@ runPCAprojection(
   set_seed = TRUE,
   seed_number = 1234,
   verbose = TRUE,
+  toplevel = 1L,
   ...
 )
 }
@@ -62,6 +63,8 @@ runPCAprojection(
 \item{seed_number}{seed number to use}
 
 \item{verbose}{verbosity of the function}
+
+\item{toplevel}{relative stackframe where call was made}
 
 \item{...}{additional parameters for PCA (see details)}
 }

@@ -11,6 +11,9 @@ print.combIcfObject(x, ...)
 
 \item{\dots}{additional params to pass (none implemented)}
 }
+\value{
+combIcfObject
+}
 \description{
 combIcfObject print method
 }

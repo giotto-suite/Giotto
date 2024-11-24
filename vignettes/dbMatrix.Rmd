@@ -9,8 +9,8 @@ vignette: >
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+    collapse = TRUE,
+    comment = "#>"
 )
 ```
 
@@ -21,23 +21,23 @@ This vignette demonstrates how to use a [`dbMatrix`](https://github.com/drieslab
 
 ```{r, eval=FALSE}
 # Ensure Giotto Suite is installed.
-if(!"Giotto" %in% installed.packages()) {
-  devtools::install_github("drieslab/Giotto@suite")
+if (!"Giotto" %in% installed.packages()) {
+    devtools::install_github("drieslab/Giotto@suite")
 }
 
 # Ensure GiottoData, a small, helper module for tutorials, is installed.
-if(!"GiottoData" %in% installed.packages()) {
-  devtools::install_github("drieslab/GiottoData")
+if (!"GiottoData" %in% installed.packages()) {
+    devtools::install_github("drieslab/GiottoData")
 }
 
 library(Giotto)
 library(GiottoData)
 
 # Ensure the Python environment for Giotto has been installed.
-genv_exists = checkGiottoEnvironment()
-if(!genv_exists){
-  # The following command need only be run once to install the Giotto environment.
-  installGiottoEnvironment()
+genv_exists <- checkGiottoEnvironment()
+if (!genv_exists) {
+    # The following command need only be run once to install the Giotto environment.
+    installGiottoEnvironment()
 }
 ```
 
@@ -45,46 +45,54 @@ if(!genv_exists){
 
 ```{r}
 # Get test dataset from Giotto Data package
-visium = GiottoData::loadGiottoMini(dataset = "visium")
+visium <- GiottoData::loadGiottoMini(dataset = "visium")
 
 # Extract the cell expression matrix as a test dataset
-dgc = getExpression(visium, output = "matrix")
+dgc <- getExpression(visium, output = "matrix")
 
 # Create a DBI connection object
-con = DBI::dbConnect(duckb::duckdb(), ":memory:")
+con <- DBI::dbConnect(duckb::duckdb(), ":memory:")
 
 # Create a dbSparseMatrix using the dbMatrix constructor function
-dbsm = dbMatrix::dbMatrix(value = dgc, 
-                          con = con, 
-                          name = 'dgc', 
-                          class = "dbSparseMatrix",
-                          overwrite = TRUE)
+dbsm <- dbMatrix::dbMatrix(
+    value = dgc,
+    con = con,
+    name = "dgc",
+    class = "dbSparseMatrix",
+    overwrite = TRUE
+)
 
 # Create Giotto exprObj with the dbMatrix
-expObj_db = createExprObj(expression_data = dbsm, 
-                          expression_matrix_class = 'dbSparseMatrix', 
-                          name = 'raw')
+expObj_db <- createExprObj(
+    expression_data = dbsm,
+    expression_matrix_class = "dbSparseMatrix",
+    name = "raw"
+)
 
 # Create the Giotto object consisting of only the cell count matrix
-gobject_db = createGiottoObject(expression = expObj_db)
+gobject_db <- createGiottoObject(expression = expObj_db)
 ```
 
 # 3. Preprocess Giotto object with `dbMatrix`
 ```{r}
-# Perform filtering 
-gobject_db_filtered = filterGiotto(gobject_db, spat_unit = "cell",
-                                   feat_type = "rna",
-                                   expression_values = "raw")
+# Perform filtering
+gobject_db_filtered <- filterGiotto(gobject_db,
+    spat_unit = "cell",
+    feat_type = "rna",
+    expression_values = "raw"
+)
 
 # Perform library normalization and scaling
-gobject_db_filtered = normalizeGiotto(gobject = gobject_db_filtered,
-                                      spat_unit = 'cell',
-                                      feat_type = 'rna',
-                                      expression_values = 'raw',
-                                      library_size_norm = FALSE,
-                                      log_norm = FALSE,
-                                      scale_feats = TRUE,
-                                      scale_cells = TRUE)
+gobject_db_filtered <- normalizeGiotto(
+    gobject = gobject_db_filtered,
+    spat_unit = "cell",
+    feat_type = "rna",
+    expression_values = "raw",
+    library_size_norm = FALSE,
+    log_norm = FALSE,
+    scale_feats = TRUE,
+    scale_cells = TRUE
+)
 ```
 
 

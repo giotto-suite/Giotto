@@ -10,11 +10,11 @@ plotCTCompositionInNicheCluster(
   values = "prob",
   spat_unit = "cell",
   feat_type = "niche cluster",
+  normalization = c("by_niche_cluster", "by_cell_type", NULL),
   show_plot = NULL,
   return_plot = NULL,
   save_plot = NULL,
   save_param = list(),
-  theme_param = list(),
   default_save_name = "CellTypeCompositionInNicheCluster"
 )
 }
@@ -23,11 +23,14 @@ plotCTCompositionInNicheCluster(
 
 \item{cell_type}{the cell type column name in the metadata}
 
-\item{values}{name of the expression matrix stored probability of each cell assigned to each niche cluster}
+\item{values}{name of the expression matrix stored probability of each cell
+assigned to each niche cluster}
 
 \item{spat_unit}{name of spatial unit niche stored cluster features}
 
 \item{feat_type}{name of the feature type stored probability matrix}
+
+\item{normalization}{normalization method for the cell type composition}
 
 \item{show_plot}{logical. show plot}
 
@@ -35,13 +38,19 @@ plotCTCompositionInNicheCluster(
 
 \item{save_plot}{logical. save the plot}
 
-\item{save_param}{list of saving parameters, see \code{\link{showSaveParameters}}}
+\item{save_param}{list of saving parameters, see
+\code{\link{showSaveParameters}}}
 
-\item{default_save_name}{default save name for saving, don't change, change save_name in save_param}
+\item{default_save_name}{default save name for saving, don't change,
+change save_name in save_param}
+}
+\value{
+ggplot
 }
 \description{
 plot cell type composition within each niche cluster
 }
 \details{
-This function plots the cell type composition within each niche cluster
+This function plots the cell type composition within each niche
+cluster
 }

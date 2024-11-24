@@ -29,10 +29,10 @@ registerGiottoObjectList(
 \item{method}{Method used to align gobjects. Current options are either
 using FIJI register_virtual_stack_slices output or rvision}
 
-\item{image_unreg}{Gobject image slot to use. Defaults to 'image' (optional)}
+\item{image_unreg}{Gobject image slot to use. Defaults to "image" (optional)}
 
 \item{image_reg_name}{Arbitrary image slot name for registered images to
-occupy. Defaults to replacement of 'image' slot (optional)}
+occupy. Defaults to replacement of "image" slot (optional)}
 
 \item{image_list}{RVISION - under construction}
 
@@ -42,7 +42,7 @@ occupy. Defaults to replacement of 'image' slot (optional)}
 'raw' slot (optional)}
 
 \item{spatloc_reg_name}{Arbitrary name for registered spatial locations.
-Defaults to replacement of 'raw' slot (optional)}
+Defaults to replacement of "raw" slot (optional)}
 
 \item{fiji_xml_files}{Filepaths to FIJI registration XML outputs}
 

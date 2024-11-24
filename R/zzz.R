@@ -3,7 +3,7 @@
 
 .onAttach <- function(libname, pkgname) {
     ## print version number ##
-    packageStartupMessage("Giotto Suite ", utils::packageVersion("Giotto"))
+    packageStartupMessage("Giotto Suite ", packageVersion("Giotto"))
 
     check_ver <- getOption("giotto.check_version", TRUE)
     if (isTRUE(check_ver)) {

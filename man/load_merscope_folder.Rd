@@ -11,7 +11,7 @@
   dir_items,
   data_to_use,
   fovs = NULL,
-  poly_z_indices = 1L:7L,
+  poly_z_indices = seq(from = 1, to = 7),
   cores = NA,
   verbose = TRUE
 )

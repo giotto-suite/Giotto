@@ -26,7 +26,8 @@ runUMAPprojection(
   set_seed = TRUE,
   seed_number = 1234,
   verbose = TRUE,
-  toplevel_params = 2,
+  toplevel_params = deprecated(),
+  toplevel = 1L,
   ...
 )
 }
@@ -73,7 +74,9 @@ runUMAPprojection(
 
 \item{verbose}{verbosity of function}
 
-\item{toplevel_params}{parameters to extract}
+\item{toplevel_params}{deprecated}
+
+\item{toplevel}{relative stackframe where call was made from}
 
 \item{...}{additional UMAP parameters}
 }
@@ -87,11 +90,15 @@ run UMAP on subset and project on the rest
 See \code{\link[uwot]{umap}} for more information about these and
 other parameters.
 \itemize{
-  \item Input for UMAP dimension reduction can be another dimension reduction (default = 'pca')
+  \item Input for UMAP dimension reduction can be another dimension
+  reduction (default = 'pca')
   \item To use gene expression as input set dim_reduction_to_use = NULL
-  \item If dim_reduction_to_use = NULL, feats_to_use can be used to select a column name of
-  highly variable genes (see \code{\link{calculateHVF}}) or simply provide a vector of genes
-  \item multiple UMAP results can be stored by changing the \emph{name} of the analysis
+  \item If dim_reduction_to_use = NULL, feats_to_use can be used to select a
+  column name of
+  highly variable genes (see \code{\link{calculateHVF}}) or simply provide a
+  vector of genes
+  \item multiple UMAP results can be stored by changing the \emph{name} of
+  the analysis
 }
 }
 \examples{

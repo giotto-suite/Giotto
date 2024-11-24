@@ -25,10 +25,10 @@ registerGiottoObjectListFiji(
 \item{spat_unit}{spatial unit}
 
 \item{image_unreg}{name of original unregistered images. Defaults to
-'image' (optional)}
+"image" (optional)}
 
 \item{image_reg_name}{arbitrary name for registered images to occupy.
-Defaults to replacement of 'image' (optional)}
+Defaults to replacement of "image" (optional)}
 
 \item{image_replace_name}{arbitrary name for any images replaced due to
 image_reg_name argument (optional)}
@@ -36,10 +36,10 @@ image_reg_name argument (optional)}
 \item{registered_images}{registered images output by FIJI
 register_virtual_stack_slices}
 
-\item{spatloc_unreg}{spatial locations to use. Defaults to 'raw' (optional)}
+\item{spatloc_unreg}{spatial locations to use. Defaults to "raw" (optional)}
 
 \item{spatloc_reg_name}{name for registered spatial locations. Defaults to
-replacement of 'raw' (optional)}
+replacement of "raw" (optional)}
 
 \item{spatloc_replace_name}{arbitrary name for any spatial locations
 replaced due to spatloc_reg_name argument (optional)}

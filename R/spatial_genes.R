@@ -2924,6 +2924,8 @@ showPattern3D <- function(
         save_plot = NULL,
         save_param = list(),
         default_save_name = "showPattern3D") {
+    package_check("plotly", repository = "CRAN:plotly")
+
     # data.table variables
     center_x <- x_start <- x_end <- center_y <- y_start <- y_end <-
         center_z <- z_start <- z_end <- NULL
@@ -2975,7 +2977,8 @@ showPattern3D <- function(
 
     dpl <- plotly::plot_ly(
         type = "scatter3d",
-        x = annotated_grid$center_x, y = annotated_grid$center_y, z = annotated_grid$center_z,
+        x = annotated_grid$center_x,
+        y = annotated_grid$center_y, z = annotated_grid$center_z,
         color = annotated_grid[[selected_PC]], marker = list(size = point_size),
         mode = "markers", colors = c("darkblue", "white", "darkred")
     )
@@ -4101,19 +4104,6 @@ heatmSpatialCorFeats <- function(
 
 
 
-#' @title heatmSpatialCorGenes
-#' @name heatmSpatialCorGenes
-#' @description Create heatmap of spatially correlated genes
-#' @inheritDotParams heatmSpatialCorFeats
-#' @returns heatmap
-#' @seealso \code{\link{heatmSpatialCorFeats}}
-#' @export
-heatmSpatialCorGenes <- function(...) {
-    .Deprecated(new = "heatmSpatialCorFeats")
-
-    heatmSpatialCorFeats(...)
-}
-
 
 
 
@@ -5137,7 +5127,8 @@ run_spatial_sim_tests_multi <- function(
 #'         "AAAGGGATGTAGCAAG-1",
 #'         "TCAAACAACCGCGTCG-1", "ACGATCATACATAGAG-1", "TATGCTCCCTACTTAC-1"
 #'     ),
-#'     spatial_network_name = "spatial_network", gene_names = c("Gna12", "Ccnd2")
+#'     spatial_network_name = "spatial_network",
+#'     gene_names = c("Gna12", "Ccnd2")
 #' )
 #' @export
 runPatternSimulation <- function(

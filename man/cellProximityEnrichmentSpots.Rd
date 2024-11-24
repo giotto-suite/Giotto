@@ -70,7 +70,7 @@ x <- findMarkers_one_vs_all(g,
 )
 sign_gene <- x$feats
 
-sign_matrix <- matrix(rnorm(length(sign_gene) * 8, mean = 10),
+sign_matrix <- matrix(rnorm(length(sign_gene) * 7, mean = 10),
     nrow = length(sign_gene)
 )
 rownames(sign_matrix) <- sign_gene

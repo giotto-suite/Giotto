@@ -7,6 +7,7 @@
 load_cell_niche_cluster_prob(
   gobject,
   ontrac_results_dir = getwd(),
+  GNN_dir = file.path(ontrac_results_dir, "GNN_dir"),
   spat_unit = "cell",
   feat_type = "niche cluster",
   name = "prob"
@@ -15,7 +16,11 @@ load_cell_niche_cluster_prob(
 \arguments{
 \item{gobject}{giotto object}
 
-\item{ontrac_results_dir}{the directory where the ONTraC results are saved}
+\item{ontrac_results_dir}{the directory where the ONTraC results are saved.
+Default is getwd()}
+
+\item{GNN_dir}{the directory to save the GNN results. Default is
+file.path(ontrac_results_dir, "GNN_dir")}
 
 \item{spat_unit}{spatial unit (e.g. "cell")}
 

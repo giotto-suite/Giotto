@@ -25,7 +25,8 @@ runUMAP(
   set_seed = TRUE,
   seed_number = 1234L,
   verbose = TRUE,
-  toplevel_params = 2L,
+  toplevel_params = deprecated(),
+  toplevel = 1L,
   ...
 )
 }
@@ -70,7 +71,9 @@ runUMAP(
 
 \item{verbose}{verbosity of function}
 
-\item{toplevel_params}{parameters to extract}
+\item{toplevel_params}{deprecated}
+
+\item{toplevel}{relative stackframe where call was made from}
 
 \item{...}{
   Arguments passed on to \code{\link[uwot:umap]{uwot::umap}}

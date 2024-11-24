@@ -1,0 +1,23 @@
+name: giotto_segmentation
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - numpy
+  - pandas
+  - networkx
+  - python-igraph
+  - leidenalg
+  - scikit-learn
+  - tifffile
+  - pip:
+    - cellpose
+    - deepcell
+    - stardist
+    - python-louvain
+    - smfishHmrf
+    - git+https://github.com/wwang-chcn/bento-tools.git@giotto_install
+

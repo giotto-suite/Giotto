@@ -1,3 +1,82 @@
+
+# Giotto 4.1.5 (2024/11/08)
+
+## Enhancements
+* `createGiottoXeniumObject()` auto loading for morphology focus images, image directory loading, auto centroid calculation, allow skipping transcript loading
+
+## Website changes
+* New Analysis mini tutorials for showing common processing functions independently of the spatial technology.
+* New Slide-seq and OpenST examples.
+* New Contributing tab with guidelines for contributing to the package and the website.
+* New Visualizations tutorials.
+* New Giotto workflow and Core Functions tutorials under Get Started tab.
+* New Create and change Giotto instructions tutorial.
+* New Spatial Patterns tutorials section.
+* New tutorials under Interactivity for regions selection with vitessceR.
+* New Multi-samples tutorials section.
+* Updated technologies examples.
+* Updated tutorials for using Docker and Singularity Giotto containers.
+* Homogenized variable names across examples and tutorials.
+
+# Giotto 4.1.4 (2024/10/30)
+
+## Changes
+* `createGiottoVisiumObject()` apply a modifier of 0.8461538 to visium spot diameter to reflect actual spot size
+* `doLeidenClusterIgraph()` deprecate param `resolution_parameter` in favor of `resolution`
+
+## Enhancements
+* `createGiottoVisiumObject()` append multiplicative scalefactor to get micron 
+  values from the current coordinate units during Visium object creation. 
+  Accessible through `instructions(gobject, "micron_scale")`
+
+# Giotto 4.1.3 (2024/10/27)
+
+## New
+* Add `giottoToAnndataZarr()` to create a local anndata zarr folder and interact with the vitessceR package.
+* `reduceDims()` API function for dimension reductions
+* `runNMF()` implementation that works via RcppML
+
+## Changes
+* `runWNN()` and `runIntegratedUMAP()` arguments were updated to make the function flexible to handle any number of modalities.
+* update `jackstrawPlot()` to make more flexible and efficient. Changed default params for `scaling`, `centering`, and `feats_to_use` to match `runPCA()`
+* change warning when reduction "feats" is selected in `runtSNE()` to error to avoid accidentally wiping the `giotto` object.
+
+
+# Giotto 4.1.2
+
+## Breaking changes
+* remove deprecated `PAGEEnrich()`. Use `runPAGEEnrich()` instead
+* remove deprecated `rankEnrich()`. Use `runRankEnrich()` instead
+* remove deprecated `hyperGeometricEnrich()`. Use `runHyperGeometricEnrich()` instead
+* remove deprecated `createSpatialEnrich()`. Use `runSpatialEnrich()` instead
+* remove deprecated `heatmSpatialCorGenes()`. Use `heatmSpatialCorFeats()` instead
+* remove deprecated `runPAGEEnrich_OLD()`. Use `runPAGEEnrich()` instead
+* remove `do_pca`, `expression_values`, `feats_to_use` args from `runGiottoHarmony()`. Running PCA during the `harmony::RunHarmony()` call is deprecated.
+
+## Enhancements
+* add `'quantile'` normalization method to `normalizeGiotto()`
+
+## Changes
+* `limma`, `plotly`, and `Rtsne` moved to Suggests
+* move `progressr` and `jsonlite` dependencies to GiottoUtils v0.1.12
+* remove `reshape2` dependency.
+
+## Bug fixes
+* `processGiotto()` can now skip adjust step by default
+
+## New
+* `identifyTMAcores()` for assigning IDs to tissue microarray spatial data.
+* `labelTransfer()` for transferring labels between giotto objects or subsets thereof. Supercedes `doClusterProjection()`
+
+# Giotto 4.1.1
+
+## Bug fixes
+* Allow `giottoInstructions` passing for Xenium convenience functions
+
+## Changes
+* Deprecate `screePlot()` `name` in favor of `dim_reduction_name` param
+
+
 # Giotto 4.1.0 (2024/07/31)
 
 ## Breaking changes

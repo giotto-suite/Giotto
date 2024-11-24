@@ -10,7 +10,7 @@ createGiottoMerscopeObject(
   merscope_dir,
   data_to_use = c("subcellular", "aggregate"),
   FOVs = NULL,
-  poly_z_indices = 1:7,
+  poly_z_indices = seq(from = 1, to = 7),
   calculate_overlap = TRUE,
   overlap_to_matrix = TRUE,
   aggregate_stack = TRUE,
@@ -76,7 +76,8 @@ within the directory where the \strong{bolded} portions are what this
 function matches against:
 \itemize{
   \item{\strong{cell_boundaries} (folder .hdf5 files)}
-  \item{\strong{images} (folder of .tif images and a scalefactor/transfrom table)}
+  \item{\strong{images} (folder of .tif images and a
+  scalefactor/transfrom table)}
   \item{\strong{cell_by_gene}.csv (file)}
   \item{cell_metadata\strong{fov_positions_file}.csv (file)}
   \item{detected_transcripts\strong{metadata_file}.csv (file)}

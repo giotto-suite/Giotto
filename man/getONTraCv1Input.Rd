@@ -39,7 +39,7 @@ This function generate the input data for ONTraC v1
 g <- GiottoData::loadGiottoMini("visium")
 
 getONTraCv1Input(
-  gobject = g,
-  cell_type = "custom_leiden"
+    gobject = g,
+    cell_type = "custom_leiden"
 )
 }

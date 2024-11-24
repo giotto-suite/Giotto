@@ -9,7 +9,7 @@ info}
   dir_items,
   FOVs,
   remove_background_polygon = TRUE,
-  background_algo = c("range"),
+  background_algo = "range",
   remove_unvalid_polygons = TRUE,
   cores,
   verbose = TRUE,
@@ -49,7 +49,7 @@ Both \emph{subcellular}
 (subellular transcript detection information) and
 \emph{aggregate} (aggregated detection count matrices by cell polygon from
 NanoString)
-data will be loaded in. The two will be separated into 'cell' and 'cell_agg'
+data will be loaded in. The two will be separated into "cell" and "cell_agg"
 spatial units in order to denote the difference in origin of the two.
 }
 \seealso{

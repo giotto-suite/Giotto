@@ -27,6 +27,9 @@ info. A default of 0.2125 is provided.}
 \item{\dots}{additional params to pass to
 \verb{[GiottoClass::createGiottoLargeImage]}}
 }
+\value{
+10xAffineImage
+}
 \description{
 Read a 10x image that is provided with an affine matrix
 transform. Loads the image in with an orientation that matches the dataset

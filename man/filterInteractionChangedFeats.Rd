@@ -67,9 +67,9 @@ Filter Interaction Changed Feature scores.
 g <- GiottoData::loadGiottoMini("visium")
 
 icf <- findInteractionChangedFeats(g,
-     cluster_column = "leiden_clus",
-     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
-     nr_permutations = 10
+    cluster_column = "leiden_clus",
+    selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
+    nr_permutations = 10
 )
 force(icf)
 force(icf$ICFscores)

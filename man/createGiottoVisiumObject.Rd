@@ -40,7 +40,7 @@ createGiottoVisiumObject(
 \item{h5_tissue_positions_path}{path to tissue locations (.csv file)}
 
 \item{h5_image_png_path}{path to tissue .png file (optional). Image
-autoscaling looks for matches in the filename for either 'hires' or 'lowres'}
+autoscaling looks for matches in the filename for either "hires" or "lowres"}
 
 \item{h5_json_scalefactors_path}{path to .json scalefactors (optional)}
 
@@ -60,7 +60,7 @@ autoscaling looks for matches in the filename for either 'hires' or 'lowres'}
 \code{\link[GiottoClass]{createGiottoInstructions}}}
 
 \item{expression_matrix_class}{class of expression matrix to use
-(e.g. 'dgCMatrix', 'DelayedArray')}
+(e.g. "dgCMatrix", "DelayedArray")}
 
 \item{h5_file}{optional path to create an on-disk h5 file}
 
@@ -79,17 +79,24 @@ accepts visium H5 outputs.
 \details{
 If starting from a Visium 10X directory:
 \itemize{
-  \item{expr_data: raw will take expression data from raw_feature_bc_matrix and filter from filtered_feature_bc_matrix}
-  \item{gene_column_index: which gene identifiers (names) to use if there are multiple columns (e.g. ensemble and gene symbol)}
-  \item{png_name: by default the first png will be selected, provide the png name to override this (e.g. myimage.png)}
-  \item{the file scalefactors_json.json will be detected automatically and used to attempt to align the data}
+  \item{expr_data: raw will take expression data from
+  raw_feature_bc_matrix and filter from filtered_feature_bc_matrix}
+  \item{gene_column_index: which gene identifiers (names) to use if there
+  are multiple columns (e.g. ensemble and gene symbol)}
+  \item{png_name: by default the first png will be selected, provide the png
+  name to override this (e.g. myimage.png)}
+  \item{the file scalefactors_json.json will be detected automatically and
+  used to attempt to align the data}
 }
 
 If starting from a Visium 10X .h5 file
 \itemize{
   \item{h5_visium_path: full path to .h5 file: /your/path/to/visium_file.h5}
-  \item{h5_tissue_positions_path: full path to spatial locations file: /you/path/to/tissue_positions_list.csv}
-  \item{h5_image_png_path: full path to png: /your/path/to/images/tissue_lowres_image.png}
-  \item{h5_json_scalefactors_path: full path to .json file: /your/path/to/scalefactors_json.json}
+  \item{h5_tissue_positions_path: full path to spatial locations file:
+  /you/path/to/tissue_positions_list.csv}
+  \item{h5_image_png_path: full path to png:
+  /your/path/to/images/tissue_lowres_image.png}
+  \item{h5_json_scalefactors_path: full path to .json file:
+  /your/path/to/scalefactors_json.json}
 }
 }

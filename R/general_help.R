@@ -276,44 +276,52 @@ rank_binarize_wrapper <- function(
 
 #' @title writeChatGPTqueryDEG
 #' @name writeChatGPTqueryDEG
-#' @description This function writes a query as a .txt file that can be used with
-#' ChatGPT or a similar LLM service to find the most likely cell types based on the
-#' top differential expressed genes (DEGs) between identified clusters.
-#' @param DEG_output the output format from the differenetial expression functions
+#' @description This function writes a query as a .txt file that can be used
+#' with ChatGPT or a similar LLM service to find the most likely cell types
+#' based on the top differential expressed genes (DEGs) between identified
+#' clusters.
+#' @param DEG_output the output format from the differential expression
+#' functions
 #' @param top_n_genes number of genes for each cluster
 #' @param tissue_type tissue type
 #' @param folder_name path to the folder where you want to save the .txt file
 #' @param file_name name of .txt file
 #' @returns writes a .txt file to the desired location
-#' @details This function does not run any LLM service. It simply creates the .txt
-#' file that can then be used any LLM service (e.g. OpenAI, Gemini, ...)
+#' @details This function does not run any LLM service. It simply creates the
+#' .txt file that can then be used any LLM service (e.g. OpenAI, Gemini, ...)
 #' @export
-writeChatGPTqueryDEG = function(DEG_output,
-                                top_n_genes = 10,
-                                tissue_type = 'human breast cancer',
-                                folder_name = getwd(),
-                                file_name = 'chatgpt_query.txt') {
+writeChatGPTqueryDEG <- function(
+        DEG_output,
+        top_n_genes = 10,
+        tissue_type = "human breast cancer",
+        folder_name = getwd(),
+        file_name = "chatgpt_query.txt") {
+    chatgpt_query <- paste0(
+        "Identify cell types of ", tissue_type,
+        " tissue using the following markers. Identify one cell type for each
+        row. Only provide the cell type name and the marker genes used for cell
+        type identification."
+    )
 
-  chatgpt_query = paste0("Identify cell types of ", tissue_type, " tissue using the following markers. Identify one cell type for each row. Only provide the cell type name and the marker genes used for cell type identification.")
+    selected_DEG_output <- DEG_output[, head(.SD, top_n_genes), by = "cluster"]
 
-  selected_DEG_output = DEG_output[, head(.SD, top_n_genes), by="cluster"]
+    finallist <- list()
+    finallist[[1]] <- chatgpt_query
 
-  finallist = list()
-  finallist[[1]] = chatgpt_query
+    for (clus in unique(selected_DEG_output$cluster)) {
+        x <- selected_DEG_output[cluster == clus][["feats"]]
+        x <- c(clus, x)
+        finallist[[as.numeric(clus) + 1]] <- x
+    }
 
-  for(clus in unique(selected_DEG_output$cluster)) {
-    x = selected_DEG_output[cluster == clus][['feats']]
-    x = c(clus, x)
-    finallist[[as.numeric(clus)+1]] = x
-  }
+    outputdt <- data.table::data.table(finallist)
 
-  outputdt = data.table::data.table(finallist)
-
-  cat('\n start writing \n')
-  data.table::fwrite(x = outputdt,
-                     file = paste0(folder_name,'/', file_name),
-                     sep2 = c(""," ",""), col.names = F)
-
+    cat("\n start writing \n")
+    data.table::fwrite(
+        x = outputdt,
+        file = paste0(folder_name, "/", file_name),
+        sep2 = c("", " ", ""), col.names = FALSE
+    )
 }
 
 
@@ -736,15 +744,15 @@ get10Xmatrix_h5 <- function(
 #' @param \dots additional params to pass to
 #' `[GiottoClass::createGiottoLargeImage]`
 #' @md
+#' @returns 10xAffineImage
 #' @export
-read10xAffineImage <- function(
-        file, imagealignment_path, name = "aligned_image", micron = 0.2125, ...
-) {
+read10xAffineImage <- function(file, imagealignment_path,
+    name = "aligned_image", micron = 0.2125, ...) {
     checkmate::assert_file_exists(file)
     checkmate::assert_file_exists(imagealignment_path)
     if (!is.numeric(micron)) {
         checkmate::assert_file_exists(micron)
-        micron <- jsonlite::read_json(micron)$pixel_size
+        micron <- read_json(micron)$pixel_size
     }
 
     aff <- data.table::fread(imagealignment_path) %>%
@@ -761,7 +769,7 @@ read10xAffineImage <- function(
     x %>%
         affine(affine[seq(2), seq(2)]) %>%
         rescale(micron, x0 = 0, y0 = 0) %>%
-        spatShift(dx = affine[1,3] * micron, dy = -affine[2,3] * micron)
+        spatShift(dx = affine[1, 3] * micron, dy = -affine[2, 3] * micron)
 }
 
 
@@ -859,8 +867,8 @@ readPolygonFilesVizgenHDF5_old <- function(
 
     # append data from all FOVs to single list
     init <- proc.time()
-    progressr::with_progress({
-        pb <- progressr::progressor(along = hdf5_boundary_selected_list)
+    with_pbar({
+        pb <- pbar(along = hdf5_boundary_selected_list)
         read_list <- lapply_flex(seq_along(hdf5_boundary_selected_list),
             cores = cores,
             future.packages = c("rhdf5", "Rhdf5lib"),
@@ -933,8 +941,8 @@ readPolygonFilesVizgenHDF5_old <- function(
 
 
     # create Giotto polygons and add them to gobject
-    progressr::with_progress({
-        pb <- progressr::progressor(along = result_list_rbind)
+    with_pbar({
+        pb <- pbar(along = result_list_rbind)
         smooth_cell_polygons_list <- lapply_flex(seq_along(result_list_rbind),
             cores = cores, function(i) {
                 dfr_subset <- result_list_rbind[[i]][, .(x, y, cell_id)]
@@ -1074,8 +1082,8 @@ readPolygonFilesVizgenHDF5 <- function(
 
     # append data from all FOVs to single list
     init <- Sys.time()
-    progressr::with_progress({
-        pb <- progressr::progressor(length(hdf5_boundary_selected_list) / 5)
+    with_pbar({
+        pb <- pbar(length(hdf5_boundary_selected_list) / 5)
         read_list <- lapply_flex(seq_along(hdf5_boundary_selected_list),
             future.packages = c("rhdf5", "Rhdf5lib"),
             function(init, z_indices, segm_to_use, bound_i) {
@@ -1167,8 +1175,8 @@ readPolygonFilesVizgenHDF5 <- function(
 
     # **** sequential method ****
     if (!isTRUE(create_gpoly_parallel)) {
-        progressr::with_progress({
-            pb <- progressr::progressor(along = z_read_DT)
+        with_pbar({
+            pb <- pbar(along = z_read_DT)
             smooth_cell_polygons_list <- lapply(
                 seq_along(z_read_DT), function(i) {
                     dfr_subset <- z_read_DT[[i]][, .(x, y, cell_id)]
@@ -1193,7 +1201,8 @@ readPolygonFilesVizgenHDF5 <- function(
                         )
                     }
                     if (isTRUE(calc_centroids)) {
-                        # NOTE: won't recalculate if centroids are already attached
+                        # NOTE: won't recalculate if centroids are already
+                        # attached
                         cell_polygons <- centroids(
                             cell_polygons,
                             append_gpolygon = TRUE
@@ -1213,8 +1222,8 @@ readPolygonFilesVizgenHDF5 <- function(
     # **** parallel methods ****
     # no binning
     if (!is.numeric(create_gpoly_bin)) {
-        progressr::with_progress({
-            pb <- progressr::progressor(along = z_read_DT)
+        with_pbar({
+            pb <- pbar(along = z_read_DT)
             smooth_cell_polygons_list <- lapply_flex(
                 seq_along(z_read_DT),
                 future.packages = c("terra", "stats", "data.table"),
@@ -1282,8 +1291,8 @@ readPolygonFilesVizgenHDF5 <- function(
 
         bin_steps <- sum(unlist(lapply(dfr_subset, length)))
 
-        progressr::with_progress({
-            pb <- progressr::progressor(steps = bin_steps)
+        with_pbar({
+            pb <- pbar(steps = bin_steps)
             smooth_cell_polygons_list <- lapply( # sequential across z index
                 seq_along(dfr_subset),
                 function(i) {

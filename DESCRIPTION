@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.1.0
+Version: 4.1.5
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -22,36 +22,27 @@ Authors@R: c(
 Description: Toolbox to process, analyze and visualize spatial single-cell expression data.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 URL: https://drieslab.github.io/Giotto/, https://github.com/drieslab/Giotto
 BugReports: https://github.com/drieslab/Giotto/issues
 RoxygenNote: 7.3.2
 Depends:
-    base (>= 4.1.0),
-    utils (>= 4.1.0),
-    R (>= 4.1.0),
+    R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.3.3)
+    GiottoClass (>= 0.4.1)
 Imports:
     BiocParallel,
     BiocSingular,
     checkmate,
-    cowplot (>= 0.9.4),
     data.table (>= 1.12.2),
     dbscan (>= 1.1-3),
+    ggraph,
     ggplot2 (>= 3.1.1),
-    GiottoUtils (>= 0.1.9),
-    GiottoVisuals (>= 0.2.4),
+    GiottoUtils (>= 0.2.0),
+    GiottoVisuals (>= 0.2.6),
     igraph (>= 1.2.4.1),
-    jsonlite,
-    limma,
     Matrix (>= 1.6-2),
     MatrixGenerics,
-    plotly,
-    progressr,
-    reshape2,
     reticulate (>= 1.25),
-    Rtsne (>= 0.15),
     scales (>= 1.0.0),
     sparseMatrixStats,
     stats,
@@ -78,19 +69,19 @@ Suggests:
     ggalluvial,
     ggdendro,
     ggforce,
-    ggraph,
     ggspavis,
     graphcoloring,
     HDF5Array (>= 1.18.1),
     hdf5r,
-    jackstraw,
     kableExtra,
     knitr,
+    limma,
     MAST,
     miniUI,
     multinet (>= 3.0.2),
     networkD3,
     pheatmap,
+    plotly,
     quadprog,
     harmony,
     R.utils,
@@ -99,6 +90,7 @@ Suggests:
     rlang,
     rhdf5,
     RTriangle (>= 1.6-0.10),
+    Rtsne (>= 0.15),
     Rvision,
     scater,
     scran (>= 1.10.1),
@@ -134,6 +126,7 @@ Collate:
     'differential_expression.R'
     'dimension_reduction.R'
     'feature_set_enrichment.R'
+    'filter.R'
     'general_help.R'
     'giotto_viewer.R'
     'globals.R'
@@ -142,6 +135,7 @@ Collate:
     'image_registration.R'
     'interactivity.R'
     'kriging.R'
+    'normalize.R'
     'package_imports.R'
     'poly_influence.R'
     'python_hmrf.R'

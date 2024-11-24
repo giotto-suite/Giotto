@@ -11,9 +11,8 @@
 #' @param output_folder path to which the GSEA results will be saved. Default
 #' is current working directory.
 #' @param name_analysis_folder default output subdirectory prefix to which
-#' results are saved.
-#'                             Will live within output_folder; equivalent of
-#'                             "Analysis Name" in GSEA Application.
+#' results are saved. Will live within output_folder; equivalent of
+#' "Analysis Name" in GSEA Application.
 #' @param collapse only 'false' is supported. This will use your dataset as-is,
 #' in the original format.
 #' @param mode option selected in Advanced Field "Collapsing Mode for
@@ -46,7 +45,7 @@
 #' for more details, see:
 #' https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#RNK:_Ranked_list_file_format_.28.2A.rnk.29
 #'
-#' For more information on parameter convetions,
+#' For more information on parameter conventions,
 #' please reference GSEA's documentation here:
 #' https://www.gsea-msigdb.org/gsea/doc/GSEAUserGuideTEXT.htm#_Syntax
 #' @export

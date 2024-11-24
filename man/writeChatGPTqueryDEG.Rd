@@ -13,7 +13,8 @@ writeChatGPTqueryDEG(
 )
 }
 \arguments{
-\item{DEG_output}{the output format from the differenetial expression functions}
+\item{DEG_output}{the output format from the differential expression
+functions}
 
 \item{top_n_genes}{number of genes for each cluster}
 
@@ -27,11 +28,12 @@ writeChatGPTqueryDEG(
 writes a .txt file to the desired location
 }
 \description{
-This function writes a query as a .txt file that can be used with
-ChatGPT or a similar LLM service to find the most likely cell types based on the
-top differential expressed genes (DEGs) between identified clusters.
+This function writes a query as a .txt file that can be used
+with ChatGPT or a similar LLM service to find the most likely cell types
+based on the top differential expressed genes (DEGs) between identified
+clusters.
 }
 \details{
-This function does not run any LLM service. It simply creates the .txt
-file that can then be used any LLM service (e.g. OpenAI, Gemini, ...)
+This function does not run any LLM service. It simply creates the
+.txt file that can then be used any LLM service (e.g. OpenAI, Gemini, ...)
 }

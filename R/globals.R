@@ -1,4 +1,4 @@
-utils::globalVariables(names = c(
+globalVariables(names = c(
     ":=", ".N", ".SD", ".", "cast",
     "%--%", ".inc", # igraph
     "python_leiden", "python_louvain", "python_spatial_genes",

@@ -1,5 +1,3 @@
-
-
 # CLASS ####
 
 
@@ -79,7 +77,8 @@ setMethod(
 
         plot(y ~ x, data = dat, asp = 1L, type = "n", ...)
         text(y ~ x, data = dat, labels = dat$fov, cex = cex, ...)
-    })
+    }
+)
 
 
 
@@ -134,9 +133,8 @@ setMethod(
 #' force(g)
 #' }
 #' @export
-importCosMx <- function(
-        cosmx_dir = NULL, slide = 1, fovs = NULL, micron = FALSE, px2mm = 0.12028
-) {
+importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
+    micron = FALSE, px2mm = 0.12028) {
     # get params
     a <- list(Class = "CosmxReader")
     if (!is.null(cosmx_dir)) {
@@ -153,96 +151,96 @@ importCosMx <- function(
 }
 
 # * init ####
-setMethod("initialize", signature("CosmxReader"), function(
-        .Object, cosmx_dir, slide, fovs, micron, px2mm
-) {
-    # provided params (if any)
-    if (!missing(cosmx_dir)) {
-        checkmate::assert_directory_exists(cosmx_dir)
-        .Object@cosmx_dir <- cosmx_dir
-    }
-    if (!missing(slide)) {
-        .Object@slide <- slide
-    }
-    if (!missing(fovs)) {
-        .Object@fovs <- fovs
-    }
-    if (!missing(micron)) {
-        .Object@micron <- micron
-    }
-    if (!missing(px2mm)) {
-        .Object@px2mm <- px2mm
-    }
+setMethod(
+    "initialize", signature("CosmxReader"),
+    function(.Object, cosmx_dir, slide, fovs, micron, px2mm) {
+        # provided params (if any)
+        if (!missing(cosmx_dir)) {
+            checkmate::assert_directory_exists(cosmx_dir)
+            .Object@cosmx_dir <- cosmx_dir
+        }
+        if (!missing(slide)) {
+            .Object@slide <- slide
+        }
+        if (!missing(fovs)) {
+            .Object@fovs <- fovs
+        }
+        if (!missing(micron)) {
+            .Object@micron <- micron
+        }
+        if (!missing(px2mm)) {
+            .Object@px2mm <- px2mm
+        }
 
-    # NULL case
-    if (length(.Object@cosmx_dir) == 0) {
-        return(.Object) # return early if no path given
-    }
-
-
-    # detect paths and subdirs
-    p <- .Object@cosmx_dir
-    .cosmx_detect <- function(pattern) {
-        .detect_in_dir(pattern = pattern, path = p, platform = "CosMx")
-    }
-
-    shifts_path <- .cosmx_detect("fov_positions_file")
-    meta_path <- .cosmx_detect("metadata_file")
-    tx_path <- .cosmx_detect("tx_file")
-    mask_dir <- .cosmx_detect("CellLabels")
-    expr_path <- .cosmx_detect("exprMat_file")
-    composite_img_dir <- .cosmx_detect("CellComposite")
-    overlay_img_dir <- .cosmx_detect("CellOverlay")
-    compart_img_dir <- .cosmx_detect("CompartmentLabels")
+        # NULL case
+        if (length(.Object@cosmx_dir) == 0) {
+            return(.Object) # return early if no path given
+        }
 
 
-    # load fov offsets through one of several methods
-    if (is.null(.Object@offsets)) { # only run if not already existing
-        pos <- NULL
+        # detect paths and subdirs
+        p <- .Object@cosmx_dir
+        .cosmx_detect <- function(pattern) {
+            .detect_in_dir(pattern = pattern, path = p, platform = "CosMx")
+        }
 
-        if (!is.null(shifts_path)) {
-            fov_shifts <- data.table::fread(shifts_path)
-            if (!"X_mm" %in% colnames(fov_shifts)) {
-                # older version has fov, x, y (all numeric) in px shifts
-                data.table::setnames(fov_shifts, new = c("fov", "x", "y"))
-                pos <- fov_shifts
+        shifts_path <- .cosmx_detect("fov_positions_file")
+        meta_path <- .cosmx_detect("metadata_file")
+        tx_path <- .cosmx_detect("tx_file")
+        mask_dir <- .cosmx_detect("CellLabels")
+        expr_path <- .cosmx_detect("exprMat_file")
+        composite_img_dir <- .cosmx_detect("CellComposite")
+        overlay_img_dir <- .cosmx_detect("CellOverlay")
+        compart_img_dir <- .cosmx_detect("CompartmentLabels")
+
+
+        # load fov offsets through one of several methods
+        if (is.null(.Object@offsets)) { # only run if not already existing
+            pos <- NULL
+
+            if (!is.null(shifts_path)) {
+                fov_shifts <- data.table::fread(shifts_path)
+                if (!"X_mm" %in% colnames(fov_shifts)) {
+                    # older version has fov, x, y (all numeric) in px shifts
+                    data.table::setnames(fov_shifts, new = c("fov", "x", "y"))
+                    pos <- fov_shifts
+                }
             }
-        }
 
-        # proceed with other possible methods of inferring shifts if present
-        if (!is.null(meta_path) && is.null(pos)) {
-            pos <- .cosmx_infer_fov_shifts(
-                meta_dt = data.table::fread(meta_path),
-                flip_loc_y = TRUE
-            )
-        } else if (!is.null(tx_path) && is.null(pos)) {
-            warning(wrap_txt(
-                "metadata_file not found:
+            # proceed with other possible methods of inferring shifts if present
+            if (!is.null(meta_path) && is.null(pos)) {
+                pos <- .cosmx_infer_fov_shifts(
+                    meta_dt = data.table::fread(meta_path),
+                    flip_loc_y = TRUE
+                )
+            } else if (!is.null(tx_path) && is.null(pos)) {
+                warning(wrap_txt(
+                    "metadata_file not found:
                 Detecting fov shifts from tx_file. (This is slower)"
-            ), call. = FALSE)
-            pos <- .cosmx_infer_fov_shifts(
-                tx_dt = data.table::fread(tx_path),
-                flip_loc_y = TRUE
-            )
-        }
-        else {
-            pos <- data.table::data.table()
-            warning(wrap_txt(
-                "NO FOV SHIFTS.
-                fov_positions_file, tx_file, and metadata_file not auto detected.
+                ), call. = FALSE)
+                pos <- .cosmx_infer_fov_shifts(
+                    tx_dt = data.table::fread(tx_path),
+                    flip_loc_y = TRUE
+                )
+            } else {
+                pos <- data.table::data.table()
+                warning(wrap_txt(
+                    "NO FOV SHIFTS.
+                fov_positions_file, tx_file,
+                and metadata_file not auto detected.
                 One of these must be provided to infer FOV shifts.\n
                 Alternatively, directly supply a data.table with:
                 fov(int), x(numeric), y(numeric) in px scaling to `$offsets`"
-            ), call. = FALSE)
+                ), call. = FALSE)
+            }
+
+            .Object@offsets <- pos
         }
 
-        .Object@offsets <- pos
-    }
 
 
-
-    # transcripts load call
-    tx_fun <- function(
+        # transcripts load call
+        tx_fun <- function(
         path = tx_path,
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
@@ -252,26 +250,25 @@ setMethod("initialize", signature("CosmxReader"), function(
             "cell_ID",
             "cell"
         ),
-        verbose = NULL
-    ) {
-        .cosmx_transcript(
-            path = path,
-            fovs = .Object@fovs %none% NULL,
-            feat_type = feat_type,
-            split_keyword = split_keyword,
-            dropcols = dropcols,
-            micron = .Object@micron,
-            px2mm = .Object@px2mm,
-            cores = determine_cores(),
-            verbose = verbose
-        )
-    }
-    .Object@calls$load_transcripts <- tx_fun
+        verbose = NULL) {
+            .cosmx_transcript(
+                path = path,
+                fovs = .Object@fovs %none% NULL,
+                feat_type = feat_type,
+                split_keyword = split_keyword,
+                dropcols = dropcols,
+                micron = .Object@micron,
+                px2mm = .Object@px2mm,
+                cores = determine_cores(),
+                verbose = verbose
+            )
+        }
+        .Object@calls$load_transcripts <- tx_fun
 
 
 
-    # mask load call
-    mask_fun <- function(
+        # mask load call
+        mask_fun <- function(
         path = mask_dir,
         # VERTICAL FLIP + NO VERTICAL SHIFT
         flip_vertical = TRUE,
@@ -279,70 +276,67 @@ setMethod("initialize", signature("CosmxReader"), function(
         shift_vertical_step = FALSE,
         shift_horizontal_step = FALSE,
         remove_background_polygon = TRUE,
-        verbose = NULL
-    ) {
-        .cosmx_poly(
-            path = path,
-            fovs = .Object@fovs %none% NULL,
-            flip_vertical = flip_vertical,
-            flip_horizontal = flip_horizontal,
-            shift_vertical_step = shift_vertical_step,
-            shift_horizontal_step = shift_horizontal_step,
-            remove_background_polygon = remove_background_polygon,
-            micron = .Object@micron,
-            px2mm = .Object@px2mm,
-            offsets = .Object@offsets,
-            verbose = verbose
-        )
-    }
-    .Object@calls$load_polys <- mask_fun
+        verbose = NULL) {
+            .cosmx_poly(
+                path = path,
+                fovs = .Object@fovs %none% NULL,
+                flip_vertical = flip_vertical,
+                flip_horizontal = flip_horizontal,
+                shift_vertical_step = shift_vertical_step,
+                shift_horizontal_step = shift_horizontal_step,
+                remove_background_polygon = remove_background_polygon,
+                micron = .Object@micron,
+                px2mm = .Object@px2mm,
+                offsets = .Object@offsets,
+                verbose = verbose
+            )
+        }
+        .Object@calls$load_polys <- mask_fun
 
 
-    # expression load call
-    expr_fun <- function(
+        # expression load call
+        expr_fun <- function(
         path = expr_path,
         feat_type = c("rna", "negprobes"),
-        split_keyword = list("NegPrb")
-    ) {
-        .cosmx_expression(
-            path = path,
-            fovs = .Object@fovs %none% NULL,
-            feat_type = feat_type,
-            split_keyword = split_keyword
-        )
-    }
-    .Object@calls$load_expression <- expr_fun
+        split_keyword = list("NegPrb")) {
+            .cosmx_expression(
+                path = path,
+                fovs = .Object@fovs %none% NULL,
+                feat_type = feat_type,
+                split_keyword = split_keyword
+            )
+        }
+        .Object@calls$load_expression <- expr_fun
 
 
-    # images load call
-    img_fun <- function(
+        # images load call
+        img_fun <- function(
         path = composite_img_dir,
         img_type = "composite",
         img_name_fmt = paste0(img_type, "_fov%03d"),
         negative_y = TRUE,
         flip_vertical = FALSE,
         flip_horizontal = FALSE,
-        verbose = NULL
-    ) {
-        .cosmx_image(
-            path = path,
-            fovs = .Object@fovs %none% NULL,
-            img_type = img_type,
-            img_name_fmt = img_name_fmt,
-            negative_y = negative_y,
-            flip_vertical = flip_vertical,
-            flip_horizontal = flip_horizontal,
-            micron = .Object@micron,
-            px2mm = .Object@px2mm,
-            offsets = .Object@offsets,
-            verbose = verbose
-        )
-    }
-    .Object@calls$load_images <- img_fun
+        verbose = NULL) {
+            .cosmx_image(
+                path = path,
+                fovs = .Object@fovs %none% NULL,
+                img_type = img_type,
+                img_name_fmt = img_name_fmt,
+                negative_y = negative_y,
+                flip_vertical = flip_vertical,
+                flip_horizontal = flip_horizontal,
+                micron = .Object@micron,
+                px2mm = .Object@px2mm,
+                offsets = .Object@offsets,
+                verbose = verbose
+            )
+        }
+        .Object@calls$load_images <- img_fun
 
 
-    # meta load call
-    meta_fun <- function(
+        # meta load call
+        meta_fun <- function(
         path = meta_path,
         dropcols = c(
             "CenterX_local_px",
@@ -351,21 +345,20 @@ setMethod("initialize", signature("CosmxReader"), function(
             "CenterY_global_px",
             "cell_id"
         ),
-        verbose = NULL
-    ) {
-        .cosmx_cellmeta(
-            path = path,
-            fovs = .Object@fovs %none% NULL,
-            dropcols = dropcols,
-            cores = determine_cores(),
-            verbose = verbose
-        )
-    }
-    .Object@calls$load_cellmeta <- meta_fun
+        verbose = NULL) {
+            .cosmx_cellmeta(
+                path = path,
+                fovs = .Object@fovs %none% NULL,
+                dropcols = dropcols,
+                cores = determine_cores(),
+                verbose = verbose
+            )
+        }
+        .Object@calls$load_cellmeta <- meta_fun
 
 
-    # build gobject call
-    gobject_fun <- function(
+        # build gobject call
+        gobject_fun <- function(
         transcript_path = tx_path,
         cell_labels_dir = mask_dir,
         expression_path = expr_path,
@@ -380,95 +373,96 @@ setMethod("initialize", signature("CosmxReader"), function(
         ),
         load_expression = FALSE,
         load_cellmeta = FALSE,
-        instructions = NULL
-    ) {
-        load_expression <- as.logical(load_expression)
-        load_cellmeta <- as.logical(load_cellmeta)
+        instructions = NULL) {
+            load_expression <- as.logical(load_expression)
+            load_cellmeta <- as.logical(load_cellmeta)
 
-        if (!is.null(load_images)) {
-            checkmate::assert_list(load_images)
-            if (is.null(names(load_images))) {
-                stop("Images directories provided to 'load_images' must be named")
+            if (!is.null(load_images)) {
+                checkmate::assert_list(load_images)
+                if (is.null(names(load_images))) {
+                    stop("Images directories provided to
+                    'load_images' must be named")
+                }
             }
-        }
 
-        funs <- .Object@calls
+            funs <- .Object@calls
 
-        # init gobject
-        g <- giotto()
-        if (!is.null(instructions)) {
-            instructions(g) <- instructions
-        }
-
-        # transcripts
-        tx_list <- funs$load_transcripts(
-            path = transcript_path,
-            feat_type = feat_type,
-            split_keyword = split_keyword
-        )
-        for (tx in tx_list) {
-            g <- setGiotto(g, tx)
-        }
-
-        # polys
-        polys <- funs$load_polys(
-            path = cell_labels_dir,
-            verbose = FALSE
-        )
-        g <- setGiotto(g, polys)
-
-        # images
-        if (!is.null(load_images)) {
-            # replace convenient shortnames
-            load_images[load_images == "composite"] <- composite_img_dir
-            load_images[load_images == "overlay"] <- overlay_img_dir
-
-            imglist <- list()
-            dirnames <- names(load_images)
-            for (imdir_i in seq_along(load_images)) {
-                dir_imgs <- funs$load_images(
-                    path = load_images[[imdir_i]],
-                    img_type = dirnames[[imdir_i]],
-                )
-                imglist <- c(imglist, dir_imgs)
+            # init gobject
+            g <- giotto()
+            if (!is.null(instructions)) {
+                instructions(g) <- instructions
             }
-            g <- addGiottoLargeImage(g, largeImages = imglist)
-        }
 
-        # expression & meta
-        # Need to check that names agree for poly/expr/meta
-        allowed_ids <- spatIDs(polys)
-
-        if (load_expression) {
-            exlist <- funs$load_expression(
-                path = expression_path,
+            # transcripts
+            tx_list <- funs$load_transcripts(
+                path = transcript_path,
                 feat_type = feat_type,
                 split_keyword = split_keyword
             )
-
-            # only keep allowed cells and set into gobject
-            for (ex in exlist) {
-                bool <- colnames(ex[]) %in% allowed_ids
-                ex[] <- ex[][, bool]
-                g <- setGiotto(g, ex)
+            for (tx in tx_list) {
+                g <- setGiotto(g, tx)
             }
-        }
 
-        if (load_cellmeta) {
-            cx <- funs$load_cellmeta(
-                path = metadata_path
+            # polys
+            polys <- funs$load_polys(
+                path = cell_labels_dir,
+                verbose = FALSE
             )
+            g <- setGiotto(g, polys)
 
-            cx[] <- cx[][cell_ID %in% allowed_ids,]
-            g <- setGiotto(g, cx)
+            # images
+            if (!is.null(load_images)) {
+                # replace convenient shortnames
+                load_images[load_images == "composite"] <- composite_img_dir
+                load_images[load_images == "overlay"] <- overlay_img_dir
+
+                imglist <- list()
+                dirnames <- names(load_images)
+                for (imdir_i in seq_along(load_images)) {
+                    dir_imgs <- funs$load_images(
+                        path = load_images[[imdir_i]],
+                        img_type = dirnames[[imdir_i]],
+                    )
+                    imglist <- c(imglist, dir_imgs)
+                }
+                g <- addGiottoLargeImage(g, largeImages = imglist)
+            }
+
+            # expression & meta
+            # Need to check that names agree for poly/expr/meta
+            allowed_ids <- spatIDs(polys)
+
+            if (load_expression) {
+                exlist <- funs$load_expression(
+                    path = expression_path,
+                    feat_type = feat_type,
+                    split_keyword = split_keyword
+                )
+
+                # only keep allowed cells and set into gobject
+                for (ex in exlist) {
+                    bool <- colnames(ex[]) %in% allowed_ids
+                    ex[] <- ex[][, bool]
+                    g <- setGiotto(g, ex)
+                }
+            }
+
+            if (load_cellmeta) {
+                cx <- funs$load_cellmeta(
+                    path = metadata_path
+                )
+
+                cx[] <- cx[][cell_ID %in% allowed_ids, ]
+                g <- setGiotto(g, cx)
+            }
+
+            return(g)
         }
+        .Object@calls$create_gobject <- gobject_fun
 
-        return(g)
+        return(.Object)
     }
-    .Object@calls$create_gobject <- gobject_fun
-
-    return(.Object)
-})
+)
 
 
 
@@ -479,7 +473,9 @@ setMethod("initialize", signature("CosmxReader"), function(
 #' @export
 setMethod("$", signature("CosmxReader"), function(x, name) {
     basic_info <- c("cosmx_dir", "slide", "fovs", "micron", "px2mm", "offsets")
-    if (name %in% basic_info) return(methods::slot(x, name))
+    if (name %in% basic_info) {
+        return(methods::slot(x, name))
+    }
 
     return(x@calls[[name]])
 })
@@ -497,8 +493,10 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         return(initialize(x))
     }
 
-    stop(sprintf("Only items in '%s' can be set",
-                 paste0(basic_info, collapse = "', '")))
+    stop(sprintf(
+        "Only items in '%s' can be set",
+        paste0(basic_info, collapse = "', '")
+    ))
 })
 
 #' @export
@@ -530,9 +528,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         micron = FALSE,
         px2mm = 0.12028,
         cores = determine_cores(),
-        verbose = NULL
-) {
-
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to tx file provided or auto-detected"
@@ -547,7 +543,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     tx <- data.table::fread(input = path, nThread = cores, drop = dropcols)
     if (!is.null(fovs)) {
         # subset to only needed FOVs
-        tx <- tx[fov %in% as.numeric(fovs),]
+        tx <- tx[fov %in% as.numeric(fovs), ]
     }
 
     # micron scaling if desired
@@ -605,15 +601,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' When the variance is higher than 0.001, the function is re-run with the
 #' opposite `flip_loc_y` value.
 #' @keywords internal
-.cosmx_infer_fov_shifts <- function(
-        tx_dt, meta_dt, flip_loc_y = TRUE, navg = 100L
-) {
+.cosmx_infer_fov_shifts <- function(tx_dt, meta_dt,
+    flip_loc_y = TRUE, navg = 100L) {
     fov <- NULL # NSE vars
     if (!missing(tx_dt)) {
         tx_head <- tx_dt[, head(.SD, navg), by = fov]
         x <- tx_head[, mean(x_global_px - x_local_px), by = fov]
         if (flip_loc_y) {
-
             # test if flip is needed
             # Usual yshift variance / fov expected when correct is 0 to 1e-22
             # if var is too high for any fov, swap `flip_loc_y` value
@@ -633,11 +627,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         meta_head <- meta_dt[, head(.SD, navg), by = fov]
         x <- meta_head[, mean(CenterX_global_px - CenterX_local_px), by = fov]
         if (flip_loc_y) {
-
             # test if flip is needed
             # Usual yshift variance / fov expected when correct is 0 to 1e-22
             # if var is too high for any fov, swap `flip_loc_y` value
-            y <- meta_head[, var(CenterY_global_px + CenterY_local_px), by = fov]
+            y <- meta_head[
+                , var(CenterY_global_px + CenterY_local_px),
+                by = fov
+            ]
             if (y[, any(V1 > 0.001)]) {
                 return(.cosmx_infer_fov_shifts(
                     meta_dt = meta_dt, flip_loc_y = FALSE, navg = navg
@@ -646,10 +642,12 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
             # use +y if local y values are flipped
             y <- meta_head[, mean(CenterY_global_px + CenterY_local_px),
-                           by = fov]
+                by = fov
+            ]
         } else {
             y <- meta_head[, mean(CenterY_global_px - CenterY_local_px),
-                           by = fov]
+                by = fov
+            ]
         }
     } else {
         stop("One of tx_dt or meta_dt must be provided\n")
@@ -661,9 +659,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     return(res)
 }
 
-.cosmx_imgname_fovparser <- function(
-        path
-) {
+.cosmx_imgname_fovparser <- function(path) {
     im_names <- list.files(path)
     fovs <- as.numeric(sub(".*F(\\d+)\\..*", "\\1", im_names))
     if (any(is.na(fovs))) {
@@ -689,8 +685,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         micron = FALSE,
         px2mm = 0.12028,
         offsets,
-        verbose = NULL
-) {
+        verbose = NULL) {
     # NSE params
     f <- x <- y <- NULL
 
@@ -723,13 +718,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     )
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
-    progressr::with_progress({
-        p <- progressr::progressor(along = fovs)
+    with_pbar({
+        p <- pbar(along = fovs)
 
         gpolys <- lapply(fovs, function(f) {
             segfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
             # naming format: c_SLIDENUMBER_FOVNUMBER_CELLID
-            mask_params$ID_fmt = paste0(
+            mask_params$ID_fmt <- paste0(
                 sprintf("c_%d_%d_", slide, f), "%d"
             )
 
@@ -745,7 +740,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             if (micron) {
                 px2micron <- px2mm / 1000
                 gpoly <- rescale(
-                    gpoly, fx = px2micron, fy = px2micron, x0 = 0, y0 = 0
+                    gpoly,
+                    fx = px2micron, fy = px2micron, x0 = 0, y0 = 0
                 )
                 xshift <- xshift * px2micron
                 yshift <- yshift * px2micron
@@ -777,9 +773,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             "cell_id"
         ),
         cores = determine_cores(),
-        verbose = NULL
-) {
-
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to metadata file provided or auto-detected"
@@ -800,7 +794,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     # subset to needed fovs
     if (!is.null(fovs)) {
         fovs <- as.integer(fovs)
-        meta_dt <- meta_dt[fov %in% fovs,]
+        meta_dt <- meta_dt[fov %in% fovs, ]
     }
 
     # create cell ID as `c_SLIDENUMBER_FOVNUMBER_CELLID`
@@ -834,9 +828,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
         cores = determine_cores(),
-        verbose = NULL
-) {
-
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to exprMat file provided or auto-detected"
@@ -851,11 +843,11 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     # subset to needed fovs
     if (!is.null(fovs)) {
         fovs <- as.integer(fovs)
-        expr_dt <- expr_dt[fov %in% fovs,]
+        expr_dt <- expr_dt[fov %in% fovs, ]
     }
 
     # remove background values (cell 0)
-    expr_dt <- expr_dt[cell_ID != 0L,]
+    expr_dt <- expr_dt[cell_ID != 0L, ]
 
     # create cell ID as `c_SLIDENUMBER_FOVNUMBER_CELLID`
     expr_dt[, cell_ID := sprintf("c_%d_%d_%d", slide, fov, cell_ID)]
@@ -876,10 +868,10 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             feat_ids <- rownames(expr_mat)
             bool <- grepl(pattern = split_keyword[[key_i]], x = feat_ids)
             # subset and store split matrix
-            sub_mat <- expr_mat[bool,]
+            sub_mat <- expr_mat[bool, ]
             expr_list[[key_i + 1L]] <- sub_mat
             # remaining matrix
-            expr_mat <- expr_mat[!bool,]
+            expr_mat <- expr_mat[!bool, ]
         }
         # assign the main expr
         expr_list[[1L]] <- expr_mat
@@ -889,11 +881,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     }
 
     expr_list <- lapply(seq_along(expr_list), function(expr_i) {
-        createExprObj(expression_data = expr_list[[expr_i]],
-                      spat_unit = "cell",
-                      feat_type = names(expr_list)[[expr_i]],
-                      name = "raw",
-                      provenance = "cell")
+        createExprObj(
+            expression_data = expr_list[[expr_i]],
+            spat_unit = "cell",
+            feat_type = names(expr_list)[[expr_i]],
+            name = "raw",
+            provenance = "cell"
+        )
     })
 
     return(expr_list)
@@ -910,9 +904,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         micron = FALSE,
         px2mm = 0.12028,
         offsets,
-        verbose = NULL
-) {
-
+        verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to image subdirectory to load provided or auto-detected"
@@ -925,8 +917,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
     verbose <- verbose %null% TRUE
 
-    progressr::with_progress({
-        p <- progressr::progressor(along = fovs)
+    with_pbar({
+        p <- pbar(along = fovs)
 
         gimg_list <- lapply(fovs, function(f) {
             imgfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
@@ -947,7 +939,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             if (micron) {
                 px2micron <- px2mm / 1000
                 gimg <- rescale(
-                    gimg, fx = px2micron, fy = px2micron, x0 = 0, y0 = 0
+                    gimg,
+                    fx = px2micron, fy = px2micron, x0 = 0, y0 = 0
                 )
                 xshift <- xshift * px2micron
                 yshift <- yshift * px2micron
@@ -973,10 +966,11 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @inheritParams createGiottoCosMxObject
 #' @returns list
 #' @keywords internal
-.load_cosmx_folder_subcellular <- function(dir_items,
-                                           FOVs = NULL,
-                                           cores,
-                                           verbose = TRUE) {
+.load_cosmx_folder_subcellular <- function(
+        dir_items,
+        FOVs = NULL,
+        cores,
+        verbose = TRUE) {
     vmsg(.v = verbose, "Loading subcellular information...")
 
     # subcellular checks
@@ -990,7 +984,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     # FOVs to load
     vmsg(.v = verbose, "Loading FOV offsets...")
     fov_offset_file <- fread(
-        input = dir_items$`fov positions file`, nThread = cores)
+        input = dir_items$`fov positions file`, nThread = cores
+    )
     if (is.null(FOVs)) FOVs <- fov_offset_file$fov # default to ALL FOVs
     FOV_ID <- as.list(sprintf("%03d", FOVs))
 
@@ -998,7 +993,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     vmsg(.v = verbose, "Loading transcript level info...")
     tx_coord_all <- fread(
-        input = dir_items$`transcript locations file`, nThread = cores)
+        input = dir_items$`transcript locations file`, nThread = cores
+    )
     vmsg(.v = verbose, "Subcellular load done")
 
     data_list <- list(
@@ -1017,9 +1013,10 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @inheritParams createGiottoCosMxObject
 #' @returns list
 #' @keywords internal
-.load_cosmx_folder_aggregate <- function(dir_items,
-                                         cores,
-                                         verbose = TRUE) {
+.load_cosmx_folder_aggregate <- function(
+        dir_items,
+        cores,
+        verbose = TRUE) {
     # data.table vars
     fov <- cell_ID <- fov_cell_ID <- CenterX_global_px <-
         CenterY_global_px <- CenterX_local_px <-
@@ -1029,15 +1026,18 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     vmsg(.v = verbose, "Loading provided aggregated information...")
 
     # aggregate checks
-    if (!file.exists(dir_items$`expression matrix file`))
+    if (!file.exists(dir_items$`expression matrix file`)) {
         stop(wrap_txt("No expression matrix file (.csv) detected"))
-    if (!file.exists(dir_items$`metadata file`))
+    }
+    if (!file.exists(dir_items$`metadata file`)) {
         stop(wrap_txt("No metadata file (.csv) detected. Needed for cell
                       spatial locations."))
+    }
 
     # read in aggregate data
     expr_mat <- fread(
-        input = dir_items$`expression matrix file`, nThread = cores)
+        input = dir_items$`expression matrix file`, nThread = cores
+    )
     metadata <- fread(input = dir_items$`metadata file`, nThread = cores)
 
     # setorder expression and spatlocs
@@ -1047,12 +1047,14 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     # generate unique cell IDs
     expr_mat[, cell_ID := paste0(
-        "fov", sprintf("%03d", fov), "-", "cell_", cell_ID)]
+        "fov", sprintf("%03d", fov), "-", "cell_", cell_ID
+    )]
     expr_mat <- expr_mat[, fov := NULL]
 
     metadata[, fov_cell_ID := cell_ID]
     metadata[, cell_ID := paste0(
-        "fov", sprintf("%03d", fov), "-", "cell_", cell_ID)]
+        "fov", sprintf("%03d", fov), "-", "cell_", cell_ID
+    )]
     # reorder
     data.table::setcolorder(x = metadata, c("cell_ID", "fov", "fov_cell_ID"))
 
@@ -1071,13 +1073,20 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     spatloc_oldnames <- c("CenterX_global_px", "CenterY_global_px", "cell_ID")
     spatloc_oldnames_fov <- c("CenterX_local_px", "CenterY_local_px", "cell_ID")
     spatloc_newnames <- c("sdimx", "sdimy", "cell_ID")
-    data.table::setnames(spatlocs, old = spatloc_oldnames, new = spatloc_newnames)
     data.table::setnames(
-        spatlocs_fov, old = spatloc_oldnames_fov, new = spatloc_newnames)
+        spatlocs,
+        old = spatloc_oldnames, new = spatloc_newnames
+    )
+    data.table::setnames(
+        spatlocs_fov,
+        old = spatloc_oldnames_fov, new = spatloc_newnames
+    )
 
     # cleanup metadata and spatlocs
-    metadata <- metadata[, c("CenterX_global_px", "CenterY_global_px",
-                             "CenterX_local_px", "CenterY_local_px") := NULL]
+    metadata <- metadata[, c(
+        "CenterX_global_px", "CenterY_global_px",
+        "CenterX_local_px", "CenterY_local_px"
+    ) := NULL]
     # find unique cell_IDs present in both expression and metadata
     giotto_cell_ID <- unique(intersect(expr_mat$cell_ID, metadata$cell_ID))
 
@@ -1087,27 +1096,36 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
 
     # convert protein metadata to expr mat
-    # take all mean intensity protein information except for MembraneStain and DAPI
+    # take all mean intensity protein information except for
+    # MembraneStain and DAPI
     protein_meta_cols <- colnames(metadata)
     protein_meta_cols <- protein_meta_cols[
-        grepl(pattern = "Mean.*", x = protein_meta_cols)]
+        grepl(pattern = "Mean.*", x = protein_meta_cols)
+    ]
     protein_meta_cols <- protein_meta_cols[
-        !protein_meta_cols %in% c("Mean.MembraneStain", "Mean.DAPI")]
+        !protein_meta_cols %in% c("Mean.MembraneStain", "Mean.DAPI")
+    ]
     protein_meta_cols <- c("cell_ID", protein_meta_cols)
 
     prot_expr <- metadata[, protein_meta_cols, with = FALSE]
     prot_cell_ID <- metadata[, cell_ID]
     protM <- Matrix::Matrix(as.matrix(prot_expr[, -1]),
-                            dimnames = list(prot_expr[[1]],
-                                            colnames(prot_expr[, -1])),
-                            sparse = FALSE)
+        dimnames = list(
+            prot_expr[[1]],
+            colnames(prot_expr[, -1])
+        ),
+        sparse = FALSE
+    )
     protM <- t_flex(protM)
 
     # convert expression to sparse matrix
     spM <- Matrix::Matrix(as.matrix(expr_mat[, -1]),
-                          dimnames = list(expr_mat[[1]],
-                                          colnames(expr_mat[, -1])),
-                          sparse = TRUE)
+        dimnames = list(
+            expr_mat[[1]],
+            colnames(expr_mat[, -1])
+        ),
+        sparse = TRUE
+    )
     spM <- t_flex(spM)
 
     ## Ready for downstream aggregate gobject creation or appending into
@@ -1168,7 +1186,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #'   \item{experimentname_\strong{tx_file}.csv (file)}
 #' }
 #'
-#' [\strong{Workflows}] Workflow to use is accessed through the data_to_use param
+#' [\strong{Workflows}] Workflow to use is accessed through the data_to_use
+#' param
 #' \itemize{
 #'   \item{'all' - loads and requires subcellular information from tx_file and
 #'   fov_positions_file
@@ -1200,14 +1219,14 @@ createGiottoCosMxObject <- function(
         FOVs = NULL,
         instructions = NULL,
         cores = determine_cores(),
-        verbose = TRUE
-) {
+        verbose = TRUE) {
     # 0. setup
     cosmx_dir <- path.expand(cosmx_dir)
 
     # determine data to use
     data_to_use <- match.arg(
-        arg = data_to_use, choices = c("all", "subcellular", "aggregate"))
+        arg = data_to_use, choices = c("all", "subcellular", "aggregate")
+    )
     if (data_to_use %in% c("all", "aggregate")) {
         stop(wrap_txt('Convenience workflows "all" and "aggregate" are not
                       available yet'))
@@ -1304,7 +1323,8 @@ createGiottoCosMxObject <- function(
     tx_coord_all[, c("x_global_px", "y_global_px", "cell_ID") := NULL]
 
     data.table::setcolorder(
-        tx_coord_all, c("target", "x_local_px", "y_local_px", "z", "fov"))
+        tx_coord_all, c("target", "x_local_px", "y_local_px", "z", "fov")
+    )
 
     # feature detection type splitting --------------------------------------- #
 
@@ -1330,13 +1350,17 @@ createGiottoCosMxObject <- function(
         if (isTRUE(verbose)) message("Loading image information...")
 
         composite_dir <- Sys.glob(paths = file.path(
-            dir_items$`CellComposite folder`, paste0("*", x, "*")))
+            dir_items$`CellComposite folder`, paste0("*", x, "*")
+        ))
         cellLabel_dir <- Sys.glob(paths = file.path(
-            dir_items$`CellLabels folder`, paste0("*", x, "*")))
+            dir_items$`CellLabels folder`, paste0("*", x, "*")
+        ))
         compartmentLabel_dir <- Sys.glob(paths = file.path(
-            dir_items$`CompartmentLabels folder`, paste0("*", x, "*")))
+            dir_items$`CompartmentLabels folder`, paste0("*", x, "*")
+        ))
         cellOverlay_dir <- Sys.glob(paths = file.path(
-            dir_items$`CellOverlay folder`, paste0("*", x, "*")))
+            dir_items$`CellOverlay folder`, paste0("*", x, "*")
+        ))
 
         # Missing warnings
         if (length(composite_dir) == 0) {
@@ -1371,11 +1395,15 @@ createGiottoCosMxObject <- function(
 
         feat_coord <- feat_coords_all[fov == as.numeric(x)]
         data.table::setnames(
-            feat_coord, old = coord_oldnames, new = coord_newnames)
+            feat_coord,
+            old = coord_oldnames, new = coord_newnames
+        )
         # neg probe info
         neg_coord <- neg_coords_all[fov == as.numeric(x)]
         data.table::setnames(
-            neg_coord, old = coord_oldnames, new = coord_newnames)
+            neg_coord,
+            old = coord_oldnames, new = coord_newnames
+        )
 
 
         # build giotto object -------------------------------------- #
@@ -1401,8 +1429,9 @@ createGiottoCosMxObject <- function(
 
 
         # find centroids as spatial locations ---------------------- #
-        if (isTRUE(verbose))
+        if (isTRUE(verbose)) {
             message("Finding polygon centroids as cell spatial locations...")
+        }
         fov_subset <- addSpatialCentroidLocations(
             fov_subset,
             poly_info = "cell",
@@ -1496,10 +1525,11 @@ createGiottoCosMxObject <- function(
 #' @inheritParams createGiottoCosMxObject
 #' @returns giotto object
 #' @keywords internal
-.createGiottoCosMxObject_aggregate <- function(dir_items,
-                                               cores,
-                                               verbose = TRUE,
-                                               instructions = NULL) {
+.createGiottoCosMxObject_aggregate <- function(
+        dir_items,
+        cores,
+        verbose = TRUE,
+        instructions = NULL) {
     data_to_use <- fov <- NULL
 
     data_list <- .load_cosmx_folder_aggregate(
@@ -1536,19 +1566,25 @@ createGiottoCosMxObject <- function(
         # load in images
         img_ID <- data.table::data.table(
             fov = fov_shifts[, fov],
-            img_name = paste0("fov",
-                              sprintf("%03d", fov_shifts[, fov]), "-image")
+            img_name = paste0(
+                "fov",
+                sprintf("%03d", fov_shifts[, fov]), "-image"
+            )
         )
 
         if (isTRUE(verbose)) message("Attaching image files...")
         composite_dir <- Sys.glob(paths = file.path(
-            dir_items$`CellComposite folder`, paste0("/*")))
+            dir_items$`CellComposite folder`, paste0("/*")
+        ))
         cellLabel_dir <- Sys.glob(paths = file.path(
-            dir_items$`CellLabels folder`, paste0("/*")))
+            dir_items$`CellLabels folder`, paste0("/*")
+        ))
         compartmentLabel_dir <- Sys.glob(paths = file.path(
-            dir_items$`CompartmentLabels folder`, paste0("/*")))
+            dir_items$`CompartmentLabels folder`, paste0("/*")
+        ))
         overlay_dir <- Sys.glob(paths = file.path(
-            dir_items$`CellOverlay folder`, paste0("/*")))
+            dir_items$`CellOverlay folder`, paste0("/*")
+        ))
 
         if (length(cellLabel_imgList) > 0) {
             cellLabel_imgList <- lapply(cellLabel_dir, function(x) {
@@ -1563,12 +1599,19 @@ createGiottoCosMxObject <- function(
         if (length(compartmentLabel_dir) > 0) {
             compartmentLabel_imgList <- lapply(
                 compartmentLabel_dir, function(x) {
-                    createGiottoLargeImage(x, name = "composite", negative_y = TRUE)
-                })
+                    createGiottoLargeImage(x,
+                        name = "composite",
+                        negative_y = TRUE
+                    )
+                }
+            )
         }
         if (length(overlay_dir) > 0) {
             overlay_imgList <- lapply(overlay_dir, function(x) {
-                createGiottoLargeImage(x, name = "composite", negative_y = TRUE)
+                createGiottoLargeImage(x,
+                    name = "composite",
+                    negative_y = TRUE
+                )
             })
         }
     }
@@ -1587,20 +1630,21 @@ createGiottoCosMxObject <- function(
 #' (subellular transcript detection information) and
 #' \emph{aggregate} (aggregated detection count matrices by cell polygon from
 #' NanoString)
-#' data will be loaded in. The two will be separated into 'cell' and 'cell_agg'
+#' data will be loaded in. The two will be separated into "cell" and "cell_agg"
 #' spatial units in order to denote the difference in origin of the two.
 #' @seealso createGiottoCosMxObject .createGiottoCosMxObject_aggregate
 #' .createGiottoCosMxObject_subcellular
 #' @keywords internal
-.createGiottoCosMxObject_all <- function(dir_items,
-                                         FOVs,
-                                         remove_background_polygon = TRUE,
-                                         background_algo = c("range"),
-                                         remove_unvalid_polygons = TRUE,
-                                         cores,
-                                         verbose = TRUE,
-                                         instructions = NULL,
-                                         ...) {
+.createGiottoCosMxObject_all <- function(
+        dir_items,
+        FOVs,
+        remove_background_polygon = TRUE,
+        background_algo = "range",
+        remove_unvalid_polygons = TRUE,
+        cores,
+        verbose = TRUE,
+        instructions = NULL,
+        ...) {
     # 1. create subcellular giotto as spat_unit 'cell'
     cosmx_gobject <- .createGiottoCosMxObject_subcellular(
         dir_items = dir_items,
@@ -1631,11 +1675,14 @@ createGiottoCosMxObject <- function(
     # workflow
 
     # Add aggregate expression information
-    if (isTRUE(verbose)) wrap_msg(
-        'Appending provided aggregate expression data as...
+    if (isTRUE(verbose)) {
+        wrap_msg(
+            'Appending provided aggregate expression data as...
                                spat_unit: "cell_agg"
                                feat_type: "rna"
-                               name: "raw"')
+                               name: "raw"'
+        )
+    }
     # add expression data to expression slot
     s4_expr <- createExprObj(
         name = "raw",
@@ -1645,16 +1692,22 @@ createGiottoCosMxObject <- function(
         provenance = "cell_agg"
     )
 
-    cosmx_gobject <- set_expression_values(cosmx_gobject, values = s4_expr)
+    cosmx_gobject <- setGiotto(cosmx_gobject, s4_expr)
 
     # Add spatial locations
-    if (isTRUE(verbose)) wrap_msg(
-        'Appending metadata provided spatial locations data as...
+    if (isTRUE(verbose)) {
+        wrap_msg(
+            'Appending metadata provided spatial locations data as...
                                --> spat_unit: "cell_agg" name: "raw"
-                               --> spat_unit: "cell" name: "raw_fov"')
-    if (isTRUE(verbose)) wrap_msg(
-        'Polygon centroid derived spatial locations assigned as...
-                               --> spat_unit: "cell" name: "raw" (default)')
+                               --> spat_unit: "cell" name: "raw_fov"'
+        )
+    }
+    if (isTRUE(verbose)) {
+        wrap_msg(
+            'Polygon centroid derived spatial locations assigned as...
+                               --> spat_unit: "cell" name: "raw" (default)'
+        )
+    }
 
     locsObj <- create_spat_locs_obj(
         name = "raw",
@@ -1669,9 +1722,8 @@ createGiottoCosMxObject <- function(
         provenance = "cell_agg"
     )
 
-    cosmx_gobject <- set_spatial_locations(cosmx_gobject, spatlocs = locsObj)
-    cosmx_gobject <- set_spatial_locations(cosmx_gobject,
-                                           spatlocs = locsObj_fov)
+    cosmx_gobject <- setGiotto(cosmx_gobject, locsObj, initialize = FALSE)
+    cosmx_gobject <- setGiotto(cosmx_gobject, locsObj_fov, initialize = FALSE)
 
     # initialize cell and feat IDs and metadata slots for 'cell_agg' spat_unit
     agg_cell_ID <- colnames(s4_expr[])
@@ -1685,18 +1737,18 @@ createGiottoCosMxObject <- function(
     # Add metadata to both the given and the poly spat_units
     if (isTRUE(verbose)) message("Appending provided cell metadata...")
     cosmx_gobject <- addCellMetadata(cosmx_gobject,
-                                     spat_unit = "cell",
-                                     feat_type = "rna",
-                                     new_metadata = metadata,
-                                     by_column = TRUE,
-                                     column_cell_ID = "cell_ID"
+        spat_unit = "cell",
+        feat_type = "rna",
+        new_metadata = metadata,
+        by_column = TRUE,
+        column_cell_ID = "cell_ID"
     )
     cosmx_gobject <- addCellMetadata(cosmx_gobject,
-                                     spat_unit = "cell_agg",
-                                     feat_type = "rna",
-                                     new_metadata = metadata,
-                                     by_column = TRUE,
-                                     column_cell_ID = "cell_ID"
+        spat_unit = "cell_agg",
+        feat_type = "rna",
+        new_metadata = metadata,
+        by_column = TRUE,
+        column_cell_ID = "cell_ID"
     )
 
     initialize(cosmx_gobject)
@@ -1711,12 +1763,14 @@ createGiottoCosMxObject <- function(
 #' @returns path_list a list of cosmx files discovered and their filepaths. NULL
 #' values denote missing items
 #' @keywords internal
-.read_cosmx_folder <- function(cosmx_dir,
-                               verbose = TRUE) {
+.read_cosmx_folder <- function(
+        cosmx_dir,
+        verbose = TRUE) {
     ch <- box_chars()
 
-    if (is.null(cosmx_dir) | !dir.exists(cosmx_dir))
+    if (is.null(cosmx_dir) | !dir.exists(cosmx_dir)) {
         stop("The full path to a cosmx directory must be given.")
+    }
     vmsg("A structured CosMx directory will be used\n", .v = verbose)
 
     # find directories (length = 1 if present, length = 0 if missing)
@@ -1731,7 +1785,8 @@ createGiottoCosMxObject <- function(
         `metadata file` = "*metadata_file*"
     )
     dir_items <- lapply(
-        dir_items, function(x) Sys.glob(paths = file.path(cosmx_dir, x)))
+        dir_items, function(x) Sys.glob(paths = file.path(cosmx_dir, x))
+    )
     dir_items_lengths <- lengths(dir_items)
 
     if (isTRUE(verbose)) {
@@ -1761,8 +1816,3 @@ createGiottoCosMxObject <- function(
 
     return(dir_items)
 }
-
-
-
-
-

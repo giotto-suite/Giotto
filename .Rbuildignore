@@ -2,6 +2,7 @@
 ^renv\.lock$
 ^Giotto\.Rproj$
 ^\.Rproj\.user$
+^.lintr
 
 ^LICENSE\.md$
 ^README\.Rmd$

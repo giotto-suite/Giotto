@@ -36,7 +36,9 @@ findICFSpot(
 
 \item{expression_values}{expression values to use}
 
-\item{ave_celltype_exp}{average feature expression in each cell type}
+\item{ave_celltype_exp}{\code{matrix} or \code{data.frame}. Average feature expression
+in each cell type. Colnames should be the cell type and rownames are feat
+names.}
 
 \item{selected_features}{subset of selected features (optional)}
 
@@ -113,7 +115,7 @@ x <- findMarkers_one_vs_all(g,
 )
 sign_gene <- x$feats
 
-sign_matrix <- matrix(rnorm(length(sign_gene) * 8, mean = 10),
+sign_matrix <- matrix(rnorm(length(sign_gene) * 7, mean = 10),
     nrow = length(sign_gene)
 )
 rownames(sign_matrix) <- sign_gene
@@ -121,17 +123,19 @@ colnames(sign_matrix) <- paste0("celltype_", unique(x$cluster))
 
 g <- runDWLSDeconv(gobject = g, sign_matrix = sign_matrix)
 ave_celltype_exp <- calculateMetaTable(g, metadata_cols = "leiden_clus")
-ave_celltype_exp <- reshape2::dcast(ave_celltype_exp, variable~leiden_clus)
-rownames(ave_celltype_exp) <- ave_celltype_exp$variable
-ave_celltype_exp <- ave_celltype_exp[,-1]
+ave_celltype_exp <- data.table::dcast(
+    ave_celltype_exp, variable ~ leiden_clus
+)
+ave_celltype_exp <- as.matrix(ave_celltype_exp, rownames = "variable")
 colnames(ave_celltype_exp) <- colnames(sign_matrix)
 
-findICFSpot(g,
+res <- findICFSpot(g,
     spat_unit = "cell",
     feat_type = "rna",
     ave_celltype_exp = ave_celltype_exp,
     spatial_network_name = "spatial_network"
 )
+force(res)
 }
 \seealso{
 \code{\link[=findInteractionChangedFeats]{findInteractionChangedFeats()}}

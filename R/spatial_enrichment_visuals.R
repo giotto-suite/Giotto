@@ -5,8 +5,8 @@
 #' @param feat_type feature type for which the enrichment information was
 #' calculated
 #' @param enrichment_name name of the spatial enrichment
-#'  i.e. output from GiottoClass::list_spatial_enrichment_names()
-#'  Default value is "PAGE_Z_score"
+#' i.e. output from GiottoClass::list_spatial_enrichment_names()
+#' Default value is "PAGE_Z_score"
 #' @param return_frequency_table see details. Default FALSE
 #' @returns table
 #' @details

@@ -140,7 +140,7 @@ icf2 <- findICF(g,
     cluster_column = "leiden_clus",
     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
     nr_permutations = 10
- )
+)
 }
 \seealso{
 \code{\link[=filterInteractionChangedFeats]{filterInteractionChangedFeats()}} \code{\link[=findICFSpot]{findICFSpot()}}

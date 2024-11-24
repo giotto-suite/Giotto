@@ -7,7 +7,8 @@
 .sift_detect(x, ..., pkg_ptr)
 }
 \arguments{
-\item{x}{input matrix or preprocessed image to extract feature and descriptor from}
+\item{x}{input matrix or preprocessed image to extract feature and
+descriptor from}
 
 \item{...}{additional params to pass to `skimage.feature.SIFT()`}
 }
@@ -15,5 +16,6 @@
 list of keypoints and descriptors
 }
 \description{
-Perform feature detector and descriptor extractor on a matrix object or preprocessed image object
+Perform feature detector and descriptor extractor on a matrix object or
+preprocessed image object
 }

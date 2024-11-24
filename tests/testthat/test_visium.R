@@ -19,7 +19,7 @@ lapply(
     function(url) {
         myfilename <- basename(url)
         mydestfile <- file.path(datadir, myfilename)
-        utils::download.file(url = url, destfile = mydestfile, quiet = TRUE)
+        download.file(url = url, destfile = mydestfile, quiet = TRUE)
     }
 )
 
@@ -32,7 +32,7 @@ lapply(
         "raw_feature_bc_matrix.tar.gz",
         "spatial.tar.gz"
     )],
-    utils::untar,
+    untar,
     exdir = datadir
 )
 

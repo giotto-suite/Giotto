@@ -11,6 +11,9 @@ print.icfObject(x, ...)
 
 \item{\dots}{additional params to pass (none implemented)}
 }
+\value{
+icfObject
+}
 \description{
 icfObject print method
 }

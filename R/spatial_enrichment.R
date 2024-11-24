@@ -1,38 +1,85 @@
 ## create spatial enrichment matrix ####
 
-#' @title makeSignMatrixPAGE
-#' @description Function to convert a list of signature genes
-#' (e.g. for cell types or processes) into
-#' a binary matrix format that can be used with the PAGE enrichment option.
-#' Each cell type or process should
-#' have a vector of cell-type or process specific genes. These vectors need to
-#' be combined into a list (sign_list).
-#' The names of the cell types or processes that are provided in the list need
-#' to be given (sign_names).
-#' @param sign_names vector with names for each provided gene signature
-#' @param sign_list list of genes (signature)
-#' @returns matrix
-#' @seealso \code{\link{PAGEEnrich}}
+#' @title PAGE feature enrichment
+#' @name enrichment_PAGE
+#' @description
+#' Expression feature-based enrichment scoring of labels. \cr
+#' A binary matrix of signature features (e.g. for cell types or processes) can
+#' either be directly provided or converted from a list using
+#' `makeSignMatrixPAGE()`. This matrix is then used with `runPAGEEnrich()` in
+#' order to calculate feature signature enrichment scores per spatial position
+#' using PAGE.
+#' @param sign_names `character` vector with names (labels) for each provided
+#' feat signature
+#' @param sign_list list of feats in signature
+#' @param gobject Giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param sign_matrix binary matrix of signature feats for each cell type /
+#' process. Alternatively a list of signature feats can be provided to
+#' `makeSignMatrixPAGE()`, which will create the matrix for you.
+#' @param expression_values expression values to use
+#' @param min_overlap_genes minimum number of overlapping feats in
+#' `sign_matrix` required to calculate enrichment
+#' @param reverse_log_scale reverse expression values from log scale
+#' @param logbase log base to use if reverse_log_scale = TRUE
+#' @param output_enrichment how to return enrichment output
+#' @param p_value logical. Default = `FALSE`. calculate p-values
+#' @param include_depletion calculate both enrichment and depletion
+#' @param n_times number of permutations to calculate for p_value
+#' @param max_block number of lines to process together (default = 20e6)
+#' @param name to give to spatial enrichment results, default = PAGE
+#' @param verbose be verbose
+#' @param return_gobject return giotto object
+#' @returns `matrix` (`makeSignMatrixPAGE()`) and
+#' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or
+#' `data.table` (`runPAGEEnrich(return_gobject = FALSE)`)
+#' @details
+#' The enrichment Z score is calculated by using method (PAGE) from
+#' Kim SY et al., BMC bioinformatics, 2005 as \cr
+#' \eqn{Z = ((Sm – mu)*m^(1/2)) / delta}. \cr
+#' For each gene in each spot, mu is the fold change values versus the mean
+#' expression and delta is the standard deviation. Sm is the mean fold change
+#' value of a specific marker gene set and  m is the size of a given marker
+#' gene set.
+#' @md
 #' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
 #' sign_list <- list(
 #'     cell_type1 = c(
 #'         "Bcl11b", "Lmo1", "F3", "Cnih3", "Ppp1r3c",
 #'         "Rims2", "Gfap", "Gjc3", "Chrna4", "Prkcd"
 #'     ),
 #'     cell_type2 = c(
-#'         "Prr18", "Grb14", "Tprn", "Clic1", "Olig2", "Hrh3", "Tmbim1",
-#'         "Carhsp1", "Tmem88b", "Ugt8a"
+#'         "Prr18", "Grb14", "Tprn", "Clic1", "Olig2", "Hrh3",
+#'         "Tmbim1", "Carhsp1", "Tmem88b", "Ugt8a"
 #'     ),
 #'     cell_type2 = c(
-#'         "Arpp19", "Lamp5", "Galnt6", "Hlf", "Hs3st2", "Tbr1", "Myl4",
-#'         "Cygb", "Ttc9b", "Ipcef1"
+#'         "Arpp19", "Lamp5", "Galnt6", "Hlf", "Hs3st2",
+#'         "Tbr1", "Myl4", "Cygb", "Ttc9b", "Ipcef1"
 #'     )
 #' )
 #'
-#' makeSignMatrixPAGE(
+#' sm <- makeSignMatrixPAGE(
 #'     sign_names = c("cell_type1", "cell_type2", "cell_type3"),
 #'     sign_list = sign_list
 #' )
+#'
+#' g <- runPAGEEnrich(
+#'     gobject = g,
+#'     sign_matrix = sm,
+#'     min_overlap_genes = 2
+#' )
+#'
+#' spatPlot2D(g,
+#'     cell_color = "cell_type2",
+#'     spat_enr_names = "PAGE",
+#'     color_as_factor = FALSE
+#' )
+NULL
+
+#' @rdname enrichment_PAGE
 #' @export
 makeSignMatrixPAGE <- function(
         sign_names,
@@ -210,7 +257,7 @@ makeSignMatrixDWLS <- function(
         expression_values,
         unique(c("normalized", "scaled", "custom", expression_values))
     )
-    expr_values <- get_expression_values(
+    expr_values <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
         feat_type = feat_type,
@@ -420,218 +467,6 @@ makeSignMatrixRank <- function(
 
 
 
-#' @title runPAGEEnrich_OLD
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using PAGE.
-#' @param gobject Giotto object
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param output_enrichment how to return enrichment output
-#' @param p_value calculate p-values (boolean, default = FALSE)
-#' @param n_times number of permutations to calculate for p_value
-#' @param name to give to spatial enrichment results, default = PAGE
-#' @param return_gobject return giotto object
-#' @returns data.table with enrichment results
-#' @details
-#' sign_matrix: a binary matrix with genes as row names and cell-types as
-#' column names.
-#' Alternatively a list of signature genes can be provided to
-#' makeSignMatrixPAGE, which will create the matrix for you. \cr
-#'
-#' The enrichment Z score is calculated by using method (PAGE) from
-#' Kim SY et al., BMC bioinformatics, 2005 as
-#' \eqn{Z = ((Sm – mu)*m^(1/2)) / delta}.
-#' For each gene in each spot, mu is the fold change values versus the mean
-#' expression and delta is the standard deviation. Sm is the mean fold change
-#' value of a specific marker gene set and  m is the size of a given marker
-#' gene set.
-#' @seealso \code{\link{makeSignMatrixPAGE}}
-#' @export
-runPAGEEnrich_OLD <- function(
-        gobject,
-        sign_matrix,
-        expression_values = c("normalized", "scaled", "custom"),
-        reverse_log_scale = TRUE,
-        logbase = 2,
-        output_enrichment = c("original", "zscore"),
-        p_value = FALSE,
-        n_times = 1000,
-        name = NULL,
-        return_gobject = TRUE) {
-    # expression values to be used
-    values <- match.arg(expression_values, c("normalized", "scaled", "custom"))
-    expr_values <- get_expression_values(gobject = gobject, values = values)
-
-    # check parameters
-    if (is.null(name)) name <- "PAGE"
-
-    # check available gene
-    available_ct <- c()
-    for (i in colnames(sign_matrix)) {
-        gene_i <- rownames(sign_matrix)[which(sign_matrix[, i] == 1)]
-        overlap_i <- intersect(gene_i, rownames(expr_values))
-        if (length(overlap_i) <= 5) {
-            output <- paste0(
-                "Warning, ", i, " only has ", length(overlap_i),
-                " overlapped genes. Will remove it."
-            )
-        } else {
-            available_ct <- c(available_ct, i)
-        }
-    }
-
-    if (length(available_ct) == 1) {
-        stop("Only one cell type available.")
-    }
-
-    # output enrichment
-    output_enrichment <- match.arg(
-        output_enrichment,
-        choices = c("original", "zscore")
-    )
-
-    # only continue with genes present in both datasets
-    interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
-    filterSig <- sign_matrix[interGene, available_ct]
-    signames <- rownames(filterSig)[which(filterSig[, 1] == 1)]
-
-    # calculate mean gene expression
-    if (reverse_log_scale == TRUE) {
-        mean_gene_expr <- log(rowMeans(logbase^expr_values - 1, dims = 1) + 1)
-    } else {
-        mean_gene_expr <- rowMeans(expr_values)
-    }
-    geneFold <- expr_values - mean_gene_expr
-
-    # calculate sample/spot mean and sd
-    cellColMean <- apply(geneFold, 2, mean)
-    cellColSd <- apply(geneFold, 2, stats::sd)
-
-    # get enrichment scores
-    enrichment <- matrix(
-        data = NA, nrow = dim(filterSig)[2], ncol = length(cellColMean)
-    )
-    for (i in seq_len(dim(filterSig)[2])) {
-        signames <- rownames(filterSig)[which(filterSig[, i] == 1)]
-        sigColMean <- apply(geneFold[signames, ], 2, mean)
-        m <- length(signames)
-        vectorX <- NULL
-        for (j in (seq_along(cellColMean))) {
-            Sm <- sigColMean[j]
-            u <- cellColMean[j]
-            sigma <- cellColSd[j]
-            zscore <- (Sm - u) * m^(1 / 2) / sigma
-            vectorX <- append(vectorX, zscore)
-        }
-        enrichment[i, ] <- vectorX
-    }
-
-    rownames(enrichment) <- colnames(filterSig)
-    colnames(enrichment) <- names(cellColMean)
-    enrichment <- t(enrichment)
-
-    if (output_enrichment == "zscore") {
-        enrichment <- scale(enrichment)
-    }
-
-    enrichmentDT <- data.table::data.table(cell_ID = rownames(enrichment))
-    enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
-
-
-
-    ## calculate p-values if requested
-    if (p_value == TRUE) {
-        # check available gene
-        available_ct <- c()
-        for (i in colnames(sign_matrix)) {
-            gene_i <- rownames(sign_matrix)[which(sign_matrix[, i] == 1)]
-            overlap_i <- intersect(
-                gene_i, rownames(gobject@expression$rna$normalized)
-            )
-
-            if (length(overlap_i) <= 5) {
-                output <- paste0(
-                    "Warning, ", i, " only has ", length(overlap_i),
-                    " overlapped genes. It will be removed."
-                )
-            } else {
-                available_ct <- c(available_ct, i)
-            }
-        }
-
-        if (length(available_ct) == 1) {
-            stop("Only one cell type available.")
-        }
-
-        # only continue with genes present in both datasets
-        interGene <- intersect(
-            rownames(sign_matrix), rownames(gobject@expression$rna$normalized)
-        )
-        filter_sign_matrix <- sign_matrix[interGene, available_ct]
-
-        background_mean_sd <- .do_page_permutation(
-            gobject = gobject,
-            sig_gene = filter_sign_matrix,
-            ntimes = n_times
-        )
-
-        for (i in seq_len(dim(filter_sign_matrix)[2])) {
-            length_gene <- length(which(filter_sign_matrix[, i] == 1))
-            join_gene_with_length <- paste("gene_num_", length_gene, sep = "")
-            mean_i <- as.numeric(as.character(
-                background_mean_sd[join_gene_with_length, ][[1]]
-            ))
-            sd_i <- as.numeric(as.character(
-                background_mean_sd[join_gene_with_length, ][[2]]
-            ))
-            j <- i + 1
-            enrichmentDT[[j]] <- stats::pnorm(
-                enrichmentDT[[j]],
-                mean = mean_i, sd = sd_i,
-                lower.tail = FALSE, log.p = FALSE
-            )
-        }
-    }
-
-
-
-    ## return object or results ##
-    if (return_gobject == TRUE) {
-        spenr_names <- names(gobject@spatial_enrichment)
-
-        if (name %in% spenr_names) {
-            cat(name, " has already been used, will be overwritten")
-        }
-
-        ## update parameters used ##
-        parameters_list <- gobject@parameters
-        number_of_rounds <- length(parameters_list)
-        update_name <- paste0(number_of_rounds, "_spatial_enrichment")
-
-        # parameters to include
-        parameters_list[[update_name]] <- c(
-            "method used" = "PAGE",
-            "enrichment name" = name,
-            "expression values" = expression_values,
-            "reverse log scale" = reverse_log_scale,
-            "logbase" = logbase,
-            "p-values calculated" = p_value,
-            "output enrichment scores" = output_enrichment,
-            "p values calculated" = p_value,
-            "nr permutations" = n_times
-        )
-        gobject@parameters <- parameters_list
-
-        gobject@spatial_enrichment[[name]] <- enrichmentDT
-
-        return(gobject)
-    } else {
-        return(enrichmentDT)
-    }
-}
-
 
 
 #' @title PAGE data.table method
@@ -664,7 +499,7 @@ runPAGEEnrich_OLD <- function(
     ## identify available cell types
     all_genes <- rownames(expr_values)
     sign_matrix <- as.matrix(sign_matrix)
-    sign_matrix_DT <- data.table::as.data.table(reshape2::melt(sign_matrix))
+    sign_matrix_DT <- melt_matrix(sign_matrix)
     sign_matrix_DT <- sign_matrix_DT[Var1 %in% all_genes]
     detected_DT <- sign_matrix_DT[, sum(value), by = Var2]
 
@@ -685,7 +520,7 @@ runPAGEEnrich_OLD <- function(
         stop("Only one cell type available.")
     }
 
-    # create subset of sinature matrix
+    # create subset of signature matrix
     interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
     filterSig <- sign_matrix[interGene, available_ct]
 
@@ -707,13 +542,13 @@ runPAGEEnrich_OLD <- function(
         colSd = cellColSd
     )
 
-    filterSig_DT <- data.table::as.data.table(reshape2::melt(filterSig))
+    filterSig_DT <- melt_matrix(filterSig)
     colnames(filterSig_DT) <- c("gene", "cell_type", "marker")
     sub_ct_DT <- filterSig_DT[marker == 1]
     sub_ct_DT[, nr_markers := .N, by = cell_type]
 
     ## reshape gene fold-expression
-    geneFold_DT <- data.table::as.data.table(reshape2::melt(geneFold))
+    geneFold_DT <- melt_matrix(geneFold)
     colnames(geneFold_DT) <- c("gene", "cell_ID", "fc")
 
     mergetest <- data.table::merge.data.table(
@@ -882,57 +717,7 @@ runPAGEEnrich_OLD <- function(
 
 
 
-#' @title runPAGEEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using PAGE.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param min_overlap_genes minimum number of overlapping genes in sign_matrix
-#' required to calculate enrichment
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param output_enrichment how to return enrichment output
-#' @param p_value calculate p-values (boolean, default = FALSE)
-#' @param include_depletion calculate both enrichment and depletion
-#' @param n_times number of permutations to calculate for p_value
-#' @param max_block number of lines to process together (default = 20e6)
-#' @param name to give to spatial enrichment results, default = PAGE
-#' @param verbose be verbose
-#' @param return_gobject return giotto object
-#' @returns data.table with enrichment results
-#' @details
-#' sign_matrix: a binary matrix with genes as row names and cell-types as
-#' column names.
-#' Alternatively a list of signature genes can be provided to
-#' makeSignMatrixPAGE, which will create the matrix for you. \cr
-#'
-#' The enrichment Z score is calculated by using method (PAGE) from
-#' Kim SY et al., BMC bioinformatics, 2005 as
-#' \eqn{Z = ((Sm – mu)*m^(1/2)) / delta}.
-#' For each gene in each spot, mu is the fold change values versus the mean
-#' expression and delta is the standard deviation. Sm is the mean fold change
-#' value of a specific marker gene set and  m is the size of a given marker
-#' gene set.
-#' @seealso \code{\link{makeSignMatrixPAGE}}
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#' sign_gene <- c(
-#'     "Bcl11b", "Lmo1", "F3", "Cnih3", "Ppp1r3c", "Rims2", "Gfap",
-#'     "Gjc3", "Chrna4", "Prkcd", "Prr18", "Grb14", "Tprn", "Clic1", "Olig2",
-#'     "Hrh3", "Tmbim1", "Carhsp1", "Tmem88b", "Ugt8a", "Arpp19", "Lamp5",
-#'     "Galnt6", "Hlf", "Hs3st2", "Tbr1", "Myl4", "Cygb", "Ttc9b", "Ipcef1"
-#' )
-#'
-#' sign_matrix <- matrix(rnorm(length(sign_gene) * 3, mean = 10),
-#'     nrow = length(sign_gene)
-#' )
-#' rownames(sign_matrix) <- sign_gene
-#' colnames(sign_matrix) <- c("cell_type1", "cell_type2", "cell_type3")
-#'
-#' runPAGEEnrich(gobject = g, sign_matrix = sign_matrix)
+#' @rdname enrichment_PAGE
 #' @export
 runPAGEEnrich <- function(
         gobject,
@@ -1044,10 +829,7 @@ runPAGEEnrich <- function(
         gobject@parameters <- parameters_list
 
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- set_spatial_enrichment(
-            gobject = gobject,
-            spatenrichment = enrObj
-        )
+        gobject <- setGiotto(gobject, enrObj)
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
 
@@ -1061,21 +843,6 @@ runPAGEEnrich <- function(
 
 
 
-
-
-
-#' @title PAGEEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using PAGE.
-#' @inheritDotParams runPAGEEnrich
-#' @seealso \code{\link{runPAGEEnrich}}
-#' @returns gene enrichment
-#' @export
-PAGEEnrich <- function(...) {
-    .Deprecated(new = "runPAGEEnrich")
-
-    runPAGEEnrich(...)
-}
 
 
 
@@ -1363,10 +1130,7 @@ runRankEnrich <- function(
         gobject@parameters <- parameters_list
 
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- set_spatial_enrichment(
-            gobject = gobject,
-            spatenrichment = enrObj
-        )
+        gobject <- setGiotto(gobject, enrObj)
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
         return(gobject)
@@ -1375,20 +1139,6 @@ runRankEnrich <- function(
     }
 }
 
-
-
-#' @title rankEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using a rank based approach.
-#' @inheritDotParams runRankEnrich
-#' @seealso \code{\link{runRankEnrich}}
-#' @returns gene enrichment
-#' @export
-rankEnrich <- function(...) {
-    .Deprecated(new = "runRankEnrich")
-
-    runRankEnrich(...)
-}
 
 
 
@@ -1596,10 +1346,7 @@ runHyperGeometricEnrich <- function(
         gobject@parameters <- parameters_list
 
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- set_spatial_enrichment(
-            gobject = gobject,
-            spatenrichment = enrObj
-        )
+        gobject <- setGiotto(gobject, enrObj)
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
         return(gobject)
@@ -1608,19 +1355,6 @@ runHyperGeometricEnrich <- function(
     }
 }
 
-
-#' @title hyperGeometricEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using a hypergeometric test.
-#' @inheritDotParams runHyperGeometricEnrich
-#' @seealso \code{\link{runHyperGeometricEnrich}}
-#' @returns enrichment scores
-#' @export
-hyperGeometricEnrich <- function(...) {
-    .Deprecated(new = "runHyperGeometricEnrich")
-
-    runHyperGeometricEnrich(...)
-}
 
 
 
@@ -1755,18 +1489,6 @@ runSpatialEnrich <- function(
 }
 
 
-#' @title createSpatialEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using an enrichment test.
-#' @inheritDotParams runSpatialEnrich
-#' @returns gene signature enrichment scores
-#' @seealso \code{\link{runSpatialEnrich}}
-#' @export
-createSpatialEnrich <- function(...) {
-    .Deprecated(new = "runSpatialEnrich")
-
-    runSpatialEnrich(...)
-}
 
 
 
@@ -2174,10 +1896,7 @@ spatialAutoCorLocal <- function(
             )
         }
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- set_spatial_enrichment(
-            gobject = gobject,
-            spatenrichment = enr
-        )
+        gobject <- setGiotto(gobject, enr)
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
         return(gobject)
@@ -2218,9 +1937,9 @@ spatialAutoCorLocal <- function(
         step_size <- step_size <- ceiling(nfeats / 10L)
     }
 
-    progressr::with_progress({
+    with_pbar({
         if (step_size > 1) {
-            pb <- progressr::progressor(
+            pb <- pbar(
                 steps = nfeats / step_size
             )
         }
@@ -2301,9 +2020,9 @@ spatialAutoCorLocal <- function(
         step_size <- step_size <- ceiling(nfeats / 10L)
     }
 
-    progressr::with_progress({
+    with_pbar({
         if (step_size > 1) {
-            pb <- progressr::progressor(
+            pb <- pbar(
                 steps = nfeats / step_size
             )
         }
@@ -2448,7 +2167,8 @@ spatialAutoCorLocal <- function(
     # 2. Get and format node values for use with autocorrelation function.
     # End outputs are:
     #  - use_values for a spatID (rows) by features (cols) table or matrix
-    #  - feats the names of selected features to use that will be iterated through downstream
+    #  - feats the names of selected features to use that will be iterated
+    # through downstream
     if (isTRUE(use_expr)) {
         # EXPR=================================================================#
         values <- match.arg(
@@ -2709,7 +2429,10 @@ spot_deconvolution <- function(
                         solDWLS <- optimize_solveDampenedWLS(S_k, B[
                             uniq_ct_k_gene,
                         ], constant_J)
-                        dwls_results[names(solDWLS), colnames(cluster_cell_exp)[k]] <- solDWLS
+                        dwls_results[
+                            names(solDWLS),
+                            colnames(cluster_cell_exp)[k]
+                        ] <- solDWLS
                     }
                 }
             }
@@ -3198,10 +2921,7 @@ runDWLSDeconv <- function(
         gobject@parameters <- parameters_list
 
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- set_spatial_enrichment(
-            gobject = gobject,
-            spatenrichment = enrObj
-        )
+        gobject <- setGiotto(gobject, enrObj)
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
         return(gobject)

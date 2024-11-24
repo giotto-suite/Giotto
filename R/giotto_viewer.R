@@ -27,7 +27,9 @@ write_giotto_viewer_annotation <- function(
         names(uniq_factor_num_converter) <- uniq_factors
 
         # annotation information and mapping
-        annot_map <- data.table::data.table(num = uniq_numerics, fac = uniq_factors)
+        annot_map <- data.table::data.table(
+            num = uniq_numerics, fac = uniq_factors
+        )
         annot_information <- uniq_factor_num_converter[annotation]
     }
 
@@ -50,7 +52,8 @@ write_giotto_viewer_annotation <- function(
 
 
 #' @title write_giotto_viewer_numeric_annotation
-#' @description write out numeric annotation data from a giotto object for the Viewer
+#' @description write out numeric annotation data from a giotto object for the
+#' Viewer
 #' @param annotation annotation from the data.table from giotto object
 #' @param annot_name name of the annotation
 #' @param output_directory directory where to save the files
@@ -73,7 +76,8 @@ write_giotto_viewer_numeric_annotation <- function(
 
 
 #' @title write_giotto_viewer_dim_reduction
-#' @description write out dimensional reduction data from a giotto object for the Viewer
+#' @description write out dimensional reduction data from a giotto object for
+#' the Viewer
 #' @param dim_reduction_cell dimension reduction slot from giotto object
 #' @param dim_red high level name of dimension reduction
 #' @param dim_red_name specific name of dimension reduction to use
@@ -94,7 +98,10 @@ write_giotto_viewer_dim_reduction <- function(
     ]]$coordinates[, seq_len(2)]
 
     if (is.null(dim_red_coord)) {
-        cat("\n combination of ", dim_red, " and ", dim_red_name, " does not exist \n")
+        cat(
+            "\n combination of ", dim_red, " and ", dim_red_name,
+            " does not exist \n"
+        )
     } else {
         # round dimension reduction coordinates
         if (!is.null(dim_red_rounding) & is.integer(dim_red_rounding)) {
@@ -134,14 +141,16 @@ write_giotto_viewer_dim_reduction <- function(
 #' @param expression_values expression values to use in Viewer
 #' @param dim_red_rounding numerical indicating how to round the coordinates
 #' @param dim_red_rescale numericals to rescale the coordinates
-#' @param expression_rounding numerical indicating how to round the expression data
+#' @param expression_rounding numerical indicating how to round the expression
+#' data
 #' @param overwrite_dir overwrite files in the directory if it already existed
 #' @param verbose be verbose
 #' @returns writes the necessary output to use in Giotto Viewer
-#' @details Giotto Viewer expects the results from Giotto Analyzer in a specific format,
-#' which is provided by this function. To include enrichment results from {\code{\link{createSpatialEnrich}}}
-#' include the provided spatial enrichment name (default PAGE or rank)
-#' and add the gene signature names (.e.g cell types) to the numeric annotations parameter.
+#' @details Giotto Viewer expects the results from Giotto Analyzer in a
+#' specific format, which is provided by this function. To include enrichment
+#' results from {\code{\link{createSpatialEnrich}}} include the provided
+#' spatial enrichment name (default PAGE or rank) and add the gene signature
+#' names (.e.g cell types) to the numeric annotations parameter.
 #' @export
 exportGiottoViewer <- function(
         gobject,
@@ -212,9 +221,10 @@ exportGiottoViewer <- function(
 
     # data.table variables
     sdimx <- sdimy <- NULL
-    spatial_location <- get_spatial_locations(
+    spatial_location <- getSpatialLocations(
         gobject = gobject,
-        spat_loc_name = spat_loc_name
+        spat_unit = spat_unit,
+        name = spat_loc_name
     )
     spatial_location <- spatial_location[, .(sdimx, sdimy)]
     write.table(spatial_location,
@@ -241,16 +251,21 @@ exportGiottoViewer <- function(
         cell_metadata <- combineMetadata(
             gobject = gobject,
             feat_type = feat,
+            spat_unit = spat_unit,
             spat_enr_names = spat_enr_names
         )
 
 
         # factor annotations #
         if (!is.null(factor_annotations)) {
-            found_factor_annotations <- factor_annotations[factor_annotations %in% colnames(cell_metadata)]
+            found_factor_annotations <- factor_annotations[
+                factor_annotations %in% colnames(cell_metadata)
+            ]
 
             for (sel_annot in found_factor_annotations) {
-                if (verbose == TRUE) cat("\n write annotation data for: ", sel_annot, "\n")
+                if (verbose == TRUE) {
+                    cat("\n write annotation data for: ", sel_annot, "\n")
+                }
 
                 selected_annotation <- cell_metadata[[sel_annot]]
                 write_giotto_viewer_annotation(
@@ -265,7 +280,9 @@ exportGiottoViewer <- function(
             annot_names <- list()
             for (sel_annot_id in seq_along(found_factor_annotations)) {
                 sel_annot_name <- found_factor_annotations[sel_annot_id]
-                annot_inf_name <- paste0(sel_annot_name, "_annot_information.txt")
+                annot_inf_name <- paste0(
+                    sel_annot_name, "_annot_information.txt"
+                )
 
                 annot_names[[sel_annot_id]] <- sel_annot_name
                 text_file_names[[sel_annot_id]] <- annot_inf_name
@@ -287,9 +304,13 @@ exportGiottoViewer <- function(
 
         # numeric annotations #
         if (!is.null(numeric_annotations)) {
-            found_numeric_annotations <- numeric_annotations[numeric_annotations %in% colnames(cell_metadata)]
+            found_numeric_annotations <- numeric_annotations[
+                numeric_annotations %in% colnames(cell_metadata)
+            ]
             for (sel_annot in found_numeric_annotations) {
-                if (verbose == TRUE) cat("\n write annotation data for: ", sel_annot, "\n")
+                if (verbose == TRUE) {
+                    cat("\n write annotation data for: ", sel_annot, "\n")
+                }
                 selected_annotation <- cell_metadata[[sel_annot]]
                 write_giotto_viewer_numeric_annotation(
                     annotation = selected_annotation,
@@ -305,7 +326,9 @@ exportGiottoViewer <- function(
             annot_names <- list()
             for (sel_annot_id in seq_along(found_numeric_annotations)) {
                 sel_annot_name <- found_numeric_annotations[sel_annot_id]
-                annot_inf_name <- paste0(sel_annot_name, "_num_annot_information.txt")
+                annot_inf_name <- paste0(
+                    sel_annot_name, "_num_annot_information.txt"
+                )
 
                 annot_names[[sel_annot_id]] <- sel_annot_name
                 text_file_names[[sel_annot_id]] <- annot_inf_name
@@ -340,7 +363,12 @@ exportGiottoViewer <- function(
         temp_dim_red <- dim_reductions[i]
         temp_dim_red_name <- dim_reduction_names[i]
 
-        if (verbose == TRUE) cat("write annotation data for: ", temp_dim_red, " for ", temp_dim_red_name, "\n")
+        if (verbose == TRUE) {
+            cat(
+                "write annotation data for: ", temp_dim_red, " for ",
+                temp_dim_red_name, "\n"
+            )
+        }
 
         write_giotto_viewer_dim_reduction(
             dim_reduction_cell = dim_reduction_cell,
@@ -358,14 +386,18 @@ exportGiottoViewer <- function(
     ### expression data ###
     # expression values to be used
     if (verbose == TRUE) cat("\n write expression values \n")
-    values <- match.arg(expression_values, unique(c("scaled", "normalized", "custom", expression_values)))
+    values <- match.arg(
+        expression_values,
+        unique(c("scaled", "normalized", "custom", expression_values))
+    )
 
     for (feat in feat_type) {
-        expr_values <- get_expression_values(
+        expr_values <- getExpression(
             gobject = gobject,
             spat_unit = spat_unit,
             feat_type = feat,
-            values = values
+            values = values,
+            output = "matrix"
         )
         expr_values <- as.matrix(expr_values)
 

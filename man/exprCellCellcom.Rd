@@ -46,7 +46,7 @@ exprCellCellcom(
 
 \item{adjust_target}{adjust multiple hypotheses at the cell or feature level}
 
-\item{set_seed}{set seed for random simulations (default = TRUE)}
+\item{set_seed}{`logical`. set seed for random simulations (default = TRUE)}
 
 \item{seed_number}{seed number}
 

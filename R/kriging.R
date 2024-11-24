@@ -182,8 +182,8 @@ setMethod(
         e_numeric <- ext[]
 
 
-        progressr::with_progress({
-            pb <- progressr::progressor(along = feats)
+        with_pbar({
+            pb <- pbar(along = feats)
 
             interp_img_list <- lapply_flex(
                 feats,
@@ -193,7 +193,8 @@ setMethod(
 
                     # create subset table with only relevant data
                     data <- annotatedlocs[,
-                        c("cell_ID", feat, "sdimx", "sdimy"), with = FALSE
+                        c("cell_ID", feat, "sdimx", "sdimy"),
+                        with = FALSE
                     ]
                     data.table::setnames(data, old = feat, new = "count")
 

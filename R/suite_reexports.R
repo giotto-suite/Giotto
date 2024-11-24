@@ -167,8 +167,6 @@ GiottoClass::combineFeatureOverlapData
 #' @export
 GiottoClass::combineMetadata
 #' @export
-GiottoClass::combineSpatialCellFeatureInfo
-#' @export
 GiottoClass::combineSpatialCellMetadataInfo
 #' @export
 GiottoClass::combineToMultiPolygon

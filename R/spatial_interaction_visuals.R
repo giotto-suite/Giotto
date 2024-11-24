@@ -68,7 +68,7 @@ cellProximityBarplot <- function(
     bpl <- bpl + ggplot2::labs(y = "# of interactions")
     bpl
 
-    combo_plot <- cowplot::plot_grid(
+    combo_plot <- plot_grid(
         pl, bpl,
         ncol = 2, rel_heights = c(1),
         rel_widths = c(3, 1.5), align = "h"
@@ -720,6 +720,8 @@ NULL
         x_ticks = NULL,
         y_ticks = NULL,
         ...) {
+    package_check("plotly")
+
     # data.table variables
     cell_ID <- unified_int <- NULL
 
@@ -984,6 +986,8 @@ NULL
         y_ticks = NULL,
         z_ticks = NULL,
         ...) {
+    package_check("plotly")
+
     # data.table variables
     cell_ID <- unified_int <- NULL
 
@@ -1421,7 +1425,7 @@ cellProximityVisPlot <- function(
 #' @param min_spat_diff minimum absolute spatial expression difference
 #' @param min_log2_fc minimum log2 fold-change
 #' @param min_zscore minimum z-score change
-#' @param zscores_column calculate z-scores over cell types or featuress
+#' @param zscores_column calculate z-scores over cell types or features
 #' @param direction differential expression directions to keep
 #' @returns volcano, cell_barplot, cell-cell, cell_sankey, heatmap, or dotplot
 #' @examples

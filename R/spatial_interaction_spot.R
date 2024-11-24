@@ -54,7 +54,7 @@ NULL
             diag(diff_ct) <- NA
             diff_ct[lower.tri(diff_ct)] <- NA
             # transfer format to data.table
-            diff_ct <- data.table::as.data.table(reshape2::melt(diff_ct))
+            diff_ct <- melt_matrix(diff_ct)
             diff_ct <- diff_ct[value != "NA"]
             diff_ct[, c("Var1", "Var2") := lapply(
                 .SD, as.character
@@ -99,10 +99,10 @@ NULL
     pairs_for_mat <- pairs_for_mat[, .N, by = c("from", "to")]
 
     # make square matrix of interaction between spots
-    pairs_mat <- reshape2::acast(
+    pairs_mat <- as.matrix(data.table::dcast(
         pairs_for_mat, from ~ to,
         value.var = "N", fill = 0
-    )
+    ), rownames = "from")
     pairs_mat <- pairs_mat[cell_IDs, cell_IDs]
 
     # calculate cell-type/cell-type interactions
@@ -225,7 +225,7 @@ NULL
 #' )
 #' sign_gene <- x$feats
 #'
-#' sign_matrix <- matrix(rnorm(length(sign_gene) * 8, mean = 10),
+#' sign_matrix <- matrix(rnorm(length(sign_gene) * 7, mean = 10),
 #'     nrow = length(sign_gene)
 #' )
 #' rownames(sign_matrix) <- sign_gene
@@ -715,8 +715,8 @@ cellProximityEnrichmentEachSpot <- function(
                 dimnames = list(names(dwls_target_cell), names(spot_proximity))
             )
         }
-        spot_proximity <- reshape2::melt(spot_proximity)
-        spot_proximity <- data.table::data.table(spot_proximity)
+
+        spot_proximity <- melt_matrix(spot_proximity)
         spot_proximity[, c("Var1", "Var2") := lapply(
             .SD, as.character
         ), .SDcols = c("Var1", "Var2")]
@@ -1146,7 +1146,9 @@ NULL
 #' @param spat_unit spatial unit (e.g. 'cell')
 #' @param feat_type feature type (e.g. 'rna')
 #' @param expression_values expression values to use
-#' @param ave_celltype_exp average feature expression in each cell type
+#' @param ave_celltype_exp `matrix` or `data.frame`. Average feature expression
+#' in each cell type. Colnames should be the cell type and rownames are feat
+#' names.
 #' @param selected_features subset of selected features (optional)
 #' @param spatial_network_name name of spatial network to use
 #' @param deconv_name name of deconvolution/spatial enrichment values to use
@@ -1197,7 +1199,7 @@ NULL
 #' )
 #' sign_gene <- x$feats
 #'
-#' sign_matrix <- matrix(rnorm(length(sign_gene) * 8, mean = 10),
+#' sign_matrix <- matrix(rnorm(length(sign_gene) * 7, mean = 10),
 #'     nrow = length(sign_gene)
 #' )
 #' rownames(sign_matrix) <- sign_gene
@@ -1205,17 +1207,19 @@ NULL
 #'
 #' g <- runDWLSDeconv(gobject = g, sign_matrix = sign_matrix)
 #' ave_celltype_exp <- calculateMetaTable(g, metadata_cols = "leiden_clus")
-#' ave_celltype_exp <- reshape2::dcast(ave_celltype_exp, variable~leiden_clus)
-#' rownames(ave_celltype_exp) <- ave_celltype_exp$variable
-#' ave_celltype_exp <- ave_celltype_exp[,-1]
+#' ave_celltype_exp <- data.table::dcast(
+#'     ave_celltype_exp, variable ~ leiden_clus
+#' )
+#' ave_celltype_exp <- as.matrix(ave_celltype_exp, rownames = "variable")
 #' colnames(ave_celltype_exp) <- colnames(sign_matrix)
-#' 
-#' findICFSpot(g,
+#'
+#' res <- findICFSpot(g,
 #'     spat_unit = "cell",
 #'     feat_type = "rna",
 #'     ave_celltype_exp = ave_celltype_exp,
 #'     spatial_network_name = "spatial_network"
 #' )
+#' force(res)
 #' @seealso [findInteractionChangedFeats()]
 #' @md
 #' @export
@@ -2252,6 +2256,8 @@ plotCellProximityFeatSpot <- function(
 #' @param expression_values (e.g. 'normalized', 'scaled', 'custom')
 #' @param spatial_network_name spatial network to use for identifying
 #' interacting cells
+#' @param spat_enr_name name of spatial enrichment containing DWLS results.
+#' Default = `"DWLS"`
 #' @param cluster_column cluster column with cell type information
 #' @param random_iter number of iterations
 #' @param feature_set_1 first specific feature set from feature pairs
@@ -2303,6 +2309,7 @@ plotCellProximityFeatSpot <- function(
 #'  * p.adj: adjusted p-value
 #'  * PI: significanc score: log2fc \* -log10(p.adj)
 #' }
+#' @md
 #' @export
 spatCellCellcomSpots <- function(
         gobject,
@@ -2310,6 +2317,7 @@ spatCellCellcomSpots <- function(
         feat_type = NULL,
         ave_celltype_exp,
         spatial_network_name = "Delaunay_network",
+        spat_enr_name = "DWLS",
         cluster_column = "cell_ID",
         random_iter = 1000,
         feature_set_1,
@@ -2378,10 +2386,11 @@ spatCellCellcomSpots <- function(
     proximityMat <- proximityMat[, intersect_cell_IDs]
 
     # exact spatial_enrichment matrix
-    dwls_values <- get_spatial_enrichment(
+    dwls_values <- getSpatialEnrichment(
         gobject = gobject,
         spat_unit = spat_unit,
         feat_type = feat_type,
+        name = spat_enr_name,
         output = "data.table"
     )
     data.table::setDF(dwls_values)

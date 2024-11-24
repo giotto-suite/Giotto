@@ -11,7 +11,8 @@
 
 \item{y}{target image from .sift_preprocess}
 
-\item{model}{estimated transformation object from .estimate_transform_from_matched_descriptor}
+\item{model}{estimated transformation object from
+.estimate_transform_from_matched_descriptor}
 }
 \value{
 None, it will write to a output path

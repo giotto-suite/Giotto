@@ -7,47 +7,39 @@
 runWNN(
   gobject,
   spat_unit = "cell",
-  modality_1 = "rna",
-  modality_2 = "protein",
-  pca_name_modality_1 = "rna.pca",
-  pca_name_modality_2 = "protein.pca",
+  feat_types = c("rna", "protein"),
+  reduction_methods = c("pca", "pca"),
+  reduction_names = c("rna.pca", "protein.pca"),
   k = 20,
   integrated_feat_type = NULL,
   matrix_result_name = NULL,
-  w_name_modality_1 = NULL,
-  w_name_modality_2 = NULL,
+  w_names = c(NULL, NULL),
   verbose = FALSE
 )
 }
 \arguments{
-\item{gobject}{A Giotto object with individual PCA modalities pre-calculated}
+\item{gobject}{A Giotto object with individual PCA feat_types pre-calculated}
 
 \item{spat_unit}{spatial unit}
 
-\item{modality_1}{modality 1 name. Default = "rna"}
+\item{feat_types}{feature types to integrate. Default = c("rna", "protein")}
 
-\item{modality_2}{modality 2 name. Default = "protein"}
+\item{reduction_methods}{reduction methods for each feature type. Default = c("pca", "pca")}
 
-\item{pca_name_modality_1}{Default = 'rna.pca'}
+\item{reduction_names}{names of the reduction methods to use. Default = c("rna.pca", "protein.pca")}
 
-\item{pca_name_modality_2}{Default = 'protein.pca'}
-
-\item{k}{k number, default = 20}
+\item{k}{number of neighbors to calculate cell distances, default = 20}
 
 \item{integrated_feat_type}{integrated feature type (e.g. 'rna_protein')}
 
 \item{matrix_result_name}{Default = 'theta_weighted_matrix'}
 
-\item{w_name_modality_1}{name for modality 1 weights}
-
-\item{w_name_modality_2}{name for modality 2 weights}
+\item{w_names}{optional. Names for the weighted matrices. If NULL, automatic names composed by w_feat_type will be created.}
 
 \item{verbose}{be verbose}
 }
 \value{
-A Giotto object with integrated UMAP (integrated.umap) within the
-dimension_reduction slot and Leiden clusters (integrated_leiden_clus) in the
-cellular metadata.
+A Giotto object with a new multiomics slot containing the theta_weighted_matrix and individual weight matrices.
 }
 \description{
 Multi omics integration with WNN

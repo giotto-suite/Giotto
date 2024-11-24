@@ -9,17 +9,15 @@ runGiottoHarmony(
   spat_unit = NULL,
   feat_type = NULL,
   vars_use = "list_ID",
-  do_pca = FALSE,
-  expression_values = c("normalized", "scaled", "custom"),
   reduction = "cells",
   dim_reduction_to_use = "pca",
   dim_reduction_name = NULL,
   dimensions_to_use = 1:10,
   name = NULL,
-  feats_to_use = NULL,
   set_seed = TRUE,
   seed_number = 1234,
-  toplevel_params = 2,
+  toplevel_params = deprecated(),
+  toplevel = 1L,
   return_gobject = TRUE,
   verbose = NULL,
   ...
@@ -32,12 +30,8 @@ runGiottoHarmony(
 
 \item{feat_type}{feature type}
 
-\item{vars_use}{If meta_data is dataframe, this defines which variable(s) to
-remove (character vector).}
-
-\item{do_pca}{Whether to perform PCA on input matrix.}
-
-\item{expression_values}{expression values to use}
+\item{vars_use}{character vector. Which variable(s) in metadata
+for harmony to remove}
 
 \item{reduction}{reduction on cells or features}
 
@@ -49,13 +43,13 @@ remove (character vector).}
 
 \item{name}{arbitrary name for Harmony run}
 
-\item{feats_to_use}{if dim_reduction_to_use = NULL, which feats to use}
-
 \item{set_seed}{use of seed}
 
 \item{seed_number}{seed number to use}
 
-\item{toplevel_params}{parameters to extract}
+\item{toplevel_params}{deprecated}
+
+\item{toplevel}{relative stackframe where call was made from}
 
 \item{return_gobject}{boolean: return giotto object (default = TRUE)}
 

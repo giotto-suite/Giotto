@@ -50,7 +50,7 @@ cell type}
 
 \item{min_zscore}{minimum z-score change}
 
-\item{zscores_column}{calculate z-scores over cell types or featuress}
+\item{zscores_column}{calculate z-scores over cell types or features}
 
 \item{direction}{differential expression directions to keep}
 
@@ -63,9 +63,11 @@ named vector of colors}
 
 \item{save_plot}{logical. save the plot}
 
-\item{save_param}{list of saving parameters, see \code{\link{showSaveParameters}}}
+\item{save_param}{list of saving parameters, see
+\code{\link{showSaveParameters}}}
 
-\item{default_save_name}{default save name for saving, don't change, change save_name in save_param}
+\item{default_save_name}{default save name for saving, don't change,
+change save_name in save_param}
 }
 \value{
 volcano, cell_barplot, cell-cell, cell_sankey, heatmap, or dotplot

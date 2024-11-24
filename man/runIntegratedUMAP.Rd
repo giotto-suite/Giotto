@@ -7,8 +7,7 @@
 runIntegratedUMAP(
   gobject,
   spat_unit = "cell",
-  modality1 = "rna",
-  modality2 = "protein",
+  feat_types = c("rna", "protein"),
   integrated_feat_type = NULL,
   integration_method = "WNN",
   matrix_result_name = "theta_weighted_matrix",
@@ -24,9 +23,7 @@ runIntegratedUMAP(
 
 \item{spat_unit}{spatial unit}
 
-\item{modality1}{modality 1 name. Default = "rna"}
-
-\item{modality2}{modality 2 name. Default = "protein"}
+\item{feat_types}{feature types to integrate. Default = c("rna", "protein")}
 
 \item{integrated_feat_type}{integrated feature type (e.g. 'rna_protein')}
 

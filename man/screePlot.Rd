@@ -8,7 +8,8 @@ screePlot(
   gobject,
   spat_unit = NULL,
   feat_type = NULL,
-  name = NULL,
+  dim_reduction_name = NULL,
+  name = deprecated(),
   expression_values = c("normalized", "scaled", "custom"),
   reduction = c("cells", "feats"),
   method = c("irlba", "exact", "random", "factominer"),
@@ -34,7 +35,9 @@ screePlot(
 
 \item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{name}{name of PCA object if available}
+\item{dim_reduction_name}{name of PCA}
+
+\item{name}{deprecated}
 
 \item{expression_values}{expression values to use}
 
@@ -62,9 +65,11 @@ screePlot(
 
 \item{save_plot}{logical. save the plot}
 
-\item{save_param}{list of saving parameters, see \code{\link{showSaveParameters}}}
+\item{save_param}{list of saving parameters, see
+\code{\link{showSaveParameters}}}
 
-\item{default_save_name}{default save name for saving, don't change, change save_name in save_param}
+\item{default_save_name}{default save name for saving, don't change,
+change save_name in save_param}
 
 \item{...}{additional arguments to pca function, see \code{\link{runPCA}}}
 }

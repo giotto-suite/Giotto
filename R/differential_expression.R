@@ -279,8 +279,8 @@ findScranMarkers_one_vs_all <- function(
 
 
     # save list
-    progressr::with_progress({
-        pb <- progressr::progressor(along = uniq_clusters)
+    with_pbar({
+        pb <- pbar(along = uniq_clusters)
         result_list <- lapply(
             seq_along(uniq_clusters),
             function(clus_i) {
@@ -512,10 +512,7 @@ findGiniMarkers <- function(
         )
 
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- set_cell_metadata(gobject,
-            metadata = cell_metadata,
-            verbose = FALSE
-        )
+        gobject <- setGiotto(gobject, cell_metadata, verbose = FALSE)
         ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
     }
 
@@ -734,8 +731,8 @@ findGiniMarkers_one_vs_all <- function(
 
 
     # GINI
-    progressr::with_progress({
-        pb <- progressr::progressor(along = uniq_clusters)
+    with_pbar({
+        pb <- pbar(along = uniq_clusters)
         result_list <- lapply(
             seq_along(uniq_clusters),
             function(clus_i) {
@@ -907,10 +904,7 @@ findMastMarkers <- function(
     )
 
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-    gobject <- set_cell_metadata(gobject,
-        metadata = cell_metadata,
-        verbose = FALSE
-    )
+    gobject <- setGiotto(gobject, cell_metadata, verbose = FALSE)
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
 
