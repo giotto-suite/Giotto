@@ -1928,24 +1928,9 @@ jackstrawPlot <- function(
     }
     n <- ncol(dat)
     m <- nrow(dat)
-    ndf <- min(m, n - 1, ncp) # this is a limitation of svd singular values
-    sum_of_squared_singular_vals <- sum(dat^2)
-
-    # pick SVD fun based on whether partial or full is appropriate
-    # These biocsingular functions should not scale or center
-    svd_fun <- if (ndf >= 0.5 * m || ndf >= 100) {
-        BiocSingular::runExactSVD
-    } else {
-        BiocSingular::runIrlbaSVD
-    } # partial SVDs
-
-    .calc_svd_var_explained <- function(x, k) {
-        res <- svd_fun(x, k = k)
-        singular_val_square <- res$d[1:k]^2
-        return(singular_val_square / sum_of_squared_singular_vals)
-    }
-
-    dstat <- .calc_svd_var_explained(dat, k = ndf)
+    ndf <- min(m, n - 1, ncp) # this is also calculated in .varexp
+    
+    dstat <- .varexp(dat, k = ncp)
     cum_var_explained <- cumsum(dstat)
 
     # randomize and compare
@@ -1961,7 +1946,7 @@ jackstrawPlot <- function(
         for (i in seq_len(iter)) {
             pb()
             dat0 <- t(apply(dat, 1, sample))
-            dstat0[i, ] <- .calc_svd_var_explained(dat0, k = ndf)
+            dstat0[i, ] <- .varexp(dat0, k = ncp)
         }
     })
 
@@ -1977,7 +1962,39 @@ jackstrawPlot <- function(
     return(list(r = r, p = p, cum_var_explained = cum_var_explained))
 }
 
+# calculate SVD variance explained, with support for partial SVDs
+.varexp <- function(dat, k = 20) {
+    if (missing(dat)) {
+        stop("`dat` is required!")
+    }
+    n <- ncol(dat)
+    m <- nrow(dat)
+    ndf <- min(m, n - 1, k) # this is a limitation of svd singular values
+    sum_of_squared_singular_vals <- sum(dat^2)
+    
+    # pick SVD fun based on whether partial or full is appropriate
+    # These biocsingular functions should not scale or center
+    svd_fun <- if (ndf >= 0.5 * m || ndf >= 100) {
+        BiocSingular::runExactSVD
+    } else {
+        BiocSingular::runIrlbaSVD
+    } # partial SVDs
+    
+    res <- svd_fun(dat, k)
+    singular_val_square <- res$d[1:k]^2
+    perc <- singular_val_square / sum_of_squared_singular_vals
+    return(perc)
+}
 
+# cumulative variance explained
+.cumvar <- function(dat, k = 20, last = TRUE) {
+    a <- get_args_list(keep = c("dat", "k"))
+    res <- cumsum(do.call(.varexp, a))
+    if (last) {
+        res <- tail(res, 1L)
+    }
+    return(res)
+}
 
 
 #' @title signPCA

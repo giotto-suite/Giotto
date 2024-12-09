@@ -1,4 +1,25 @@
 
+# Giotto 4.1.6 (2024/12/09)
+
+## Bug fixes
+* `doScrubletDetect()` seed setting
+
+## Enhancements
+* `labelTransfer()` now has `integration_method = "harmony"` for label transferring with an integration pipeline. See ?labelTransfer and the `integration_method` section.
+* `importXenium()` `load_transcripts()` can now return a `data.table` rather than the `giottoPoints` representation
+
+## New
+* `doMesmerSegmentation()` and `doStardistSegmentation()` segmentation wrappers
+* `.varexp()` internal for calculating SVD variance determined with support for partial SVDs
+* `.cumvar()` internal for calculating cumulative variance explained
+* re-export of `dotPlot()` from GiottoVisuals
+
+## Changes
+* GiottoClass req raised to 0.4.5
+* GiottoUtils req raised to 0.2.2
+* GiottoVisuals req raised to 0.2.10
+
+
 # Giotto 4.1.5 (2024/11/08)
 
 ## Enhancements

@@ -238,6 +238,7 @@ setMethod(
         dropcols = c(),
         qv_threshold = obj@qv,
         cores = determine_cores(),
+        output = c("giottoPoints", "data.table"),
         verbose = NULL) {
             .xenium_transcript(
                 path = path,
@@ -247,6 +248,7 @@ setMethod(
                 dropcols = dropcols,
                 qv_threshold = qv_threshold,
                 cores = cores,
+                output = output,
                 verbose = verbose
             )
         }
@@ -505,22 +507,36 @@ setMethod(
             if (!is.null(load_images)) {
                 load_images <- lapply(load_images, normalizePath, mustWork = FALSE)
                 img_focus_path <- normalizePath(img_focus_path, mustWork = FALSE)
-
+                
+                # replace shortname
+                load_images[load_images == "focus"] <- img_focus_path
+                
+                is_dir <- dir.exists(img_focus_path)
+                is_focus <- load_images == img_focus_path
+                is_focus_image <- is_focus & !is_dir
+                is_focus_dir <- is_focus & is_dir
+                
+                # handle matches to single focus images instead of a directory
+                names(load_images)[is_focus_image] <- "dapi"
+                
                 # [exception] handle focus image dir
-                is_focus <- load_images == "focus" | load_images == img_focus_path
-                # split the focus image dir away from other entries
-                load_images <- load_images[!is_focus]
-
-                if (any(is_focus)) {
+                if (any(is_focus_dir)) {
+                    # split the focus image dir away from other entries
+                    load_images <- load_images[!is_focus_dir]
                     focus_dir <- img_focus_path
                     focus_files <- list.files(focus_dir, full.names = TRUE)
-                    focus_files <- focus_files[!dir.exists(focus_files)] # ignore matches to export dir
-                    nbound <- length(focus_files) - 1L
-                    focus_names <- c("dapi", sprintf("bound%d", seq_len(nbound)))
-                    names(focus_files) <- focus_names
-
-                    # append to rest of entries
-                    load_images <- c(load_images, focus_files)
+                    # ignore matches to export dir (if it is a subdirectory)
+                    focus_files <- focus_files[!dir.exists(focus_files)] 
+                    if (length(focus_files) > 0L) {
+                        nbound <- length(focus_files) - 1L
+                        focus_names <- c(
+                            "dapi", sprintf("bound%d", seq_len(nbound))
+                        )
+                        names(focus_files) <- focus_names
+                        
+                        # append to rest of entries
+                        load_images <- c(load_images, focus_files)
+                    }
                 }
 
                 # ensure that input is list
@@ -676,6 +692,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         dropcols = c(),
         qv_threshold = 20,
         cores = determine_cores(),
+        output = c("giottoPoints", "data.table"),
         verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
@@ -690,6 +707,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     vmsg(.v = verbose, .is_debug = TRUE, "[TX_READ] FMT =", e)
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
+    output <- match.arg(output, choices = c("giottoPoints", "data.table"))
+    
     # read in as data.table
     a <- list(
         path = path,
@@ -712,6 +731,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     y <- NULL # NSE var
     if (flip_vertical) tx[, y := -y]
 
+    if (output == "data.table") return(tx)
+    
     # create gpoints
     gpointslist <- createGiottoPoints(
         x = tx,
@@ -720,7 +741,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         verbose = FALSE
     )
 
-    if (inherits(gpointslist, "list")) {
+    # enforce list
+    if (!inherits(gpointslist, "list")) {
         gpointslist <- list(gpointslist)
     }
 

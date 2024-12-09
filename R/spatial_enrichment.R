@@ -2279,7 +2279,7 @@ enrich_deconvolution <- function(
         ct_exp,
         cutoff) {
     ##### generate enrich 0/1 matrix based on expression matrix
-    ct_exp <- ct_exp[rowSums(ct_exp) > 0, ]
+    ct_exp <- ct_exp[rowSums(ct_exp) > 0, , drop = FALSE]
     enrich_matrix <- matrix(0, nrow = dim(ct_exp)[1], ncol = dim(ct_exp)[2])
     rowmax_col <- Rfast::rowMaxs(ct_exp)
     for (i in seq_along(rowmax_col)) {
@@ -2321,9 +2321,9 @@ enrich_deconvolution <- function(
             ct_gene <- c(ct_gene, sig_gene_j)
         }
         uniq_ct_gene <- intersect(rownames(expr), unique(ct_gene))
-        select_sig_exp <- ct_exp[uniq_ct_gene, ct]
+        select_sig_exp <- ct_exp[uniq_ct_gene, ct, drop = FALSE]
         cluster_i_cell <- which(cluster_info == cluster_sort[i])
-        cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell]
+        cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell, drop = FALSE]
 
         cluster_i_dwls <- optimize_deconvolute_dwls(
             cluster_cell_exp, select_sig_exp
@@ -2383,9 +2383,9 @@ spot_deconvolution <- function(
                 ct_gene <- c(ct_gene, sig_gene_j)
             }
             uniq_ct_gene <- intersect(rownames(expr), unique(ct_gene))
-            select_sig_exp <- ct_exp[uniq_ct_gene, ct_i]
+            select_sig_exp <- ct_exp[uniq_ct_gene, ct_i, drop = FALSE]
             cluster_i_cell <- which(cluster_info == cluster_sort[i])
-            cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell]
+            cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell, drop = FALSE]
             ###### calculate
             ###### overlap signature with spatial genes
             all_exp <- Matrix::rowMeans(cluster_cell_exp)

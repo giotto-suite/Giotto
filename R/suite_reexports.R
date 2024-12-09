@@ -471,6 +471,8 @@ GiottoClass::writeGiottoLargeImage
 #' @export
 GiottoVisuals::addGiottoImageToSpatPlot
 #' @export
+GiottoVisuals::dotPlot
+#' @export
 GiottoVisuals::dimCellPlot
 #' @export
 GiottoVisuals::dimCellPlot2D

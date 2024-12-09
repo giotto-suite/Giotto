@@ -425,8 +425,10 @@ normalizeGiotto <- function(gobject,
     )
 
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-    gobject <- setGiotto(gobject, norm_expr, initialize = FALSE)
-    gobject <- setGiotto(gobject, norm_scaled_expr, initialize = FALSE)
+    gobject <- setGiotto(
+        gobject, norm_expr, verbose = verbose, initialize = FALSE)
+    gobject <- setGiotto(
+        gobject, norm_scaled_expr, verbose = verbose, initialize = FALSE)
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
     ## 6. return Giotto object

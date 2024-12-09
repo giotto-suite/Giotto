@@ -73,11 +73,9 @@ doScrubletDetect <- function(
 
     # set seed
     if (!is.null(seed)) {
-        seed_number <- as.numeric(seed)
-        reticulate::py_set_seed(
-            seed = seed_number,
-            disable_hash_randomization = TRUE
-        )
+        seed_number <- as.integer(seed)
+    } else {
+        seed_number <- random_seed()
     }
 
     # Set feat_type and spat_unit
@@ -116,7 +114,8 @@ doScrubletDetect <- function(
         min_counts = min_counts,
         min_cells = min_cells,
         min_gene_variability_pctl = min_gene_variability_pctl,
-        n_prin_comps = n_prin_comps
+        n_prin_comps = n_prin_comps,
+        seed_number = seed_number
     )
 
     scrublet_out <- data.table::data.table(

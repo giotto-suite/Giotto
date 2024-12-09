@@ -240,3 +240,188 @@ doCellposeSegmentation <- function(
     rast <- terra::rast(masks)
     terra::writeRaster(rast, mask_output, overwrite = TRUE)
 }
+
+
+
+
+#'
+#' @title perform Mesmer(Deepcell) segmentation
+#' @description
+#'
+#' perform the Giotto Wrapper of mesmer segmentation. This is for a model
+#' inference to generate segmentation mask file from input image.
+#' main parameters needed
+#' @name doMesmerSegmentation
+#' @param Image_dir character, required. Provide a path to a IF image.
+#' @param python_env python environment with deepcell installed.
+#' default = "giotto_segmentation". See deepcell official website for more details.
+#' @param mask_output required. Provide a path to the output mask file.
+#' @param Nucleus_channel channel number for Nuclei, default to 1
+#' @param Memberane_channel channel number for cell boundary, default to 2
+#' @param pixel_per_micron physical micron size per pixel, default to 0.25
+#' @returns No return variable, as this will write directly to output path
+#' provided.
+#' @examples
+#' # example code
+#' doMesmerSegmentation(
+#'     Image_dir = input_image,
+#'     mask_output = output, 
+#'     Nucleus_channel = 1,
+#'     Memberane_channel = 2,
+#'     pixel_per_micron = 0.5
+#' )
+#' @export
+doMesmerSegmentation <- function(Image_dir,
+                                 python_env = 'giotto_segmentation',
+                                 Nucleus_channel = 1,
+                                 Memberane_channel = 2,
+                                 pixel_per_micron = 0.25,
+                                 mask_output,
+                                 verbose = F, ...){
+    ## Load required python libraries
+    GiottoClass::set_giotto_python_path(python_env)
+    GiottoUtils::package_check("deepcell", repository = "pip")
+    tiff <- reticulate::import("tifffile")
+    np <- reticulate::import("numpy")
+    deepcell <- reticulate::import("deepcell.applications")
+    message("successfully loaded giotto environment with deepcell.")
+    
+    # Initialize the Mesmer application from DeepCell
+    mesmer <- deepcell$Mesmer()
+    
+    GiottoUtils::vmsg(
+        .v = verbose, .is_debug = FALSE, "Loading Image... ",
+    )
+    GiottoUtils::package_check("terra")
+    rast = terra::rast(Image_dir)
+    # Convert the R matrix to a NumPy array explicitly
+    Nucleus_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(Nucleus_channel)]])))
+    Membrane_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(Memberane_channel)]])))
+    stacked_array <- np$stack(list(Nucleus_channel_np, Membrane_channel_np), axis = as.integer(-1))
+    # Add a new axis to the stacked array to fit Mesmer input
+    stacked_array <- np$expand_dims(stacked_array, axis = as.integer(0))
+    
+    GiottoUtils::vmsg(.v = verbose, .is_debug = FALSE, "Segmenting Image...")
+
+    segmentation_predictions = mesmer$predict(stacked_array, image_mpp=pixel_per_micron)
+    mask <- segmentation_predictions[1,,,1]
+    mask_r <- reticulate::py_to_r(mask)
+    
+    GiottoUtils::vmsg(
+        .v = verbose, .is_debug = FALSE,
+        "Segmentation finished... Saving mask file..."
+    )
+    
+    rast <- terra::rast(mask_r)
+    terra::writeRaster(rast, mask_output, overwrite = TRUE)
+}
+
+
+
+#'
+#' @title perform Stardist segmentation
+#' @description
+#'
+#' perform the Giotto Wrapper of Stardist 2D segmentation. This is for a model
+#' inference to generate segmentation mask file from input image.
+#' main parameters needed
+#' @name doStardistSegmentation
+#' @param Image_dir character, required. Provide a path to an image.
+#' @param python_env python environment with Stardist installed.
+#' default = "giotto_segmentation". See Stardist official website for more details.
+#' @param mask_output required. Provide a path to the output mask file.
+#' @param model_name Name of the model to run inference. Default to '2D_versatile_fluo'. 
+#' If using HE model, input image must be RGB, else the nuclei_channel must be given
+#' @param nuclei_channel Required using IF based nuclei segmentation, channel number of the nuclei staining.
+#' @param prob_thresh prob_thresh for model (if not given use model default)
+#' @param nms_thresh nms_thresh for model (if not given use model default)
+#' @returns No return variable, as this will write directly to output path provided.
+#' @examples
+#' # example code
+#' doStardistSegmentation(
+#'     Image_dir = input_image,
+#'     mask_output = output, 
+#'     model_name = '2D_versatile_fluo',
+#'     nuclei_channel = 3
+#' )
+#' 
+#' @export
+doStardistSegmentation <- function(Image_dir,
+                                   python_env = 'giotto_segmentation',
+                                   mask_output,
+                                   model_name = '2D_versatile_fluo',
+                                   nuclei_channel = NULL,
+                                   prob_thresh = NULL,
+                                   nms_thresh = NULL,
+                                   verbose = F,
+                                   ...){
+    # Import the necessary Python modules
+    ## Load required python libraries
+    GiottoClass::set_giotto_python_path(python_env)
+    GiottoUtils::package_check("stardist", repository = "pip")
+    stardist <- reticulate::import("stardist.models")
+    csbdeep <- reticulate::import("csbdeep.utils")
+    np <- reticulate::import("numpy")
+    
+    # Load the StarDist2D model 
+    model_name <- match.arg(
+        model_name, unique(c("2D_versatile_fluo", "2D_versatile_he", "2D_paper_dsb2018", "2D_demo", model_name))
+    )
+    GiottoUtils::vmsg(
+        .v = verbose, .is_debug = FALSE, "Loading model ",
+        model_name
+    )
+    
+    model <- stardist$StarDist2D$from_pretrained(model_name)
+    
+    # Load the image
+    GiottoUtils::vmsg(
+        .v = verbose, .is_debug = FALSE, "Loading Image from ",
+        Image_dir
+    )
+    GiottoUtils::package_check("terra")
+    rast = terra::rast(Image_dir)
+    if (model_name != '2D_versatile_he' & is.null(nuclei_channel)){
+        stop('using IF based nuclei segmentation, please specify nuclei channel')
+    }
+    else if( model_name == '2D_versatile_he'){
+        img <- np$array(terra::as.array(rast))
+    }
+    else {
+        img <- np$array(drop(terra::as.array(rast[[as.numeric(nuclei_channel)]])))
+    }
+
+    # Normalize the image
+    normalized_img <- csbdeep$normalize(img)
+    
+    # Perform prediction with StarDist2D model
+    results <- model$predict_instances(normalized_img,
+                                       prob_thresh = prob_thresh,
+                                       nms_thresh = nms_thresh)
+    
+    # Extract the labels (first output from predict_instances)
+    mask <- results[[1]]
+    GiottoUtils::vmsg(
+        .v = verbose, .is_debug = FALSE,
+        "Segmentation finished... Saving mask file..."
+    )
+    rast_m <- terra::rast(mask)
+    terra::writeRaster(rast_m, mask_output, overwrite = TRUE)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
