@@ -24,7 +24,7 @@ crossSectionFeatPlot3D(
 
 \item{feat_type}{feature type}
 
-\item{crossSection_obj}{cross section object as alternative input. 
+\item{crossSection_obj}{cross section object as alternative input.
 default = NULL.}
 
 \item{name}{name of virtual cross section to use}

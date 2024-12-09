@@ -2,7 +2,7 @@
 % Please edit documentation in R/image_registration.R
 \name{preprocessImageToMatrix}
 \alias{preprocessImageToMatrix}
-\title{Preprocess from image directory to the required matrix format for 
+\title{Preprocess from image directory to the required matrix format for
 Image registration pipeline built on scikit-image}
 \usage{
 preprocessImageToMatrix(
@@ -20,29 +20,29 @@ preprocessImageToMatrix(
 \arguments{
 \item{x}{input file path, required}
 
-\item{invert}{whether or not to invert intensity to make calculation of 
+\item{invert}{whether or not to invert intensity to make calculation of
 descriptors more accurate, default FALSE}
 
-\item{equalize_histogram}{whether or not to calculate equalized histogram of 
+\item{equalize_histogram}{whether or not to calculate equalized histogram of
 the image,default TRUE}
 
 \item{flip_vertical}{whether or not to flip vertical, default FALSE}
 
 \item{flip_horizontal}{whether or not to flip horizontal, default FALSE}
 
-\item{rotate_90}{whether or not to rotates the image 90 degrees 
+\item{rotate_90}{whether or not to rotates the image 90 degrees
 counter-clockwise, default FALSE}
 
-\item{use_single_channel}{If input is a multichannel image, whether or not 
+\item{use_single_channel}{If input is a multichannel image, whether or not
 to extract single channel, default FALSE}
 
-\item{single_channel_number}{Channel number in the multichannel image, 
+\item{single_channel_number}{Channel number in the multichannel image,
 required if use_single_channel = TRUE}
 }
 \value{
 a matrix array to input to .sift_detect
 }
 \description{
-Preprocess a image path to the required matrix format for Image 
+Preprocess a image path to the required matrix format for Image
 registration pipeline built on scikit-image
 }

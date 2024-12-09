@@ -8,11 +8,12 @@ NULL
 
 #' @rdname spat_fisher_exact
 #' @keywords internal
-.spat_fish_func <- function(feat,
-    bin_matrix,
-    spat_mat,
-    calc_hub = FALSE,
-    hub_min_int = 3) {
+.spat_fish_func <- function(
+        feat,
+        bin_matrix,
+        spat_mat,
+        calc_hub = FALSE,
+        hub_min_int = 3) {
     feat_vector <- bin_matrix[rownames(bin_matrix) == feat, ]
 
     feat_vectorA <- feat_vector[names(feat_vector) %in% rownames(spat_mat)]
@@ -75,11 +76,12 @@ NULL
 
 #' @describeIn spat_fisher_exact data.table implementation
 #' @keywords internal
-.spat_fish_func_dt <- function(bin_matrix_DTm,
-    spat_netw_min,
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    cores = NA) {
+.spat_fish_func_dt <- function(
+        bin_matrix_DTm,
+        spat_netw_min,
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        cores = NA) {
     # set number of cores automatically, but with limit of 10
     cores <- determine_cores(cores)
     data.table::setDTthreads(threads = cores)
@@ -174,11 +176,12 @@ NULL
 
 #' @rdname spat_odds_ratio
 #' @keywords internal
-.spat_or_func <- function(feat,
-    bin_matrix,
-    spat_mat,
-    calc_hub = FALSE,
-    hub_min_int = 3) {
+.spat_or_func <- function(
+        feat,
+        bin_matrix,
+        spat_mat,
+        calc_hub = FALSE,
+        hub_min_int = 3) {
     feat_vector <- bin_matrix[rownames(bin_matrix) == feat, ]
 
     feat_vectorA <- feat_vector[names(feat_vector) %in% rownames(spat_mat)]
@@ -247,11 +250,12 @@ NULL
 
 #' @describeIn spat_odds_ratio data.table implementation
 #' @keywords internal
-.spat_or_func_dt <- function(bin_matrix_DTm,
-    spat_netw_min,
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    cores = NA) {
+.spat_or_func_dt <- function(
+        bin_matrix_DTm,
+        spat_netw_min,
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        cores = NA) {
     # set number of cores automatically, but with limit of 10
     cores <- determine_cores(cores)
     data.table::setDTthreads(threads = cores)
@@ -357,10 +361,11 @@ NULL
 #' @describeIn calculate_spatial_enrichment calculate using a 'simple' and
 #' efficient for loop
 #' @keywords internal
-.calc_spatial_enrichment_minimum <- function(spatial_network,
-    bin_matrix,
-    adjust_method = "fdr",
-    do_fisher_test = TRUE) {
+.calc_spatial_enrichment_minimum <- function(
+        spatial_network,
+        bin_matrix,
+        adjust_method = "fdr",
+        do_fisher_test = TRUE) {
     # data.table variables
     from <- to <- feats <- variable <- value <- p.value <- adj.p.value <-
         score <- estimate <- NULL
@@ -450,15 +455,16 @@ NULL
 #' @describeIn calculate_spatial_enrichment calculate using 'matrix'
 #' implementation
 #' @keywords internal
-.calc_spatial_enrichment_matrix <- function(spatial_network,
-    bin_matrix,
-    adjust_method = "fdr",
-    do_fisher_test = TRUE,
-    do_parallel = TRUE,
-    cores = NA,
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    verbose = TRUE) {
+.calc_spatial_enrichment_matrix <- function(
+        spatial_network,
+        bin_matrix,
+        adjust_method = "fdr",
+        do_fisher_test = TRUE,
+        do_parallel = TRUE,
+        cores = NA,
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        verbose = TRUE) {
     # data.table variables
     verbose <- feats <- p.value <- estimate <- adj.p.value <- score <- NULL
 
@@ -542,15 +548,14 @@ NULL
 #' @describeIn calculate_spatial_enrichment calculate using 'data.table'
 #' implementation
 #' @keywords internal
-.calc_spatial_enrichment_dt <- function(
-        bin_matrix,
-        spatial_network,
-        calc_hub = FALSE,
-        hub_min_int = 3,
-        group_size = "automatic",
-        do_fisher_test = TRUE,
-        adjust_method = "fdr",
-        cores = NA) {
+.calc_spatial_enrichment_dt <- function(bin_matrix,
+    spatial_network,
+    calc_hub = FALSE,
+    hub_min_int = 3,
+    group_size = "automatic",
+    do_fisher_test = TRUE,
+    adjust_method = "fdr",
+    cores = NA) {
     # set number of cores automatically, but with limit of 10
     cores <- determine_cores(cores)
     data.table::setDTthreads(threads = cores)
@@ -757,39 +762,38 @@ NULL
 
 #' @rdname binSpect
 #' @export
-binSpect <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        bin_method = c("kmeans", "rank"),
-        expression_values = c("normalized", "scaled", "custom"),
-        subset_feats = NULL,
-        spatial_network_name = "Delaunay_network",
-        spatial_network_k = NULL,
-        reduce_network = FALSE,
-        kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
-        nstart = 3,
-        iter_max = 10,
-        extreme_nr = 50,
-        sample_nr = 50,
-        percentage_rank = 30,
-        do_fisher_test = TRUE,
-        adjust_method = "fdr",
-        calc_hub = FALSE,
-        hub_min_int = 3,
-        get_av_expr = TRUE,
-        get_high_expr = TRUE,
-        implementation = c("data.table", "simple", "matrix"),
-        group_size = "automatic",
-        do_parallel = TRUE,
-        cores = NA,
-        verbose = TRUE,
-        knn_params = NULL,
-        set.seed = deprecated(),
-        seed = 1234,
-        bin_matrix = NULL,
-        summarize = c("p.value", "adj.p.value"),
-        return_gobject = FALSE) {
+binSpect <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    bin_method = c("kmeans", "rank"),
+    expression_values = c("normalized", "scaled", "custom"),
+    subset_feats = NULL,
+    spatial_network_name = "Delaunay_network",
+    spatial_network_k = NULL,
+    reduce_network = FALSE,
+    kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
+    nstart = 3,
+    iter_max = 10,
+    extreme_nr = 50,
+    sample_nr = 50,
+    percentage_rank = 30,
+    do_fisher_test = TRUE,
+    adjust_method = "fdr",
+    calc_hub = FALSE,
+    hub_min_int = 3,
+    get_av_expr = TRUE,
+    get_high_expr = TRUE,
+    implementation = c("data.table", "simple", "matrix"),
+    group_size = "automatic",
+    do_parallel = TRUE,
+    cores = NA,
+    verbose = TRUE,
+    knn_params = NULL,
+    set.seed = deprecated(),
+    seed = 1234,
+    bin_matrix = NULL,
+    summarize = c("p.value", "adj.p.value"),
+    return_gobject = FALSE) {
     # TODO align set.seed, set_seed, seed_number naming and usage across
     # packages
     # use only param seed. If NULL, set no seed. If !NULL set value as seed
@@ -858,30 +862,31 @@ binSpect <- function(
 #' @param expression_matrix expression matrix
 #' @param spatial_network spatial network in data.table format
 #' @export
-binSpectSingleMatrix <- function(expression_matrix,
-    spatial_network = NULL,
-    bin_matrix = NULL,
-    bin_method = c("kmeans", "rank"),
-    subset_feats = NULL,
-    kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
-    nstart = 3,
-    iter_max = 10,
-    extreme_nr = 50,
-    sample_nr = 50,
-    percentage_rank = 30,
-    do_fisher_test = TRUE,
-    adjust_method = "fdr",
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    get_av_expr = TRUE,
-    get_high_expr = TRUE,
-    implementation = c("data.table", "simple", "matrix"),
-    group_size = "automatic",
-    do_parallel = TRUE,
-    cores = NA,
-    verbose = FALSE,
-    set.seed = deprecated(),
-    seed = 1234) {
+binSpectSingleMatrix <- function(
+        expression_matrix,
+        spatial_network = NULL,
+        bin_matrix = NULL,
+        bin_method = c("kmeans", "rank"),
+        subset_feats = NULL,
+        kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
+        nstart = 3,
+        iter_max = 10,
+        extreme_nr = 50,
+        sample_nr = 50,
+        percentage_rank = 30,
+        do_fisher_test = TRUE,
+        adjust_method = "fdr",
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        get_av_expr = TRUE,
+        get_high_expr = TRUE,
+        implementation = c("data.table", "simple", "matrix"),
+        group_size = "automatic",
+        do_parallel = TRUE,
+        cores = NA,
+        verbose = FALSE,
+        set.seed = deprecated(),
+        seed = 1234) {
     if (is_present(set.seed) && !is.function(set.seed)) {
         deprecate_warn(
             when = "4.0.3",
@@ -1068,34 +1073,35 @@ binSpectSingleMatrix <- function(expression_matrix,
 
 #' @describeIn binSpect binSpect for a single spatial network
 #' @export
-binSpectSingle <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    bin_method = c("kmeans", "rank"),
-    expression_values = c("normalized", "scaled", "custom"),
-    subset_feats = NULL,
-    spatial_network_name = "Delaunay_network",
-    reduce_network = FALSE,
-    kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
-    nstart = 3,
-    iter_max = 10,
-    extreme_nr = 50,
-    sample_nr = 50,
-    percentage_rank = 30,
-    do_fisher_test = TRUE,
-    adjust_method = "fdr",
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    get_av_expr = TRUE,
-    get_high_expr = TRUE,
-    implementation = c("data.table", "simple", "matrix"),
-    group_size = "automatic",
-    do_parallel = TRUE,
-    cores = NA,
-    verbose = TRUE,
-    set.seed = deprecated(),
-    seed = 1234,
-    bin_matrix = NULL) {
+binSpectSingle <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        bin_method = c("kmeans", "rank"),
+        expression_values = c("normalized", "scaled", "custom"),
+        subset_feats = NULL,
+        spatial_network_name = "Delaunay_network",
+        reduce_network = FALSE,
+        kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
+        nstart = 3,
+        iter_max = 10,
+        extreme_nr = 50,
+        sample_nr = 50,
+        percentage_rank = 30,
+        do_fisher_test = TRUE,
+        adjust_method = "fdr",
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        get_av_expr = TRUE,
+        get_high_expr = TRUE,
+        implementation = c("data.table", "simple", "matrix"),
+        group_size = "automatic",
+        do_parallel = TRUE,
+        cores = NA,
+        verbose = TRUE,
+        set.seed = deprecated(),
+        seed = 1234,
+        bin_matrix = NULL) {
     ## deprecated arguments
 
     if (is_present(set.seed) && !is.function(set.seed)) {
@@ -1190,35 +1196,36 @@ binSpectSingle <- function(gobject,
 
 #' @describeIn binSpect binSpect for multiple spatial kNN networks
 #' @export
-binSpectMulti <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    bin_method = c("kmeans", "rank"),
-    expression_values = c("normalized", "scaled", "custom"),
-    subset_feats = NULL,
-    spatial_network_k = c(5, 10, 20),
-    reduce_network = FALSE,
-    kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
-    nstart = 3,
-    iter_max = 10,
-    extreme_nr = 50,
-    sample_nr = 50,
-    percentage_rank = c(10, 30),
-    do_fisher_test = TRUE,
-    adjust_method = "fdr",
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    get_av_expr = TRUE,
-    get_high_expr = TRUE,
-    implementation = c("data.table", "simple", "matrix"),
-    group_size = "automatic",
-    do_parallel = TRUE,
-    cores = NA,
-    verbose = TRUE,
-    knn_params = NULL,
-    set.seed = deprecated(),
-    seed = 1234,
-    summarize = c("adj.p.value", "p.value")) {
+binSpectMulti <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        bin_method = c("kmeans", "rank"),
+        expression_values = c("normalized", "scaled", "custom"),
+        subset_feats = NULL,
+        spatial_network_k = c(5, 10, 20),
+        reduce_network = FALSE,
+        kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
+        nstart = 3,
+        iter_max = 10,
+        extreme_nr = 50,
+        sample_nr = 50,
+        percentage_rank = c(10, 30),
+        do_fisher_test = TRUE,
+        adjust_method = "fdr",
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        get_av_expr = TRUE,
+        get_high_expr = TRUE,
+        implementation = c("data.table", "simple", "matrix"),
+        group_size = "automatic",
+        do_parallel = TRUE,
+        cores = NA,
+        verbose = TRUE,
+        knn_params = NULL,
+        set.seed = deprecated(),
+        seed = 1234,
+        summarize = c("adj.p.value", "p.value")) {
     ## deprecated arguments
     if (is_present(set.seed) && !is.function(set.seed)) {
         deprecate_warn(
@@ -1448,31 +1455,32 @@ binSpectMulti <- function(gobject,
 #' is set.
 #' @param summarize summarize the p-values or adjusted p-values
 #' @returns data.table with results
-binSpectMultiMatrix <- function(expression_matrix,
-    spatial_networks,
-    bin_method = c("kmeans", "rank"),
-    subset_feats = NULL,
-    kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
-    nstart = 3,
-    iter_max = 10,
-    extreme_nr = 50,
-    sample_nr = 50,
-    percentage_rank = c(10, 30),
-    do_fisher_test = TRUE,
-    adjust_method = "fdr",
-    calc_hub = FALSE,
-    hub_min_int = 3,
-    get_av_expr = TRUE,
-    get_high_expr = TRUE,
-    implementation = c("data.table", "simple", "matrix"),
-    group_size = "automatic",
-    do_parallel = TRUE,
-    cores = NA,
-    verbose = TRUE,
-    knn_params = NULL,
-    set.seed = deprecated(),
-    seed = 1234,
-    summarize = c("adj.p.value", "p.value")) {
+binSpectMultiMatrix <- function(
+        expression_matrix,
+        spatial_networks,
+        bin_method = c("kmeans", "rank"),
+        subset_feats = NULL,
+        kmeans_algo = c("kmeans", "kmeans_arma", "kmeans_arma_subset"),
+        nstart = 3,
+        iter_max = 10,
+        extreme_nr = 50,
+        sample_nr = 50,
+        percentage_rank = c(10, 30),
+        do_fisher_test = TRUE,
+        adjust_method = "fdr",
+        calc_hub = FALSE,
+        hub_min_int = 3,
+        get_av_expr = TRUE,
+        get_high_expr = TRUE,
+        implementation = c("data.table", "simple", "matrix"),
+        group_size = "automatic",
+        do_parallel = TRUE,
+        cores = NA,
+        verbose = TRUE,
+        knn_params = NULL,
+        set.seed = deprecated(),
+        seed = 1234,
+        summarize = c("adj.p.value", "p.value")) {
     if (is_present(set.seed) && !is.function(set.seed)) {
         deprecate_warn(
             when = "4.0.3",
@@ -1639,13 +1647,14 @@ binSpectMultiMatrix <- function(expression_matrix,
 #'
 #' silhouetteRank(g)
 #' @export
-silhouetteRank <- function(gobject,
-    expression_values = c("normalized", "scaled", "custom"),
-    metric = "euclidean",
-    subset_genes = NULL,
-    rbp_p = 0.95,
-    examine_top = 0.3,
-    python_path = NULL) {
+silhouetteRank <- function(
+        gobject,
+        expression_values = c("normalized", "scaled", "custom"),
+        metric = "euclidean",
+        subset_genes = NULL,
+        rbp_p = 0.95,
+        examine_top = 0.3,
+        python_path = NULL) {
     # expression values
     values <- match.arg(expression_values, c("normalized", "scaled", "custom"))
     expr_values <- getExpression(
@@ -1732,18 +1741,19 @@ silhouetteRank <- function(gobject,
 #'
 #' silhouetteRankTest(g)
 #' @export
-silhouetteRankTest <- function(gobject,
-    expression_values = c("normalized", "scaled", "custom"),
-    subset_genes = NULL,
-    overwrite_input_bin = TRUE,
-    rbp_ps = c(0.95, 0.99),
-    examine_tops = c(0.005, 0.010, 0.050, 0.100, 0.300),
-    matrix_type = "dissim",
-    num_core = 4,
-    parallel_path = "/usr/bin",
-    output = NULL,
-    query_sizes = 10L,
-    verbose = FALSE) {
+silhouetteRankTest <- function(
+        gobject,
+        expression_values = c("normalized", "scaled", "custom"),
+        subset_genes = NULL,
+        overwrite_input_bin = TRUE,
+        rbp_ps = c(0.95, 0.99),
+        examine_tops = c(0.005, 0.010, 0.050, 0.100, 0.300),
+        matrix_type = "dissim",
+        num_core = 4,
+        parallel_path = "/usr/bin",
+        output = NULL,
+        query_sizes = 10L,
+        verbose = FALSE) {
     # data.table variables
     cell_ID <- sdimx <- sdimy <- sdimz <- NULL
 
@@ -1933,21 +1943,22 @@ silhouetteRankTest <- function(gobject,
 #'
 #' spatialDE(g)
 #' @export
-spatialDE <- function(gobject = NULL,
-    feat_type = NULL,
-    spat_unit = NULL,
-    spat_loc_name = "raw",
-    expression_values = c("raw", "normalized", "scaled", "custom"),
-    size = c(4, 2, 1),
-    color = c("blue", "green", "red"),
-    sig_alpha = 0.5,
-    unsig_alpha = 0.5,
-    python_path = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "SpatialDE") {
+spatialDE <- function(
+        gobject = NULL,
+        feat_type = NULL,
+        spat_unit = NULL,
+        spat_loc_name = "raw",
+        expression_values = c("raw", "normalized", "scaled", "custom"),
+        size = c(4, 2, 1),
+        color = c("blue", "green", "red"),
+        sig_alpha = 0.5,
+        unsig_alpha = 0.5,
+        python_path = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "SpatialDE") {
     # test if SPARK is installed ##
 
     module_test <- reticulate::py_module_available("SpatialDE")
@@ -2124,17 +2135,18 @@ spatialDE <- function(gobject = NULL,
 #'
 #' spatialAEH(g)
 #' @export
-spatialAEH <- function(gobject = NULL,
-    feat_type = NULL,
-    spat_unit = NULL,
-    spat_loc_name = "raw",
-    SpatialDE_results = NULL,
-    name_pattern = "AEH_patterns",
-    expression_values = c("raw", "normalized", "scaled", "custom"),
-    pattern_num = 6,
-    l = 1.05,
-    python_path = NULL,
-    return_gobject = TRUE) {
+spatialAEH <- function(
+        gobject = NULL,
+        feat_type = NULL,
+        spat_unit = NULL,
+        spat_loc_name = "raw",
+        SpatialDE_results = NULL,
+        name_pattern = "AEH_patterns",
+        expression_values = c("raw", "normalized", "scaled", "custom"),
+        pattern_num = 6,
+        l = 1.05,
+        python_path = NULL,
+        return_gobject = TRUE) {
     # data.table variables
     cell_ID <- NULL
 
@@ -2229,12 +2241,13 @@ spatialAEH <- function(gobject = NULL,
 #' @param unsig_alpha transparency of unsignificant genes
 #' @returns ggplot object
 #' @keywords internal
-FSV_show <- function(results,
-    ms_results = NULL,
-    size = c(4, 2, 1),
-    color = c("blue", "green", "red"),
-    sig_alpha = 0.5,
-    unsig_alpha = 0.5) {
+FSV_show <- function(
+        results,
+        ms_results = NULL,
+        size = c(4, 2, 1),
+        color = c("blue", "green", "red"),
+        sig_alpha = 0.5,
+        unsig_alpha = 0.5) {
     results$FSV95conf <- 2 * sqrt(results$s2_FSV)
     results$intervals <- cut(
         results$FSV95conf, c(0, 1e-1, 1e0, Inf),
@@ -2319,15 +2332,16 @@ FSV_show <- function(results,
 #'
 #' trendSceek(g)
 #' @export
-trendSceek <- function(gobject,
-    feat_type = NULL,
-    spat_unit = NULL,
-    spat_loc_name = "raw",
-    expression_values = c("normalized", "raw"),
-    subset_genes = NULL,
-    nrand = 100,
-    ncores = 8,
-    ...) {
+trendSceek <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = NULL,
+        spat_loc_name = "raw",
+        expression_values = c("normalized", "raw"),
+        subset_genes = NULL,
+        nrand = 100,
+        ncores = 8,
+        ...) {
     # verify if optional package is installed
     package_check(
         pkg_name = "trendsceek",
@@ -2442,17 +2456,18 @@ trendSceek <- function(gobject,
 #'
 #' spark(g)
 #' @export
-spark <- function(gobject,
-    spat_loc_name = "raw",
-    feat_type = NULL,
-    spat_unit = NULL,
-    percentage = 0.1,
-    min_count = 10,
-    expression_values = "raw",
-    num_core = 5,
-    covariates = NULL,
-    return_object = c("data.table", "spark"),
-    ...) {
+spark <- function(
+        gobject,
+        spat_loc_name = "raw",
+        feat_type = NULL,
+        spat_unit = NULL,
+        percentage = 0.1,
+        min_count = 10,
+        expression_values = "raw",
+        num_core = 5,
+        covariates = NULL,
+        return_object = c("data.table", "spark"),
+        ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -2594,14 +2609,15 @@ spark <- function(gobject,
 #'   select PCs based on a z-score threshold
 #' }
 #' @export
-detectSpatialPatterns <- function(gobject,
-    expression_values = c("normalized", "scaled", "custom"),
-    spatial_grid_name = "spatial_grid",
-    min_cells_per_grid = 4,
-    scale_unit = FALSE,
-    ncp = 100,
-    show_plot = TRUE,
-    PC_zscore = 1.5) {
+detectSpatialPatterns <- function(
+        gobject,
+        expression_values = c("normalized", "scaled", "custom"),
+        spatial_grid_name = "spatial_grid",
+        min_cells_per_grid = 4,
+        scale_unit = FALSE,
+        ncp = 100,
+        show_plot = TRUE,
+        PC_zscore = 1.5) {
     ############################################################################
     stop(wrap_txt(
         "This function has not been updated for use with the current version
@@ -2769,19 +2785,20 @@ detectSpatialPatterns <- function(gobject,
 #' change save_name in save_param
 #' @returns ggplot
 #' @export
-showPattern2D <- function(gobject,
-    spatPatObj,
-    dimension = 1,
-    trim = c(0.02, 0.98),
-    background_color = "white",
-    grid_border_color = "grey",
-    show_legend = TRUE,
-    point_size = 1,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "showPattern2D") {
+showPattern2D <- function(
+        gobject,
+        spatPatObj,
+        dimension = 1,
+        trim = c(0.02, 0.98),
+        background_color = "white",
+        grid_border_color = "grey",
+        show_legend = TRUE,
+        point_size = 1,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "showPattern2D") {
     if (!"spatPatObj" %in% class(spatPatObj)) {
         stop("spatPatObj needs to be the output from detectSpatialPatterns")
     }
@@ -2888,24 +2905,25 @@ showPattern <- function(gobject, spatPatObj, ...) {
 #' change save_name in save_param
 #' @returns plotly
 #' @export
-showPattern3D <- function(gobject,
-    spatPatObj,
-    dimension = 1,
-    trim = c(0.02, 0.98),
-    background_color = "white",
-    grid_border_color = "grey",
-    show_legend = TRUE,
-    point_size = 1,
-    axis_scale = c("cube", "real", "custom"),
-    custom_ratio = NULL,
-    x_ticks = NULL,
-    y_ticks = NULL,
-    z_ticks = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "showPattern3D") {
+showPattern3D <- function(
+        gobject,
+        spatPatObj,
+        dimension = 1,
+        trim = c(0.02, 0.98),
+        background_color = "white",
+        grid_border_color = "grey",
+        show_legend = TRUE,
+        point_size = 1,
+        axis_scale = c("cube", "real", "custom"),
+        custom_ratio = NULL,
+        x_ticks = NULL,
+        y_ticks = NULL,
+        z_ticks = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "showPattern3D") {
     package_check("plotly", repository = "CRAN:plotly")
 
     # data.table variables
@@ -2959,7 +2977,7 @@ showPattern3D <- function(gobject,
 
     dpl <- plotly::plot_ly(
         type = "scatter3d",
-        x = annotated_grid$center_x, 
+        x = annotated_grid$center_x,
         y = annotated_grid$center_y, z = annotated_grid$center_z,
         color = annotated_grid[[selected_PC]], marker = list(size = point_size),
         mode = "markers", colors = c("darkblue", "white", "darkred")
@@ -3015,18 +3033,19 @@ showPattern3D <- function(gobject,
 #' change save_name in save_param
 #' @returns ggplot
 #' @export
-showPatternGenes <- function(gobject,
-    spatPatObj,
-    dimension = 1,
-    top_pos_genes = 5,
-    top_neg_genes = 5,
-    point_size = 1,
-    return_DT = FALSE,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "showPatternGenes") {
+showPatternGenes <- function(
+        gobject,
+        spatPatObj,
+        dimension = 1,
+        top_pos_genes = 5,
+        top_neg_genes = 5,
+        point_size = 1,
+        return_DT = FALSE,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "showPatternGenes") {
     # data.table variables
     gene_ID <- NULL
 
@@ -3099,13 +3118,14 @@ showPatternGenes <- function(gobject,
 #' @returns Data.table with genes associated with selected dimension (PC).
 #' @details Description.
 #' @export
-selectPatternGenes <- function(spatPatObj,
-    dimensions = 1:5,
-    top_pos_genes = 10,
-    top_neg_genes = 10,
-    min_pos_cor = 0.5,
-    min_neg_cor = -0.5,
-    return_top_selection = FALSE) {
+selectPatternGenes <- function(
+        spatPatObj,
+        dimensions = 1:5,
+        top_pos_genes = 10,
+        top_neg_genes = 10,
+        min_pos_cor = 0.5,
+        min_neg_cor = -0.5,
+        return_top_selection = FALSE) {
     if (!"spatPatObj" %in% class(spatPatObj)) {
         stop("spatPatObj needs to be the output from detectSpatialPatterns")
     }
@@ -3187,10 +3207,11 @@ selectPatternGenes <- function(spatPatObj,
 #' number of k-neighbors in the selected spatial network. Setting b = 0 means
 #' no smoothing and b = 1 means no contribution from its own expression.
 #' @keywords internal
-do_spatial_knn_smoothing <- function(expression_matrix,
-    spatial_network,
-    subset_feats = NULL,
-    b = NULL) {
+do_spatial_knn_smoothing <- function(
+        expression_matrix,
+        spatial_network,
+        subset_feats = NULL,
+        b = NULL) {
     # checks
     if (!is.null(b)) {
         if (b > 1 | b < 0) {
@@ -3310,11 +3331,12 @@ evaluate_provided_spatial_locations <- function(spatial_locs) {
 #' @description smooth gene expression over a defined spatial grid
 #' @returns matrix with smoothened gene expression values based on spatial grid
 #' @keywords internal
-do_spatial_grid_averaging <- function(expression_matrix,
-    spatial_grid,
-    spatial_locs,
-    subset_feats = NULL,
-    min_cells_per_grid = 4) {
+do_spatial_grid_averaging <- function(
+        expression_matrix,
+        spatial_grid,
+        spatial_locs,
+        subset_feats = NULL,
+        min_cells_per_grid = 4) {
     # matrix
     expr_values <- expression_matrix
     if (!is.null(subset_feats)) {
@@ -3432,19 +3454,18 @@ NULL
 
 #' @rdname detectSpatialCorFeats
 #' @export
-detectSpatialCorFeats <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        spat_loc_name = "raw",
-        method = c("grid", "network"),
-        expression_values = c("normalized", "scaled", "custom"),
-        subset_feats = NULL,
-        spatial_network_name = "Delaunay_network",
-        network_smoothing = NULL,
-        spatial_grid_name = "spatial_grid",
-        min_cells_per_grid = 4,
-        cor_method = c("pearson", "kendall", "spearman")) {
+detectSpatialCorFeats <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    spat_loc_name = "raw",
+    method = c("grid", "network"),
+    expression_values = c("normalized", "scaled", "custom"),
+    subset_feats = NULL,
+    spatial_network_name = "Delaunay_network",
+    network_smoothing = NULL,
+    spatial_grid_name = "spatial_grid",
+    min_cells_per_grid = 4,
+    cor_method = c("pearson", "kendall", "spearman")) {
     # set default spat_unit and feat_type
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -3608,15 +3629,16 @@ detectSpatialCorFeats <- function(
 
 #' @rdname detectSpatialCorFeats
 #' @export
-detectSpatialCorFeatsMatrix <- function(expression_matrix,
-    method = c("grid", "network"),
-    spatial_network,
-    spatial_grid,
-    spatial_locs,
-    subset_feats = NULL,
-    network_smoothing = NULL,
-    min_cells_per_grid = 4,
-    cor_method = c("pearson", "kendall", "spearman")) {
+detectSpatialCorFeatsMatrix <- function(
+        expression_matrix,
+        method = c("grid", "network"),
+        spatial_network,
+        spatial_grid,
+        spatial_locs,
+        subset_feats = NULL,
+        network_smoothing = NULL,
+        min_cells_per_grid = 4,
+        cor_method = c("pearson", "kendall", "spearman")) {
     ## correlation method to be used
     cor_method <- match.arg(
         cor_method,
@@ -3748,15 +3770,16 @@ detectSpatialCorFeatsMatrix <- function(expression_matrix,
 #' @param show_top_feats show top features per gene
 #' @returns data.table with filtered information
 #' @export
-showSpatialCorFeats <- function(spatCorObject,
-    use_clus_name = NULL,
-    selected_clusters = NULL,
-    feats = NULL,
-    min_spat_cor = 0.5,
-    min_expr_cor = NULL,
-    min_cor_diff = NULL,
-    min_rank_diff = NULL,
-    show_top_feats = NULL) {
+showSpatialCorFeats <- function(
+        spatCorObject,
+        use_clus_name = NULL,
+        selected_clusters = NULL,
+        feats = NULL,
+        min_spat_cor = 0.5,
+        min_expr_cor = NULL,
+        min_cor_diff = NULL,
+        min_rank_diff = NULL,
+        show_top_feats = NULL) {
     # data.table variables
     clus <- feat_ID <- spat_cor <- cor_diff <- rankdiff <- NULL
 
@@ -3839,15 +3862,16 @@ showSpatialCorFeats <- function(spatCorObject,
 #' @param show_top_genes show top genes per gene
 #' @returns data.table with filtered information
 #' @export
-showSpatialCorGenes <- function(spatCorObject,
-    use_clus_name = NULL,
-    selected_clusters = NULL,
-    genes = NULL,
-    min_spat_cor = 0.5,
-    min_expr_cor = NULL,
-    min_cor_diff = NULL,
-    min_rank_diff = NULL,
-    show_top_genes = NULL) {
+showSpatialCorGenes <- function(
+        spatCorObject,
+        use_clus_name = NULL,
+        selected_clusters = NULL,
+        genes = NULL,
+        min_spat_cor = 0.5,
+        min_expr_cor = NULL,
+        min_cor_diff = NULL,
+        min_rank_diff = NULL,
+        show_top_genes = NULL) {
     warning("Deprecated and replaced by showSpatialCorFeats")
 
     showSpatialCorFeats(
@@ -3886,11 +3910,12 @@ showSpatialCorGenes <- function(spatCorObject,
 #'     method = "network"
 #' ))
 #' @export
-clusterSpatialCorFeats <- function(spatCorObject,
-    name = "spat_clus",
-    hclust_method = "ward.D",
-    k = 10,
-    return_obj = TRUE) {
+clusterSpatialCorFeats <- function(
+        spatCorObject,
+        name = "spat_clus",
+        hclust_method = "ward.D",
+        k = 10,
+        return_obj = TRUE) {
     # check input
     if (!"spatCorObject" %in% class(spatCorObject)) {
         stop("spatCorObject needs to be the output from
@@ -3938,11 +3963,12 @@ clusterSpatialCorFeats <- function(spatCorObject,
 #' @param return_obj return spatial correlation object (spatCorObject)
 #' @returns spatCorObject or cluster results
 #' @export
-clusterSpatialCorGenes <- function(spatCorObject,
-    name = "spat_clus",
-    hclust_method = "ward.D",
-    k = 10,
-    return_obj = TRUE) {
+clusterSpatialCorGenes <- function(
+        spatCorObject,
+        name = "spat_clus",
+        hclust_method = "ward.D",
+        k = 10,
+        return_obj = TRUE) {
     warning("Deprecated and replaced by clusterSpatialCorFeats")
 
     clusterSpatialCorFeats(
@@ -3981,20 +4007,21 @@ clusterSpatialCorGenes <- function(spatCorObject,
 #' \code{\link[ComplexHeatmap]{Heatmap}} function from ComplexHeatmap
 #' @returns Heatmap generated by ComplexHeatmap
 #' @export
-heatmSpatialCorFeats <- function(gobject,
-    spatCorObject,
-    use_clus_name = NULL,
-    show_cluster_annot = TRUE,
-    show_row_dend = TRUE,
-    show_column_dend = FALSE,
-    show_row_names = FALSE,
-    show_column_names = FALSE,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "heatmSpatialCorFeats",
-    ...) {
+heatmSpatialCorFeats <- function(
+        gobject,
+        spatCorObject,
+        use_clus_name = NULL,
+        show_cluster_annot = TRUE,
+        show_row_dend = TRUE,
+        show_column_dend = FALSE,
+        show_row_names = FALSE,
+        show_column_names = FALSE,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "heatmSpatialCorFeats",
+        ...) {
     ## check input
     if (!"spatCorObject" %in% class(spatCorObject)) {
         stop("spatCorObject needs to be the output from
@@ -4110,14 +4137,15 @@ heatmSpatialCorFeats <- function(gobject,
 #' )
 #' @md
 #' @export
-rankSpatialCorGroups <- function(gobject,
-    spatCorObject,
-    use_clus_name = NULL,
-    show_plot = NULL,
-    return_plot = FALSE,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "rankSpatialCorGroups") {
+rankSpatialCorGroups <- function(
+        gobject,
+        spatCorObject,
+        use_clus_name = NULL,
+        show_plot = NULL,
+        return_plot = FALSE,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "rankSpatialCorGroups") {
     ## check input
     if (!"spatCorObject" %in% class(spatCorObject)) {
         stop("spatCorObject needs to be the output from
@@ -4236,12 +4264,13 @@ rankSpatialCorGroups <- function(gobject,
 #'
 #' @md
 #' @export
-getBalancedSpatCoexpressionFeats <- function(spatCorObject,
-    maximum = 50,
-    rank = c("weighted", "random", "informed"),
-    informed_ranking = NULL,
-    seed = NA,
-    verbose = TRUE) {
+getBalancedSpatCoexpressionFeats <- function(
+        spatCorObject,
+        maximum = 50,
+        rank = c("weighted", "random", "informed"),
+        informed_ranking = NULL,
+        seed = NA,
+        verbose = TRUE) {
     # data.table vars
     feat_ID <- variable <- combo <- spat_cor <- rnk <- feat_id <- V1 <- NULL
 
@@ -4449,15 +4478,16 @@ getBalancedSpatCoexpressionFeats <- function(spatCorObject,
 #'     gene_name = "Gna12"
 #' )
 #' @export
-simulateOneGenePatternGiottoObject <- function(gobject,
-    pattern_name = "pattern",
-    pattern_cell_ids = NULL,
-    gene_name = NULL,
-    spatial_prob = 0.95,
-    gradient_direction = NULL,
-    show_pattern = TRUE,
-    pattern_colors = c("in" = "green", "out" = "red"),
-    normalization_params = list()) {
+simulateOneGenePatternGiottoObject <- function(
+        gobject,
+        pattern_name = "pattern",
+        pattern_cell_ids = NULL,
+        gene_name = NULL,
+        spatial_prob = 0.95,
+        gradient_direction = NULL,
+        show_pattern = TRUE,
+        pattern_colors = c("in" = "green", "out" = "red"),
+        normalization_params = list()) {
     # data.table variables
     cell_ID <- sdimx_y <- sdimx <- sdimy <- NULL
 
@@ -4643,29 +4673,30 @@ simulateOneGenePatternGiottoObject <- function(gobject,
 #' @description runs all spatial tests for 1 probability and 1 rep
 #' @returns data.table
 #' @keywords internal
-run_spatial_sim_tests_one_rep <- function(gobject,
-    pattern_name = "pattern",
-    pattern_cell_ids = NULL,
-    gene_name = NULL,
-    spatial_prob = 0.95,
-    show_pattern = FALSE,
-    spatial_network_name = "kNN_network",
-    spat_methods = c(
-        "binSpect_single", "binSpect_multi", "spatialDE",
-        "spark", "silhouetteRank"
-    ),
-    spat_methods_params = list(NA, NA, NA, NA, NA),
-    spat_methods_names = c(
-        "binSpect_single", "binSpect_multi", "spatialDE",
-        "spark", "silhouetteRank"
-    ),
-    save_plot = FALSE,
-    save_raw = FALSE,
-    save_norm = FALSE,
-    save_dir = "~",
-    save_name = "plot",
-    run_simulations = TRUE,
-    ...) {
+run_spatial_sim_tests_one_rep <- function(
+        gobject,
+        pattern_name = "pattern",
+        pattern_cell_ids = NULL,
+        gene_name = NULL,
+        spatial_prob = 0.95,
+        show_pattern = FALSE,
+        spatial_network_name = "kNN_network",
+        spat_methods = c(
+            "binSpect_single", "binSpect_multi", "spatialDE",
+            "spark", "silhouetteRank"
+        ),
+        spat_methods_params = list(NA, NA, NA, NA, NA),
+        spat_methods_names = c(
+            "binSpect_single", "binSpect_multi", "spatialDE",
+            "spark", "silhouetteRank"
+        ),
+        save_plot = FALSE,
+        save_raw = FALSE,
+        save_norm = FALSE,
+        save_dir = "~",
+        save_name = "plot",
+        run_simulations = TRUE,
+        ...) {
     # data.table variables
     genes <- prob <- time <- adj.p.value <- method <- p.val <- sd <-
         qval <- pval <- g <- adjusted_pvalue <- feats <- NULL
@@ -4979,29 +5010,30 @@ run_spatial_sim_tests_one_rep <- function(gobject,
 #' repetitions
 #' @returns data.table
 #' @keywords internal
-run_spatial_sim_tests_multi <- function(gobject,
-    pattern_name = "pattern",
-    pattern_cell_ids = NULL,
-    gene_name = NULL,
-    spatial_probs = c(0.5, 1),
-    reps = 2,
-    spatial_network_name = "kNN_network",
-    spat_methods = c(
-        "binSpect_single", "binSpect_multi", "spatialDE",
-        "spark", "silhouetteRank"
-    ),
-    spat_methods_params = list(NA, NA, NA, NA, NA),
-    spat_methods_names = c(
-        "binSpect_single", "binSpect_multi", "spatialDE",
-        "spark", "silhouetteRank"
-    ),
-    save_plot = FALSE,
-    save_raw = FALSE,
-    save_norm = FALSE,
-    save_dir = "~",
-    verbose = TRUE,
-    run_simulations = TRUE,
-    ...) {
+run_spatial_sim_tests_multi <- function(
+        gobject,
+        pattern_name = "pattern",
+        pattern_cell_ids = NULL,
+        gene_name = NULL,
+        spatial_probs = c(0.5, 1),
+        reps = 2,
+        spatial_network_name = "kNN_network",
+        spat_methods = c(
+            "binSpect_single", "binSpect_multi", "spatialDE",
+            "spark", "silhouetteRank"
+        ),
+        spat_methods_params = list(NA, NA, NA, NA, NA),
+        spat_methods_names = c(
+            "binSpect_single", "binSpect_multi", "spatialDE",
+            "spark", "silhouetteRank"
+        ),
+        save_plot = FALSE,
+        save_raw = FALSE,
+        save_norm = FALSE,
+        save_dir = "~",
+        verbose = TRUE,
+        run_simulations = TRUE,
+        ...) {
     prob_list <- list()
     for (prob_ind in seq_along(spatial_probs)) {
         prob_i <- spatial_probs[prob_ind]
@@ -5095,37 +5127,38 @@ run_spatial_sim_tests_multi <- function(gobject,
 #'         "AAAGGGATGTAGCAAG-1",
 #'         "TCAAACAACCGCGTCG-1", "ACGATCATACATAGAG-1", "TATGCTCCCTACTTAC-1"
 #'     ),
-#'     spatial_network_name = "spatial_network", 
+#'     spatial_network_name = "spatial_network",
 #'     gene_names = c("Gna12", "Ccnd2")
 #' )
 #' @export
-runPatternSimulation <- function(gobject,
-    pattern_name = "pattern",
-    pattern_colors = c("in" = "green", "out" = "red"),
-    pattern_cell_ids = NULL,
-    gene_names = NULL,
-    spatial_probs = c(0.5, 1),
-    reps = 2,
-    spatial_network_name = "kNN_network",
-    spat_methods = c(
-        "binSpect_single", "binSpect_multi", "spatialDE",
-        "spark", "silhouetteRank"
-    ),
-    spat_methods_params = list(NA, NA, NA, NA, NA),
-    spat_methods_names = c(
-        "binSpect_single", "binSpect_multi", "spatialDE",
-        "spark", "silhouetteRank"
-    ),
-    scalefactor = 6000,
-    save_plot = TRUE,
-    save_raw = TRUE,
-    save_norm = TRUE,
-    save_dir = "~",
-    max_col = 4,
-    height = 7,
-    width = 7,
-    run_simulations = TRUE,
-    ...) {
+runPatternSimulation <- function(
+        gobject,
+        pattern_name = "pattern",
+        pattern_colors = c("in" = "green", "out" = "red"),
+        pattern_cell_ids = NULL,
+        gene_names = NULL,
+        spatial_probs = c(0.5, 1),
+        reps = 2,
+        spatial_network_name = "kNN_network",
+        spat_methods = c(
+            "binSpect_single", "binSpect_multi", "spatialDE",
+            "spark", "silhouetteRank"
+        ),
+        spat_methods_params = list(NA, NA, NA, NA, NA),
+        spat_methods_names = c(
+            "binSpect_single", "binSpect_multi", "spatialDE",
+            "spark", "silhouetteRank"
+        ),
+        scalefactor = 6000,
+        save_plot = TRUE,
+        save_raw = TRUE,
+        save_norm = TRUE,
+        save_dir = "~",
+        max_col = 4,
+        height = 7,
+        width = 7,
+        run_simulations = TRUE,
+        ...) {
     # data.table variables
     prob <- method <- adj.p.value <- time <- NULL
 

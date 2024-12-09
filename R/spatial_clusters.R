@@ -21,14 +21,15 @@
 #' # don't show legend since there are too many categories generated
 #' spatPlot2D(g, cell_color = "new", show_legend = FALSE)
 #' @export
-spatialSplitCluster <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    spatial_network_name = "Delaunay_network",
-    cluster_col,
-    split_clus_name = paste0(cluster_col, "_split"),
-    missing_id_name = "not_connected",
-    return_gobject = TRUE) {
+spatialSplitCluster <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        spatial_network_name = "Delaunay_network",
+        cluster_col,
+        split_clus_name = paste0(cluster_col, "_split"),
+        missing_id_name = "not_connected",
+        return_gobject = TRUE) {
     # NSE vars
     cell_ID <- NULL
 
@@ -122,18 +123,19 @@ spatialSplitCluster <- function(gobject,
 #' @param return_gobject logical. Return giotto object
 #' @returns cluster annotations
 #' @export
-identifyTMAcores <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    spatial_network_name = "Delaunay_network",
-    core_id_name = "core_id",
-    id_fmt = "%d",
-    include_all_ids = TRUE,
-    missing_id_name = "not_connected",
-    min_nodes = 5,
-    join_split_cores = TRUE,
-    join_tolerance = 1.2,
-    return_gobject = TRUE) {
+identifyTMAcores <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        spatial_network_name = "Delaunay_network",
+        core_id_name = "core_id",
+        id_fmt = "%d",
+        include_all_ids = TRUE,
+        missing_id_name = "not_connected",
+        min_nodes = 5,
+        join_split_cores = TRUE,
+        join_tolerance = 1.2,
+        return_gobject = TRUE) {
     # NSE vars
     cell_ID <- NULL
 
@@ -248,7 +250,6 @@ identifyTMAcores <- function(gobject,
 
             con[init_idx == idx_2, init_idx := idx_1]
         }
-
     }
 
     # apply core_id_name
@@ -337,8 +338,8 @@ identifyTMAcores <- function(gobject,
 #' @keywords internal
 #' @noRd
 .igraph_vertex_membership <- function(g,
-                                      clus_name,
-                                      all_ids = NULL) {
+    clus_name,
+    all_ids = NULL) {
     # get membership
     membership <- igraph::components(g)$membership %>%
         data.table::as.data.table(keep.rownames = TRUE)
@@ -353,13 +354,9 @@ identifyTMAcores <- function(gobject,
         )
         data.table::setnames(missing_membership, c("cell_ID", clus_name))
         membership <- data.table::rbindlist(
-            list(membership, missing_membership))
+            list(membership, missing_membership)
+        )
     }
 
     return(membership)
 }
-
-
-
-
-

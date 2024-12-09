@@ -1,4 +1,44 @@
 
+# Giotto 4.1.6 (2024/12/09)
+
+## Bug fixes
+* `doScrubletDetect()` seed setting
+
+## Enhancements
+* `labelTransfer()` now has `integration_method = "harmony"` for label transferring with an integration pipeline. See ?labelTransfer and the `integration_method` section.
+* `importXenium()` `load_transcripts()` can now return a `data.table` rather than the `giottoPoints` representation
+
+## New
+* `doMesmerSegmentation()` and `doStardistSegmentation()` segmentation wrappers
+* `.varexp()` internal for calculating SVD variance determined with support for partial SVDs
+* `.cumvar()` internal for calculating cumulative variance explained
+* re-export of `dotPlot()` from GiottoVisuals
+
+## Changes
+* GiottoClass req raised to 0.4.5
+* GiottoUtils req raised to 0.2.2
+* GiottoVisuals req raised to 0.2.10
+
+
+# Giotto 4.1.5 (2024/11/08)
+
+## Enhancements
+* `createGiottoXeniumObject()` auto loading for morphology focus images, image directory loading, auto centroid calculation, allow skipping transcript loading
+
+## Website changes
+* New Analysis mini tutorials for showing common processing functions independently of the spatial technology.
+* New Slide-seq and OpenST examples.
+* New Contributing tab with guidelines for contributing to the package and the website.
+* New Visualizations tutorials.
+* New Giotto workflow and Core Functions tutorials under Get Started tab.
+* New Create and change Giotto instructions tutorial.
+* New Spatial Patterns tutorials section.
+* New tutorials under Interactivity for regions selection with vitessceR.
+* New Multi-samples tutorials section.
+* Updated technologies examples.
+* Updated tutorials for using Docker and Singularity Giotto containers.
+* Homogenized variable names across examples and tutorials.
+
 # Giotto 4.1.4 (2024/10/30)
 
 ## Changes

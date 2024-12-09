@@ -28,13 +28,13 @@
 #' @param gobject giotto object
 #' @param spat_unit spatial unit (e.g. "cell")
 #' @param feat_type feature type (e.g. "rna", "dna", "protein")
-#' @param return_uniques return unique nesting names (ignores if final object 
+#' @param return_uniques return unique nesting names (ignores if final object
 #' exists/is correct class)
 #' @param output what format in which to get information (e.g. "data.table")
-#' @param set_defaults set default spat_unit and feat_type. Change to FALSE 
+#' @param set_defaults set default spat_unit and feat_type. Change to FALSE
 #' only when
 #' expression and spat_info are not expected to exist.
-#' @param copy_obj whether to deep copy/duplicate when getting the object 
+#' @param copy_obj whether to deep copy/duplicate when getting the object
 #' (default = TRUE)
 #' @param initialize (default = FALSE) whether to initialize the gobject before
 #' returning
@@ -69,7 +69,7 @@ NULL
 #' @name plot_cell_params
 #' @param cell_color character. what to color cells by (e.g. metadata col or
 #' spatial enrichment col)
-#' @param color_as_factor logical. convert color column to factor. discrete 
+#' @param color_as_factor logical. convert color column to factor. discrete
 #' colors are used when this is TRUE. continuous colors when FALSE.
 #' @param cell_color_code character. discrete colors to use. palette to use or
 #' named vector of colors
@@ -93,13 +93,13 @@ NULL
 #' @param use_overlap use polygon and feature coordinates overlap results
 #' @param polygon_feat_type feature type associated with polygon information
 #' @param polygon_color color for polygon border
-#' @param polygon_bg_color color for polygon background (overruled by 
+#' @param polygon_bg_color color for polygon background (overruled by
 #' polygon_fill)
-#' @param polygon_fill character. what to color to fill polgyons by (e.g. 
+#' @param polygon_fill character. what to color to fill polgyons by (e.g.
 #' metadata col or spatial enrichment col)
-#' @param polygon_fill_gradient polygon fill gradient colors given in order 
+#' @param polygon_fill_gradient polygon fill gradient colors given in order
 #' from low to high
-#' @param polygon_fill_gradient_midpoint value to set as gradient midpoint 
+#' @param polygon_fill_gradient_midpoint value to set as gradient midpoint
 #' (optional). If left as \code{NULL}, the median value detected will be chosen
 #' @param polygon_fill_gradient_style either 'divergent' (midpoint is used in
 #' color scaling) or 'sequential' (scaled based on data range)
@@ -122,7 +122,7 @@ NULL
 #' @param dim_point_size size of points in dim. reduction space
 #' @param dim_point_alpha transparancy of point in dim. reduction space
 #' @param dim_point_border_col border color of points in dim. reduction space
-#' @param dim_point_border_stroke border stroke of points in dim. reduction 
+#' @param dim_point_border_stroke border stroke of points in dim. reduction
 #' space
 #' @returns plot
 #' @keywords internal
@@ -132,9 +132,9 @@ NULL
 #' @name plot_nn_net_params
 #' @param show_NN_network logical. Show underlying NN network
 #' @param nn_network_to_use character. type of NN network to use (kNN vs sNN)
-#' @param network_name character. name of NN network to use, if 
+#' @param network_name character. name of NN network to use, if
 #' show_NN_network = TRUE
-#' @param nn_network_name character. name of NN network to use, if 
+#' @param nn_network_name character. name of NN network to use, if
 #' show_NN_network = TRUE
 #' @param network_color color of NN network
 #' @param nn_network_alpha column to use for alpha of the edges
@@ -156,7 +156,7 @@ NULL
 
 #' Params documentation template: plot_spatenr_params
 #' @name plot_spatenr_params
-#' @param spat_enr_names character. names of spatial enrichment results to 
+#' @param spat_enr_names character. names of spatial enrichment results to
 #' include
 #' @returns plot
 #' @keywords internal
@@ -167,7 +167,7 @@ NULL
 #' @param show_image show a tissue background image
 #' @param gimage a giotto image
 #' @param image_name name of a giotto image or multiple images with group_by
-#' @param largeImage_name name of a giottoLargeImage or multiple images with 
+#' @param largeImage_name name of a giottoLargeImage or multiple images with
 #' group_by
 #' @returns plot
 #' @keywords internal
@@ -178,7 +178,7 @@ NULL
 #'
 #' @name plot_params
 #'
-#' @param group_by character. Create multiple plots based on cell annotation 
+#' @param group_by character. Create multiple plots based on cell annotation
 #' column
 #' @param group_by_subset character. subset the group_by factor column
 #'
@@ -189,7 +189,7 @@ NULL
 #' @param gradient_color character. continuous colors to use. palette to
 #' use or vector of colors to use (minimum of 2).
 #'
-#' @param select_cell_groups select subset of cells/clusters based on 
+#' @param select_cell_groups select subset of cells/clusters based on
 #' cell_color parameter
 #' @param select_cells select subset of cells based on cell IDs
 #'
@@ -243,9 +243,9 @@ NULL
 #' @param show_plot logical. show plot
 #' @param return_plot logical. return ggplot object
 #' @param save_plot logical. save the plot
-#' @param save_param list of saving parameters, see 
+#' @param save_param list of saving parameters, see
 #' \code{\link{showSaveParameters}}
-#' @param default_save_name default save name for saving, don't change, 
+#' @param default_save_name default save name for saving, don't change,
 #' change save_name in save_param
 #' @returns plot
 #' @keywords internal

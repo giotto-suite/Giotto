@@ -4,7 +4,7 @@
 \alias{plot_spatenr_params}
 \title{Params documentation template: plot_spatenr_params}
 \arguments{
-\item{spat_enr_names}{character. names of spatial enrichment results to 
+\item{spat_enr_names}{character. names of spatial enrichment results to
 include}
 }
 \value{

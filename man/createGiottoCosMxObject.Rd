@@ -64,7 +64,7 @@ function matches against:
   \item{experimentname_\strong{tx_file}.csv (file)}
 }
 
-[\strong{Workflows}] Workflow to use is accessed through the data_to_use 
+[\strong{Workflows}] Workflow to use is accessed through the data_to_use
 param
 \itemize{
   \item{'all' - loads and requires subcellular information from tx_file and

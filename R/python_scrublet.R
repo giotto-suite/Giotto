@@ -36,17 +36,18 @@
 #' pDataDT(g) # doublet_scores and doublet cols are added
 #' dimPlot2D(g, cell_color = "doublet_scores", color_as_factor = FALSE)
 #' @export
-doScrubletDetect <- function(gobject,
-    feat_type = NULL,
-    spat_unit = "cell",
-    expression_values = "raw",
-    expected_doublet_rate = 0.06,
-    min_counts = 1,
-    min_cells = 1,
-    min_gene_variability_pctl = 85,
-    n_prin_comps = 30,
-    return_gobject = TRUE,
-    seed = 1234) {
+doScrubletDetect <- function(
+        gobject,
+        feat_type = NULL,
+        spat_unit = "cell",
+        expression_values = "raw",
+        expected_doublet_rate = 0.06,
+        min_counts = 1,
+        min_cells = 1,
+        min_gene_variability_pctl = 85,
+        n_prin_comps = 30,
+        return_gobject = TRUE,
+        seed = 1234) {
     # verify if optional package is installed
     package_check(
         pkg_name = "scrublet",
@@ -72,11 +73,9 @@ doScrubletDetect <- function(gobject,
 
     # set seed
     if (!is.null(seed)) {
-        seed_number <- as.numeric(seed)
-        reticulate::py_set_seed(
-            seed = seed_number,
-            disable_hash_randomization = TRUE
-        )
+        seed_number <- as.integer(seed)
+    } else {
+        seed_number <- random_seed()
     }
 
     # Set feat_type and spat_unit
@@ -115,7 +114,8 @@ doScrubletDetect <- function(gobject,
         min_counts = min_counts,
         min_cells = min_cells,
         min_gene_variability_pctl = min_gene_variability_pctl,
-        n_prin_comps = n_prin_comps
+        n_prin_comps = n_prin_comps,
+        seed_number = seed_number
     )
 
     scrublet_out <- data.table::data.table(

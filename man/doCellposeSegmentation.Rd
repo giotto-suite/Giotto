@@ -38,7 +38,7 @@ doCellposeSegmentation(
 )
 }
 \arguments{
-\item{image_dir}{character, required. Provide a path to a gray scale or a 
+\item{image_dir}{character, required. Provide a path to a gray scale or a
 three channel image.}
 
 \item{mask_output}{required. Provide a path to the output mask file.}
@@ -47,12 +47,12 @@ three channel image.}
 
 \item{channel_2}{channel number for Nuclei, default to 0(gray scale)}
 
-\item{model_name}{Name of the model to run inference. Default to 'cyto3', 
-if you want to run cutomized trained model, place your model file in 
+\item{model_name}{Name of the model to run inference. Default to 'cyto3',
+if you want to run cutomized trained model, place your model file in
 ~/.cellpose/models and specify your model name.}
 
-\item{batch_size}{Cellpose Parameter, Number of 224x224 patches to run 
-simultaneously on the GPU. Can make smaller or bigger depending on GPU 
+\item{batch_size}{Cellpose Parameter, Number of 224x224 patches to run
+simultaneously on the GPU. Can make smaller or bigger depending on GPU
 memory usage. Defaults to 8.}
 
 \item{resample}{Cellpose Parameter}
@@ -97,21 +97,23 @@ memory usage. Defaults to 8.}
 
 \item{progress}{Cellpose Parameter}
 
-\item{python_path}{python environment with cellpose installed. 
+\item{python_path}{python environment with cellpose installed.
 default = "giotto_cellpose".}
 }
 \value{
-No return variable, as this will write directly to output path 
+No return variable, as this will write directly to output path
 provided.
 }
 \description{
-perform the Giotto Wrapper of cellpose segmentation. This is for a model 
-inference to generate segmentation mask file from input image. 
+perform the Giotto Wrapper of cellpose segmentation. This is for a model
+inference to generate segmentation mask file from input image.
 main parameters needed
 }
 \examples{
 # example code
-doCellposeSegmentation(image_dir = input_image, 
-mask_output = output, channel_1 = 2, 
-channel_2 = 1, model_name = "cyto3", batch_size = 4)
+doCellposeSegmentation(
+    image_dir = input_image,
+    mask_output = output, channel_1 = 2,
+    channel_2 = 1, model_name = "cyto3", batch_size = 4
+)
 }

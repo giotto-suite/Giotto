@@ -58,7 +58,7 @@ spatial enrichment col)}
 \item{cell_color_code}{character. discrete colors to use. palette to use or
 named vector of colors}
 
-\item{color_as_factor}{logical. convert color column to factor. discrete 
+\item{color_as_factor}{logical. convert color column to factor. discrete
 colors are used when this is TRUE. continuous colors when FALSE.}
 
 \item{show_other_cells}{decide if show cells not in network}
@@ -101,10 +101,10 @@ colors are used when this is TRUE. continuous colors when FALSE.}
 
 \item{save_plot}{logical. save the plot}
 
-\item{save_param}{list of saving parameters, see 
+\item{save_param}{list of saving parameters, see
 \code{\link{showSaveParameters}}}
 
-\item{default_save_name}{default save name for saving, don't change, 
+\item{default_save_name}{default save name for saving, don't change,
 change save_name in save_param}
 
 \item{\dots}{additional parameters}

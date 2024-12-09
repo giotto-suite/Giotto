@@ -10,16 +10,17 @@ voting}
 \S4method{labelTransfer}{giotto,giotto}(
   x,
   y,
-  spat_unit = NULL,
-  feat_type = NULL,
   labels,
   k = 10,
   name = paste0("trnsfr_", labels),
+  integration_method = c("none", "harmony"),
   prob = TRUE,
   reduction = "cells",
   reduction_method = "pca",
   reduction_name = "pca",
   dimensions_to_use = 1:10,
+  spat_unit = NULL,
+  feat_type = NULL,
   return_gobject = TRUE,
   ...
 )
@@ -53,6 +54,10 @@ voting}
 
 \item{name}{metadata column in target to apply the full set of labels to}
 
+\item{integration_method}{character. Integration method to use when
+transferring labels. Options are "none" (default) and "harmony". See section
+below for more info and params.}
+
 \item{prob}{output knn probabilities together with label predictions}
 
 \item{reduction}{reduction on cells or features (default = "cells")}
@@ -63,6 +68,12 @@ voting}
 
 \item{dimensions_to_use}{dimensions to use in shared reduction space
 (default = 1:10)}
+
+\item{spat_unit}{spatial unit. A character vector of 2 can also be passed
+for x (1) and y (2). Setting defaults with \code{activeSpatUnit()} may be easier}
+
+\item{feat_type}{feature type. A character vector of 2 can also be passed
+for x (1) and y (2). Setting defaults with \code{activeFeatType()} may be easier}
 
 \item{...}{
   Arguments passed on to \code{\link[FNN:knn]{FNN::knn}}
@@ -76,7 +87,11 @@ voting}
 IDs from \code{source_cell_ids} are always included as well.}
 }
 \value{
-object \code{x} with new transferred labels added to metadata
+object \code{x} with new transferred labels added to metadata. If
+running on \code{x} and \code{y} objects, \code{integration_method = "harmony"},
+\code{plot_join_labels = TRUE}, and \code{return_plot = TRUE} is set, output will
+be instead a named list of \code{gobject} (updated \code{x}), and \code{label_source_plot}
+and \code{label_target_plot} \code{ggplot2} objects
 }
 \description{
 When two sets of data share an embedding space, transfer the labels from
@@ -101,6 +116,36 @@ labels to the remaining cells in the target Giotto object. It can also be
 used to transfer labels from one set of annotated data to another dataset
 based on expression similarity after joining and integrating.
 }
+\section{integration_method}{
+When running \code{labelTranfer()} on two \code{giotto} objects, an integration
+pipeline can also be run to align the two datasets together before the
+transfer. \code{integration_method = "harmony"} will make a temporary joined
+object on shared features, filter to remove 0 values, run PCA, then harmony
+integration, before performing the label transfer from \code{y} to \code{x} on the
+integrated harmony embedding space. Additional params that can be used with
+this method are:\cr
+\itemize{
+\item \code{source_cell_ids} - character. subset of \code{y} cells to use
+\item \code{target_cell_ids} - character. subset of \code{x} cells to use
+\item \code{expression_values} - character. expression values in \code{x} and \code{y} to use
+to generate combined space. Default = \code{"raw"}
+\item \code{use_hvf} - logical. whether to calculate highly variable features to use
+for PCA calculation. Default = \code{TRUE}, but setting \code{FALSE} is recommended if
+any of \code{x} or \code{y} has roughly 1000 features or fewer
+\item \code{plot_join_labels} - logical. Whether to plot source labels and final
+labels in the joine object UMAP.
+\item \code{normalize_params} - named list. Additional params to pass to
+\code{normalizeGiotto()} if desired.
+\item \code{pca_params} - named list. Additional params to pass to \code{runPCA()} if
+desired.
+\item \code{integration_params} - named list. Additional params to pass to
+\code{runGiottoHarmony()} if desired.
+\item \code{plot_params} - named list. Additional params to pass to \code{plotUMAP()} if
+desired. Only relevant when \code{plot_join_labels = TRUE}
+\item \code{verbose} - verbosity
+}
+}
+
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 id_subset <- sample(spatIDs(g), 300)

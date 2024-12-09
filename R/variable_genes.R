@@ -1,9 +1,10 @@
-.calc_cov_group_hvf <- function(feat_in_cells_detected,
-    nr_expression_groups = 20,
-    zscore_threshold = 1,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL) {
+.calc_cov_group_hvf <- function(
+        feat_in_cells_detected,
+        nr_expression_groups = 20,
+        zscore_threshold = 1,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL) {
     # NSE vars
     cov_group_zscore <- cov <- selected <- mean_expr <- NULL
 
@@ -54,11 +55,12 @@
 
 
 
-.calc_cov_loess_hvf <- function(feat_in_cells_detected,
-    difference_in_cov = 0.1,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL) {
+.calc_cov_loess_hvf <- function(
+        feat_in_cells_detected,
+        difference_in_cov = 0.1,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL) {
     # NSE vars
     cov_diff <- pred_cov_feats <- selected <- NULL
 
@@ -95,13 +97,14 @@
 
 
 
-.calc_var_hvf <- function(scaled_matrix,
-    var_threshold = 1.5,
-    var_number = NULL,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    use_parallel = FALSE) {
+.calc_var_hvf <- function(
+        scaled_matrix,
+        var_threshold = 1.5,
+        var_number = NULL,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        use_parallel = FALSE) {
     # NSE vars
     var <- selected <- NULL
 
@@ -180,10 +183,9 @@
 }
 
 
-.calc_expr_cov_stats_parallel <- function(
-        expr_values,
-        expression_threshold,
-        cores = GiottoUtils::determine_cores()) {
+.calc_expr_cov_stats_parallel <- function(expr_values,
+    expression_threshold,
+    cores = GiottoUtils::determine_cores()) {
     # NSE vars
     cov <- sd <- mean_expr <- NULL
 
@@ -282,30 +284,31 @@
 #'
 #' calculateHVF(g)
 #' @export
-calculateHVF <- function(gobject,
-    spat_unit = NULL,
-    feat_type = NULL,
-    expression_values = c("normalized", "scaled", "custom"),
-    method = c("cov_groups", "cov_loess", "var_p_resid"),
-    reverse_log_scale = FALSE,
-    logbase = 2,
-    expression_threshold = 0,
-    nr_expression_groups = 20,
-    zscore_threshold = 1.5,
-    HVFname = "hvf",
-    difference_in_cov = 0.1,
-    var_threshold = 1.5,
-    var_number = NULL,
-    random_subset = NULL,
-    set_seed = TRUE,
-    seed_number = 1234,
-    show_plot = NULL,
-    return_plot = NULL,
-    save_plot = NULL,
-    save_param = list(),
-    default_save_name = "HVFplot",
-    return_gobject = TRUE,
-    verbose = TRUE) {
+calculateHVF <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        method = c("cov_groups", "cov_loess", "var_p_resid"),
+        reverse_log_scale = FALSE,
+        logbase = 2,
+        expression_threshold = 0,
+        nr_expression_groups = 20,
+        zscore_threshold = 1.5,
+        HVFname = "hvf",
+        difference_in_cov = 0.1,
+        var_threshold = 1.5,
+        var_number = NULL,
+        random_subset = NULL,
+        set_seed = TRUE,
+        seed_number = 1234,
+        show_plot = NULL,
+        return_plot = NULL,
+        save_plot = NULL,
+        save_param = list(),
+        default_save_name = "HVFplot",
+        return_gobject = TRUE,
+        verbose = TRUE) {
     # NSE vars
     selected <- feats <- var <- NULL
 
@@ -519,8 +522,8 @@ calculateHVF <- function(gobject,
 
 
 # plot generation ####
-.create_cov_group_hvf_plot <- function(feat_in_cells_detected, 
-                                        nr_expression_groups) {
+.create_cov_group_hvf_plot <- function(feat_in_cells_detected,
+    nr_expression_groups) {
     pl <- ggplot2::ggplot()
     pl <- pl + ggplot2::theme_classic() +
         ggplot2::theme(
@@ -551,8 +554,8 @@ calculateHVF <- function(gobject,
 }
 
 
-.create_cov_loess_hvf_plot <- function(feat_in_cells_detected, 
-                                        difference_in_cov, var_col) {
+.create_cov_loess_hvf_plot <- function(feat_in_cells_detected,
+    difference_in_cov, var_col) {
     pl <- ggplot2::ggplot()
     pl <- pl + ggplot2::theme_classic() +
         ggplot2::theme(
