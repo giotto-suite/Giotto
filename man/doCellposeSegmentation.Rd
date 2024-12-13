@@ -56,15 +56,15 @@ if you want to run cutomized trained model, place your model file in
 simultaneously on the GPU. Can make smaller or bigger depending on GPU
 memory usage. Defaults to 8.}
 
-\item{resample}{(logical, optional) – run dynamics at original image size 
+\item{resample}{(logical, optional) – run dynamics at original image size
 (will be slower but create more accurate boundaries). Defaults to True.}
 
-\item{channel_axis}{(int, optional) – channel axis in element of list x, or 
-of np.ndarray x. if NULL, channels dimension is attempted to be 
+\item{channel_axis}{(int, optional) – channel axis in element of list x, or
+of np.ndarray x. if NULL, channels dimension is attempted to be
 automatically determined. Defaults to NULL.}
 
-\item{z_axis}{(int, optional) – z axis in element of list x, or of 
-np.ndarray x. if NULL, z dimension is attempted to be automatically 
+\item{z_axis}{(int, optional) – z axis in element of list x, or of
+np.ndarray x. if NULL, z dimension is attempted to be automatically
 determined. Defaults to NULL.}
 
 \item{normalize}{Logical or list. Controls image normalization:
@@ -78,7 +78,7 @@ Can be a list with parameters:
 * norm3D: Logical, normalize across full z-stack
 Default: TRUE}
 
-\item{invert}{Logical. Inverts pixel intensity before processing. 
+\item{invert}{Logical. Inverts pixel intensity before processing.
 Default: FALSE}
 
 \item{rescale}{Numeric. Resize factor for images.

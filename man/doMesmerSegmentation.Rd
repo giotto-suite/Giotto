@@ -42,7 +42,7 @@ main parameters needed
 \examples{
 doMesmerSegmentation(
     input = input_image,
-    mask_output = output, 
+    mask_output = output,
     nucleus_channel = 1,
     membrane_channel = 2,
     micron_scale = 0.5

@@ -24,7 +24,7 @@ doStardistSegmentation(
 \item{python_env}{python environment with Stardist installed.
 default = "giotto_segmentation". See Stardist official website for more details.}
 
-\item{model_name}{Name of the model to run inference. Default to '2D_versatile_fluo'. 
+\item{model_name}{Name of the model to run inference. Default to '2D_versatile_fluo'.
 If using HE model, input image must be RGB, else the nuclei_channel must be given}
 
 \item{nuclei_channel}{Required using IF based nuclei segmentation, channel number of the nuclei staining.}
@@ -45,8 +45,8 @@ main parameters needed
 # example code
 doStardistSegmentation(
     input = input_image,
-    mask_output = output, 
-    model_name = '2D_versatile_fluo',
+    mask_output = output,
+    model_name = "2D_versatile_fluo",
     nuclei_channel = 3
 )
 
