@@ -290,17 +290,17 @@ doCellposeSegmentation <- function(input,
 #' @param mask_output required. Provide a path to the output mask file.
 #' @param nucleus_channel channel number for Nuclei, default to 1
 #' @param membrane_channel channel number for cell boundary, default to 2
-#' @param pixel_per_micron physical micron size per pixel, default to 0.25
+#' @param micron_scale numeric. Multiplicative scalefactor to convert pixel
+#' dimensions to physical microns.
 #' @returns No return variable, as this will write directly to output path
 #' provided.
 #' @examples
-#' # example code
 #' doMesmerSegmentation(
 #'     input = input_image,
 #'     mask_output = output, 
 #'     nucleus_channel = 1,
 #'     membrane_channel = 2,
-#'     pixel_per_micron = 0.5
+#'     micron_scale = 0.5
 #' )
 #' @export
 doMesmerSegmentation <- function(input,
@@ -308,7 +308,7 @@ doMesmerSegmentation <- function(input,
     python_env = 'giotto_segmentation',
     nucleus_channel = 1,
     membrane_channel = 2,
-    pixel_per_micron = 0.25,
+    micron_scale = 0.25,
     verbose = NULL, 
     ...
 ){
@@ -337,7 +337,9 @@ doMesmerSegmentation <- function(input,
     
     GiottoUtils::vmsg(.v = verbose, .is_debug = FALSE, "Segmenting Image...")
 
-    segmentation_predictions = mesmer$predict(stacked_array, image_mpp=pixel_per_micron)
+    segmentation_predictions = mesmer$predict(
+        stacked_array, image_mpp = micron_scale
+    )
     mask <- segmentation_predictions[1,,,1]
     mask_r <- reticulate::py_to_r(mask)
     

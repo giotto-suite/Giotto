@@ -5,24 +5,24 @@
 \title{perform Stardist segmentation}
 \usage{
 doStardistSegmentation(
-  Image_dir,
-  python_env = "giotto_segmentation",
+  input,
   mask_output,
+  python_env = "giotto_segmentation",
   model_name = "2D_versatile_fluo",
   nuclei_channel = NULL,
   prob_thresh = NULL,
   nms_thresh = NULL,
-  verbose = F,
+  verbose = NULL,
   ...
 )
 }
 \arguments{
-\item{Image_dir}{character, required. Provide a path to an image.}
+\item{input}{character, required. Provide a path to an image.}
+
+\item{mask_output}{required. Provide a path to the output mask file.}
 
 \item{python_env}{python environment with Stardist installed.
 default = "giotto_segmentation". See Stardist official website for more details.}
-
-\item{mask_output}{required. Provide a path to the output mask file.}
 
 \item{model_name}{Name of the model to run inference. Default to '2D_versatile_fluo'. 
 If using HE model, input image must be RGB, else the nuclei_channel must be given}
@@ -37,14 +37,14 @@ If using HE model, input image must be RGB, else the nuclei_channel must be give
 No return variable, as this will write directly to output path provided.
 }
 \description{
-perform the Giotto Wrapper of Stardist 2D segmentation. This is for a model
+Perform the Giotto wrapper of Stardist 2D segmentation. This is for a model
 inference to generate segmentation mask file from input image.
 main parameters needed
 }
 \examples{
 # example code
 doStardistSegmentation(
-    Image_dir = input_image,
+    input = input_image,
     mask_output = output, 
     model_name = '2D_versatile_fluo',
     nuclei_channel = 3
