@@ -16,12 +16,11 @@
 #' of the tile: sx (start x), ex (end x), sy, and ey.
 #'
 #' @export
-doCellSegmentation <- function(
-        raster_img,
-        folder_path,
-        reduce_resolution = 4,
-        overlapping_pixels = 50,
-        python_path = NULL) {
+doCellSegmentation <- function(raster_img,
+    folder_path,
+    reduce_resolution = 4,
+    overlapping_pixels = 50,
+    python_path = NULL) {
     package_check("deepcell", repository = "pip")
     package_check("PIL", repository = "pip")
 
@@ -109,13 +108,13 @@ doCellSegmentation <- function(
 #' @param batch_size Cellpose Parameter, Number of 224x224 patches to run
 #' simultaneously on the GPU. Can make smaller or bigger depending on GPU
 #' memory usage. Defaults to 8.
-#' @param resample (logical, optional) – run dynamics at original image size 
+#' @param resample (logical, optional) – run dynamics at original image size
 #' (will be slower but create more accurate boundaries). Defaults to True.
-#' @param channel_axis (int, optional) – channel axis in element of list x, or 
-#' of np.ndarray x. if NULL, channels dimension is attempted to be 
+#' @param channel_axis (int, optional) – channel axis in element of list x, or
+#' of np.ndarray x. if NULL, channels dimension is attempted to be
 #' automatically determined. Defaults to NULL.
-#' @param z_axis (int, optional) – z axis in element of list x, or of 
-#' np.ndarray x. if NULL, z dimension is attempted to be automatically 
+#' @param z_axis (int, optional) – z axis in element of list x, or of
+#' np.ndarray x. if NULL, z dimension is attempted to be automatically
 #' determined. Defaults to NULL.
 #' @param normalize Logical or list. Controls image normalization:
 #'        If TRUE, normalizes to 1st-99th percentile
@@ -127,7 +126,7 @@ doCellSegmentation <- function(
 #'        * tile_norm: Integer, window size in pixels for tile normalization
 #'        * norm3D: Logical, normalize across full z-stack
 #'        Default: TRUE
-#' @param invert Logical. Inverts pixel intensity before processing. 
+#' @param invert Logical. Inverts pixel intensity before processing.
 #' Default: FALSE
 #' @param rescale Numeric. Resize factor for images.
 #'        Default: NULL (sets to 1.0)
@@ -171,40 +170,40 @@ doCellSegmentation <- function(
 #' )
 #' @export
 doCellposeSegmentation <- function(input,
-        mask_output,
-        python_env = "giotto_segmentation",
-        channel_1 = 0,
-        channel_2 = 0,
-        model_name = "cyto3",
-        batch_size = 8,
-        resample = TRUE,
-        channel_axis = NULL,
-        z_axis = NULL,
-        normalize = TRUE,
-        invert = FALSE,
-        rescale = NULL,
-        diameter = NULL,
-        flow_threshold = 0.4,
-        cellprob_threshold = 0.0,
-        do_3D = FALSE,
-        anisotropy = NULL,
-        stitch_threshold = 0.0,
-        min_size = 15,
-        max_size_fraction = 0.4,
-        niter = NULL,
-        augment = FALSE,
-        tile_overlap = 0.1,
-        bsize = 224,
-        dP_smooth,
-        interp = TRUE,
-        compute_masks = TRUE,
-        progress = NULL,
-        verbose = NULL,
-        ...) {
+    mask_output,
+    python_env = "giotto_segmentation",
+    channel_1 = 0,
+    channel_2 = 0,
+    model_name = "cyto3",
+    batch_size = 8,
+    resample = TRUE,
+    channel_axis = NULL,
+    z_axis = NULL,
+    normalize = TRUE,
+    invert = FALSE,
+    rescale = NULL,
+    diameter = NULL,
+    flow_threshold = 0.4,
+    cellprob_threshold = 0.0,
+    do_3D = FALSE,
+    anisotropy = NULL,
+    stitch_threshold = 0.0,
+    min_size = 15,
+    max_size_fraction = 0.4,
+    niter = NULL,
+    augment = FALSE,
+    tile_overlap = 0.1,
+    bsize = 224,
+    dP_smooth,
+    interp = TRUE,
+    compute_masks = TRUE,
+    progress = NULL,
+    verbose = NULL,
+    ...) {
     ## Load required python libraries
     GiottoClass::set_giotto_python_path(python_env)
     GiottoUtils::package_check("cellpose>=3.1.0", repository = "pip")
-    
+
     # Check Input arguments
     model_name <- match.arg(
         model_name, unique(c("cyto3", "cyto2", "cyto", "nuclei", model_name))
@@ -219,7 +218,8 @@ doCellposeSegmentation <- function(input,
 
     if (!(torch$cuda$is_available())) {
         warning(
-            "GPU is not available for this session, inference may be slow.")
+            "GPU is not available for this session, inference may be slow."
+        )
     }
 
     GiottoUtils::vmsg(
@@ -297,21 +297,21 @@ doCellposeSegmentation <- function(input,
 #' @examples
 #' doMesmerSegmentation(
 #'     input = input_image,
-#'     mask_output = output, 
+#'     mask_output = output,
 #'     nucleus_channel = 1,
 #'     membrane_channel = 2,
 #'     micron_scale = 0.5
 #' )
 #' @export
-doMesmerSegmentation <- function(input,
-    mask_output,
-    python_env = 'giotto_segmentation',
-    nucleus_channel = 1,
-    membrane_channel = 2,
-    micron_scale = 0.25,
-    verbose = NULL, 
-    ...
-){
+doMesmerSegmentation <- function(
+        input,
+        mask_output,
+        python_env = "giotto_segmentation",
+        nucleus_channel = 1,
+        membrane_channel = 2,
+        micron_scale = 0.25,
+        verbose = NULL,
+        ...) {
     ## Load required python libraries
     GiottoClass::set_giotto_python_path(python_env)
     GiottoUtils::package_check("deepcell", repository = "pip")
@@ -319,35 +319,36 @@ doMesmerSegmentation <- function(input,
     np <- reticulate::import("numpy")
     deepcell <- reticulate::import("deepcell.applications")
     message("successfully loaded giotto environment with deepcell.")
-    
+
     # Initialize the Mesmer application from DeepCell
     mesmer <- deepcell$Mesmer()
-    
+
     GiottoUtils::vmsg(
         .v = verbose, .is_debug = FALSE, "Loading Image... ",
     )
     GiottoUtils::package_check("terra")
-    rast = terra::rast(input)
+    rast <- terra::rast(input)
     # Convert the R matrix to a NumPy array explicitly
     nucleus_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(nucleus_channel)]])))
     membrane_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(membrane_channel)]])))
     stacked_array <- np$stack(list(nucleus_channel_np, membrane_channel_np), axis = as.integer(-1))
     # Add a new axis to the stacked array to fit Mesmer input
     stacked_array <- np$expand_dims(stacked_array, axis = as.integer(0))
-    
+
     GiottoUtils::vmsg(.v = verbose, .is_debug = FALSE, "Segmenting Image...")
 
-    segmentation_predictions = mesmer$predict(
-        stacked_array, image_mpp = micron_scale
+    segmentation_predictions <- mesmer$predict(
+        stacked_array,
+        image_mpp = micron_scale
     )
-    mask <- segmentation_predictions[1,,,1]
+    mask <- segmentation_predictions[1, , , 1]
     mask_r <- reticulate::py_to_r(mask)
-    
+
     GiottoUtils::vmsg(
         .v = verbose, .is_debug = FALSE,
         "Segmentation finished... Saving mask file..."
     )
-    
+
     rast <- terra::rast(mask_r)
     terra::writeRaster(rast, mask_output, overwrite = TRUE)
 }
@@ -365,7 +366,7 @@ doMesmerSegmentation <- function(input,
 #' @param python_env python environment with Stardist installed.
 #' default = "giotto_segmentation". See Stardist official website for more details.
 #' @param mask_output required. Provide a path to the output mask file.
-#' @param model_name Name of the model to run inference. Default to '2D_versatile_fluo'. 
+#' @param model_name Name of the model to run inference. Default to '2D_versatile_fluo'.
 #' If using HE model, input image must be RGB, else the nuclei_channel must be given
 #' @param nuclei_channel Required using IF based nuclei segmentation, channel number of the nuclei staining.
 #' @param prob_thresh prob_thresh for model (if not given use model default)
@@ -375,21 +376,22 @@ doMesmerSegmentation <- function(input,
 #' # example code
 #' doStardistSegmentation(
 #'     input = input_image,
-#'     mask_output = output, 
-#'     model_name = '2D_versatile_fluo',
+#'     mask_output = output,
+#'     model_name = "2D_versatile_fluo",
 #'     nuclei_channel = 3
 #' )
-#' 
+#'
 #' @export
-doStardistSegmentation <- function(input,
-    mask_output,
-    python_env = 'giotto_segmentation',
-    model_name = '2D_versatile_fluo',
-    nuclei_channel = NULL,
-    prob_thresh = NULL,
-    nms_thresh = NULL,
-    verbose = NULL,
-    ...){
+doStardistSegmentation <- function(
+        input,
+        mask_output,
+        python_env = "giotto_segmentation",
+        model_name = "2D_versatile_fluo",
+        nuclei_channel = NULL,
+        prob_thresh = NULL,
+        nms_thresh = NULL,
+        verbose = NULL,
+        ...) {
     # Import the necessary Python modules
     ## Load required python libraries
     GiottoClass::set_giotto_python_path(python_env)
@@ -397,8 +399,8 @@ doStardistSegmentation <- function(input,
     stardist <- reticulate::import("stardist.models")
     csbdeep <- reticulate::import("csbdeep.utils")
     np <- reticulate::import("numpy")
-    
-    # Load the StarDist2D model 
+
+    # Load the StarDist2D model
     model_name <- match.arg(
         model_name, unique(c("2D_versatile_fluo", "2D_versatile_he", "2D_paper_dsb2018", "2D_demo", model_name))
     )
@@ -406,34 +408,33 @@ doStardistSegmentation <- function(input,
         .v = verbose, .is_debug = FALSE, "Loading model ",
         model_name
     )
-    
+
     model <- stardist$StarDist2D$from_pretrained(model_name)
-    
+
     # Load the image
     GiottoUtils::vmsg(
         .v = verbose, .is_debug = FALSE, "Loading Image from ",
         input
     )
     GiottoUtils::package_check("terra")
-    rast = terra::rast(input)
-    if (model_name != '2D_versatile_he' && is.null(nuclei_channel)){
-        stop('using IF based nuclei segmentation, please specify nuclei channel')
-    }
-    else if( model_name == '2D_versatile_he'){
+    rast <- terra::rast(input)
+    if (model_name != "2D_versatile_he" && is.null(nuclei_channel)) {
+        stop("using IF based nuclei segmentation, please specify nuclei channel")
+    } else if (model_name == "2D_versatile_he") {
         img <- np$array(terra::as.array(rast))
-    }
-    else {
+    } else {
         img <- np$array(drop(terra::as.array(rast[[as.numeric(nuclei_channel)]])))
     }
 
     # Normalize the image
     normalized_img <- csbdeep$normalize(img)
-    
+
     # Perform prediction with StarDist2D model
     results <- model$predict_instances(normalized_img,
-                                       prob_thresh = prob_thresh,
-                                       nms_thresh = nms_thresh)
-    
+        prob_thresh = prob_thresh,
+        nms_thresh = nms_thresh
+    )
+
     # Extract the labels (first output from predict_instances)
     mask <- results[[1]]
     GiottoUtils::vmsg(
@@ -443,20 +444,3 @@ doStardistSegmentation <- function(input,
     rast_m <- terra::rast(mask)
     terra::writeRaster(rast_m, mask_output, overwrite = TRUE)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
