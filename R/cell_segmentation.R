@@ -169,37 +169,38 @@ doCellSegmentation <- function(raster_img,
 #'     channel_2 = 1, model_name = "cyto3", batch_size = 4
 #' )
 #' @export
-doCellposeSegmentation <- function(input,
-    mask_output,
-    python_env = "giotto_segmentation",
-    channel_1 = 0,
-    channel_2 = 0,
-    model_name = "cyto3",
-    batch_size = 8,
-    resample = TRUE,
-    channel_axis = NULL,
-    z_axis = NULL,
-    normalize = TRUE,
-    invert = FALSE,
-    rescale = NULL,
-    diameter = NULL,
-    flow_threshold = 0.4,
-    cellprob_threshold = 0.0,
-    do_3D = FALSE,
-    anisotropy = NULL,
-    stitch_threshold = 0.0,
-    min_size = 15,
-    max_size_fraction = 0.4,
-    niter = NULL,
-    augment = FALSE,
-    tile_overlap = 0.1,
-    bsize = 224,
-    dP_smooth,
-    interp = TRUE,
-    compute_masks = TRUE,
-    progress = NULL,
-    verbose = NULL,
-    ...) {
+doCellposeSegmentation <- function(
+        input,
+        mask_output,
+        python_env = "giotto_segmentation",
+        channel_1 = 0,
+        channel_2 = 0,
+        model_name = "cyto3",
+        batch_size = 8,
+        resample = TRUE,
+        channel_axis = NULL,
+        z_axis = NULL,
+        normalize = TRUE,
+        invert = FALSE,
+        rescale = NULL,
+        diameter = NULL,
+        flow_threshold = 0.4,
+        cellprob_threshold = 0.0,
+        do_3D = FALSE,
+        anisotropy = NULL,
+        stitch_threshold = 0.0,
+        min_size = 15,
+        max_size_fraction = 0.4,
+        niter = NULL,
+        augment = FALSE,
+        tile_overlap = 0.1,
+        bsize = 224,
+        dP_smooth,
+        interp = TRUE,
+        compute_masks = TRUE,
+        progress = NULL,
+        verbose = NULL,
+        ...) {
     ## Load required python libraries
     set_giotto_python_path(python_env)
     package_check("cellpose>=3.1.0", repository = "pip")
@@ -263,8 +264,9 @@ doCellposeSegmentation <- function(input,
         progress = progress
     )
     masks <- result[[1]]
-    vmsg(.v = verbose, .is_debug = FALSE,
-         "Segmentation finished... Saving mask file..."
+    vmsg(
+        .v = verbose, .is_debug = FALSE,
+        "Segmentation finished... Saving mask file..."
     )
     rast <- terra::rast(masks)
     terra::writeRaster(rast, mask_output, overwrite = TRUE)
@@ -299,15 +301,14 @@ doCellposeSegmentation <- function(input,
 #'     micron_scale = 0.5
 #' )
 #' @export
-doMesmerSegmentation <- function(
-        input,
-        mask_output,
-        python_env = "giotto_segmentation",
-        nucleus_channel = 1,
-        membrane_channel = 2,
-        micron_scale = 0.25,
-        verbose = NULL,
-        ...) {
+doMesmerSegmentation <- function(input,
+    mask_output,
+    python_env = "giotto_segmentation",
+    nucleus_channel = 1,
+    membrane_channel = 2,
+    micron_scale = 0.25,
+    verbose = NULL,
+    ...) {
     ## Load required python libraries
     set_giotto_python_path(python_env)
     package_check("deepcell", repository = "pip")
@@ -372,16 +373,15 @@ doMesmerSegmentation <- function(
 #' )
 #'
 #' @export
-doStardistSegmentation <- function(
-        input,
-        mask_output,
-        python_env = "giotto_segmentation",
-        model_name = "2D_versatile_fluo",
-        nuclei_channel = NULL,
-        prob_thresh = NULL,
-        nms_thresh = NULL,
-        verbose = NULL,
-        ...) {
+doStardistSegmentation <- function(input,
+    mask_output,
+    python_env = "giotto_segmentation",
+    model_name = "2D_versatile_fluo",
+    nuclei_channel = NULL,
+    prob_thresh = NULL,
+    nms_thresh = NULL,
+    verbose = NULL,
+    ...) {
     # Import the necessary Python modules
     ## Load required python libraries
     set_giotto_python_path(python_env)
