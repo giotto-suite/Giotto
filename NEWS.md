@@ -1,5 +1,8 @@
 # Giotto 4.1.7
 
+## Breaking Changes
+* Param naming changes for segmentation wrapper functions `doMesmerSegmentation()`, `doCellposeSegmentation()` `doStardistSegmentation()`
+
 ## Changes
 * GiottoUtils req raised to 0.2.3
 
