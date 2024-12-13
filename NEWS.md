@@ -1,3 +1,7 @@
+# Giotto 4.1.7
+
+## Changes
+* GiottoUtils req raised to 0.2.3
 
 # Giotto 4.1.6 (2024/12/09)
 
@@ -15,8 +19,8 @@
 * re-export of `dotPlot()` from GiottoVisuals
 
 ## Changes
-* GiottoClass req raised to 0.4.5
 * GiottoUtils req raised to 0.2.2
+* GiottoClass req raised to 0.4.5
 * GiottoVisuals req raised to 0.2.10
 
 

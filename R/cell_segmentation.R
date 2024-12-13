@@ -92,15 +92,14 @@ doCellSegmentation <- function(
 #'
 #' @title perform cellpose segmentation
 #' @description
-#'
-#' perform the Giotto Wrapper of cellpose segmentation. This is for a model
+#' Perform the Giotto Wrapper of cellpose segmentation. This is for a model
 #' inference to generate segmentation mask file from input image.
 #' main parameters needed
 #' @name doCellposeSegmentation
-#' @param image_dir character, required. Provide a path to a gray scale or a
+#' @param input character, required. Provide a path to a gray scale or a
 #' three channel image.
 #' @param python_path python environment with cellpose installed.
-#' default = "giotto_cellpose".
+#' default = "giotto_segmentation".
 #' @param mask_output required. Provide a path to the output mask file.
 #' @param channel_1 channel number for cytoplasm, default to 0(gray scale)
 #' @param channel_2 channel number for Nuclei, default to 0(gray scale)
@@ -110,41 +109,70 @@ doCellSegmentation <- function(
 #' @param batch_size Cellpose Parameter, Number of 224x224 patches to run
 #' simultaneously on the GPU. Can make smaller or bigger depending on GPU
 #' memory usage. Defaults to 8.
-#' @param resample Cellpose Parameter
-#' @param channel_axis Cellpose Parameter
-#' @param z_axis Cellpose Parameter
-#' @param normalize Cellpose Parameter
-#' @param invert Cellpose Parameter
-#' @param rescale Cellpose Parameter
-#' @param diameter Cellpose Parameter
-#' @param flow_threshold Cellpose Parameter
-#' @param cellprob_threshold Cellpose Parameter
-#' @param do_3D Cellpose Parameter
-#' @param anisotropy Cellpose Parameter
-#' @param stitch_threshold Cellpose Parameter
-#' @param min_size Cellpose Parameter
-#' @param niter Cellpose Parameter
-#' @param augment Cellpose Parameter
-#' @param tile Cellpose Parameter
-#' @param tile_overlap Cellpose Parameter
-#' @param bsize Cellpose Parameter
-#' @param interp Cellpose Parameter
-#' @param compute_masks Cellpose Parameter
-#' @param progress Cellpose Parameter
+#' @param resample (logical, optional) – run dynamics at original image size 
+#' (will be slower but create more accurate boundaries). Defaults to True.
+#' @param channel_axis (int, optional) – channel axis in element of list x, or 
+#' of np.ndarray x. if NULL, channels dimension is attempted to be 
+#' automatically determined. Defaults to NULL.
+#' @param z_axis (int, optional) – z axis in element of list x, or of 
+#' np.ndarray x. if NULL, z dimension is attempted to be automatically 
+#' determined. Defaults to NULL.
+#' @param normalize Logical or list. Controls image normalization:
+#'        If TRUE, normalizes to 1st-99th percentile
+#'        Can be a list with parameters:
+#'        * lowhigh: Numeric vector c(low, high) for manual normalization values
+#'        * sharpen: Numeric, image sharpening factor (1/4-1/8 of cell diameter in pixels)
+#'        * normalize: Logical, whether to run normalization
+#'        * percentile: Numeric vector c(low_perc, high_perc)
+#'        * tile_norm: Integer, window size in pixels for tile normalization
+#'        * norm3D: Logical, normalize across full z-stack
+#'        Default: TRUE
+#' @param invert Logical. Inverts pixel intensity before processing. 
+#' Default: FALSE
+#' @param rescale Numeric. Resize factor for images.
+#'        Default: NULL (sets to 1.0)
+#' @param diameter Numeric. Cell diameter for each image.
+#'        Default: NULL (uses diam_mean or diam_train if available)
+#' @param flow_threshold Numeric. Flow error threshold for cell retention (2D only).
+#'        Default: 0.4
+#' @param cellprob_threshold Numeric. Threshold for mask pixel retention.
+#'        Default: 0.0
+#' @param do_3D Logical. Enable 3D segmentation for 3D/4D inputs.
+#'        Default: FALSE
+#' @param anisotropy Numeric. Z-axis rescaling factor for 3D segmentation.
+#'        Default: NULL
+#' @param stitch_threshold Numeric. Threshold for 3D mask stitching (2D mode only).
+#'        Default: 0.0
+#' @param min_size Integer. Minimum ROI size in pixels.
+#'        Default: 15
+#' @param max_size_fraction Numeric. Maximum mask size as fraction of image.
+#'        Default: 0.4
+#' @param niter Integer. Number of dynamics computation iterations.
+#'        Default: NULL (set based on diameter)
+#' @param augment Logical. Enable tile augmentation with overlapping.
+#'        Default: FALSE
+#' @param tile_overlap Numeric. Tile overlap fraction for flow computation.
+#'        Default: 0.1
+#' @param bsize Integer. Block size for tiles (recommended: 224).
+#'        Default: 224
+#' @param dP_smooth Integer. Gaussian smoothing standard deviation for 3D flows.
+#' @param interp Logical. Enable interpolation for 2D dynamics.
+#'        Default: TRUE
+#' @param compute_masks Logical. Compute dynamics and return masks.
+#'        Default: TRUE
+#' @param progress progress bar. Defaults to NULL
 #' @returns No return variable, as this will write directly to output path
 #' provided.
 #' @examples
-#' # example code
 #' doCellposeSegmentation(
-#'     image_dir = input_image,
+#'     input = input_image,
 #'     mask_output = output, channel_1 = 2,
 #'     channel_2 = 1, model_name = "cyto3", batch_size = 4
 #' )
 #' @export
-doCellposeSegmentation <- function(
-        python_env = "giotto_cellpose",
-        image_dir,
+doCellposeSegmentation <- function(input,
         mask_output,
+        python_env = "giotto_segmentation",
         channel_1 = 0,
         channel_2 = 0,
         model_name = "cyto3",
@@ -162,22 +190,26 @@ doCellposeSegmentation <- function(
         anisotropy = NULL,
         stitch_threshold = 0.0,
         min_size = 15,
+        max_size_fraction = 0.4,
         niter = NULL,
         augment = FALSE,
-        tile = TRUE,
         tile_overlap = 0.1,
         bsize = 224,
+        dP_smooth,
         interp = TRUE,
         compute_masks = TRUE,
         progress = NULL,
-        verbose = TRUE, ...) {
+        verbose = NULL,
+        ...) {
+    ## Load required python libraries
+    GiottoClass::set_giotto_python_path(python_env)
+    GiottoUtils::package_check("cellpose>=3.1.0", repository = "pip")
+    
     # Check Input arguments
     model_name <- match.arg(
         model_name, unique(c("cyto3", "cyto2", "cyto", "nuclei", model_name))
     )
-    ## Load required python libraries
-    GiottoClass::set_giotto_python_path(python_env)
-    GiottoUtils::package_check("cellpose", repository = "pip")
+    if (!is.null(channel_axis)) channel_axis <- as.integer(channel_axis)
 
     cellpose <- reticulate::import("cellpose")
     np <- reticulate::import("numpy")
@@ -186,15 +218,15 @@ doCellposeSegmentation <- function(
     message("successfully loaded giotto environment with cellpose.")
 
     if (!(torch$cuda$is_available())) {
-        warning("GPU is not available for this session, inference may be slow.")
+        warning(
+            "GPU is not available for this session, inference may be slow.")
     }
 
     GiottoUtils::vmsg(
-        .v = verbose, .is_debug = FALSE, "Loading Image from ",
-        image_dir
+        .v = verbose, .is_debug = FALSE, "Loading Image from ", input
     )
 
-    img <- cellpose$io$imread(image_dir)
+    img <- cellpose$io$imread(input)
     GiottoUtils::vmsg(.v = verbose, .is_debug = FALSE, "Loading Model...")
 
     model_to_seg <- cellpose$models$Cellpose(
@@ -209,7 +241,7 @@ doCellposeSegmentation <- function(
     result <- segmentation(img,
         diameter = diameter,
         channels = channel_to_seg,
-        batch_size = batch_size,
+        batch_size = as.integer(batch_size),
         resample = resample,
         channel_axis = channel_axis,
         z_axis = z_axis,
@@ -221,12 +253,13 @@ doCellposeSegmentation <- function(
         do_3D = do_3D,
         anisotropy = anisotropy,
         stitch_threshold = stitch_threshold,
-        min_size = min_size,
+        min_size = as.integer(min_size),
+        max_size_fraction = max_size_fraction,
         niter = niter,
         augment = augment,
-        tile = tile,
         tile_overlap = tile_overlap,
-        bsize = bsize,
+        bsize = as.integer(bsize),
+        dP_smooth = as.integer(dP_smooth),
         interp = interp,
         compute_masks = compute_masks,
         progress = progress
@@ -247,37 +280,38 @@ doCellposeSegmentation <- function(
 #'
 #' @title perform Mesmer(Deepcell) segmentation
 #' @description
-#'
-#' perform the Giotto Wrapper of mesmer segmentation. This is for a model
+#' Perform the Giotto Wrapper of mesmer segmentation. This is for a model
 #' inference to generate segmentation mask file from input image.
 #' main parameters needed
 #' @name doMesmerSegmentation
-#' @param Image_dir character, required. Provide a path to a IF image.
+#' @param input character, required. Provide a path to a IF image.
 #' @param python_env python environment with deepcell installed.
 #' default = "giotto_segmentation". See deepcell official website for more details.
 #' @param mask_output required. Provide a path to the output mask file.
-#' @param Nucleus_channel channel number for Nuclei, default to 1
-#' @param Memberane_channel channel number for cell boundary, default to 2
+#' @param nucleus_channel channel number for Nuclei, default to 1
+#' @param membrane_channel channel number for cell boundary, default to 2
 #' @param pixel_per_micron physical micron size per pixel, default to 0.25
 #' @returns No return variable, as this will write directly to output path
 #' provided.
 #' @examples
 #' # example code
 #' doMesmerSegmentation(
-#'     Image_dir = input_image,
+#'     input = input_image,
 #'     mask_output = output, 
-#'     Nucleus_channel = 1,
-#'     Memberane_channel = 2,
+#'     nucleus_channel = 1,
+#'     membrane_channel = 2,
 #'     pixel_per_micron = 0.5
 #' )
 #' @export
-doMesmerSegmentation <- function(Image_dir,
-                                 python_env = 'giotto_segmentation',
-                                 Nucleus_channel = 1,
-                                 Memberane_channel = 2,
-                                 pixel_per_micron = 0.25,
-                                 mask_output,
-                                 verbose = F, ...){
+doMesmerSegmentation <- function(input,
+    mask_output,
+    python_env = 'giotto_segmentation',
+    nucleus_channel = 1,
+    membrane_channel = 2,
+    pixel_per_micron = 0.25,
+    verbose = NULL, 
+    ...
+){
     ## Load required python libraries
     GiottoClass::set_giotto_python_path(python_env)
     GiottoUtils::package_check("deepcell", repository = "pip")
@@ -293,11 +327,11 @@ doMesmerSegmentation <- function(Image_dir,
         .v = verbose, .is_debug = FALSE, "Loading Image... ",
     )
     GiottoUtils::package_check("terra")
-    rast = terra::rast(Image_dir)
+    rast = terra::rast(input)
     # Convert the R matrix to a NumPy array explicitly
-    Nucleus_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(Nucleus_channel)]])))
-    Membrane_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(Memberane_channel)]])))
-    stacked_array <- np$stack(list(Nucleus_channel_np, Membrane_channel_np), axis = as.integer(-1))
+    nucleus_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(nucleus_channel)]])))
+    membrane_channel_np <- np$array(drop(terra::as.array(rast[[as.numeric(membrane_channel)]])))
+    stacked_array <- np$stack(list(nucleus_channel_np, membrane_channel_np), axis = as.integer(-1))
     # Add a new axis to the stacked array to fit Mesmer input
     stacked_array <- np$expand_dims(stacked_array, axis = as.integer(0))
     
@@ -321,12 +355,11 @@ doMesmerSegmentation <- function(Image_dir,
 #'
 #' @title perform Stardist segmentation
 #' @description
-#'
-#' perform the Giotto Wrapper of Stardist 2D segmentation. This is for a model
+#' Perform the Giotto wrapper of Stardist 2D segmentation. This is for a model
 #' inference to generate segmentation mask file from input image.
 #' main parameters needed
 #' @name doStardistSegmentation
-#' @param Image_dir character, required. Provide a path to an image.
+#' @param input character, required. Provide a path to an image.
 #' @param python_env python environment with Stardist installed.
 #' default = "giotto_segmentation". See Stardist official website for more details.
 #' @param mask_output required. Provide a path to the output mask file.
@@ -339,22 +372,22 @@ doMesmerSegmentation <- function(Image_dir,
 #' @examples
 #' # example code
 #' doStardistSegmentation(
-#'     Image_dir = input_image,
+#'     input = input_image,
 #'     mask_output = output, 
 #'     model_name = '2D_versatile_fluo',
 #'     nuclei_channel = 3
 #' )
 #' 
 #' @export
-doStardistSegmentation <- function(Image_dir,
-                                   python_env = 'giotto_segmentation',
-                                   mask_output,
-                                   model_name = '2D_versatile_fluo',
-                                   nuclei_channel = NULL,
-                                   prob_thresh = NULL,
-                                   nms_thresh = NULL,
-                                   verbose = F,
-                                   ...){
+doStardistSegmentation <- function(input,
+    mask_output,
+    python_env = 'giotto_segmentation',
+    model_name = '2D_versatile_fluo',
+    nuclei_channel = NULL,
+    prob_thresh = NULL,
+    nms_thresh = NULL,
+    verbose = NULL,
+    ...){
     # Import the necessary Python modules
     ## Load required python libraries
     GiottoClass::set_giotto_python_path(python_env)
@@ -377,11 +410,11 @@ doStardistSegmentation <- function(Image_dir,
     # Load the image
     GiottoUtils::vmsg(
         .v = verbose, .is_debug = FALSE, "Loading Image from ",
-        Image_dir
+        input
     )
     GiottoUtils::package_check("terra")
-    rast = terra::rast(Image_dir)
-    if (model_name != '2D_versatile_he' & is.null(nuclei_channel)){
+    rast = terra::rast(input)
+    if (model_name != '2D_versatile_he' && is.null(nuclei_channel)){
         stop('using IF based nuclei segmentation, please specify nuclei channel')
     }
     else if( model_name == '2D_versatile_he'){
