@@ -195,7 +195,7 @@ doCellposeSegmentation <- function(
         augment = FALSE,
         tile_overlap = 0.1,
         bsize = 224,
-        dP_smooth,
+        dP_smooth = 0L,
         interp = TRUE,
         compute_masks = TRUE,
         progress = NULL,
