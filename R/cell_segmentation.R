@@ -203,7 +203,7 @@ doCellposeSegmentation <- function(
         ...) {
     ## Load required python libraries
     set_giotto_python_path(python_env)
-    package_check("cellpose>=3.1.0", repository = "pip")
+    package_check("cellpose", repository = "pip:cellpose>=3.1.0")
 
     # Check Input arguments
     model_name <- match.arg(
