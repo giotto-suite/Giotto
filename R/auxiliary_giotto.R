@@ -606,7 +606,7 @@ addCellStatistics <- function(gobject,
 addStatistics <- function(gobject,
     feat_type = NULL,
     spat_unit = NULL,
-    stats = c("feature", "cell"),
+    stats = c("feature", "cell", "area"),
     expression_values = c("normalized", "scaled", "custom"),
     detection_threshold = 0,
     return_gobject = TRUE,
@@ -769,6 +769,7 @@ addFeatsPerc <- function(gobject,
     }
 }
 
+# this doesn't take much time
 .add_poly_statistics <- function(gobject,
     spat_unit = "cell",
     stats = c("area"),
@@ -779,19 +780,23 @@ addFeatsPerc <- function(gobject,
         tolower(stats), choices = stat_choices, several.ok = TRUE
     )
     
-    p <- getPolygonInfo(gobject,
-        polygon_name = spat_unit, 
-        return_giottoPolygon = TRUE
-    )
-    x <- p[]
+    poly_list <- gobject[["spatial_info", spat_unit]]
+    if (length(poly_list) > 0L) {
+        gpoly <- poly_list[[1L]] # extract from list
+    } else {
+        # if no polys available, return early
+        if (isTRUE(return_gobject)) return(gobject)
+        else return(data.table::data.table(cell_ID = spatIDs(gobject)))
+    }
+    sv <- gpoly[]
     
     # accumulate results values
-    # results order must be identical to the order of x
-    all_res <- list(cell_ID = x$poly_ID)
+    # results order must be identical to the order of sv
+    all_res <- list(cell_ID = sv$poly_ID)
     
     if ("area" %in% stats) {
-        terra::crs(x) <- "local"
-        a <- terra::expanse(x, transform = FALSE)
+        terra::crs(sv) <- "local"
+        a <- terra::expanse(sv, transform = FALSE)
         all_res$area <- a
     }
     
