@@ -585,21 +585,28 @@ addCellStatistics <- function(gobject,
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
+#' @param stats character. What statistics to add. 
+#' default = c("cell", "feature") See details
 #' @param expression_values expression values to use
 #' @param detection_threshold detection threshold to consider a feature detected
 #' @param return_gobject boolean: return giotto object (default = TRUE)
 #' @param verbose be verbose
 #' @returns giotto object if return_gobject = TRUE, else a list with results
-#' @details See \code{\link{addFeatStatistics}} and
-#' \code{\link{addCellStatistics}}
+#' @details
+#' # `stats` options
+#' "feature" - includes \code{\link{addFeatStatistics}} results
+#' "cell" - includes \code{\link{addCellStatistics}} results
+#' "area" - includes polygon areas
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
 #' addStatistics(g)
+#' @md
 #' @export
 addStatistics <- function(gobject,
     feat_type = NULL,
     spat_unit = NULL,
+    stats = c("feature", "cell"),
     expression_values = c("normalized", "scaled", "custom"),
     detection_threshold = 0,
     return_gobject = TRUE,
@@ -614,38 +621,63 @@ addStatistics <- function(gobject,
         spat_unit = spat_unit,
         feat_type = feat_type
     )
-
-    # get feats statistics
-    feat_stats <- addFeatStatistics(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        expression_values = expression_values,
-        detection_threshold = detection_threshold,
-        return_gobject = return_gobject,
-        verbose = verbose
+    
+    stat_choices <- c("cell", "feature", "area")
+    stats <- match.arg(
+        tolower(stats), choices = stat_choices, several.ok = TRUE
     )
 
-    if (return_gobject == TRUE) {
-        gobject <- feat_stats
+    if ("feature" %in% stats) {
+        # get feats statistics
+        feat_stats <- addFeatStatistics(gobject,
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            expression_values = expression_values,
+            detection_threshold = detection_threshold,
+            return_gobject = return_gobject,
+            verbose = verbose
+        )
+        if (isTRUE(return_gobject)) {
+            gobject <- feat_stats
+        }
     }
 
-    # get cell statistics
-    cell_stats <- addCellStatistics(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        expression_values = expression_values,
-        detection_threshold = detection_threshold,
-        return_gobject = return_gobject,
-        verbose = verbose
-    )
+    if ("cell" %in% stats) {
+        # get cell statistics
+        cell_stats <- addCellStatistics(gobject,
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            expression_values = expression_values,
+            detection_threshold = detection_threshold,
+            return_gobject = return_gobject,
+            verbose = verbose
+        )
+        if (isTRUE(return_gobject)) {
+            gobject <- cell_stats
+        }
+    }
 
-    if (return_gobject == TRUE) {
-        gobject <- cell_stats
+    if (any("area" %in% stats)) {
+        poly_stats <- .add_poly_statistics(gobject,
+            spat_unit = spat_unit,
+            stats = stats,
+            return_gobject = return_gobject
+        )
+        if (isTRUE(return_gobject)) {
+            gobject <- poly_stats
+        }
+    }
+
+
+    if (isTRUE(return_gobject)) {
         return(gobject)
     } else {
-        return(feat_stats = feat_stats, cell_stats = cell_stats)
+        out <- list(
+            feat_stats = feat_stats, 
+            cell_stats = cell_stats,
+            poly_stats = poly_stats
+        )
+        return(out)
     }
 }
 
@@ -737,6 +769,48 @@ addFeatsPerc <- function(gobject,
     }
 }
 
+.add_poly_statistics <- function(gobject,
+    spat_unit = "cell",
+    stats = c("area"),
+    return_gobject = TRUE
+) {
+    stat_choices <- c("area")
+    stats <- match.arg(
+        tolower(stats), choices = stat_choices, several.ok = TRUE
+    )
+    
+    p <- getPolygonInfo(gobject,
+        polygon_name = spat_unit, 
+        return_giottoPolygon = TRUE
+    )
+    x <- p[]
+    
+    # accumulate results values
+    # results order must be identical to the order of x
+    all_res <- list(cell_ID = x$poly_ID)
+    
+    if ("area" %in% stats) {
+        terra::crs(x) <- "local"
+        a <- terra::expanse(x, transform = FALSE)
+        all_res$area <- a
+    }
+    
+    res_dt <- do.call(data.table::data.table, all_res)
+    
+    if (isTRUE(return_gobject)) {
+        # append results if there are any
+        if (ncol(res_dt) > 1L) {
+            gobject <- addCellMetadata(gobject,
+                new_metadata = res_dt,
+                by_column = TRUE,
+                column_cell_ID = "cell_ID"
+            )
+        }
+        return(gobject)
+    } else {
+        return(res_dt)
+    }
+}
 
 
 
