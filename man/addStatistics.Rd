@@ -8,7 +8,7 @@ addStatistics(
   gobject,
   feat_type = NULL,
   spat_unit = NULL,
-  stats = c("feature", "cell"),
+  stats = c("feature", "cell", "area"),
   expression_values = c("normalized", "scaled", "custom"),
   detection_threshold = 0,
   return_gobject = TRUE,
