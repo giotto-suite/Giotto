@@ -626,7 +626,21 @@ addStatistics <- function(gobject,
     stats <- match.arg(
         tolower(stats), choices = stat_choices, several.ok = TRUE
     )
+    # expression values to be used
+    expression_values <- match.arg(
+        expression_values,
+        unique(c("normalized", "scaled", "custom", expression_values))
+    )
+    
+    if (any(c("feature", "cell") %in% stats)) {
+        vmsg(
+            .v = verbose,
+            sprintf("calculating statistics for \"%s\" expression",
+                    expression_values)
+        )
+    }
 
+    feat_stats <- NULL
     if ("feature" %in% stats) {
         # get feats statistics
         feat_stats <- addFeatStatistics(gobject,
@@ -642,6 +656,7 @@ addStatistics <- function(gobject,
         }
     }
 
+    cell_stats <- NULL
     if ("cell" %in% stats) {
         # get cell statistics
         cell_stats <- addCellStatistics(gobject,
@@ -656,7 +671,8 @@ addStatistics <- function(gobject,
             gobject <- cell_stats
         }
     }
-
+    
+    poly_stats <- NULL
     if (any("area" %in% stats)) {
         poly_stats <- .add_poly_statistics(gobject,
             spat_unit = spat_unit,
@@ -672,11 +688,10 @@ addStatistics <- function(gobject,
     if (isTRUE(return_gobject)) {
         return(gobject)
     } else {
-        out <- list(
-            feat_stats = feat_stats, 
-            cell_stats = cell_stats,
-            poly_stats = poly_stats
-        )
+        out <- list()
+        out$feat_stats <- feat_stats
+        out$cell_stats <- cell_stats
+        out$poly_stats <- poly_stats
         return(out)
     }
 }
