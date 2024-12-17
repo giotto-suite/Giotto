@@ -8,6 +8,7 @@ addStatistics(
   gobject,
   feat_type = NULL,
   spat_unit = NULL,
+  stats = c("feature", "cell"),
   expression_values = c("normalized", "scaled", "custom"),
   detection_threshold = 0,
   return_gobject = TRUE,
@@ -20,6 +21,9 @@ addStatistics(
 \item{feat_type}{feature type}
 
 \item{spat_unit}{spatial unit}
+
+\item{stats}{character. What statistics to add.
+default = c("cell", "feature") See details}
 
 \item{expression_values}{expression values to use}
 
@@ -35,10 +39,12 @@ giotto object if return_gobject = TRUE, else a list with results
 \description{
 Adds feature and cell statistics to the giotto object
 }
-\details{
-See \code{\link{addFeatStatistics}} and
-\code{\link{addCellStatistics}}
+\section{\code{stats} options}{
+"feature" - includes \code{\link{addFeatStatistics}} results
+"cell" - includes \code{\link{addCellStatistics}} results
+"area" - includes polygon areas
 }
+
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 

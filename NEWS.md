@@ -3,6 +3,10 @@
 ## Breaking Changes
 * Param naming changes for segmentation wrapper functions `doMesmerSegmentation()`, `doCellposeSegmentation()` `doStardistSegmentation()`
 
+## Enhancements
+* new `stats` param in `addStatistics()` to control which statistics are calculated.
+* `"area"` calculation added as an `addStatistics()` `stats` selection
+
 ## Changes
 * GiottoUtils req raised to 0.2.3
 
