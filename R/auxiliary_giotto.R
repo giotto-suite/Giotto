@@ -15,8 +15,10 @@
 #' batch (max = 2)
 #' @param covariate_columns metadata columns that represent covariates to
 #' regress out
+#' @param name character. Name to assign to adjusted matrix 
+#' (default = "custom")
 #' @param return_gobject boolean: return giotto object (default = TRUE)
-#' @param update_slot expression slot that will be updated (default = custom)
+#' @param update_slot deprecated.
 #' @returns giotto object or exprObj
 #' @details This function implements the \code{\link[limma]{removeBatchEffect}}
 #' function to remove known batch effects and to adjust expression values
@@ -32,15 +34,24 @@ adjustGiottoMatrix <- function(gobject,
     expression_values = c("normalized", "scaled", "custom"),
     batch_columns = NULL,
     covariate_columns = NULL,
+    name = "custom",
     return_gobject = TRUE,
-    update_slot = c("custom")) {
+    update_slot = deprecated()) {
     # Catch for both batch and covariate being null
-    if (is.null(batch_columns) & is.null(covariate_columns)) {
+    if (is.null(batch_columns) && is.null(covariate_columns)) {
         stop("Metadata for either different batches or covariates must be
             provided.")
     }
 
     package_check("limma")
+    
+    name <- deprecate_param(
+        update_slot, name, fun = "adjustGiottoMatrix", when = "4.1.7"
+    )
+    
+    name <- match.arg(
+        name, c("normalized", "scaled", "custom", name)
+    )
 
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
@@ -73,10 +84,6 @@ adjustGiottoMatrix <- function(gobject,
             stop("covariate column name(s) were not found in the cell metadata")
         }
     }
-
-    update_slot <- match.arg(
-        update_slot, c("normalized", "scaled", "custom", update_slot)
-    )
 
     # expression values to be used
     values <- match.arg(
@@ -123,10 +130,12 @@ adjustGiottoMatrix <- function(gobject,
         batch2 = batch_column_2,
         covariates = covariates
     )
+    
+    adjusted_matrix <- Matrix::Matrix(adjusted_matrix)
 
     if (return_gobject == TRUE) {
         adjusted_matrix <- create_expr_obj(
-            name = update_slot,
+            name = name,
             exprMat = adjusted_matrix,
             spat_unit = spat_unit,
             feat_type = feat_type,

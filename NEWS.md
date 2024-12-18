@@ -6,9 +6,11 @@
 ## Enhancements
 * new `stats` param in `addStatistics()` to control which statistics are calculated.
 * `"area"` calculation added as an `addStatistics()` `stats` selection
+* `adjustGiottoMatrix()` now outputs a `Matrix` structure instead of a base `matrix`
 
 ## Changes
 * GiottoUtils req raised to 0.2.3
+* `adjustGiottoMatrix()` `update_slot` param deprecated in favor of `name`.
 
 # Giotto 4.1.6 (2024/12/09)
 
