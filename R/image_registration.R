@@ -1020,18 +1020,19 @@ registerImagesFIJI <- function(
 
 
 
-#' @title title Record landmarks by interactive selection
+#' @title Record landmarks by interactive selection
 #' @name interactiveLandmarkSelection
-#' @description Record landmarks by interactive selection
-#' @param source_image the image to be plotted on the left, and landmarks will
+#' @description Interactively select manual paired landmarks.
+#' @param source the image to be plotted on the left, and landmarks will
 #' output in the first of the list. Input can be a ggplot object,
-#' a GiottoImage, or a character represent a path to a image
-#' @param target_image the image to be plotted on the right, and landmarks will
-#' output in the second of the list. Input can be a ggplot object, a
-#' GiottoImage, or a character represent a path to a image
-#'
-#' @returns a list of landmarks
-#'
+#' a `giottoLargeImage`-inheriting object, or a character filepath to an image
+#' @param target the image to be plotted on the right, and landmarks will
+#' output in the second of the list. Input can be a ggplot object,
+#' a `giottoLargeImage`-inheriting object, or a character filepath to an image
+#' @returns a list of 2 `data.frames` with columns x and y, designating paired
+#' sets of landmarks between list 1 (from source) and list 2 (from target)
+#' @seealso [calculateAffineMatrixFromLandmarks()]
+#' @md
 #' @export
 interactiveLandmarkSelection <- function(source, target) {
     GiottoUtils::package_check("shiny")
@@ -1215,34 +1216,63 @@ interactiveLandmarkSelection <- function(source, target) {
 
 
 
-#' @title Calculate a affine transformation matrix from two set of landmarks
+#' @title Calculate an affine transformation matrix from two sets of landmarks
 #' @name calculateAffineMatrixFromLandmarks
-#' @description calculate a affine transformation matrix from two set of
-#' landmarks
-#' @param source_df source landmarks, two columns, first column represent
-#' x coordinate and second column represent y coordinate.
-#' @param target_df target landmarks, two columns, first column represent
-#' x coordinate and second column represent y coordinate.
-#'
-#' @returns a 3 by 3 matrix with the third row close to (0,0,1)
-#'
+#' @description Calculate an affine transformation matrix from two sets of
+#' landmarks. Source is the item that is transformed to align to target. The
+#' The generated affine transformation matrix is the affine transform that
+#' defines this transformation.
+#' @param source,target `matrix` or `data.frame`-like. Source and target 
+#' landmarks provided as paired x (first) y (second) columns. 
+#' @returns a 3x3 `matrix` that defines an affine transform
+#' @md
+#' @seealso [interactiveLandmarkSelection()] [affine()]
+#' @examples
+#' m1 <- matrix(c(
+#'         4211.476, 4925.052,
+#'         5906.339, 4251.025,
+#'         4830.097, 3342.676,
+#'         5954.410, 3393.603
+#'     ),
+#'     4, 2, byrow = TRUE
+#' )
+#' 
+#' m2 <- matrix(c(
+#'         7218.570, -11999.111,
+#'         8647.143, -15008.278,
+#'         10150.203, -12953.273,
+#'         10172.141, -15008.059
+#'     ),
+#'     4, 2, byrow = TRUE
+#' )
+#' calculateAffineMatrixFromLandmarks(m1, m2)
 #' @export
-calculateAffineMatrixFromLandmarks <- function(source_df, target_df) {
-    source_landmarks_matrix <- as.matrix(source_df)
-    source_landmarks_matrix <- cbind(
-        source_landmarks_matrix, rep(1, nrow(source_landmarks_matrix))
-    )
-    ## Create landmark matrix for the target image
-    target_landmarks_matrix <- as.matrix(target_df)
-    target_landmarks_matrix <- cbind(
-        target_landmarks_matrix, rep(1, nrow(target_landmarks_matrix))
-    )
-    ## Compute the affine matrix
-    source_dp <- t(source_landmarks_matrix) %*% source_landmarks_matrix
-    source_target_dp <- t(source_landmarks_matrix) %*% target_landmarks_matrix
+calculateAffineMatrixFromLandmarks <- function(source, target) {
+    src <- as.matrix(source)
+    tgt <- as.matrix(target)
+    
+    # Compute centroids
+    source_centroid <- colMeans(src)
+    target_centroid <- colMeans(tgt)
+    
+    # Center the points
+    source_centered <- sweep(src, 2, source_centroid)
+    target_centered <- sweep(tgt, 2, target_centroid)
+    
+    # Compute 2x2 transformation
+    source_dp <- t(source_centered) %*% source_centered
+    source_target_dp <- t(source_centered) %*% target_centered
     source_dp_inv <- solve(source_dp)
-    Affine_matrix <- t(source_dp_inv %*% source_target_dp)
-    return(Affine_matrix)
+    A <- t(source_dp_inv %*% source_target_dp)
+    
+    # Compute translation
+    xyshift <- target_centroid - (A %*% source_centroid)
+    
+    # Build 3x3 affine matrix
+    affine_mtx <- cbind(A, xyshift)
+    affine_mtx <- rbind(affine_mtx, c(0, 0, 1))
+    
+    return(affine_mtx)
 }
 
 
