@@ -6,8 +6,7 @@
 
 <!-- badges: start -->
 
-[![License: GPL
-v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://tlo.mit.edu/understand-ip/exploring-mit-open-source-license-comprehensive-guide)
 ![Last
 Commit](https://badgen.net/github/last-commit/drieslab/Giotto/suite)
 ![Commits Since
