@@ -3,6 +3,9 @@
 ## Breaking Changes
 * Param naming changes for segmentation wrapper functions `doMesmerSegmentation()`, `doCellposeSegmentation()` `doStardistSegmentation()`
 
+## Bug fixes
+* `callSpdep()` should also automatically convert *Matrix* classes to `listw`
+
 ## Enhancements
 * new `stats` param in `addStatistics()` to control which statistics are calculated.
 * `"area"` calculation added as an `addStatistics()` `stats` selection
@@ -11,6 +14,7 @@
 ## Changes
 * GiottoUtils req raised to 0.2.3
 * `adjustGiottoMatrix()` `update_slot` param deprecated in favor of `name`.
+
 
 # Giotto 4.1.6 (2024/12/09)
 
