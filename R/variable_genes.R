@@ -108,7 +108,7 @@
     # NSE vars
     var <- selected <- NULL
 
-    if (isTRUE(use_parallel)) {
+    if (!isTRUE(use_parallel)) {
         test <- apply(X = scaled_matrix, MARGIN = 1, FUN = function(x) var(x))
     } else {
         test <- future.apply::future_apply(

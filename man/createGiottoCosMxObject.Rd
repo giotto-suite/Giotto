@@ -5,41 +5,92 @@
 \title{Create Nanostring CosMx Giotto Object}
 \usage{
 createGiottoCosMxObject(
-  cosmx_dir = NULL,
-  data_to_use = c("all", "subcellular", "aggregate"),
-  remove_background_polygon = TRUE,
-  background_algo = c("range"),
-  remove_unvalid_polygons = TRUE,
+  cosmx_dir,
+  version = "default",
   FOVs = NULL,
-  instructions = NULL,
+  feat_type = c("rna", "negprobes"),
+  split_keyword = list("NegPrb"),
+  load_images = list(composite = "composite", overlay = "overlay"),
+  load_expression = FALSE,
+  load_cellmeta = FALSE,
+  fov_shifts_path = NULL,
+  transcript_path = NULL,
+  cell_labels_dir = NULL,
+  expression_path = NULL,
+  metadata_path = NULL,
   cores = determine_cores(),
-  verbose = TRUE
+  verbose = NULL,
+  instructions = NULL,
+  remove_unvalid_polygons = deprecated(),
+  data_to_use = deprecated(),
+  remove_background_polygon = deprecated(),
+  background_algo = deprecated(),
+  ...
 )
 }
 \arguments{
 \item{cosmx_dir}{full path to the exported cosmx directory}
 
-\item{data_to_use}{which type(s) of expression data to build the gobject with
-Default is \code{'all'} information available. \code{'subcellular'} loads
-the transcript coordinates only. \code{'aggregate'} loads the provided
-aggregated expression matrix.}
-
-\item{remove_background_polygon}{try to remove background polygon
-(default: FALSE)}
-
-\item{background_algo}{algorithm to remove background polygon}
-
-\item{remove_unvalid_polygons}{remove unvalid polygons (default: TRUE)}
+\item{version}{character. Version of CosMx output. Current selections are
+either "default", "v6", and "legacy" (for the NSCLC dataset).}
 
 \item{FOVs}{field of views to load (only affects subcellular data and images)}
+
+\item{feat_type}{character. feature type. Provide more than one value if
+using the \code{split_keyword} param. For each set of keywords to split by, an
+additional feat_type should be provided in the same order. Affects how
+the transcripts information is loaded. Helpful for separating out the
+QC probes. See details.}
+
+\item{split_keyword}{list of character vectors of keywords to split the
+transcripts based on their feat_ID. Keywords will be \code{grepl()}
+matched against the feature IDs information. See details.}
+
+\item{load_images}{named list of filepaths to directories. Loads the
+composite and overlay images by default.}
+
+\item{load_expression}{logical. (Default = FALSE) whether to load provided
+expression matrix}
+
+\item{load_cellmeta}{logical. (Default = TRUE) whether to load provided
+cell metadata}
+
+\item{fov_shifts_path}{Optional. Filepath to fov_positions_file}
+
+\item{transcript_path}{Optional. Filepath to desired transcripts file to
+load.}
+
+\item{cell_labels_dir}{Optional. Path to directory containing CellLabels
+images to load as polygons.}
+
+\item{expression_path}{Optional. Filepath to cell feature matrix to load.}
+
+\item{metadata_path}{Optional. Filepath to metadata file to load.}
+
+\item{cores}{nthreads to use when loading in cell metadata and transcripts}
+
+\item{verbose}{be verbose when building Giotto object}
 
 \item{instructions}{list of instructions or output result
 from \code{\link[GiottoClass]{createGiottoInstructions}}}
 
-\item{cores}{how many cores or threads to use to read data if paths are
-provided}
+\item{remove_unvalid_polygons}{deprecated. Now always done}
 
-\item{verbose}{be verbose when building Giotto object}
+\item{data_to_use}{deprecated. Not used}
+
+\item{remove_background_polygon}{deprecated. Now always done}
+
+\item{background_algo}{deprecated. Not used}
+
+\item{...}{
+  Arguments passed on to \code{\link[=importCosMx]{importCosMx}}
+  \describe{
+    \item{\code{slide}}{numeric. Slide number. Defaults to 1}
+    \item{\code{micron}}{logical. Whether to scale spatial information as micron
+instead of the default pixels}
+    \item{\code{px2um}}{numeric. Scalefactor from pixels to micron. Defaults to 0.12028
+based on `CosMx-ReadMe.html` info}
+  }}
 }
 \value{
 a giotto object
@@ -54,37 +105,30 @@ given a link to a cosmx output directory. It expects the following items
 within the directory where the \strong{bolded} portions are what this
 function matches against:
 \itemize{
-  \item{\strong{CellComposite} (folder of images)}
-  \item{\strong{CellLabels} (folder of images)}
-  \item{\strong{CellOverlay} (folder of images)}
-  \item{\strong{CompartmentLabels} (folder of images)}
-  \item{experimentname_\strong{exprMat_file}.csv (file)}
-  \item{experimentname_\strong{fov_positions_file}.csv (file)}
-  \item{experimentname_\strong{metadata_file}.csv (file)}
-  \item{experimentname_\strong{tx_file}.csv (file)}
+\item{\strong{CellComposite} (folder of images)}
+\item{\strong{CellLabels} (folder of images)}
+\item{\strong{CellOverlay} (folder of images)}
+\item{\strong{CompartmentLabels} (folder of images)}
+\item{experimentname_\strong{exprMat_file}.csv (file)}
+\item{experimentname_\strong{fov_positions_file}.csv (file)}
+\item{experimentname_\strong{metadata_file}.csv (file)}
+\item{experimentname_\strong{tx_file}.csv (file)}
 }
 
-[\strong{Workflows}] Workflow to use is accessed through the data_to_use
-param
-\itemize{
-  \item{'all' - loads and requires subcellular information from tx_file and
-  fov_positions_file
-  and also the existing aggregated information
-  (expression, spatial locations, and metadata)
-  from exprMat_file and metadata_file.}
-  \item{'subcellular' - loads and requires subcellular information from
-  tx_file and
-  fov_positions_file only.}
-  \item{'aggregate' - loads and requires the existing aggregate information
-  (expression, spatial locations, and metadata) from exprMat_file and
-  metadata_file.}
-}
+[\strong{feat_type and split_keyword}]
+Additional QC probe information is in the subcellular feature detections
+information and must be separated from the gene expression information
+during processing.
+The QC probes have prefixes that allow them to be selected from the rest of
+the feature IDs.
+Giotto uses \code{feat_type} and \code{split_keyword} params to select these QC
+probes out as separate feature types. See examples in
+\verb{[GiottoClass::createGiottoPoints]} for how this works.
 
-[\strong{Images}] Images in the default CellComposite, CellLabels,
-CompartmentLabels, and CellOverlay
-folders will be loaded as giotto largeImage objects in all workflows as
-long as they are available. Additionally, CellComposite images will be
-converted to giotto image objects, making plotting with
-these image objects more responsive when accessing them from a server.
+The Gene expression subset labeled as \code{rna} is accepted as the subset of
+feat_IDs that do not get matched to any of the \code{split_keywords}.
+
+[\strong{Images}] Images in the expected CellComposite and CellOverlay
+folders will be loaded as giotto largeImage objects by default.
 \code{\link{showGiottoImageNames}} can be used to see the available images.
 }

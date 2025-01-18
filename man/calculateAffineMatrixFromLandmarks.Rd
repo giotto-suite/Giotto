@@ -2,21 +2,43 @@
 % Please edit documentation in R/image_registration.R
 \name{calculateAffineMatrixFromLandmarks}
 \alias{calculateAffineMatrixFromLandmarks}
-\title{Calculate a affine transformation matrix from two set of landmarks}
+\title{Calculate an affine transformation matrix from two sets of landmarks}
 \usage{
-calculateAffineMatrixFromLandmarks(source_df, target_df)
+calculateAffineMatrixFromLandmarks(source, target)
 }
 \arguments{
-\item{source_df}{source landmarks, two columns, first column represent
-x coordinate and second column represent y coordinate.}
-
-\item{target_df}{target landmarks, two columns, first column represent
-x coordinate and second column represent y coordinate.}
+\item{source, target}{\code{matrix} or \code{data.frame}-like. Source and target
+landmarks provided as paired x (first) y (second) columns.}
 }
 \value{
-a 3 by 3 matrix with the third row close to (0,0,1)
+a 3x3 \code{matrix} that defines an affine transform
 }
 \description{
-calculate a affine transformation matrix from two set of
-landmarks
+Calculate an affine transformation matrix from two sets of
+landmarks. Source is the item that is transformed to align to target. The
+The generated affine transformation matrix is the affine transform that
+defines this transformation.
+}
+\examples{
+m1 <- matrix(c(
+        4211.476, 4925.052,
+        5906.339, 4251.025,
+        4830.097, 3342.676,
+        5954.410, 3393.603
+    ),
+    4, 2, byrow = TRUE
+)
+
+m2 <- matrix(c(
+        7218.570, -11999.111,
+        8647.143, -15008.278,
+        10150.203, -12953.273,
+        10172.141, -15008.059
+    ),
+    4, 2, byrow = TRUE
+)
+calculateAffineMatrixFromLandmarks(m1, m2)
+}
+\seealso{
+\code{\link[=interactiveLandmarkSelection]{interactiveLandmarkSelection()}} \code{\link[=affine]{affine()}}
 }

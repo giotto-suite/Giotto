@@ -11,8 +11,9 @@ adjustGiottoMatrix(
   expression_values = c("normalized", "scaled", "custom"),
   batch_columns = NULL,
   covariate_columns = NULL,
+  name = "custom",
   return_gobject = TRUE,
-  update_slot = c("custom")
+  update_slot = deprecated()
 )
 }
 \arguments{
@@ -30,9 +31,12 @@ batch (max = 2)}
 \item{covariate_columns}{metadata columns that represent covariates to
 regress out}
 
+\item{name}{character. Name to assign to adjusted matrix 
+(default = "custom")}
+
 \item{return_gobject}{boolean: return giotto object (default = TRUE)}
 
-\item{update_slot}{expression slot that will be updated (default = custom)}
+\item{update_slot}{deprecated.}
 }
 \value{
 giotto object or exprObj
