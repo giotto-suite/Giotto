@@ -1,9 +1,11 @@
-# Giotto 4.1.7
+# Giotto 4.2.0 (2024/01/17)
 
 ## Breaking Changes
+* Large changes to `createGiottoCosMxObject()` that better reflect NanoString provided outputs. 
 * Param naming changes for segmentation wrapper functions `doMesmerSegmentation()`, `doCellposeSegmentation()` `doStardistSegmentation()`
 
 ## Bug fixes
+* fix `importCosMx()` fov shifts file detection
 * `callSpdep()` should also automatically convert *Matrix* classes to `listw`
 
 ## Enhancements
