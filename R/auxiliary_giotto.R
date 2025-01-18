@@ -15,8 +15,10 @@
 #' batch (max = 2)
 #' @param covariate_columns metadata columns that represent covariates to
 #' regress out
+#' @param name character. Name to assign to adjusted matrix 
+#' (default = "custom")
 #' @param return_gobject boolean: return giotto object (default = TRUE)
-#' @param update_slot expression slot that will be updated (default = custom)
+#' @param update_slot deprecated.
 #' @returns giotto object or exprObj
 #' @details This function implements the \code{\link[limma]{removeBatchEffect}}
 #' function to remove known batch effects and to adjust expression values
@@ -32,15 +34,24 @@ adjustGiottoMatrix <- function(gobject,
     expression_values = c("normalized", "scaled", "custom"),
     batch_columns = NULL,
     covariate_columns = NULL,
+    name = "custom",
     return_gobject = TRUE,
-    update_slot = c("custom")) {
+    update_slot = deprecated()) {
     # Catch for both batch and covariate being null
-    if (is.null(batch_columns) & is.null(covariate_columns)) {
+    if (is.null(batch_columns) && is.null(covariate_columns)) {
         stop("Metadata for either different batches or covariates must be
             provided.")
     }
 
     package_check("limma")
+    
+    name <- deprecate_param(
+        update_slot, name, fun = "adjustGiottoMatrix", when = "4.1.7"
+    )
+    
+    name <- match.arg(
+        name, c("normalized", "scaled", "custom", name)
+    )
 
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
@@ -73,10 +84,6 @@ adjustGiottoMatrix <- function(gobject,
             stop("covariate column name(s) were not found in the cell metadata")
         }
     }
-
-    update_slot <- match.arg(
-        update_slot, c("normalized", "scaled", "custom", update_slot)
-    )
 
     # expression values to be used
     values <- match.arg(
@@ -123,10 +130,12 @@ adjustGiottoMatrix <- function(gobject,
         batch2 = batch_column_2,
         covariates = covariates
     )
+    
+    adjusted_matrix <- Matrix::Matrix(adjusted_matrix)
 
     if (return_gobject == TRUE) {
         adjusted_matrix <- create_expr_obj(
-            name = update_slot,
+            name = name,
             exprMat = adjusted_matrix,
             spat_unit = spat_unit,
             feat_type = feat_type,
@@ -585,21 +594,28 @@ addCellStatistics <- function(gobject,
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
+#' @param stats character. What statistics to add. 
+#' default = c("cell", "feature") See details
 #' @param expression_values expression values to use
 #' @param detection_threshold detection threshold to consider a feature detected
 #' @param return_gobject boolean: return giotto object (default = TRUE)
 #' @param verbose be verbose
 #' @returns giotto object if return_gobject = TRUE, else a list with results
-#' @details See \code{\link{addFeatStatistics}} and
-#' \code{\link{addCellStatistics}}
+#' @details
+#' # `stats` options
+#' "feature" - includes \code{\link{addFeatStatistics}} results
+#' "cell" - includes \code{\link{addCellStatistics}} results
+#' "area" - includes polygon areas
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
 #' addStatistics(g)
+#' @md
 #' @export
 addStatistics <- function(gobject,
     feat_type = NULL,
     spat_unit = NULL,
+    stats = c("feature", "cell", "area"),
     expression_values = c("normalized", "scaled", "custom"),
     detection_threshold = 0,
     return_gobject = TRUE,
@@ -614,38 +630,78 @@ addStatistics <- function(gobject,
         spat_unit = spat_unit,
         feat_type = feat_type
     )
-
-    # get feats statistics
-    feat_stats <- addFeatStatistics(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        expression_values = expression_values,
-        detection_threshold = detection_threshold,
-        return_gobject = return_gobject,
-        verbose = verbose
+    
+    stat_choices <- c("cell", "feature", "area")
+    stats <- match.arg(
+        tolower(stats), choices = stat_choices, several.ok = TRUE
     )
-
-    if (return_gobject == TRUE) {
-        gobject <- feat_stats
+    # expression values to be used
+    expression_values <- match.arg(
+        expression_values,
+        unique(c("normalized", "scaled", "custom", expression_values))
+    )
+    
+    if (any(c("feature", "cell") %in% stats)) {
+        vmsg(
+            .v = verbose,
+            sprintf("calculating statistics for \"%s\" expression",
+                    expression_values)
+        )
     }
 
-    # get cell statistics
-    cell_stats <- addCellStatistics(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        expression_values = expression_values,
-        detection_threshold = detection_threshold,
-        return_gobject = return_gobject,
-        verbose = verbose
-    )
+    feat_stats <- NULL
+    if ("feature" %in% stats) {
+        # get feats statistics
+        feat_stats <- addFeatStatistics(gobject,
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            expression_values = expression_values,
+            detection_threshold = detection_threshold,
+            return_gobject = return_gobject,
+            verbose = verbose
+        )
+        if (isTRUE(return_gobject)) {
+            gobject <- feat_stats
+        }
+    }
 
-    if (return_gobject == TRUE) {
-        gobject <- cell_stats
+    cell_stats <- NULL
+    if ("cell" %in% stats) {
+        # get cell statistics
+        cell_stats <- addCellStatistics(gobject,
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            expression_values = expression_values,
+            detection_threshold = detection_threshold,
+            return_gobject = return_gobject,
+            verbose = verbose
+        )
+        if (isTRUE(return_gobject)) {
+            gobject <- cell_stats
+        }
+    }
+    
+    poly_stats <- NULL
+    if (any("area" %in% stats)) {
+        poly_stats <- .add_poly_statistics(gobject,
+            spat_unit = spat_unit,
+            stats = stats,
+            return_gobject = return_gobject
+        )
+        if (isTRUE(return_gobject)) {
+            gobject <- poly_stats
+        }
+    }
+
+
+    if (isTRUE(return_gobject)) {
         return(gobject)
     } else {
-        return(feat_stats = feat_stats, cell_stats = cell_stats)
+        out <- list()
+        out$feat_stats <- feat_stats
+        out$cell_stats <- cell_stats
+        out$poly_stats <- poly_stats
+        return(out)
     }
 }
 
@@ -737,6 +793,53 @@ addFeatsPerc <- function(gobject,
     }
 }
 
+# this doesn't take much time
+.add_poly_statistics <- function(gobject,
+    spat_unit = "cell",
+    stats = c("area"),
+    return_gobject = TRUE
+) {
+    stat_choices <- c("area")
+    stats <- match.arg(
+        tolower(stats), choices = stat_choices, several.ok = TRUE
+    )
+    
+    poly_list <- gobject[["spatial_info", spat_unit]]
+    if (length(poly_list) > 0L) {
+        gpoly <- poly_list[[1L]] # extract from list
+    } else {
+        # if no polys available, return early
+        if (isTRUE(return_gobject)) return(gobject)
+        else return(data.table::data.table(cell_ID = spatIDs(gobject)))
+    }
+    sv <- gpoly[]
+    
+    # accumulate results values
+    # results order must be identical to the order of sv
+    all_res <- list(cell_ID = sv$poly_ID)
+    
+    if ("area" %in% stats) {
+        terra::crs(sv) <- "local"
+        a <- terra::expanse(sv, transform = FALSE)
+        all_res$area <- a
+    }
+    
+    res_dt <- do.call(data.table::data.table, all_res)
+    
+    if (isTRUE(return_gobject)) {
+        # append results if there are any
+        if (ncol(res_dt) > 1L) {
+            gobject <- addCellMetadata(gobject,
+                new_metadata = res_dt,
+                by_column = TRUE,
+                column_cell_ID = "cell_ID"
+            )
+        }
+        return(gobject)
+    } else {
+        return(res_dt)
+    }
+}
 
 
 

@@ -2,22 +2,26 @@
 % Please edit documentation in R/image_registration.R
 \name{interactiveLandmarkSelection}
 \alias{interactiveLandmarkSelection}
-\title{title Record landmarks by interactive selection}
+\title{Record landmarks by interactive selection}
 \usage{
 interactiveLandmarkSelection(source, target)
 }
 \arguments{
-\item{source_image}{the image to be plotted on the left, and landmarks will
+\item{source}{the image to be plotted on the left, and landmarks will
 output in the first of the list. Input can be a ggplot object,
-a GiottoImage, or a character represent a path to a image}
+a \code{giottoLargeImage}-inheriting object, or a character filepath to an image}
 
-\item{target_image}{the image to be plotted on the right, and landmarks will
-output in the second of the list. Input can be a ggplot object, a
-GiottoImage, or a character represent a path to a image}
+\item{target}{the image to be plotted on the right, and landmarks will
+output in the second of the list. Input can be a ggplot object,
+a \code{giottoLargeImage}-inheriting object, or a character filepath to an image}
 }
 \value{
-a list of landmarks
+a list of 2 \code{data.frames} with columns x and y, designating paired
+sets of landmarks between list 1 (from source) and list 2 (from target)
 }
 \description{
-Record landmarks by interactive selection
+Interactively select manual paired landmarks.
+}
+\seealso{
+\code{\link[=calculateAffineMatrixFromLandmarks]{calculateAffineMatrixFromLandmarks()}}
 }

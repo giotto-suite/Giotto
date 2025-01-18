@@ -175,7 +175,7 @@ callSpdep <- function(method, ...) {
         listw_arg <- methodparam$listw
 
         # Check if listw_arg is a matrix
-        if (is.matrix(listw_arg)) {
+        if (inherits(listw_arg, c("matrix", "Matrix"))) {
             # Convert the matrix to a listw object
             listw_arg <- spdep::mat2listw(listw_arg, style = "W")
         } else if (!inherits(listw_arg, "listw")) {

@@ -1,3 +1,23 @@
+# Giotto 4.2.0 (2024/01/17)
+
+## Breaking Changes
+* Large changes to `createGiottoCosMxObject()` that better reflect NanoString provided outputs. 
+* Param naming changes for segmentation wrapper functions `doMesmerSegmentation()`, `doCellposeSegmentation()` `doStardistSegmentation()`
+
+## Bug fixes
+* fix `importCosMx()` fov shifts file detection
+* fix micron scaling for `importCosMx()`
+* `callSpdep()` should also automatically convert *Matrix* classes to `listw`
+
+## Enhancements
+* new `stats` param in `addStatistics()` to control which statistics are calculated.
+* `"area"` calculation added as an `addStatistics()` `stats` selection
+* `adjustGiottoMatrix()` now outputs a `Matrix` structure instead of a base `matrix`
+
+## Changes
+* GiottoUtils req raised to 0.2.3
+* `adjustGiottoMatrix()` `update_slot` param deprecated in favor of `name`.
+
 
 # Giotto 4.1.6 (2024/12/09)
 
@@ -15,8 +35,8 @@
 * re-export of `dotPlot()` from GiottoVisuals
 
 ## Changes
-* GiottoClass req raised to 0.4.5
 * GiottoUtils req raised to 0.2.2
+* GiottoClass req raised to 0.4.5
 * GiottoVisuals req raised to 0.2.10
 
 

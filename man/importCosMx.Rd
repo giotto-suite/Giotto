@@ -9,7 +9,7 @@ importCosMx(
   slide = 1,
   fovs = NULL,
   micron = FALSE,
-  px2mm = 0.12028
+  px2um = 0.12028
 )
 }
 \arguments{
@@ -23,7 +23,7 @@ Otherwise, all FOVs will be loaded}
 \item{micron}{logical. Whether to scale spatial information as micron
 instead of the default pixels}
 
-\item{px2mm}{numeric. Scalefactor from pixels to mm. Defaults to 0.12028
+\item{px2um}{numeric. Scalefactor from pixels to micron. Defaults to 0.12028
 based on `CosMx-ReadMe.html` info}
 }
 \value{

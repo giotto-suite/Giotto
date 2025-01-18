@@ -5,9 +5,9 @@
 \title{perform cellpose segmentation}
 \usage{
 doCellposeSegmentation(
-  python_env = "giotto_cellpose",
-  image_dir,
+  input,
   mask_output,
+  python_env = "giotto_segmentation",
   channel_1 = 0,
   channel_2 = 0,
   model_name = "cyto3",
@@ -25,20 +25,21 @@ doCellposeSegmentation(
   anisotropy = NULL,
   stitch_threshold = 0,
   min_size = 15,
+  max_size_fraction = 0.4,
   niter = NULL,
   augment = FALSE,
-  tile = TRUE,
   tile_overlap = 0.1,
   bsize = 224,
+  dP_smooth = 0L,
   interp = TRUE,
   compute_masks = TRUE,
   progress = NULL,
-  verbose = TRUE,
+  verbose = NULL,
   ...
 )
 }
 \arguments{
-\item{image_dir}{character, required. Provide a path to a gray scale or a
+\item{input}{character, required. Provide a path to a gray scale or a
 three channel image.}
 
 \item{mask_output}{required. Provide a path to the output mask file.}
@@ -55,64 +56,95 @@ if you want to run cutomized trained model, place your model file in
 simultaneously on the GPU. Can make smaller or bigger depending on GPU
 memory usage. Defaults to 8.}
 
-\item{resample}{Cellpose Parameter}
+\item{resample}{(logical, optional) – run dynamics at original image size
+(will be slower but create more accurate boundaries). Defaults to True.}
 
-\item{channel_axis}{Cellpose Parameter}
+\item{channel_axis}{(int, optional) – channel axis in element of list x, or
+of np.ndarray x. if NULL, channels dimension is attempted to be
+automatically determined. Defaults to NULL.}
 
-\item{z_axis}{Cellpose Parameter}
+\item{z_axis}{(int, optional) – z axis in element of list x, or of
+np.ndarray x. if NULL, z dimension is attempted to be automatically
+determined. Defaults to NULL.}
 
-\item{normalize}{Cellpose Parameter}
+\item{normalize}{Logical or list. Controls image normalization:
+If TRUE, normalizes to 1st-99th percentile
+Can be a list with parameters:
+* lowhigh: Numeric vector c(low, high) for manual normalization values
+* sharpen: Numeric, image sharpening factor (1/4-1/8 of cell diameter in pixels)
+* normalize: Logical, whether to run normalization
+* percentile: Numeric vector c(low_perc, high_perc)
+* tile_norm: Integer, window size in pixels for tile normalization
+* norm3D: Logical, normalize across full z-stack
+Default: TRUE}
 
-\item{invert}{Cellpose Parameter}
+\item{invert}{Logical. Inverts pixel intensity before processing.
+Default: FALSE}
 
-\item{rescale}{Cellpose Parameter}
+\item{rescale}{Numeric. Resize factor for images.
+Default: NULL (sets to 1.0)}
 
-\item{diameter}{Cellpose Parameter}
+\item{diameter}{Numeric. Cell diameter for each image.
+Default: NULL (uses diam_mean or diam_train if available)}
 
-\item{flow_threshold}{Cellpose Parameter}
+\item{flow_threshold}{Numeric. Flow error threshold for cell retention (2D only).
+Default: 0.4}
 
-\item{cellprob_threshold}{Cellpose Parameter}
+\item{cellprob_threshold}{Numeric. Threshold for mask pixel retention.
+Default: 0.0}
 
-\item{do_3D}{Cellpose Parameter}
+\item{do_3D}{Logical. Enable 3D segmentation for 3D/4D inputs.
+Default: FALSE}
 
-\item{anisotropy}{Cellpose Parameter}
+\item{anisotropy}{Numeric. Z-axis rescaling factor for 3D segmentation.
+Default: NULL}
 
-\item{stitch_threshold}{Cellpose Parameter}
+\item{stitch_threshold}{Numeric. Threshold for 3D mask stitching (2D mode only).
+Default: 0.0}
 
-\item{min_size}{Cellpose Parameter}
+\item{min_size}{Integer. Minimum ROI size in pixels.
+Default: 15}
 
-\item{niter}{Cellpose Parameter}
+\item{max_size_fraction}{Numeric. Maximum mask size as fraction of image.
+Default: 0.4}
 
-\item{augment}{Cellpose Parameter}
+\item{niter}{Integer. Number of dynamics computation iterations.
+Default: NULL (set based on diameter)}
 
-\item{tile}{Cellpose Parameter}
+\item{augment}{Logical. Enable tile augmentation with overlapping.
+Default: FALSE}
 
-\item{tile_overlap}{Cellpose Parameter}
+\item{tile_overlap}{Numeric. Tile overlap fraction for flow computation.
+Default: 0.1}
 
-\item{bsize}{Cellpose Parameter}
+\item{bsize}{Integer. Block size for tiles (recommended: 224).
+Default: 224}
 
-\item{interp}{Cellpose Parameter}
+\item{dP_smooth}{Integer. Gaussian smoothing standard deviation for 3D flows.}
 
-\item{compute_masks}{Cellpose Parameter}
+\item{interp}{Logical. Enable interpolation for 2D dynamics.
+Default: TRUE}
 
-\item{progress}{Cellpose Parameter}
+\item{compute_masks}{Logical. Compute dynamics and return masks.
+Default: TRUE}
+
+\item{progress}{progress bar. Defaults to NULL}
 
 \item{python_path}{python environment with cellpose installed.
-default = "giotto_cellpose".}
+default = "giotto_segmentation".}
 }
 \value{
 No return variable, as this will write directly to output path
 provided.
 }
 \description{
-perform the Giotto Wrapper of cellpose segmentation. This is for a model
+Perform the Giotto Wrapper of cellpose segmentation. This is for a model
 inference to generate segmentation mask file from input image.
 main parameters needed
 }
 \examples{
-# example code
 doCellposeSegmentation(
-    image_dir = input_image,
+    input = input_image,
     mask_output = output, channel_1 = 2,
     channel_2 = 1, model_name = "cyto3", batch_size = 4
 )
