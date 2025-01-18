@@ -5,46 +5,46 @@
 \title{perform Mesmer(Deepcell) segmentation}
 \usage{
 doMesmerSegmentation(
-  Image_dir,
-  python_env = "giotto_segmentation",
-  Nucleus_channel = 1,
-  Memberane_channel = 2,
-  pixel_per_micron = 0.25,
+  input,
   mask_output,
-  verbose = F,
+  python_env = "giotto_segmentation",
+  nucleus_channel = 1,
+  membrane_channel = 2,
+  micron_scale = 0.25,
+  verbose = NULL,
   ...
 )
 }
 \arguments{
-\item{Image_dir}{character, required. Provide a path to a IF image.}
+\item{input}{character, required. Provide a path to a IF image.}
+
+\item{mask_output}{required. Provide a path to the output mask file.}
 
 \item{python_env}{python environment with deepcell installed.
 default = "giotto_segmentation". See deepcell official website for more details.}
 
-\item{Nucleus_channel}{channel number for Nuclei, default to 1}
+\item{nucleus_channel}{channel number for Nuclei, default to 1}
 
-\item{Memberane_channel}{channel number for cell boundary, default to 2}
+\item{membrane_channel}{channel number for cell boundary, default to 2}
 
-\item{pixel_per_micron}{physical micron size per pixel, default to 0.25}
-
-\item{mask_output}{required. Provide a path to the output mask file.}
+\item{micron_scale}{numeric. Multiplicative scalefactor to convert pixel
+dimensions to physical microns.}
 }
 \value{
 No return variable, as this will write directly to output path
 provided.
 }
 \description{
-perform the Giotto Wrapper of mesmer segmentation. This is for a model
+Perform the Giotto Wrapper of mesmer segmentation. This is for a model
 inference to generate segmentation mask file from input image.
 main parameters needed
 }
 \examples{
-# example code
 doMesmerSegmentation(
-    Image_dir = input_image,
-    mask_output = output, 
-    Nucleus_channel = 1,
-    Memberane_channel = 2,
-    pixel_per_micron = 0.5
+    input = input_image,
+    mask_output = output,
+    nucleus_channel = 1,
+    membrane_channel = 2,
+    micron_scale = 0.5
 )
 }
