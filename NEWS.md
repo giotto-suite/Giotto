@@ -6,6 +6,7 @@
 
 ## Bug fixes
 * fix `importCosMx()` fov shifts file detection
+* fix micron scaling for `importCosMx()`
 * `callSpdep()` should also automatically convert *Matrix* classes to `listw`
 
 ## Enhancements
