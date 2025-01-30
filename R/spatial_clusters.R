@@ -231,6 +231,7 @@ identifyTMAcores <- function(
                 # determine sorted pairs of overlaps
                 apply(MARGIN = 2, sort) |>
                 t()
+            if (any(dim(ovlp) == 0)) ovlp <- NULL
             return(ovlp)
         })
         # combine test reps

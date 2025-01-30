@@ -1,3 +1,7 @@
+# Giotto 4.2.1
+## Bug fixes
+* fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
+
 # Giotto 4.2.0 (2024/01/17)
 
 ## Breaking Changes
