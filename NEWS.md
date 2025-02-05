@@ -1,4 +1,9 @@
-# Giotto 4.2.0 (2024/01/17)
+# Giotto 4.2.1 (2025/02/04)
+
+## Bug fixes
+* fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
+
+# Giotto 4.2.0 (2025/01/17)
 
 ## Breaking Changes
 * Large changes to `createGiottoCosMxObject()` that better reflect NanoString provided outputs. 
