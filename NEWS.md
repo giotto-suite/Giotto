@@ -1,3 +1,8 @@
+# Giotto 4.2.2
+
+## Changes
+* GiottoUtils req raised to 0.2.4
+
 # Giotto 4.2.1 (2025/02/04)
 
 ## Bug fixes

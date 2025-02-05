@@ -59,7 +59,7 @@ setMethod("show", signature("XeniumReader"), function(object) {
     # dir
     d <- object@xenium_dir
     if (length(d) > 0L) {
-        d <- abbrev_path(d)
+        d <- GiottoUtils::str_abbreviate(d)
         cat(pre["dir"], d, "\n")
     } else {
         cat(pre["dir"], "\n")
