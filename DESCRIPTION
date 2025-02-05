@@ -28,7 +28,7 @@ RoxygenNote: 7.3.2
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.4.5)
+    GiottoClass (>= 0.4.7)
 Imports:
     BiocParallel,
     BiocSingular,
