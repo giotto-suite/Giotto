@@ -1,3 +1,7 @@
+# Giotto 4.2.2
+
+
+
 # Giotto 4.2.1 (2025/02/04)
 
 ## Bug fixes
