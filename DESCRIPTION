@@ -38,7 +38,7 @@ Imports:
     ggraph,
     ggplot2 (>= 3.1.1),
     GiottoUtils (>= 0.2.4),
-    GiottoVisuals (>= 0.2.10),
+    GiottoVisuals (>= 0.2.12),
     igraph (>= 1.2.4.1),
     Matrix (>= 1.6-2),
     MatrixGenerics,
