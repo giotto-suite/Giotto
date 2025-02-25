@@ -1,12 +1,18 @@
-# Giotto 4.2.2
+# Giotto 4.2.1 (2025/02/04)
 
 ## Changes
 * GiottoUtils req raised to 0.2.4
 
-# Giotto 4.2.1 (2025/02/04)
-
 ## Bug fixes
 * fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
+* fix `createGiottoCosMxObject()` not passing `load_expression`, `load_cellmeta`, `load_transcripts` params to `importCosMx()`
+
+## Enhancements
+* `poly_pref` param for `createGiottoCosMxObject()` and `importCosMx()` to select between loading the mask images or the `polygons.csv` as polygon info. 
+* `image_negative_y` param for `createGiottoCosMxObject()` for toggling how images and polygons from mask images should be spatially mapped
+* `slide` param made more prominent in `createGiottoCosMxObject()`
+* `importCosMx()` now supports vectors of filepaths when provided to `$load_images()` and `$load_polys()`
+* `importCosMx()` Selected FOVs are now selected in `plot()`.
 
 # Giotto 4.2.0 (2025/01/17)
 

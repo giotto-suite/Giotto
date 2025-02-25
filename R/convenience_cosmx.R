@@ -10,6 +10,7 @@ setClass(
         fovs = "numeric",
         micron = "logical",
         px2um = "numeric",
+        poly_pref = "character",
         offsets = "ANY",
         calls = "list"
     ),
@@ -18,6 +19,7 @@ setClass(
         slide = 1,
         micron = FALSE,
         px2um = 0.12028, # from cosmx output help files
+        poly_pref = "mask",
         offsets = NULL,
         calls = list()
     )
@@ -27,7 +29,7 @@ setClass(
 setMethod("show", signature("CosmxReader"), function(object) {
     cat(sprintf("Giotto <%s>\n", "CosmxReader"))
     print_slots <- c("version", "dir", "slide", "fovs",
-                     "micron", "offsets", "funs")
+                     "micron", "poly_pref", "offsets", "funs")
     pre <- sprintf(
         "%s :", format(print_slots)
     )
@@ -58,6 +60,10 @@ setMethod("show", signature("CosmxReader"), function(object) {
     # micron scaling
     micron <- ifelse(object@micron, object@px2um, FALSE)
     cat(pre["micron"], micron, "\n")
+    
+    # poly preference
+    ppref <- object@poly_pref
+    cat(pre["poly_pref"], ppref, "\n")
 
     # offsets
     offs_status <- ifelse(nrow(object@offsets) > 0L, "found", "none")
@@ -89,7 +95,17 @@ setMethod(
         }
 
         plot(y ~ x, data = dat, asp = 1L, type = "n", ...)
-        text(y ~ x, data = dat, labels = dat$fov, cex = cex, ...)
+        if (length(x@fovs) == 0) {
+            text(y ~ x, data = dat, labels = dat$fov, cex = cex, ...)
+        } else {
+            fov_sel <- dat$fov %in% x@fovs
+            dat_grey <- dat[!fov_sel]
+            dat_black <- dat[fov_sel]
+            text(y ~ x, data = dat_grey, labels = dat_grey$fov, 
+                 cex = cex, col = "grey", ...)
+            text(y ~ x, data = dat_black, labels = dat_black$fov, 
+                 cex = cex, col = "black", ...)
+        }
     }
 )
 
@@ -114,7 +130,10 @@ setMethod(
 #' @param micron logical. Whether to scale spatial information as micron
 #' instead of the default pixels
 #' @param px2um numeric. Scalefactor from pixels to micron. Defaults to 0.12028
-#' based on `CosMx-ReadMe.html` info
+#' based on `CosMx-ReadMe.html` info. May be different depending on dataset.
+#' @param poly_pref character. Either "csv" (default) or "mask". Which format of
+#' data to load as polygon info. "csv" will use vector polygons from the
+#' `polygons.csv`. "mask" will load the mask images from `CellLabels` directory.
 #' @details
 #' Loading functions are generated after the `cosmx_dir` is added.
 #' Transcripts, expression, and metadata loading are all expected to be done
@@ -128,7 +147,8 @@ setMethod(
 #'
 #' \dontrun{
 #' # Set the cosmx_dir and fov parameters
-#' reader$cosmx_dir <- "path to cosmx dir"
+#' path <- "path/to/cosmx/dir"
+#' reader$cosmx_dir <- path
 #' reader$fov <- c(1, 4)
 #'
 #' plot(reader) # displays FOVs (top left corner) in px scale.
@@ -137,6 +157,19 @@ setMethod(
 #' polys <- reader$load_polys()
 #' tx <- reader$load_transcripts()
 #' imgs <- reader$load_images()
+#' 
+#' # polygons (mask) and images loading supports multiple filepaths
+#' # This can be useful when loading AtoMx outputs
+#' polys <- reader$load_polys(path = list.files(path,
+#'     pattern = "CellLabels_F",
+#'     recursive = TRUE,
+#'     full.names = TRUE
+#' ))
+#' imgs <- reader$load_images(path = list.files(path,
+#'     pattern = "Composite_F",
+#'     recursive = TRUE,
+#'     full.names = TRUE
+#' ))
 #'
 #' # Create a `giotto` object and add the loaded data
 #' g <- giotto()
@@ -147,7 +180,7 @@ setMethod(
 #' }
 #' @export
 importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
-    micron = FALSE, px2um = 0.12028) {
+    micron = FALSE, px2um = 0.12028, poly_pref = "mask") {
     # get params
     a <- list(Class = "CosmxReader")
     if (!is.null(cosmx_dir)) {
@@ -159,6 +192,7 @@ importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
     a$slide <- slide
     a$micron <- micron
     a$px2um <- px2um
+    a$poly_pref <- poly_pref
 
     do.call(new, args = a)
 }
@@ -166,7 +200,7 @@ importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
 # * init ####
 setMethod(
     "initialize", signature("CosmxReader"),
-    function(.Object, cosmx_dir, version, slide, fovs, micron, px2um) {
+    function(.Object, cosmx_dir, version, slide, fovs, micron, px2um, poly_pref) {
         # provided params (if any)
         if (!missing(cosmx_dir)) {
             checkmate::assert_directory_exists(cosmx_dir)
@@ -190,6 +224,9 @@ setMethod(
         if (!missing(px2um)) {
             .Object@px2um <- px2um
         }
+        if (!missing(poly_pref)) {
+            .Object@poly_pref <- poly_pref
+        }
 
         # NULL case
         if (length(.Object@cosmx_dir) == 0) {
@@ -210,6 +247,7 @@ setMethod(
         meta_path <- .cosmx_detect("metadata_file")
         tx_path <- .cosmx_detect("tx_file")
         mask_dir <- .cosmx_detect("CellLabels")
+        poly_path <- .cosmx_detect("polygons")
         expr_path <- .cosmx_detect("exprMat_file")
         composite_img_dir <- .cosmx_detect("CellComposite")
         overlay_img_dir <- .cosmx_detect("CellOverlay")
@@ -291,8 +329,19 @@ setMethod(
             "legacy" = 1
         )
         
-        mask_fun <- function(
-        path = mask_dir,
+        if (!is.null(mask_dir) && !is.null(poly_path)) {
+            poly_use_path <- switch(.Object@poly_pref,
+                "csv" = poly_path,
+                "mask" = mask_dir
+            )
+        } else if (!is.null(poly_path)) {
+            poly_use_path <- poly_path
+        } else if (!is.null(mask_dir)) {
+            poly_use_path <- mask_dir
+        }
+        
+        poly_fun <- function(
+        path = poly_use_path,
         # VERTICAL FLIP + NO VERTICAL SHIFT
         flip_vertical = TRUE,
         flip_horizontal = FALSE,
@@ -314,7 +363,7 @@ setMethod(
                 verbose = verbose
             )
         }
-        .Object@calls$load_polys <- mask_fun
+        .Object@calls$load_polys <- poly_fun
 
 
         # expression load call
@@ -400,13 +449,16 @@ setMethod(
             composite = "composite",
             overlay = "overlay"
         ),
+        image_negative_y = NULL,
         load_expression = FALSE,
         load_cellmeta = TRUE,
+        load_transcripts = TRUE,
         instructions = NULL,
         cores = determine_cores(),
         verbose = NULL) {
             load_expression <- as.logical(load_expression)
             load_cellmeta <- as.logical(load_cellmeta)
+            load_transcripts <- as.logical(load_transcripts)
 
             if (!is.null(load_images)) {
                 checkmate::assert_list(load_images)
@@ -425,22 +477,33 @@ setMethod(
             }
 
             # transcripts
-            tx_list <- funs$load_transcripts(
-                path = transcript_path,
-                feat_type = feat_type,
-                split_keyword = split_keyword,
-                cores = cores,
-                verbose = verbose
-            )
-            for (tx in tx_list) {
-                g <- setGiotto(g, tx)
+            if (isTRUE(load_transcripts)) {
+                tx_list <- funs$load_transcripts(
+                    path = transcript_path,
+                    feat_type = feat_type,
+                    split_keyword = split_keyword,
+                    cores = cores,
+                    verbose = verbose
+                )
+                for (tx in tx_list) {
+                    g <- setGiotto(g, tx)
+                }
             }
 
             # polys
-            polys <- funs$load_polys(
+            poly_args <- list(
                 path = cell_labels_dir,
                 verbose = FALSE
             )
+            if (!is.null(image_negative_y)) {
+                # negative_y override
+                if (isTRUE(image_negative_y)) {
+                    poly_args$shift_vertical_step <- FALSE
+                } else {
+                    poly_args$shift_vertical_step <- 1
+                }
+            }
+            polys <- do.call(funs$load_polys, poly_args)
             g <- setGiotto(g, polys, verbose = verbose)
 
             # images
@@ -452,11 +515,16 @@ setMethod(
                 imglist <- list()
                 dirnames <- names(load_images)
                 for (imdir_i in seq_along(load_images)) {
-                    dir_imgs <- funs$load_images(
+                    img_args <- list(
                         path = load_images[[imdir_i]],
                         img_type = dirnames[[imdir_i]],
                         verbose = verbose
                     )
+                    if (!is.null(image_negative_y)) {
+                        # negative_y override
+                        img_args$negative_y <- image_negative_y
+                    }
+                    dir_imgs <- do.call(funs$load_images, img_args)
                     imglist <- c(imglist, dir_imgs)
                 }
                 g <- addGiottoLargeImage(g, largeImages = imglist, 
@@ -516,7 +584,7 @@ setMethod(
 #' @export
 setMethod("$", signature("CosmxReader"), function(x, name) {
     basic_info <- c("cosmx_dir", "version", "slide", "fovs", 
-                    "micron", "px2um", "offsets")
+                    "micron", "px2um", "poly_pref", "offsets")
     if (name %in% basic_info) {
         return(methods::slot(x, name))
     }
@@ -526,7 +594,9 @@ setMethod("$", signature("CosmxReader"), function(x, name) {
 
 #' @export
 setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
-    basic_info <- c("cosmx_dir", "version", "slide", "fovs", "micron", "px2um")
+    basic_info <- c(
+        "cosmx_dir", "version", "slide", "fovs", "micron", "px2um", "poly_pref"
+    )
     if (name %in% basic_info) {
         methods::slot(x, name) <- value
         return(initialize(x))
@@ -548,7 +618,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @export
 `.DollarNames.CosmxReader` <- function(x, pattern) {
     dn <- c("cosmx_dir", "version", "slide", "fovs",
-            "micron", "px2um", "offsets")
+            "micron", "px2um", "poly_pref", "offsets")
     if (length(methods::slot(x, "calls")) > 0) {
         dn <- c(dn, paste0(names(methods::slot(x, "calls")), "()"))
     }
@@ -609,11 +679,17 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     vmsg(.v = verbose, "loading feature detections...")
     vmsg(.v = verbose, .is_debug = TRUE, path)
-
-    tx <- data.table::fread(input = path, nThread = cores, drop = dropcols)
-    if (!is.null(fovs)) {
-        # subset to only needed FOVs
-        tx <- tx[fov %in% as.numeric(fovs), ]
+    
+    if (is.null(fovs)) {
+        tx <- data.table::fread(input = path, nThread = cores, drop = dropcols)
+    } else {
+        tx <- read_colmatch(
+            file = path, 
+            col = "fov", 
+            sep = ",", 
+            values_to_match = fovs,
+            drop = dropcols
+        )
     }
 
     # micron scaling if desired
@@ -730,41 +806,39 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 }
 
 .cosmx_imgname_fovparser <- function(path) {
-    im_names <- list.files(path)
+    if (length(path) == 1) im_names <- list.files(path)
+    else im_names <- path
     fovs <- as.numeric(sub(".*F(\\d+)\\..*", "\\1", im_names))
     if (any(is.na(fovs))) {
         warning(wrap_txt(
             "Images to load should be sets of images/fov in subdirectories.
             No other files should be present."
-        ))
+        ), call. = FALSE)
+        fovs <- fovs[!is.na(fovs)]
     }
     return(fovs)
 }
 
-.cosmx_poly <- function(
-        path,
-        slide = 1,
-        fovs = NULL,
-        name = "cell",
-        # VERTICAL FLIP + NO SHIFTS
-        flip_vertical = TRUE,
-        flip_horizontal = FALSE,
-        shift_vertical_step = FALSE,
-        shift_horizontal_step = FALSE,
-        remove_background_polygon = TRUE,
-        micron = FALSE,
-        px2um = 0.12028,
-        offsets,
-        verbose = NULL) {
+.cosmx_poly_maskimage <- function(path,
+    slide = 1,
+    fovs = NULL,
+    name = "cell",
+    # VERTICAL FLIP + NO SHIFTS
+    flip_vertical = TRUE,
+    flip_horizontal = FALSE,
+    shift_vertical_step = FALSE,
+    shift_horizontal_step = FALSE,
+    remove_background_polygon = TRUE,
+    micron = FALSE,
+    px2um = 0.12028,
+    offsets,
+    verbose = NULL,
+    ...) {
     # NSE params
     f <- x <- y <- NULL
-
-    if (missing(path)) {
-        stop(wrap_txt(
-            "No path to polys subdirectory provided or auto-detected"
-        ), call. = FALSE)
-    }
-
+    
+    path <- normalizePath(path)
+    
     GiottoUtils::vmsg(.v = verbose, "loading segmentation masks...")
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
@@ -792,7 +866,12 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         p <- pbar(along = fovs)
 
         gpolys <- lapply(fovs, function(f) {
-            segfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            if (length(path) == 1L) {
+                segfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            } else {
+                segfile <- path[grepl(pattern = sprintf("F%03d", f), path)]
+            }
+            
             # naming format: c_SLIDENUMBER_FOVNUMBER_CELLID
             mask_params$ID_fmt <- paste0(
                 sprintf("c_%d_%d_", slide, f), "%d"
@@ -824,6 +903,84 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     if (length(gpolys) > 1L) {
         gpolys <- do.call(rbind, args = gpolys)
+    }
+    
+    return(gpolys)
+}
+
+.cosmx_poly_csv <- function(
+        path,
+        slide = 1,
+        fovs = NULL,
+        name = "cell",
+        micron = FALSE,
+        px2um = 0.12028,
+        make_valid = TRUE,
+        # cellID is an integer identifier per FOV
+        # x_local_px and y_local_px are local xy coords per FOV
+        dropcols = c("x_local_px", "y_local_px"),
+        verbose = NULL,
+        ...) {
+    
+    GiottoUtils::vmsg(.v = verbose, "loading segmentation polygons...")
+    vmsg(.v = verbose, .is_debug = TRUE, path)
+    
+    checkmate::assert_file_exists(path)
+    
+    if (is.null(fovs)) {
+        dt <- data.table::fread(path, drop = dropcols)
+    } else {
+        fovs <- as.integer(fovs)
+        dt <- GiottoUtils::read_colmatch(
+            file = path, 
+            col = "fov", 
+            values_to_match = fovs, 
+            verbose = verbose,
+            drop = dropcols
+        )
+    }
+
+    dt[, cell := sprintf("c_%d_%d_%d", as.integer(slide), fov, cellID)]
+    dt[, cellID := NULL]
+
+    data.table::setcolorder(dt, c("x_global_px", "y_global_px", "cell", "fov"))
+    createGiottoPolygon(dt, make_valid = make_valid, verbose = FALSE)
+}
+
+.cosmx_poly <- function(
+        path,
+        slide = 1,
+        fovs = NULL,
+        name = "cell",
+        # VERTICAL FLIP + NO SHIFTS
+        flip_vertical = TRUE,
+        flip_horizontal = FALSE,
+        shift_vertical_step = FALSE,
+        shift_horizontal_step = FALSE,
+        remove_background_polygon = TRUE,
+        micron = FALSE,
+        px2um = 0.12028,
+        offsets,
+        verbose = NULL,
+        ...) {
+    
+    a <- GiottoUtils::get_args_list(...)
+
+    if (missing(path)) {
+        c("No path to mask image subdirectory or polygons csv", 
+          "provided or auto-detected") %>%
+            wrap_txt() %>%
+            stop(call. = FALSE)
+    }
+    
+    if (length(path) > 1L) {
+        gpolys <- do.call(.cosmx_poly_maskimage, args = a)
+    } else if (dir.exists(path)) {
+        gpolys <- do.call(.cosmx_poly_maskimage, args = a)
+    } else if ("csv" %in% GiottoUtils::file_extension(path)) {
+        gpolys <- do.call(.cosmx_poly_csv, args = a)
+    } else {
+        "importCosMx - load_polys(): unrecognized path input"
     }
 
     # never return lists. Only the single merged gpoly
@@ -962,23 +1119,23 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     return(expr_list)
 }
 
-.cosmx_image <- function(
-        path,
-        fovs = NULL,
-        img_type = "composite",
-        img_name_fmt = paste(img_type, "_fov%03d"),
-        negative_y = FALSE,
-        flip_vertical = FALSE,
-        flip_horizontal = FALSE,
-        micron = FALSE,
-        px2um = 0.12028,
-        offsets,
-        verbose = NULL) {
+.cosmx_image <- function(path,
+    fovs = NULL,
+    img_type = "composite",
+    img_name_fmt = paste(img_type, "_fov%03d"),
+    negative_y = FALSE,
+    flip_vertical = FALSE,
+    flip_horizontal = FALSE,
+    micron = FALSE,
+    px2um = 0.12028,
+    offsets,
+    verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to image subdirectory to load provided or auto-detected"
         ), call. = FALSE)
     }
+    path <- normalizePath(path)
 
     GiottoUtils::vmsg(.v = verbose, sprintf("loading %s images...", img_type))
     vmsg(.v = verbose, .is_debug = TRUE, path)
@@ -990,7 +1147,12 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         p <- pbar(along = fovs)
 
         gimg_list <- lapply(fovs, function(f) {
-            imgfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            if (length(path) == 1) {
+                imgfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            } else {
+                imgfile <- path[grepl(pattern = sprintf("F%03d", f), path)]
+            }
+
             img_name <- sprintf(img_name_fmt, f)
 
             gimg <- createGiottoLargeImage(
@@ -1038,11 +1200,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @title Create Nanostring CosMx Giotto Object
 #' @name createGiottoCosMxObject
 #' @description Given the path to a CosMx experiment directory, creates a Giotto
-#' object.
+#' object. For lower level control over loading, please see [importCosMx()]
 #' @param cosmx_dir full path to the exported cosmx directory
 #' @param version character. Version of CosMx output. Current selections are
 #' either "default", "v6", and "legacy" (for the NSCLC dataset).
-#' @param FOVs field of views to load (only affects subcellular data and images)
+#' @param FOVs field of views to load.
+#' @param slide numeric. Slide number. Defaults to 1. This must be correct so
+#' that cell_IDs will match across polygons and (if loaded) expression matrix.
 #' @param feat_type character. feature type. Provide more than one value if
 #' using the `split_keyword` param. For each set of keywords to split by, an
 #' additional feat_type should be provided in the same order. Affects how
@@ -1057,6 +1221,14 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' expression matrix
 #' @param load_cellmeta logical. (Default = TRUE) whether to load provided
 #' cell metadata
+#' @param load_transcripts logical. (Default = TRUE) whether to load provided
+#' transcript detections
+#' @param poly_pref character. "mask" or "csv". Determines whether to load in
+#' the polygons from the mask images (default) or the csv polygons file.
+#' @param image_negative_y Optional logical. Whether images are assumed to map
+#' to positive or negative y values before fov shifts are applied. Affects
+#' images (and polygons generated from masks). This overrides any settings from
+#' selecting `version`.
 #' @param fov_shifts_path Optional. Filepath to fov_positions_file
 #' @param transcript_path Optional. Filepath to desired transcripts file to
 #' load.
@@ -1070,7 +1242,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @param background_algo deprecated. Not used
 #' @param remove_unvalid_polygons deprecated. Now always done
 #' @inheritParams GiottoClass::createGiottoObjectSubcellular
-#' @inheritDotParams importCosMx -cosmx_dir -fovs
+#' @inheritDotParams importCosMx -cosmx_dir -fovs -slide
 #' @returns a giotto object
 #' @details
 #' \[**Expected Directory**\] This function generates a giotto object when
@@ -1086,7 +1258,11 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #'   \item{experimentname_\strong{fov_positions_file}.csv (file)}
 #'   \item{experimentname_\strong{metadata_file}.csv (file)}
 #'   \item{experimentname_\strong{tx_file}.csv (file)}
+#'   \item{experimentname-\strong{polygons}.csv (file)}
 #' }
+#' 
+#' The subdirectories should contain only the image files in order to be loaded
+#' correctly.
 #'
 #' \[**feat_type and split_keyword**\]
 #' Additional QC probe information is in the subcellular feature detections
@@ -1103,19 +1279,59 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #'
 #' \[**Images**\] Images in the expected CellComposite and CellOverlay
 #' folders will be loaded as giotto largeImage objects by default.
+#' 
+#' \[**Polygons**\] Some outputs provide both the mask images and the 
+#' `polygons.csv`. Giotto uses the mask images by default to convert to polygons
+#' info. However, if only the `polygons.csv` file is present or 
+#' `poly_pref = csv` is set, then the csv file will be used instead. One thing
+#' to watch out for when loading from the `csv` is that in some datasets, the 
+#' polygons preferably should not overlap each other. Giotto is not fully 
+#' compatible with overlapping annotations. It also opens up the possibility 
+#' of double counting transcripts. Polygon overlaps do not appear to be an
+#' issue in the most recent outputs.
+#' 
+#' \[**Spatial Alignment Issues**\] Different versions of the CosMx output have
+#' changed how images (and polygons generated from masks) should be aligned 
+#' relative to the vector information (transcript detections). The `version`
+#' param affects how the images are mapped by default. `image_negative_y` is
+#' a toggle that overrides the image mapping style when an appropriate `version`
+#' is difficult to determine.
 #' \code{\link{showGiottoImageNames}} can be used to see the available images.
 #' @md
+#' @examples
+#' \dontrun{
+#' f <- "file path to cosmx flatfile output directory"
+#' createGiottoCosMxObject(f)
+#' 
+#' # load older CosMx format
+#' createGiottoCosMxObject(f, version = "legacy")
+#' 
+#' # force images and mask image polygons to shift up one image height
+#' createGiottoCosMxObject(f, image_negative_y = FALSE)
+#' 
+#' # load only aggregated data
+#' createGiottoCosMxObject(f,
+#'     load_cellmeta = TRUE,
+#'     load_expression = TRUE,
+#'     load_transcripts = FALSE
+#'     # data filepaths not needed unless they are not in expected locations
+#' )
+#' }
 #' @export
 createGiottoCosMxObject <- function(
         cosmx_dir,
         version = "default",
         FOVs = NULL,
+        slide = 1,
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
         load_images = list(composite = "composite", 
                            overlay = "overlay"),
         load_expression = FALSE,
-        load_cellmeta = FALSE,
+        load_cellmeta = TRUE,
+        load_transcripts = TRUE,
+        poly_pref = "mask",
+        image_negative_y = NULL,
         
         # optional filepaths
         fov_shifts_path = NULL,
@@ -1154,7 +1370,11 @@ createGiottoCosMxObject <- function(
 
     
     # setup importer
-    x <- importCosMx(cosmx_dir = cosmx_dir, fovs = FOVs, ...)
+    x <- importCosMx(cosmx_dir,
+        fovs = FOVs,
+        slide = slide,
+        poly_pref = poly_pref,
+        ...)
     x$version <- version
     if (!is.null(fov_shifts_path)) {
         checkmate::assert_file_exists(fov_shifts_path)
@@ -1166,6 +1386,10 @@ createGiottoCosMxObject <- function(
         feat_type = feat_type,
         split_keyword = split_keyword,
         load_images = load_images,
+        load_expression = load_expression,
+        load_cellmeta = load_cellmeta,
+        load_transcripts = load_transcripts,
+        image_negative_y = image_negative_y,
         instructions = instructions,
         cores = cores,
         verbose = verbose

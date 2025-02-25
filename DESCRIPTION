@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.2.2
+Version: 4.2.1
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -28,7 +28,7 @@ RoxygenNote: 7.3.2
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.4.5)
+    GiottoClass (>= 0.4.7)
 Imports:
     BiocParallel,
     BiocSingular,
@@ -38,7 +38,7 @@ Imports:
     ggraph,
     ggplot2 (>= 3.1.1),
     GiottoUtils (>= 0.2.4),
-    GiottoVisuals (>= 0.2.10),
+    GiottoVisuals (>= 0.2.12),
     igraph (>= 1.2.4.1),
     Matrix (>= 1.6-2),
     MatrixGenerics,
