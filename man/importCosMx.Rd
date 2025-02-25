@@ -9,7 +9,8 @@ importCosMx(
   slide = 1,
   fovs = NULL,
   micron = FALSE,
-  px2um = 0.12028
+  px2um = 0.12028,
+  poly_pref = "mask"
 )
 }
 \arguments{
@@ -24,7 +25,11 @@ Otherwise, all FOVs will be loaded}
 instead of the default pixels}
 
 \item{px2um}{numeric. Scalefactor from pixels to micron. Defaults to 0.12028
-based on `CosMx-ReadMe.html` info}
+based on `CosMx-ReadMe.html` info. May be different depending on dataset.}
+
+\item{poly_pref}{character. Either "csv" (default) or "mask". Which format of
+data to load as polygon info. "csv" will use vector polygons from the
+`polygons.csv`. "mask" will load the mask images from `CellLabels` directory.}
 }
 \value{
 CosmxReader object
