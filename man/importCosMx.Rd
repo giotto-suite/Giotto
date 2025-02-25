@@ -57,7 +57,8 @@ reader <- importCosMx()
 
 \dontrun{
 # Set the cosmx_dir and fov parameters
-reader$cosmx_dir <- "path to cosmx dir"
+path <- "path/to/cosmx/dir"
+reader$cosmx_dir <- path
 reader$fov <- c(1, 4)
 
 plot(reader) # displays FOVs (top left corner) in px scale.
@@ -66,6 +67,19 @@ plot(reader) # displays FOVs (top left corner) in px scale.
 polys <- reader$load_polys()
 tx <- reader$load_transcripts()
 imgs <- reader$load_images()
+
+# polygons (mask) and images loading supports multiple filepaths
+# This can be useful when loading AtoMx outputs
+polys <- reader$load_polys(path = list.files(path,
+    pattern = "CellLabels_F",
+    recursive = TRUE,
+    full.names = TRUE
+))
+imgs <- reader$load_images(path = list.files(path,
+    pattern = "Composite_F",
+    recursive = TRUE,
+    full.names = TRUE
+))
 
 # Create a `giotto` object and add the loaded data
 g <- giotto()

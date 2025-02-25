@@ -147,7 +147,8 @@ setMethod(
 #'
 #' \dontrun{
 #' # Set the cosmx_dir and fov parameters
-#' reader$cosmx_dir <- "path to cosmx dir"
+#' path <- "path/to/cosmx/dir"
+#' reader$cosmx_dir <- path
 #' reader$fov <- c(1, 4)
 #'
 #' plot(reader) # displays FOVs (top left corner) in px scale.
@@ -156,6 +157,19 @@ setMethod(
 #' polys <- reader$load_polys()
 #' tx <- reader$load_transcripts()
 #' imgs <- reader$load_images()
+#' 
+#' # polygons (mask) and images loading supports multiple filepaths
+#' # This can be useful when loading AtoMx outputs
+#' polys <- reader$load_polys(path = list.files(path,
+#'     pattern = "CellLabels_F",
+#'     recursive = TRUE,
+#'     full.names = TRUE
+#' ))
+#' imgs <- reader$load_images(path = list.files(path,
+#'     pattern = "Composite_F",
+#'     recursive = TRUE,
+#'     full.names = TRUE
+#' ))
 #'
 #' # Create a `giotto` object and add the loaded data
 #' g <- giotto()
@@ -792,13 +806,15 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 }
 
 .cosmx_imgname_fovparser <- function(path) {
-    im_names <- list.files(path)
+    if (length(path) == 1) im_names <- list.files(path)
+    else im_names <- path
     fovs <- as.numeric(sub(".*F(\\d+)\\..*", "\\1", im_names))
     if (any(is.na(fovs))) {
         warning(wrap_txt(
             "Images to load should be sets of images/fov in subdirectories.
             No other files should be present."
-        ))
+        ), call. = FALSE)
+        fovs <- fovs[!is.na(fovs)]
     }
     return(fovs)
 }
@@ -820,6 +836,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     ...) {
     # NSE params
     f <- x <- y <- NULL
+    
+    path <- normalizePath(path)
     
     GiottoUtils::vmsg(.v = verbose, "loading segmentation masks...")
     vmsg(.v = verbose, .is_debug = TRUE, path)
@@ -848,7 +866,12 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         p <- pbar(along = fovs)
 
         gpolys <- lapply(fovs, function(f) {
-            segfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            if (length(path) == 1L) {
+                segfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            } else {
+                segfile <- path[grepl(pattern = sprintf("F%03d", f), path)]
+            }
+            
             # naming format: c_SLIDENUMBER_FOVNUMBER_CELLID
             mask_params$ID_fmt <- paste0(
                 sprintf("c_%d_%d_", slide, f), "%d"
@@ -950,7 +973,9 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             stop(call. = FALSE)
     }
     
-    if (dir.exists(path)) {
+    if (length(path) > 1L) {
+        gpolys <- do.call(.cosmx_poly_maskimage, args = a)
+    } else if (dir.exists(path)) {
         gpolys <- do.call(.cosmx_poly_maskimage, args = a)
     } else if ("csv" %in% GiottoUtils::file_extension(path)) {
         gpolys <- do.call(.cosmx_poly_csv, args = a)
@@ -1094,23 +1119,23 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     return(expr_list)
 }
 
-.cosmx_image <- function(
-        path,
-        fovs = NULL,
-        img_type = "composite",
-        img_name_fmt = paste(img_type, "_fov%03d"),
-        negative_y = FALSE,
-        flip_vertical = FALSE,
-        flip_horizontal = FALSE,
-        micron = FALSE,
-        px2um = 0.12028,
-        offsets,
-        verbose = NULL) {
+.cosmx_image <- function(path,
+    fovs = NULL,
+    img_type = "composite",
+    img_name_fmt = paste(img_type, "_fov%03d"),
+    negative_y = FALSE,
+    flip_vertical = FALSE,
+    flip_horizontal = FALSE,
+    micron = FALSE,
+    px2um = 0.12028,
+    offsets,
+    verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to image subdirectory to load provided or auto-detected"
         ), call. = FALSE)
     }
+    path <- normalizePath(path)
 
     GiottoUtils::vmsg(.v = verbose, sprintf("loading %s images...", img_type))
     vmsg(.v = verbose, .is_debug = TRUE, path)
@@ -1122,22 +1147,22 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         p <- pbar(along = fovs)
 
         gimg_list <- lapply(fovs, function(f) {
-            imgfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            if (length(path) == 1) {
+                imgfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            } else {
+                imgfile <- path[grepl(pattern = sprintf("F%03d", f), path)]
+            }
+
             img_name <- sprintf(img_name_fmt, f)
 
-            gimg <- try(createGiottoLargeImage(
+            gimg <- createGiottoLargeImage(
                 raster_object = imgfile,
                 name = img_name,
                 negative_y = negative_y,
                 flip_vertical = flip_vertical,
                 flip_horizontal = flip_horizontal,
                 verbose = verbose
-            ), silent = TRUE)
-            # catch stray metadata files like thumbnails
-            if (inherits(gimg, "try-error")) {
-                warning(sprintf("[load_image] unreadable image: %s", imgfile),
-                        call. = FALSE)
-            }
+            )
 
             xshift <- offsets[fov == f, x]
             yshift <- offsets[fov == f, y]
