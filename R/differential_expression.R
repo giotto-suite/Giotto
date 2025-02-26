@@ -324,18 +324,17 @@ findScranMarkers_one_vs_all <- function(
                 )
 
                 # filter selected table
-                filtered_table <- selected_table[logFC > 0]
-                filtered_table[, "ranking" := rank(-logFC)]
+                selected_table[, "ranking" := rank(-logFC)]
 
                 # data.table variables
                 p.value <- ranking <- NULL
 
-                filtered_table <- filtered_table[
+                selected_table <- selected_table[
                     (p.value <= pval & logFC >= logFC) | (ranking <= min_feats)
                 ]
 
                 pb(message = c("cluster ", clus_i, "/", length(uniq_clusters)))
-                return(filtered_table)
+                return(selected_table)
             }
         )
     })
