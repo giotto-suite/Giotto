@@ -11,4 +11,5 @@
 #' @importFrom data.table frank
 #' @importFrom data.table fread
 #' @importFrom data.table merge.data.table
+#' @importClassesFrom Matrix Matrix
 NULL

@@ -43,3 +43,36 @@
     # ----------- #
     init_option("giotto.verbose", TRUE)
 }
+
+.onLoad <- function(libname, pkgname) {
+    # extensible classunions --------------------------------------------#
+    all_matrix <- c("matrix", "Matrix")
+    update_matrix_sig <- FALSE
+    if (requireNamespace("DelayedArray", quietly = TRUE)) {
+        getClass("DelayedArray")
+        all_matrix <- c(all_matrix, "DelayedArray")
+        update_matrix_sig <- TRUE
+    }
+    if (requireNamespace("dbMatrix", quietly = TRUE)) {
+        getClass("dbMatrix")
+        all_matrix <- c(all_matrix, "dbMatrix")
+        update_matrix_sig <- TRUE
+    }
+    
+    if (isTRUE(update_matrix_sig)) {
+        setClassUnion("allMatrix", members = all_matrix)
+    }
+    # methods extensions ------------------------------------------------#
+    
+    if (requireNamespace("dbMatrix", quietly = TRUE)) {
+    setMethod("processData",
+              
+              signature(x = "dbMatrix", param = "logNormParam"),
+              function(x, param) {
+                  x[] <- dplyr::mutate(x[], x = x + param$offset)
+                  # workaround for lack of @x slot
+                  mymatrix <- log(mymatrix) / log(base)
+              }
+    )
+}
+}

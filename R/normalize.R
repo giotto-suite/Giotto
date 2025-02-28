@@ -1,3 +1,810 @@
+# Documentation ####
+#' @name processData
+#' @title Composable Data Processing
+#' @description
+#' Perform data transformations, or set up chains of transformations and
+#' operations to be applied to matrix type data. `processData()` is a generic
+#' for which methods can be defined off both `x` (the data to transform),
+#' and `param` (the transform operation).
+#' @param x data to transform
+#' @param param S4 parameter class defining the transform operation and
+#' params affecting it.
+#' @param name character. [Object name][GiottoClass::giotto_schema] to assign
+#' to the output.
+#' @param \dots additional params to pass
+#' @examples
+#' m <- matrix(c(0, 0, 3, 2, 0, 5, 4, 0, 0, 1, 12, 0), nrow = 3)
+#' 
+#' # single operation
+#' lib_norm <- normParam("library")
+#' lib_norm$scalefactor <- 5000 # alter a default param of library norm
+#' processData(m, lib_norm)
+#' 
+#' # chained operations
+#' log_norm <- normParam("log")
+#' zscore_cols <- scaleParam("zscore")
+#' zscore_rows <- scaleParam("zscore", MARGIN = 1)
+#' # this is essentially the same as the default giotto normalization
+#' # only difference is the library norm scalefactor change.
+#' processData(m, list(lib_norm, log_norm, zscore_cols, zscore_rows))
+#' @seealso [process_param] for processing operations that can be performed
+#' through `processData()`
+#' @md
+NULL
+
+#' @name process_param
+#' @title Data Processing Parameter Class Factories
+#' @description Data processing operations in Giotto Suite can be divided into
+#' normalization, scaling, and adjustments
+#' @param method character. Name of method to use. See details.
+#' @param \dots (optional) Additional named parameters relevant to the param 
+#' class.
+#' @section normParam methods: 
+#' 
+#' * [`"default"`][norm_default] - default Giotto normalizations steps 
+#' (library + log norms)
+#' * [`"library"`][norm_library] - library normalization
+#' * [`"log"`][norm_log] - log normalization
+#' * [`"osmfish"`][norm_osmfish] - osmfish normalization method
+#' * [`"pearson"`][norm_pearson] - Lause/Kobak 2020 pearson residuals
+#' normalization
+#' * [`"quantile"`][norm_quantile] - quantile normalization
+#' * [`"tf-idf"`][norm_tfidf] - Term Frequency-Inverse Document Frequency
+#' * [`"l2"`][norm_l2] - L2 normalization (also known as Euclidean 
+#' normalization)
+#' 
+#' @section scaleParam methods: 
+#' 
+#' * [`"default"`][scale_default] - default Giotto scaling steps (scale along
+#' features then cells)
+#' * [`"zscore"`][scale_zscore] - essentially the same as `base::scale()`, but
+#' with a `MARGIN` param allowing scaling long either cols or rows
+#' 
+#' @section adjustParam methods:
+#' 
+#' * `"limma"` - limma batch correction
+#' @md
+NULL
+
+#' @name norm_default
+#' @title Default Giotto Normalization
+#' @description
+#' Expression matrix normalization method.
+#' 
+#' Steps:
+#' 
+#' 1. [Total library size][norm_library] normalization and scaling by 
+#' a custom scale-factor.
+#' 2. [Log][norm_log] transformation of data.
+#' 
+#' @section params: 
+#' 
+#' \tabular{ll}{
+#'   `library_size_norm` \tab logical (default = `TRUE`). whether to perform
+#'   library size normalization \cr
+#'   `scalefactor` \tab numeric (default = 6000). Scalefactor to use after
+#'   library size normalization. (skipped if `library_size_norm = FALSE`) \cr
+#'   `log_norm` \tab logical (default = `TRUE`). Whether to transform values to
+#'   log-scale. \cr
+#'   `log_offset` \tab numeric (default = 1). If `log_norm = TRUE`, offset
+#'   value to add to expression values to avoid `log(0)` \cr
+#'   `logbase` \tab numeric (default = 2). If `log_norm = TRUE`, log base to
+#'   use to log normalize expression values
+#' }
+#' @family normalization parameters
+#' @seealso [process_param]
+#' @md
+NULL
+
+#' @name norm_library
+#' @title Library Size Normalization
+#' @description
+#' Normalize expression matrix for total library size and then scale by
+#' a custom scalefactor.
+#' 
+#' This method does not work well when any cells/samples
+#' have a library size of 0, so filtering prior to this is recommended.
+#' 
+#' \deqn{\LARGE
+#' x'_{i,j} = \frac{x_{i,j}}{\sum_{i} x_{i,j}} \times k
+#' }
+#' Where:
+#' 
+#' * (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{x'_{i,j}}) is the library normalized and scaled expression value for
+#' feature \eqn{i} in sample \eqn{j}
+#' * (k) is a scalefactor applied after normalization
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `scalefactor` \tab numeric (default = 6000). Scalefactor to use after 
+#'   library size normalization. Expressed as ***k*** in the above equation
+#' }
+#' @md
+#' @family normalization parameters
+#' @seealso [process_param]
+NULL
+
+#' @name norm_log
+#' @title Log Normalization
+#' @description
+#' Apply a log normalization
+#' 
+#' \deqn{\LARGE
+#' x'_{i,j} = \frac{\log(x_{i,j} + b)}{\log(a)}
+#' }
+#' Where:
+#' 
+#' * (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{x'_{i,j}}) is the log normalized expression value for feature 
+#' \eqn{i} in sample \eqn{j}
+#' * (\eqn{a}) is the log base
+#' * (\eqn{b}) is an offset value
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `base` \tab numeric (default = 2) log base to use. Expressed as \eqn{a} in
+#'   the above equation. \cr
+#'   `offset` \tab numeric (default = 1). Offset to add to expression values to
+#'   avoid \eqn{\log(0)}. Expressed as \eqn{b} in the above equation.
+#' }
+#' @md
+#' @family normalization parameters
+#' @seealso [process_param]
+NULL
+
+#' @name norm_osmfish
+#' @title osmFISH Normalization
+#' @description
+#' Normalization method as provided by the osmFISH paper
+#' 
+#' Steps:
+#' 
+#' 1. First normalize genes, for each gene divide the counts by the total gene 
+#' count and multiply by the total number of genes.
+#' 2. Next normalize cells, for each cell divide the normalized gene counts by
+#' the total counts per cell and multiply by the total number of cells.
+#' 
+#' \deqn{\LARGE
+#' x'_{i,j} = \frac{x_{i,j}}{\sum_j x_{i,j}} \times n_{\text{features}}
+#' }
+#'
+#' \deqn{\LARGE
+#' x''_{i,j} = \frac{x'_{i,j}}{\sum_i x'_{i,j}} \times n_{\text{samples}}
+#' }
+#' 
+#' Where:
+#' 
+#' * (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{x'_{i,j}}) is the feature normalized expression value
+#' * (\eqn{x''_{i,j}}) is the final normalized expression value after both
+#' feature and cell normalization
+#' * (\eqn{n_{\text{samples}}}) is the total number of cells
+#' (columns in matrix)
+#' * (\eqn{n_{\text{features}}}) is the total number of cells
+#' (rows in matrix)
+#' 
+#' @section params:
+#' None
+#' @md
+#' @family normalization parameters
+#' @seealso [process_param]
+NULL
+
+#' @name norm_pearson
+#' @title Lause/Kobak Pearson Residuals Normalization
+#' @description
+#' Calculate Pearson residuals with a dispersion adjustment, to identify cells
+#' that deviate significantly from what would be expected under independence. 
+#' The normalization divides by the standard deviation of the difference, which
+#' is adjusted by the dispersion parameter θ.
+#' 
+#' This normalization is designed for detection of highly variable features and
+#' dimension reduction and clustering.
+#' 
+#' \deqn{\LARGE
+#' z_{i,j} = \frac{x_{i,j} - \mu_{i,j}}{\sqrt{\mu_{i,j} + \mu_{i,j}^2 / \theta}}
+#' }
+#'
+#' \deqn{\LARGE
+#' \mu_{i,j} = \frac{r_i \cdot c_j}{N}
+#' }
+#' 
+#' Where:
+#' * (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{\mu_{i,j}}) is the expected value under the model
+#' * (\eqn{r_i}) is \eqn{\sum_j x_{i,j}}
+#' * (\eqn{c_j}) is \eqn{\sum_i x_{i,j}}
+#' * (\eqn{N}) is \eqn{\sum_{i,j} x_{i,j}}
+#' * (\eqn{\theta}) is a dispersion parameter
+#' * (\eqn{z_{i,j}}) is the Pearson residual clipped to the range 
+#' \eqn{[-\sqrt{n}, \sqrt{n}]} where \eqn{n} is the number of columns. This is 
+#' done to prevent extreme values from dominating the analysis.
+#' 
+#' # Note
+#' Scaling is not recommended after this normalization since it is already
+#' transforming the data to z-score-like values with a dispersion adjustment.
+#' It is also not recommended to use this with DGE analysis.
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `theta` \tab dispersion parameter expressed as \eqn{\theta} in the above
+#'   formula
+#' }
+#' 
+#' @references Lause, J., Berens, P. & Kobak, D. Analytic Pearson residuals for
+#' normalization of single-cell RNA-seq UMI data. Genome Biol 22, 258 (2021).
+#' https://doi.org/10.1186/s13059-021-02451-7
+#' @md
+#' @family normalization parameters
+#' @seealso [process_param]
+NULL
+
+#' @name norm_quantile
+#' @title Quantile Normalization
+#' @description
+#' Quantile normalization makes the statistical distribution of values in each
+#' column identical by replacing the original values with the mean of the
+#' values at the same rank across all columns. This removes technical variation
+#' while preserving relative differences between features.
+#'
+#' Steps:
+#' 1. Rank the values within each column (average taken in case of ties)
+#' 2. Calculate the mean of values at the same rank across all columns
+#' 3. Replace each value with the mean value corresponding to its rank
+#'
+#' \deqn{\LARGE
+#' q_{i,j} = \bar{x}_{rank(i,j)}
+#' }
+#'
+#' Where:
+#' * (\eqn{rank(i,j)}) is the rank of feature \eqn{i} within column \eqn{j}
+#' * (\eqn{\bar{x}_{r}}) where \eqn{r = rank(i,j)} is the mean of values with
+#' rank \eqn{r} across all columns
+#' * (\eqn{q_{i,j}}) is the quantile-normalized value
+#' 
+#' # Note
+#' Library normalization and log normalization is recommended prior to this
+#' normalization.
+#' 
+#' @section params:
+#' None
+#'
+#' @references Bolstad, B.M., Irizarry, R.A., Astrand, M. et al. A comparison of
+#' normalization methods for high density oligonucleotide array data based on
+#' variance and bias. Bioinformatics 19, 185–193 (2003).
+#' https://doi.org/10.1093/bioinformatics/19.2.185
+#' @md
+#' @family normalization parameters
+#' @seealso [process_param]
+NULL
+
+#' @name norm_tfidf
+#' @title TF-IDF Normalization
+#' @description
+#' TF-IDF (Term Frequency-Inverse Document Frequency) normalization is borrowed 
+#' from natural language processing to identify features that are highly expressed 
+#' in specific samples but not widely expressed across the entire dataset.
+#' 
+#' \deqn{\LARGE
+#' TF_{i,j} = \frac{x_{i,j}}{\sum_{i} x_{i,j}}
+#' }
+#' 
+#' \deqn{\LARGE
+#' IDF_{i} = \log(1 + \frac{n_{samples}}{1 + n_{samples \: where \: feature \: i > 0}})
+#' }
+#' 
+#' \deqn{\LARGE
+#' TFIDF_{i,j} = TF_{i,j} \times IDF_{i}
+#' }
+#' 
+#' Where:
+#' * (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{TF_{i,j}}) is the term frequency of feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{IDF_{i}}) is the inverse document frequency of feature \eqn{i}
+#' * (\eqn{TFIDF_{i,j}}) is the final TF-IDF normalized value
+#' 
+#' # Note
+#' [L2][norm_l2] normalization is commonly performed after TF-IDF normalization
+#' 
+#' @section params:
+#' None
+#' @md
+#' @family normalization parameters
+#' @seealso [process_param]
+NULL
+
+#' @name norm_l2
+#' @title L2 Normalization
+#' @description
+#' L2 normalization (also known as Euclidean normalization) scales each column
+#' (sample) in the expression matrix to have unit Euclidean length. This
+#' process makes samples with different sequencing depths more comparable and
+#' improves the performance of distance-based analyses.
+#' 
+#' \deqn{\LARGE
+#' x'_{i,j} = \frac{x_{i,j}}{\sqrt{\sum_{i} x_{i,j}^2}}
+#' }
+#' 
+#' Where:
+#' * (\eqn{x_{i,j}}) is the expression value for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{x'_{i,j}}) is the L2-normalized expression value
+#' 
+#' @section Note:
+#' L2 normalization can be applied to raw data, but is most commonly used after 
+#' other normalization methods such as TF-IDF or log normalization to standardize
+#' sample-to-sample comparisons.
+#' 
+#' @section params:
+#' None
+#' 
+#' @family normalization parameters
+#' @seealso [process_param]
+#' @md
+NULL
+
+#' @name scale_default
+#' @title Default Giotto Scaling
+#' @description
+#' 2 step [z-scoring][scale_zscore] along features and samples
+#' @section params: 
+#' 
+#' \tabular{ll}{
+#'   `scale_feats` \tab logical (default = `TRUE`) Whether to scale across
+#'   features \cr
+#'   `scale_cells` \tab logical (default = `TRUE`) Whether to scale across
+#'   cells/samples \cr
+#'   `scale_order` \tab character. One of either `"first_feats"` or 
+#'   `"first_cells"`. When both `scale_feats` and `scale_cells` are `TRUE`,
+#'   determines the order in which the 2 scaling operations are performed. \cr
+#'   `verbose` \tab logical (default = `TRUE`) Whether to be verbose
+#' }
+#' 
+#' @md
+#' @family scaling parameters
+#' @seealso [process_param]
+NULL
+
+#' @name scale_zscore
+#' @title Z Score Scaling
+#' @description
+#' Wrapper around `base::scale()` to make it compatible with the
+#' [processData()] framework. Additionally provides a `MARGIN` param.
+#' 
+#' \deqn{\LARGE
+#' z_{i,j} = \frac{x_{i,j} - \mu_i}{\sigma_i}
+#' }
+#'
+#' Where:
+#' * \eqn{x_{i,j}} is the original value for feature \eqn{i} in sample \eqn{j}
+#' * \eqn{\mu_i} is the mean of feature \eqn{i} across all samples
+#' * \eqn{\sigma_i} is the standard deviation of feature \eqn{i} across all 
+#' samples
+#' * \eqn{z_{i,j}} is the resulting scaled value
+#' 
+#' @section params: 
+#' 
+#' \tabular{ll}{
+#'   `scale` \tab logical (default = `TRUE`) Whether to scale values \cr
+#'   `center` \tab logical (default = `TRUE`) Whether to center values\cr
+#'   `MARGIN` \tab numeric. Either 1 (rows) or 2 (cols). Direction along which
+#'   to perform the operation.
+#' }
+#' @md
+#' @family scaling parameters
+#' @seealso [process_param]
+NULL
+
+
+
+
+
+# VIRTUAL classes ####
+setClass("normParam", contains = c("VIRTUAL", "processParam"))
+setClass("scaleParam", contains = c("VIRTUAL", "processParam"))
+setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
+
+# access ####
+.DollarNames.scaleParam <- function(x, pattern) {
+    names(x@param)
+}
+.DollarNames.normParam <- function(x, pattern) {
+    names(x@param)
+}
+.DollarNames.adjustParam <- function(x, pattern) {
+    names(x@param)
+}
+
+# extending method classes ####
+setClass("defaultNormParam", contains = "normParam")
+setClass("libraryNormParam", contains = "normParam")
+setClass("logNormParam", contains = "normParam")
+setClass("osmFISHNormParam", contains = "normParam")
+setClass("pearsonResidNormParam", contains = "normParam")
+setClass("quantileNormParam", contains = "normParam")
+setClass("tfidfNormParam", contains = "normParam")
+setClass("l2NormParam", contains = "normParam")
+
+setClass("defaultScaleParam", contains = "scaleParam")
+setClass("zscoreScaleParam", contains = "scaleParam")
+
+setClass("limmaAdjustParam", contains = "adjustParam")
+
+# allMatrix signature ####
+setClassUnion("allMatrix", members = c("matrix", "Matrix"))
+
+
+# params setup ####
+.norm_param_lib <- function(...) {
+    p <- new("libraryNormParam", param = list(...))
+    p$scalefactor <- p$scalefactor %null% 6e3
+    p
+}
+.norm_param_log <- function(...) {
+    p <- new("logNormParam", param = list(...))
+    p$base <- p$base %null% 2
+    p$offset <- p$offset %null% 1
+    p
+}
+.norm_param_osmfish <- function(...) {
+    new("osmFISHNormParam", param  = list(...))
+}
+.norm_param_pears_resid <- function(...) {
+    p <- new("pearsonResidNormParam", param = list(...))
+    p$theta <- p$theta %null% 100
+    p
+}
+.norm_param_quantile <- function(...) {
+    new("quantileNormParam", param = list(...))
+}
+.norm_param_default <- function(...) {
+    p <- new("defaultNormParam", param = list(...))
+    p$library_size_norm <- p$library_size_norm %null% TRUE
+    p$scalefactor <- p$scalefactor %null% 6e3
+    p$log_norm <- p$log_norm %null% TRUE
+    p$log_offset <- p$log_offset %null% 1
+    p$logbase <- p$logbase %null% 2
+    p
+}
+.norm_param_tfidf <- function(...) {
+    new("tfidfNormParam", param = list(...))
+}
+.norm_param_l2 <- function(...) {
+    new("l2NormParam", param = list(...))
+}
+
+.scale_param_zscore <- function(...) {
+    p <- new("zscoreScaleParam", param = list(...))
+    p$scale <- p$scale %null% TRUE
+    p$center <- p$center %null% TRUE
+    p$MARGIN <- p$MARGIN %null% 2
+    p
+}
+.scale_param_default <- function(...) {
+    p <- new("defaultScaleParam", param = list(...))
+    p$scale_feats <- p$scale_feats %null% TRUE
+    p$scale_cells <- p$scale_cells %null% TRUE
+    p$scale_order <- p$scale_order %null% c("first_feats", "first_cells")
+    p$verbose <- p$verbose %null% TRUE
+    p
+}
+
+
+.adjust_param_limma <- function(...) {
+    p <- new("limmaAdjustParam", param = list(...))
+    p@param <- if (is.null(p@param$batch_columns)) {
+        c(p@param, list(batch_columns = NULL))
+    }
+    p@param <- if (is.null(p@param$covariate_columns)) {
+        c(p@param, list(covariate_columns = NULL))
+    }
+    p
+}
+
+# param factories ####
+
+#' @rdname process_param
+#' @export
+normParam <- function(method = "default", ...) {
+    method <- match.arg(tolower(method),
+        c("default", "library", "log", "osmfish", "pearson", "quantile", 
+          "tf-idf", "l2")
+    )
+    switch(method,
+        "default" = .norm_param_default(...),
+        "library" = .norm_param_lib(...),
+        "log" = .norm_param_log(...),
+        "osmfish" = .norm_param_osmfish(...),
+        "pearson" = .norm_param_pears_resid(...),
+        "quantile" = .norm_param_quantile(...),
+        "tf-idf" = .norm_param_tfidf(...),
+        "l2" = .norm_param_l2(...)
+    )
+}
+
+#' @rdname process_param
+#' @export
+scaleParam <- function(method = "default", ...) {
+    method <- match.arg(tolower(method),
+        c("default", "zscore")
+    )
+    switch(method,
+        "default" = .scale_param_default(...),
+        "zscore" = .scale_param_zscore(...)
+    )
+}
+
+#' @rdname process_param
+#' @export
+adjustParam <- function(method = "limma", ...) {
+    method <- match.arg(tolower(method),
+        c("limma")
+    )
+    switch(method,
+        "limma" = .adjust_param_limma(...)
+    )
+}
+
+
+
+# methods ####
+
+# * ANY ####
+
+setMethod("processData",
+signature(x = "ANY", param = "ANY"), function(x, param) {
+    stop(wrap_txtf("param of class '%s' is not recognized for use with '%s'", 
+                   class(param), class(x)),
+         call. = FALSE)
+})
+
+setMethod("processData",
+    signature(x = "ANY", param = "adjustParam"), function(x, param) {
+        "<adjustParam> "    
+    })
+
+# * exprObj ####
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "exprObj", param = "list"),
+    function(x, param, name = "scaled") {
+        x[] <- processData(x[], param)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "exprObj", param = "normParam"), 
+    function(x, param, name = "normalized") {
+        x[] <- processData(x[], param)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+# specialized handling for osmfish
+setMethod("processData",
+    signature(x = "exprObj", param = "osmFISHNormParam"), 
+    function(x, param, name = "custom") {
+        if (!featType(x) %in% c("rna", "RNA")) {
+            warning("Caution: osmFISH normalization was developed for RNA in situ data",
+                    call. = FALSE)
+        }
+        x[] <- processData(x[], param)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+# specialized handling for pearson residual
+setMethod("processData",
+    signature(x = "exprObj", param = "pearsonResidNormParam"), 
+    function(x, param, name = "scaled") {
+        if (!featType(x) %in% c("rna", "RNA")) {
+            warning("Caution: pearson residual normalization was developed for RNA count normalization",
+                    call. = FALSE)
+        }
+        x[] <- processData(x[], param)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "exprObj", param = "scaleParam"),
+    function(x, param, name = "scaled") {
+        x[] <- processData(x[], param)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+
+# * matrix ####
+
+# ** param list ####
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "allMatrix", param = "list"),
+    function(x, param) {
+        for (p in param) {
+            x <- processData(x, p)
+        }
+        return(x)
+    }
+)
+
+# ** norm ------------------ ####
+# *** library norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "libraryNormParam"),
+    function(x, param) {
+        .lib_norm_giotto(mymatrix = x, scalefactor = param$scalefactor)
+    }
+)
+# *** log norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "logNormParam"),
+    function(x, param) {
+        log(x + param$offset) / log(param$base)
+    }
+)
+setMethod("processData",
+    signature(x = "Matrix", param = "logNormParam"),
+    function(x, param) {
+        x@x <- log(x@x + param$offset) / log(param$base)
+        x
+    }
+)
+# *** osmFISH norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "osmFISHNormParam"),
+    function(x, param) {
+        # 1. normalize raw expr per gene with scale-factor equal to number of genes
+        norm_feats <- (x / rowSums_flex(x)) * nrow(x)
+        # 2. normalize per cells with scale-factor equal to number of cells
+        t_flex((t_flex(norm_feats) / colSums_flex(norm_feats)) * ncol(x))
+    }
+)
+# *** pearson norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "pearsonResidNormParam"),
+    function(x, param) {
+        .pears_resid_citation(verbose = param$verbose)
+        .csums <- .csum_nodrop.Matrix
+        .rsums <- .rsum_nodrop.Matrix
+        .prnorm(
+            x = raw_expr[], 
+            theta = param$theta, 
+            .csums = .csums,
+            .rsums = .rsums
+        )
+    }
+)
+# *** quantile norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "quantileNormParam"),
+    function(x, param) {
+        .qnorm(x)
+    }
+)
+# *** tf-idf norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "tfidfNormParam"),
+    function(x, param) {
+        # compute term frequency (TF)
+        tf <- x / rowSums_flex(x)
+        # compute inverse document frequency (IDF)
+        idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
+        # apply TF-IDF
+        tf * idf
+    }
+)
+# *** default norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "defaultNormParam"),
+    function(x, param) {
+        plist <- list()
+        # 1. library size normalization
+        if (isTRUE(param$library_size_norm)) {
+            plist <- c(plist, normParam("library", 
+                scalefactor = param$scalefactor))
+        }
+        # 2. log normalize
+        if (isTRUE(param$log_norm)) {
+            plist <- c(plist, normParam("log", 
+                logbase = param$logbase, 
+                log_offset = param$log_offset)
+            )
+        }
+        processData(x, plist)
+    }
+)
+# *** L2 norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "l2NormParam"),
+    function(x, param) {
+        .l2_norm(x)
+    }
+)
+
+# ** scale ----------------- ####
+# *** zscore scale ####
+setMethod("processData",
+    signature("allMatrix", param = "zscoreScaleParam"), 
+    function(x, param, ...) {
+        if (!param$MARGIN %in% c(1, 2)) {
+            stop("processData zscore: 'MARGIN' must be either 1 (rows) or 2 (cols)", 
+                 call. = FALSE)
+        }
+        if (param$MARGIN == 1) x <- t_flex(x)
+        x <- standardise_flex(x, center = param$center, scale = param$scale)
+        if (param$MARGIN == 1) x <- t_flex(x)
+        return(x)
+    })
+# *** default scale ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "defaultScaleParam"),
+    function(x, param, ...) {
+        plist <- list()
+        s1 <-scaleParam("zscore", center = TRUE, scale = TRUE, MARGIN = 1)
+        s2 <-scaleParam("zscore", center = TRUE, scale = TRUE, MARGIN = 2)
+        if (isTRUE(param$scale_feats) && isTRUE(param$scale_cells)) {
+            scale_order <- match.arg(param$scale_order,
+                                     choices = c("first_feats", "first_cells")
+            )
+            if (scale_order == "first_feats") {
+                vmsg(.v = param$verbose, "first scale feats and then cells")
+                plist <- c(plist, s1, s2)
+            } else if (scale_order == "first_cells") {
+                vmsg(.v = param$verbose, "first scale cells and then feats")
+                plist <- c(plist, s2, s1)
+            } else {
+                stop("processData defaultNormParam: scale order must be given", 
+                     call. = FALSE)
+            }
+        } else if (isTRUE(param$scale_feats)) {
+            plist <- c(plist, s1)
+        } else if (isTRUE(param$scale_cells)) {
+            plist <- c(plist, s2)
+        }
+        processData(x, plist)
+    }
+)
+
+
+
+
+
+processExpression <- function(gobject, param, name,
+    expression_values = "raw",
+    spat_unit = NULL, 
+    feat_type = NULL, 
+    return_gobject = TRUE) {
+    ex <- getExpression(gobject,
+        values = expression_values,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        output = "exprObj",
+        set_defaults = TRUE
+    )
+    res <- processData(ex, param, name = name)
+    if(!isTRUE(return_gobject)) return(res)
+    setGiotto(gobject, res)
+}
+
+
+
+
+
 #' @title normalizeGiotto
 #' @name normalizeGiotto
 #' @description fast normalize and/or scale expression values of Giotto object
@@ -186,8 +993,35 @@ normalizeGiotto <- function(gobject,
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 # internals ####
 
+.l2_norm <- function(x) {
+    # Calculate column norms (Euclidean length of each column)
+    col_norms <- sqrt(colSums_flex(x^2))
+    # Avoid division by zero
+    col_norms[col_norms == 0] <- 1
+    # Normalize each column
+    t_flex(t_flex(x) / col_norms)
+}
+
+.pears_resid_citation <- function(verbose = NULL) {
+    vmsg(.v = verbose, "using 'Lause/Kobak' method to normalize count matrix.
+    If used in published research, please cite:
+    Jan Lause, Philipp Berens, Dmitry Kobak (2020).
+    'Analytic Pearson residuals for normalization of single-cell RNA-seq UMI data'")
+}
 
 #' @title Normalize expression matrix for library size
 #' @param mymatrix matrix object
@@ -200,10 +1034,11 @@ normalizeGiotto <- function(gobject,
 
     if (0 %in% libsizes) {
         warning(wrap_txt("Total library size or counts for individual spat
-                    units are 0.
-                    This will likely result in normalization problems.
-                    filter (filterGiotto) or impute (imputeGiotto) spatial
-                    units."))
+            units are 0.
+            This will likely result in normalization problems.
+            filter (filterGiotto) or impute (imputeGiotto) spatial
+            units.")
+        )
     }
 
     norm_expr <- t_flex(t_flex(mymatrix) / libsizes) * scalefactor
