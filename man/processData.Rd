@@ -4,28 +4,35 @@
 \alias{processData}
 \alias{processData,exprObj,list-method}
 \alias{processData,exprObj,normParam-method}
+\alias{processData,exprObj,adjustParam-method}
 \alias{processData,exprObj,scaleParam-method}
 \alias{processData,allMatrix,list-method}
 \title{Composable Data Processing}
 \usage{
-\S4method{processData}{exprObj,list}(x, param, name = "scaled")
+\S4method{processData}{exprObj,list}(x, param, name = "scaled", ...)
 
-\S4method{processData}{exprObj,normParam}(x, param, name = "normalized")
+\S4method{processData}{exprObj,normParam}(x, param, name = "normalized", ...)
 
-\S4method{processData}{exprObj,scaleParam}(x, param, name = "scaled")
+\S4method{processData}{exprObj,adjustParam}(x, param, name = "custom", ...)
 
-\S4method{processData}{allMatrix,list}(x, param)
+\S4method{processData}{exprObj,scaleParam}(x, param, name = "scaled", ...)
+
+\S4method{processData}{allMatrix,list}(x, param, ...)
 }
 \arguments{
 \item{x}{data to transform}
 
 \item{param}{S4 parameter class defining the transform operation and
-params affecting it.}
+params affecting it. Can also be a list of several of these objects, acting
+as a pipeline.}
 
 \item{name}{character. \link[GiottoClass:giotto_schema]{Object name} to assign
 to the output.}
 
 \item{\dots}{additional params to pass}
+}
+\value{
+The same class as \code{x}
 }
 \description{
 Perform data transformations, or set up chains of transformations and
@@ -52,4 +59,7 @@ processData(m, list(lib_norm, log_norm, zscore_cols, zscore_rows))
 \seealso{
 \link{process_param} for processing operations that can be performed
 through \code{processData()}
+
+\code{\link[=processExpression]{processExpression()}} for the way to use this framework with the
+\code{giotto} object
 }

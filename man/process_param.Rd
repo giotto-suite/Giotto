@@ -53,7 +53,13 @@ with a \code{MARGIN} param allowing scaling long either cols or rows
 \section{adjustParam methods}{
 
 \itemize{
-\item \code{"limma"} - limma batch correction
+\item \code{\link[=adjust_limma]{"limma"}} - limma batch correction
 }
 }
 
+\seealso{
+\code{\link[=processData]{processData()}} for the generic used to apply these params
+
+\code{\link[=processExpression]{processExpression()}} for the way to use this framework with the
+\code{giotto} object
+}

@@ -14,6 +14,10 @@
 * `importCosMx()` now supports vectors of filepaths when provided to `$load_images()` and `$load_polys()`
 * `importCosMx()` Selected FOVs are now selected in `plot()`.
 
+## New
+* `processExpression()` for `giotto` implemented via the `processData()` framework in {GiottoClass} v0.4.7 (see `?processData` and `?process_param`)
+* `L2` and `TF-IDF` normalization methods accessible via the `processData()` framework
+
 # Giotto 4.2.0 (2025/01/17)
 
 ## Breaking Changes

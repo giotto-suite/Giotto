@@ -1,4 +1,48 @@
 # Documentation ####
+
+#' @name processExpression
+#' @title Expression Data Processing
+#' @description
+#' Perform data transformations, or set up chains of transformations and
+#' operations to be applied to expression type data in the `giotto` object.
+#' @param gobject `giotto` object
+#' @inheritParams processData
+#' @param expression_values character. Name of matrix to use
+#' @param spat_unit character (optional). spatial unit to use
+#' @param feat_type character (optional). feature type to use
+#' @param return_gobject logical (optional). Whether to return the `gobject`.
+#' When FALSE, the `exprObj` is returned instead.
+#' @returns A `giotto` object when `return_gobject = TRUE`. Otherwise, an
+#' `exprObj`
+#' @seealso [process_param] for processing operations that can be performed
+#' 
+#' [processData()] for the lower level generic handling these operations
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' # single operation
+#' processExpression(g, normParam("library"), name = "library")
+#' 
+#' # single operation with changed parameter
+#' lib <- normParam("library")
+#' lib$scalefactor = 1000
+#' processExpression(g, lib, name = "library2")
+#' 
+#' # return the exprObj instead
+#' processExpression(g, lib, name = "library2", return_gobject = FALSE)
+#' 
+#' # chained operation (this is the Giotto standard normalization)
+#' processExpression(g,
+#'     list(
+#'         normParam("library"),
+#'         normParam("log"),
+#'         scaleParam("zscore", MARGIN = 2),
+#'         scaleParam("zscore", MARGIN = 1)
+#'     ),
+#'     name = "scaled2"
+#' )
+#' @md
+NULL
+
 #' @name processData
 #' @title Composable Data Processing
 #' @description
@@ -8,7 +52,8 @@
 #' and `param` (the transform operation).
 #' @param x data to transform
 #' @param param S4 parameter class defining the transform operation and
-#' params affecting it.
+#' params affecting it. Can also be a list of several of these objects, acting
+#' as a pipeline.
 #' @param name character. [Object name][GiottoClass::giotto_schema] to assign
 #' to the output.
 #' @param \dots additional params to pass
@@ -29,6 +74,9 @@
 #' processData(m, list(lib_norm, log_norm, zscore_cols, zscore_rows))
 #' @seealso [process_param] for processing operations that can be performed
 #' through `processData()`
+#' @seealso [processExpression()] for the way to use this framework with the 
+#' `giotto` object
+#' @returns The same class as `x`
 #' @md
 NULL
 
@@ -62,7 +110,10 @@ NULL
 #' 
 #' @section adjustParam methods:
 #' 
-#' * `"limma"` - limma batch correction
+#' * [`"limma"`][adjust_limma] - limma batch correction
+#' @seealso [processData()] for the generic used to apply these params
+#' @seealso [processExpression()] for the way to use this framework with the 
+#' `giotto` object
 #' @md
 NULL
 
@@ -398,8 +449,31 @@ NULL
 #' @seealso [process_param]
 NULL
 
-
-
+#' @name adjust_limma
+#' @title Limma Batch Correction
+#' @description
+#' Batch effect removal via [limma::removeBatchEffect()]
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `batch_columns` \tab [svkey][GiottoClass::svkey()] (optional) Up to two
+#'   columns of information from a Giotto object with information indicating
+#'   batches to remove the effects of. \cr
+#'   `covariate_columns` \tab [svkey][GiottoClass::svkey()] (optional) Columns
+#'   of information from a Giotto object with information indicating covariates
+#'   to regress out.
+#' }
+#' @examples
+#' limma <- adjustParam("limma")
+#' limma$covariate_columns <- svkey(feats = c("nr_feats", "total_expr"))
+#' 
+#' g <- GiottoData::loadGiottoMini("visium")
+#' processExpression(g, limma, name = "limma")
+#' @family adjustment parameters
+#' @seealso [process_param]
+#' @md
+NULL
 
 
 # VIRTUAL classes ####
@@ -408,12 +482,15 @@ setClass("scaleParam", contains = c("VIRTUAL", "processParam"))
 setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
 
 # access ####
+#' @export
 .DollarNames.scaleParam <- function(x, pattern) {
     names(x@param)
 }
+#' @export
 .DollarNames.normParam <- function(x, pattern) {
     names(x@param)
 }
+#' @export
 .DollarNames.adjustParam <- function(x, pattern) {
     names(x@param)
 }
@@ -437,72 +514,7 @@ setClass("limmaAdjustParam", contains = "adjustParam")
 setClassUnion("allMatrix", members = c("matrix", "Matrix"))
 
 
-# params setup ####
-.norm_param_lib <- function(...) {
-    p <- new("libraryNormParam", param = list(...))
-    p$scalefactor <- p$scalefactor %null% 6e3
-    p
-}
-.norm_param_log <- function(...) {
-    p <- new("logNormParam", param = list(...))
-    p$base <- p$base %null% 2
-    p$offset <- p$offset %null% 1
-    p
-}
-.norm_param_osmfish <- function(...) {
-    new("osmFISHNormParam", param  = list(...))
-}
-.norm_param_pears_resid <- function(...) {
-    p <- new("pearsonResidNormParam", param = list(...))
-    p$theta <- p$theta %null% 100
-    p
-}
-.norm_param_quantile <- function(...) {
-    new("quantileNormParam", param = list(...))
-}
-.norm_param_default <- function(...) {
-    p <- new("defaultNormParam", param = list(...))
-    p$library_size_norm <- p$library_size_norm %null% TRUE
-    p$scalefactor <- p$scalefactor %null% 6e3
-    p$log_norm <- p$log_norm %null% TRUE
-    p$log_offset <- p$log_offset %null% 1
-    p$logbase <- p$logbase %null% 2
-    p
-}
-.norm_param_tfidf <- function(...) {
-    new("tfidfNormParam", param = list(...))
-}
-.norm_param_l2 <- function(...) {
-    new("l2NormParam", param = list(...))
-}
 
-.scale_param_zscore <- function(...) {
-    p <- new("zscoreScaleParam", param = list(...))
-    p$scale <- p$scale %null% TRUE
-    p$center <- p$center %null% TRUE
-    p$MARGIN <- p$MARGIN %null% 2
-    p
-}
-.scale_param_default <- function(...) {
-    p <- new("defaultScaleParam", param = list(...))
-    p$scale_feats <- p$scale_feats %null% TRUE
-    p$scale_cells <- p$scale_cells %null% TRUE
-    p$scale_order <- p$scale_order %null% c("first_feats", "first_cells")
-    p$verbose <- p$verbose %null% TRUE
-    p
-}
-
-
-.adjust_param_limma <- function(...) {
-    p <- new("limmaAdjustParam", param = list(...))
-    p@param <- if (is.null(p@param$batch_columns)) {
-        c(p@param, list(batch_columns = NULL))
-    }
-    p@param <- if (is.null(p@param$covariate_columns)) {
-        c(p@param, list(covariate_columns = NULL))
-    }
-    p
-}
 
 # param factories ####
 
@@ -555,24 +567,19 @@ adjustParam <- function(method = "limma", ...) {
 # * ANY ####
 
 setMethod("processData",
-signature(x = "ANY", param = "ANY"), function(x, param) {
+signature(x = "ANY", param = "ANY"), function(x, param, ...) {
     stop(wrap_txtf("param of class '%s' is not recognized for use with '%s'", 
                    class(param), class(x)),
          call. = FALSE)
 })
-
-setMethod("processData",
-    signature(x = "ANY", param = "adjustParam"), function(x, param) {
-        "<adjustParam> "    
-    })
 
 # * exprObj ####
 
 #' @rdname processData
 setMethod("processData",
     signature(x = "exprObj", param = "list"),
-    function(x, param, name = "scaled") {
-        x[] <- processData(x[], param)
+    function(x, param, name = "scaled", ...) {
+        x[] <- processData(x[], param, ...)
         objName(x) <- name
         return(x)
     }
@@ -581,8 +588,18 @@ setMethod("processData",
 #' @rdname processData
 setMethod("processData",
     signature(x = "exprObj", param = "normParam"), 
-    function(x, param, name = "normalized") {
-        x[] <- processData(x[], param)
+    function(x, param, name = "normalized", ...) {
+        x[] <- processData(x[], param, ...)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "exprObj", param = "adjustParam"),
+    function(x, param, name = "custom", ...) {
+        x[] <- processData(x[], param, ...)
         objName(x) <- name
         return(x)
     }
@@ -591,12 +608,12 @@ setMethod("processData",
 # specialized handling for osmfish
 setMethod("processData",
     signature(x = "exprObj", param = "osmFISHNormParam"), 
-    function(x, param, name = "custom") {
+    function(x, param, name = "custom", ...) {
         if (!featType(x) %in% c("rna", "RNA")) {
             warning("Caution: osmFISH normalization was developed for RNA in situ data",
                     call. = FALSE)
         }
-        x[] <- processData(x[], param)
+        x[] <- processData(x[], param, ...)
         objName(x) <- name
         return(x)
     }
@@ -605,12 +622,12 @@ setMethod("processData",
 # specialized handling for pearson residual
 setMethod("processData",
     signature(x = "exprObj", param = "pearsonResidNormParam"), 
-    function(x, param, name = "scaled") {
+    function(x, param, name = "scaled", ...) {
         if (!featType(x) %in% c("rna", "RNA")) {
             warning("Caution: pearson residual normalization was developed for RNA count normalization",
                     call. = FALSE)
         }
-        x[] <- processData(x[], param)
+        x[] <- processData(x[], param, ...)
         objName(x) <- name
         return(x)
     }
@@ -619,8 +636,8 @@ setMethod("processData",
 #' @rdname processData
 setMethod("processData",
     signature(x = "exprObj", param = "scaleParam"),
-    function(x, param, name = "scaled") {
-        x[] <- processData(x[], param)
+    function(x, param, name = "scaled", ...) {
+        x[] <- processData(x[], param, ...)
         objName(x) <- name
         return(x)
     }
@@ -634,9 +651,9 @@ setMethod("processData",
 #' @rdname processData
 setMethod("processData",
     signature(x = "allMatrix", param = "list"),
-    function(x, param) {
+    function(x, param, ...) {
         for (p in param) {
-            x <- processData(x, p)
+            x <- processData(x, p, ...)
         }
         return(x)
     }
@@ -646,20 +663,20 @@ setMethod("processData",
 # *** library norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "libraryNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         .lib_norm_giotto(mymatrix = x, scalefactor = param$scalefactor)
     }
 )
 # *** log norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "logNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         log(x + param$offset) / log(param$base)
     }
 )
 setMethod("processData",
     signature(x = "Matrix", param = "logNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         x@x <- log(x@x + param$offset) / log(param$base)
         x
     }
@@ -667,7 +684,7 @@ setMethod("processData",
 # *** osmFISH norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "osmFISHNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         # 1. normalize raw expr per gene with scale-factor equal to number of genes
         norm_feats <- (x / rowSums_flex(x)) * nrow(x)
         # 2. normalize per cells with scale-factor equal to number of cells
@@ -677,7 +694,7 @@ setMethod("processData",
 # *** pearson norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "pearsonResidNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         .pears_resid_citation(verbose = param$verbose)
         .csums <- .csum_nodrop.Matrix
         .rsums <- .rsum_nodrop.Matrix
@@ -692,14 +709,14 @@ setMethod("processData",
 # *** quantile norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "quantileNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         .qnorm(x)
     }
 )
 # *** tf-idf norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "tfidfNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         # compute term frequency (TF)
         tf <- x / rowSums_flex(x)
         # compute inverse document frequency (IDF)
@@ -711,7 +728,7 @@ setMethod("processData",
 # *** default norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "defaultNormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         plist <- list()
         # 1. library size normalization
         if (isTRUE(param$library_size_norm)) {
@@ -725,13 +742,13 @@ setMethod("processData",
                 log_offset = param$log_offset)
             )
         }
-        processData(x, plist)
+        processData(x, plist, ...)
     }
 )
 # *** L2 norm ####
 setMethod("processData",
     signature(x = "allMatrix", param = "l2NormParam"),
-    function(x, param) {
+    function(x, param, ...) {
         .l2_norm(x)
     }
 )
@@ -781,14 +798,66 @@ setMethod("processData",
 )
 
 
+# ** adjust ####
+
+# *** limma ####
+
+setMethod("processData",
+    signature(x = "allMatrix", param = "limmaAdjustParam"),
+    function(x, param, context = NULL, ...) {
+        package_check("limma")
+        if (is.null(context)) {
+            c(
+                "limma adjustment: `context` arg should be a gobject",
+                "containing the columns to use for batches and/or covariates",
+                "information."
+            ) %>%
+                wrap_txt(errWidth = TRUE) %>%
+                stop(call. = FALSE)
+        }
+        batches <- param$batch_columns
+        covariates <- param$covariate_columns
+        if (is.null(batches) && is.null(covariates)) {
+            "limma adjustment: At least one of `batch_columns` or 
+            `covariate_columns` must be provided." %>%
+                wrap_txt() %>%
+                stop(call. = FALSE)
+        }
+
+        sample_order <- colnames(x)
+        limma_args <- list(x = x, ...)
+        # batches
+        if (!is.null(batches)) {
+            b_dt <- .get_svkey(batches, context, sample_order = sample_order)
+            if (ncol(b_dt > 2)) {
+                "max of 2 columns are allowed for 'batch_columns'" %>%
+                    stop(call. = FALSE)
+            } else {
+                limma_args$batch <- b_dt[[1]]
+                if (ncol(b_dt == 2)) {
+                    limma_args$batch2 <- b_dt[[2]]
+                }
+            }
+        }
+        # covariates
+        if (!is.null(covariates)) {
+            c_dt <- .get_svkey(covariates, context, 
+                               sample_order = sample_order)
+            limma_args$covariates <- as.matrix(c_dt)
+        }
+        do.call(limma::removeBatchEffect, args = limma_args) %>%
+            as("Matrix")
+    })
 
 
-
+#' @rdname processExpression
+#' @export
 processExpression <- function(gobject, param, name,
     expression_values = "raw",
     spat_unit = NULL, 
     feat_type = NULL, 
-    return_gobject = TRUE) {
+    return_gobject = TRUE,
+    ...) {
     ex <- getExpression(gobject,
         values = expression_values,
         spat_unit = spat_unit,
@@ -796,7 +865,23 @@ processExpression <- function(gobject, param, name,
         output = "exprObj",
         set_defaults = TRUE
     )
-    res <- processData(ex, param, name = name)
+    process_args <- list(
+        x = ex,
+        param = param,
+        name = name,
+        ...
+    )
+
+    # detect svkeys
+    if (!is.list(param)) param <- list(param)
+    param_dump <- lapply(param, function(p) {
+        p@param
+    })
+    has_svk <- .check_svkey(unlist(param_dump), type = "any")
+    
+    if (has_svk) process_args$context <- gobject
+    
+    res <- do.call(processData, args = process_args)
     if(!isTRUE(return_gobject)) return(res)
     setGiotto(gobject, res)
 }
@@ -1006,6 +1091,100 @@ normalizeGiotto <- function(gobject,
 
 
 # internals ####
+
+# * params setup ####
+.norm_param_lib <- function(...) {
+    p <- new("libraryNormParam", param = list(...))
+    p$scalefactor <- p$scalefactor %null% 6e3
+    p
+}
+.norm_param_log <- function(...) {
+    p <- new("logNormParam", param = list(...))
+    p$base <- p$base %null% 2
+    p$offset <- p$offset %null% 1
+    p
+}
+.norm_param_osmfish <- function(...) {
+    new("osmFISHNormParam", param  = list(...))
+}
+.norm_param_pears_resid <- function(...) {
+    p <- new("pearsonResidNormParam", param = list(...))
+    p$theta <- p$theta %null% 100
+    p
+}
+.norm_param_quantile <- function(...) {
+    new("quantileNormParam", param = list(...))
+}
+.norm_param_default <- function(...) {
+    p <- new("defaultNormParam", param = list(...))
+    p$library_size_norm <- p$library_size_norm %null% TRUE
+    p$scalefactor <- p$scalefactor %null% 6e3
+    p$log_norm <- p$log_norm %null% TRUE
+    p$log_offset <- p$log_offset %null% 1
+    p$logbase <- p$logbase %null% 2
+    p
+}
+.norm_param_tfidf <- function(...) {
+    new("tfidfNormParam", param = list(...))
+}
+.norm_param_l2 <- function(...) {
+    new("l2NormParam", param = list(...))
+}
+
+.scale_param_zscore <- function(...) {
+    p <- new("zscoreScaleParam", param = list(...))
+    p$scale <- p$scale %null% TRUE
+    p$center <- p$center %null% TRUE
+    p$MARGIN <- p$MARGIN %null% 2
+    p
+}
+.scale_param_default <- function(...) {
+    p <- new("defaultScaleParam", param = list(...))
+    p$scale_feats <- p$scale_feats %null% TRUE
+    p$scale_cells <- p$scale_cells %null% TRUE
+    p$scale_order <- p$scale_order %null% c("first_feats", "first_cells")
+    p$verbose <- p$verbose %null% TRUE
+    p
+}
+
+
+.adjust_param_limma <- function(...) {
+    p <- new("limmaAdjustParam", param = list(...))
+    p@param <- if (is.null(p@param$batch_columns)) {
+        c(p@param, list(batch_columns = NULL))
+    }
+    p@param <- if (is.null(p@param$covariate_columns)) {
+        c(p@param, list(covariate_columns = NULL))
+    }
+    p
+}
+
+
+# * implementations ####
+
+.check_svkey <- function(x, type = c("all", "any")) {
+    type <- match.arg(type, choices = c("all", "any"))
+    if (!inherits(x, "list")) x <- list(x)
+    res <- vapply(x, FUN = inherits, FUN.VALUE = logical(1L), "svkey")
+    switch (type,
+        "any" = any(res),
+        "all" = all(res)
+    )
+}
+
+# get from gobject and ensure order is correct.
+# return without cell_IDs col
+.get_svkey <- function(x, gobject, sample_order = NULL) {
+    if (!inherits(x, "list")) x <- list(x)
+    reslist <- lapply(x, function(key) {
+        data <- key@get(gobject)
+        if (!is.null(sample_order)) {
+            data <- data[match(cell_ID, sample_order)]
+        }
+        return(data[, -"cell_ID"])
+    })
+    Reduce(cbind, reslist)
+}
 
 .l2_norm <- function(x) {
     # Calculate column norms (Euclidean length of each column)
