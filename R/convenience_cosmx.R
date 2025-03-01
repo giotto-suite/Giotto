@@ -360,6 +360,7 @@ setMethod(
                 micron = .Object@micron,
                 px2um = .Object@px2um,
                 offsets = .Object@offsets,
+                slide = .Object@slide,
                 verbose = verbose
             )
         }
@@ -375,7 +376,8 @@ setMethod(
                 path = path,
                 fovs = .Object@fovs %none% NULL,
                 feat_type = feat_type,
-                split_keyword = split_keyword
+                split_keyword = split_keyword,
+                slide = .Object@slide
             )
         }
         .Object@calls$load_expression <- expr_fun
@@ -426,6 +428,7 @@ setMethod(
         verbose = NULL) {
             .cosmx_cellmeta(
                 path = path,
+                slide = .Object@slide,
                 fovs = .Object@fovs %none% NULL,
                 dropcols = dropcols,
                 cores = cores,
@@ -838,7 +841,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     f <- x <- y <- NULL
     
     path <- normalizePath(path)
-    
+
     GiottoUtils::vmsg(.v = verbose, "loading segmentation masks...")
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
@@ -1368,7 +1371,6 @@ createGiottoCosMxObject <- function(
             "4.2.0", "createGiottoCosMxObject(background_algo)")
     }
 
-    
     # setup importer
     x <- importCosMx(cosmx_dir,
         fovs = FOVs,
