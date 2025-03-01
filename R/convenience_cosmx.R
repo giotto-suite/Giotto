@@ -906,6 +906,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     if (length(gpolys) > 1L) {
         gpolys <- do.call(rbind, args = gpolys)
+    } else {
+        gpolys <- gpolys[[1]] # unlist
     }
     
     return(gpolys)
