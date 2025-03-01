@@ -10,10 +10,14 @@
 
 test_that("Expression matrix is read correctly", {
     # getSpatialDataset
-    GiottoData::getSpatialDataset(dataset = "scRNA_mouse_brain", directory = paste0(getwd(), "/testdata/"))
+    expect_warning(expect_warning(GiottoData::getSpatialDataset(
+        dataset = "scRNA_mouse_brain", 
+        directory = paste0(getwd(), "/testdata/")
+    ), regexp = "output directory does not exist"), regexp = "footer")
 
     # readExprMatrix
-    expr_mat <- readExprMatrix(paste0(getwd(), "/testdata/brain_sc_expression_matrix.txt.gz"))
+    expr_mat <- readExprMatrix(
+        paste0(getwd(), "/testdata/brain_sc_expression_matrix.txt.gz"))
 
     expect_s4_class(expr_mat, "dgCMatrix")
     expect_equal(expr_mat@Dim, c(27998, 8039))
