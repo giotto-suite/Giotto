@@ -7,7 +7,7 @@
 processExpression(
   gobject,
   param,
-  name,
+  name = NULL,
   expression_values = "raw",
   spat_unit = NULL,
   feat_type = NULL,
@@ -22,8 +22,15 @@ processExpression(
 params affecting it. Can also be a list of several of these objects, acting
 as a pipeline.}
 
-\item{name}{character. \link[GiottoClass:giotto_schema]{Object name} to assign
-to the output.}
+\item{name}{character (optional). \link[GiottoClass:giotto_schema]{Object name}
+to assign to the output. Default \code{name} changes based on \code{param} input:
+\itemize{
+\item when \code{param} is \code{list} or \code{scaleParam}: \code{name = "scaled"}
+\item when \code{param} is \code{normParam}: \code{name = "normalized"}
+\item when \code{param} is \code{adjustParam}: \code{name = "custom"}
+\item when \code{param} is \code{osmFISHNormParam}: \code{name = "custom"}
+\item when \code{param} is \code{pearsonResidNormParam}: \code{name = "scaled"}
+}}
 
 \item{expression_values}{character. Name of matrix to use}
 

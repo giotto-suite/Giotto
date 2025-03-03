@@ -71,8 +71,13 @@ NULL
 #' @param param S4 parameter class defining the transform operation and
 #' params affecting it. Can also be a list of several of these objects, acting
 #' as a pipeline.
-#' @param name character. [Object name][GiottoClass::giotto_schema] to assign
-#' to the output.
+#' @param name character (optional). [Object name][GiottoClass::giotto_schema]
+#' to assign to the output. Default `name` changes based on `param` input:
+#' * when `param` is `list` or `scaleParam`: `name = "scaled"`
+#' * when `param` is `normParam`: `name = "normalized"`
+#' * when `param` is `adjustParam`: `name = "custom"`
+#' * when `param` is `osmFISHNormParam`: `name = "custom"`
+#' * when `param` is `pearsonResidNormParam`: `name = "scaled"`
 #' @param \dots additional params to pass
 #' @examples
 #' m <- matrix(c(0, 0, 3, 2, 0, 5, 4, 0, 0, 1, 12, 0), nrow = 3)
@@ -675,6 +680,16 @@ setMethod("processData",
 
 #' @rdname processData
 setMethod("processData",
+    signature(x = "exprObj", param = "scaleParam"),
+    function(x, param, name = "scaled", ...) {
+        x[] <- processData(x[], param, ...)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
     signature(x = "exprObj", param = "adjustParam"),
     function(x, param, name = "custom", ...) {
         x[] <- processData(x[], param, ...)
@@ -705,16 +720,6 @@ setMethod("processData",
             warning("Caution: pearson residual normalization was developed for RNA count normalization",
                     call. = FALSE)
         }
-        x[] <- processData(x[], param, ...)
-        objName(x) <- name
-        return(x)
-    }
-)
-
-#' @rdname processData
-setMethod("processData",
-    signature(x = "exprObj", param = "scaleParam"),
-    function(x, param, name = "scaled", ...) {
         x[] <- processData(x[], param, ...)
         objName(x) <- name
         return(x)
@@ -937,7 +942,8 @@ setMethod("processData",
 
 #' @rdname processExpression
 #' @export
-processExpression <- function(gobject, param, name,
+processExpression <- function(gobject, param,
+    name = NULL,
     expression_values = "raw",
     spat_unit = NULL, 
     feat_type = NULL, 
@@ -953,9 +959,11 @@ processExpression <- function(gobject, param, name,
     process_args <- list(
         x = ex,
         param = param,
-        name = name,
         ...
     )
+    if (!is.null(name)) {
+        process_args$name <- name
+    }
 
     # detect svkeys
     if (!is.list(param)) param <- list(param)
