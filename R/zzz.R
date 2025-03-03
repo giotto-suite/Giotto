@@ -66,13 +66,12 @@
     
     if (requireNamespace("dbMatrix", quietly = TRUE)) {
     setMethod("processData",
-              
-              signature(x = "dbMatrix", param = "logNormParam"),
-              function(x, param) {
-                  x[] <- dplyr::mutate(x[], x = x + param$offset)
-                  # workaround for lack of @x slot
-                  mymatrix <- log(mymatrix) / log(base)
-              }
+        signature(x = "dbMatrix", param = "logNormParam"),
+        function(x, param) {
+            x[] <- dplyr::mutate(x[], x = x + param$offset)
+            # workaround for lack of @x slot
+            mymatrix <- log(mymatrix) / log(base)
+        }
     )
 }
 }
