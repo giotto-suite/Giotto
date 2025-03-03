@@ -16,7 +16,7 @@
 
 ## New
 * `processExpression()` for `giotto` implemented via the `processData()` framework in {GiottoClass} v0.4.7 (see `?processData` and `?process_param`)
-* `L2` and `TF-IDF` normalization methods accessible via the `processData()` framework
+* `arcsinh`, `L2`, and `TF-IDF` normalization methods accessible via the `processData()` framework
 
 # Giotto 4.2.0 (2025/01/17)
 
