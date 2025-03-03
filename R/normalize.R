@@ -779,10 +779,15 @@ setMethod("processData",
     signature(x = "allMatrix", param = "pearsonResidNormParam"),
     function(x, param, ...) {
         .pears_resid_citation(verbose = param$verbose)
-        .csums <- .csum_nodrop.Matrix
-        .rsums <- .rsum_nodrop.Matrix
+        if (methods::is(x, "HDF5Matrix")) { # avoid importing this class
+            .csums <- .csum_nodrop.HDF5Matrix
+            .rsums <- .rsum_nodrop.HDF5Matrix
+        } else {
+            .csums <- .csum_nodrop.Matrix
+            .rsums <- .rsum_nodrop.Matrix
+        }
         .prnorm(
-            x = raw_expr[], 
+            x = x, 
             theta = param$theta, 
             .csums = .csums,
             .rsums = .rsums
@@ -1578,24 +1583,16 @@ normalizeGiotto <- function(gobject,
     norm_feats_cells <- t_flex((t_flex(norm_feats) /
         colSums_flex(norm_feats)) * ncol(raw_expr[]))
 
-    # return results to Giotto object
-    if (verbose == TRUE) {
-        message(
-            "\n osmFISH-like normalized data will be returned to the",
-            name, "Giotto slot \n"
-        )
-    }
-
-    norm_feats_cells <- create_expr_obj(
+    norm_feats_cells <- createExprObj(
+        expression_data = norm_feats_cells,
         name = name,
-        exprMat = norm_feats_cells,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = raw_expr@provenance
     )
 
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-    gobject <- setGiotto(giotto, norm_feats_cells)
+    gobject <- setGiotto(gobject, norm_feats_cells, verbose = verbose)
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
     return(gobject)
