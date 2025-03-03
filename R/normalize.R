@@ -11,6 +11,9 @@
 #         switch statement, pointing at the new default params internal 
 #         function.
 # - 2. Add the S4 method for the matrix/param combination desired
+# - 3. Update the method documentation (if a method was added). Both the
+#      operation-specific documentation and under `process_param`, linking
+#      to it.
 
 # Documentation ####
 
