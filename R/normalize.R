@@ -1,3 +1,20 @@
+# Data Processing and Pipelining ------------------------------------------ #
+# ADDING NEW METHODS
+# - 1. Define the operation as a function. 
+#      (See # internals / implementations section below)
+#   ## if adding a new operation type ##
+#   - 1.1  Define an extending param class
+#   - 1.2 Create an internal function to generate the class with default params 
+#         (See # internals / params setup)
+#   - 1.3 Update the relevant factory function (normParam, scaleParam, 
+#         adjustParam). Add method to to the `match.arg` and register it in the
+#         switch statement, pointing at the new default params internal 
+#         function.
+# - 2. Add the S4 method for the matrix/param combination desired
+# - 3. Update the method documentation (if a method was added). Both the
+#      operation-specific documentation and under `process_param`, linking
+#      to it.
+
 # Documentation ####
 
 #' @name processExpression
