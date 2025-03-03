@@ -34,6 +34,7 @@ library size normalization. Expressed as \emph{\strong{k}} in the above equation
 \link{process_param}
 
 Other normalization parameters: 
+\code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_l2}},
 \code{\link{norm_log}},

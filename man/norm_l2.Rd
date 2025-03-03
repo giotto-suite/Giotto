@@ -20,7 +20,6 @@ Where:
 }
 }
 \section{Note}{
-
 L2 normalization can be applied to raw data, but is most commonly used after
 other normalization methods such as TF-IDF or log normalization to standardize
 sample-to-sample comparisons.
@@ -35,6 +34,7 @@ None
 \link{process_param}
 
 Other normalization parameters: 
+\code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_library}},
 \code{\link{norm_log}},

@@ -81,9 +81,14 @@ NULL
 NULL
 
 #' @name process_param
-#' @title Data Processing Parameter Class Factories
+#' @title Data Processing Parameter Classes
 #' @description Data processing operations in Giotto Suite can be divided into
-#' normalization, scaling, and adjustments
+#' normalization, scaling, and adjustments. These operations can be selected
+#' via the factory functions `normParam()`, `scaleParam()`, and `adjustParam()`, 
+#' respectively.
+#' 
+#' Requested operations are generated as method-specific param classes that
+#' contain all the parameters needed to perform them, editable through `$<-`.
 #' @param method character. Name of method to use. See details.
 #' @param \dots (optional) Additional named parameters relevant to the param 
 #' class.
@@ -98,8 +103,9 @@ NULL
 #' normalization
 #' * [`"quantile"`][norm_quantile] - quantile normalization
 #' * [`"tf-idf"`][norm_tfidf] - Term Frequency-Inverse Document Frequency
-#' * [`"l2"`][norm_l2] - L2 normalization (also known as Euclidean 
+#' * [`"l2"`][norm_l2] - L2 normalization (also known as Euclidean
 #' normalization)
+#' * [`"arcsinh"`][norm_arcsinh] - arcsinh transformation
 #' 
 #' @section scaleParam methods: 
 #' 
@@ -111,6 +117,9 @@ NULL
 #' @section adjustParam methods:
 #' 
 #' * [`"limma"`][adjust_limma] - limma batch correction
+#' @details
+#' Generated params are S4 objects inheriting from `processParam` and one of 
+#' `normParam`, `scaleParam`, and `adjustParam`.
 #' @seealso [processData()] for the generic used to apply these params
 #' @seealso [processExpression()] for the way to use this framework with the 
 #' `giotto` object
@@ -384,7 +393,7 @@ NULL
 #' * (\eqn{x_{i,j}}) is the expression value for feature \eqn{i} in sample \eqn{j}
 #' * (\eqn{x'_{i,j}}) is the L2-normalized expression value
 #' 
-#' @section Note:
+#' # Note
 #' L2 normalization can be applied to raw data, but is most commonly used after 
 #' other normalization methods such as TF-IDF or log normalization to standardize
 #' sample-to-sample comparisons.
@@ -394,6 +403,43 @@ NULL
 #' 
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @md
+NULL
+
+#' @name norm_arcsinh
+#' @title Arcsinh Normalization
+#' @description
+#' A normalization commonly used with intensity-based data (CODEX, CyCIF, IMC).
+#' It effectively handles a wide dynamic range and zero/near-zero values while
+#' preserving the relative differences between signals of different intensities.
+#' 
+#' \deqn{\LARGE
+#' x'_{i,j} = \operatorname{arcsinh}\left({\frac{x_{i,j}}{c}}\right)
+#' }
+#' 
+#' Where:
+#' * (\eqn{x_{i,j}}) is the raw intensity for feature \eqn{i} in sample \eqn{j}
+#' * (\eqn{x'_{i,j}}) is the normalized intensity for feature \eqn{i} in
+#' sample \eqn{j}
+#' * (\eqn{c}) is a cofactor that determines the degree of transformation
+#' 
+#' # Note
+#' The cofactor \eqn{c} prevents over-amplification of small values and allows
+#' better differentiation of signals at different intensities.
+#' 
+#' Common values to use are:
+#' * `c = 5` for fluorescence imaging-based proteomics (CODEX, CyCIF) 
+#' * `c = 1` or `5` for mass-cytometry-based imaging (IMC).
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `c` \tab numeric (default = 5). Expressed as \eqn{c} in the above
+#'   formula.
+#' }
+#' 
+#' @family normalization parameters
+#' @seealso [process_param()]
 #' @md
 NULL
 
@@ -496,18 +542,32 @@ setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
 }
 
 # extending method classes ####
-setClass("defaultNormParam", contains = "normParam")
-setClass("libraryNormParam", contains = "normParam")
-setClass("logNormParam", contains = "normParam")
-setClass("osmFISHNormParam", contains = "normParam")
-setClass("pearsonResidNormParam", contains = "normParam")
-setClass("quantileNormParam", contains = "normParam")
-setClass("tfidfNormParam", contains = "normParam")
-setClass("l2NormParam", contains = "normParam")
 
+#' @rdname process_param
+setClass("defaultNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("libraryNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("logNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("osmFISHNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("pearsonResidNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("quantileNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("tfidfNormParam", contains = "normParam")
+#' @rdname process_param
+setClass("l2NormParam", contains = "normParam")
+#' @rdname process_param
+setClass("arcsinhNormParam", contains = "normParam")
+
+#' @rdname process_param
 setClass("defaultScaleParam", contains = "scaleParam")
+#' @rdname process_param
 setClass("zscoreScaleParam", contains = "scaleParam")
 
+#' @rdname process_param
 setClass("limmaAdjustParam", contains = "adjustParam")
 
 # allMatrix signature ####
@@ -523,7 +583,7 @@ setClassUnion("allMatrix", members = c("matrix", "Matrix"))
 normParam <- function(method = "default", ...) {
     method <- match.arg(tolower(method),
         c("default", "library", "log", "osmfish", "pearson", "quantile", 
-          "tf-idf", "l2")
+          "tf-idf", "l2", "arcsinh")
     )
     switch(method,
         "default" = .norm_param_default(...),
@@ -533,7 +593,8 @@ normParam <- function(method = "default", ...) {
         "pearson" = .norm_param_pears_resid(...),
         "quantile" = .norm_param_quantile(...),
         "tf-idf" = .norm_param_tfidf(...),
-        "l2" = .norm_param_l2(...)
+        "l2" = .norm_param_l2(...),
+        "arcsinh" = .norm_param_arcsinh(...)
     )
 }
 
@@ -750,6 +811,13 @@ setMethod("processData",
     signature(x = "allMatrix", param = "l2NormParam"),
     function(x, param, ...) {
         .l2_norm(x)
+    }
+)
+# *** arcsinh norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "arcsinhNormParam"),
+    function(x, param, ...) {
+        .arcsinh_norm(x, c = param$c)
     }
 )
 
@@ -1093,6 +1161,12 @@ normalizeGiotto <- function(gobject,
 # internals ####
 
 # * params setup ####
+.norm_param_arcsinh <- function(...) {
+    p <- new("arcsinhNormParam", ...)
+    p$c <- p$c %null% 5
+    p
+}
+
 .norm_param_lib <- function(...) {
     p <- new("libraryNormParam", param = list(...))
     p$scalefactor <- p$scalefactor %null% 6e3
@@ -1184,6 +1258,10 @@ normalizeGiotto <- function(gobject,
         return(data[, -"cell_ID"])
     })
     Reduce(cbind, reslist)
+}
+
+.arcsinh_norm <- function(x, c) {
+    asinh(x / c)
 }
 
 .l2_norm <- function(x) {

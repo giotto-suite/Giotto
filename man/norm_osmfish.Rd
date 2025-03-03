@@ -43,6 +43,7 @@ None
 \link{process_param}
 
 Other normalization parameters: 
+\code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_l2}},
 \code{\link{norm_library}},
