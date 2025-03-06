@@ -300,10 +300,36 @@ setMethod(
             "v6" = c("x_local_px", "y_local_px", "cell_ID", "cell"),
             "legacy" = c("x_local_px", "y_local_px", "cell_ID")
         )
+        col_classes_use <- switch(v,
+            "v6" = c(
+                "integer", # fov
+                "integer", # cell_ID
+                "character", # cell
+                "integer", # x_local_px
+                "integer", # y_local_px
+                "double", # x_global_px
+                "double", # y_global_px
+                "integer", # z
+                "character", # target
+                "character" # CellComp
+            ),
+            "legacy" = c(
+                "integer", # fov
+                "integer", # cell_ID
+                "double", # x_global_px
+                "double", # y_global_px
+                "double", # x_local_px
+                "double", # y_local_px
+                "integer", # z
+                "character", # target
+                "character" # CellComp
+            )
+        )
         tx_fun <- function(
         path = tx_path,
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
+        col_classes = col_classes_use,
         dropcols = dcols,
         cores = determine_cores(),
         verbose = NULL) {
@@ -312,6 +338,7 @@ setMethod(
                 fovs = .Object@fovs %none% NULL,
                 feat_type = feat_type,
                 split_keyword = split_keyword,
+                col_classes = col_classes,
                 dropcols = dropcols,
                 micron = .Object@micron,
                 px2um = .Object@px2um,
@@ -325,8 +352,8 @@ setMethod(
 
         # mask load call
         vstep <- switch(v,
-            "v6" = FALSE,
-            "legacy" = 1
+            "v6" = -1,
+            "legacy" = FALSE
         )
         
         if (!is.null(mask_dir) && !is.null(poly_path)) {
@@ -343,7 +370,7 @@ setMethod(
         poly_fun <- function(
         path = poly_use_path,
         # VERTICAL FLIP + NO VERTICAL SHIFT
-        flip_vertical = TRUE,
+        flip_vertical = FALSE,
         flip_horizontal = FALSE,
         shift_vertical_step = vstep,
         shift_horizontal_step = FALSE,
@@ -441,7 +468,7 @@ setMethod(
         # build gobject call
         gobject_fun <- function(
         transcript_path = tx_path,
-        cell_labels_dir = mask_dir,
+        cell_labels_dir = poly_use_path,
         expression_path = expr_path,
         metadata_path = meta_path,
         feat_type = c("rna", "negprobes"),
@@ -662,6 +689,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         fovs = NULL,
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
+        col_classes = NULL,
         dropcols = c(
             "x_local_px",
             "y_local_px",
@@ -691,6 +719,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             col = "fov", 
             sep = ",", 
             values_to_match = fovs,
+            col_classes = col_classes,
             drop = dropcols
         )
     }
