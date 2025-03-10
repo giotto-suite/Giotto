@@ -2,10 +2,12 @@
 
 ## Changes
 * GiottoUtils req raised to 0.2.4
+* terra req raised to 1.8-21
 
 ## Bug fixes
 * fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
 * fix `createGiottoCosMxObject()` not passing `load_expression`, `load_cellmeta`, `load_transcripts` params to `importCosMx()`
+* fix convenience functions for {terra} `v1.8-21`
 
 ## Enhancements
 * `poly_pref` param for `createGiottoCosMxObject()` and `importCosMx()` to select between loading the mask images or the `polygons.csv` as polygon info. 

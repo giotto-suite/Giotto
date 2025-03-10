@@ -46,7 +46,7 @@ Imports:
     scales (>= 1.0.0),
     sparseMatrixStats,
     stats,
-    terra (>= 1.7-39),
+    terra (>= 1.8-21),
     uwot (>= 0.0.0.9010)
 Suggests:
     ArchR,
