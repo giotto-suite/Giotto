@@ -258,6 +258,10 @@ setMethod(
         poly_fun <- function(
         path = cell_bound_path,
         name = "cell",
+        part_col = "label_id",
+        split_geom = FALSE,
+        split_geom_fmt = "%d",
+        split_geom_sourcename = "cell_poly_id",
         flip_vertical = TRUE,
         calc_centroids = TRUE,
         cores = determine_cores(),
@@ -265,6 +269,10 @@ setMethod(
             .xenium_poly(
                 path = path,
                 name = name,
+                part_col = part_col,
+                split_geom = split_geom,
+                split_geom_fmt = split_geom_fmt,
+                split_geom_sourcename = split_geom_sourcename,
                 flip_vertical = flip_vertical,
                 calc_centroids = calc_centroids,
                 cores = cores,
@@ -457,11 +465,27 @@ setMethod(
                 blist <- list()
                 bnames <- names(load_bounds)
                 for (b_i in seq_along(load_bounds)) {
-                    b <- funs$load_polys(
-                        path = load_bounds[[b_i]],
-                        name = bnames[[b_i]],
-                        verbose = verbose
-                    )
+                    b_name <- bnames[[b_i]]
+                    if (b_name == "nucleus") {
+                        b <- funs$load_polys(
+                            path = load_bounds[[b_i]],
+                            name = b_name,
+                            part_col = "label_id",
+                            split_geom = TRUE,
+                            split_geom_fmt = "nucleus_%d",
+                            split_geom_sourcename = "cell_poly_id",
+                            verbose = verbose
+                        )
+                    } else {
+                        b <- funs$load_polys(
+                            path = load_bounds[[b_i]],
+                            name = b_name,
+                            part_col = "label_id",
+                            split_geom = FALSE,
+                            verbose = verbose
+                        )
+                    }
+                    
                     blist <- c(blist, b)
                 }
                 g <- setGiotto(g, blist, verbose = FALSE)
@@ -840,6 +864,10 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 .xenium_poly <- function(
         path,
+        part_col = "label_id",
+        split_geom = FALSE,
+        split_geom_fmt = "%d",
+        split_geom_sourcename = "cell_poly_id",
         name = "cell",
         flip_vertical = TRUE,
         calc_centroids = TRUE,
@@ -871,10 +899,17 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     verbose <- verbose %null% FALSE
     gpolys <- createGiottoPolygon(
         x = polys,
+        part_col = part_col,
         name = name,
         calc_centroids = calc_centroids,
         verbose = verbose
     )
+    if (isTRUE(split_geom)) {
+        gpolys <- splitGeom(gpolys, 
+            fmt = split_geom_fmt,
+            previous_id = split_geom_sourcename
+        )
+    }
     return(gpolys)
 }
 
