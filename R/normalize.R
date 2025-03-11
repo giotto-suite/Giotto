@@ -52,8 +52,8 @@
 #'     list(
 #'         normParam("library"),
 #'         normParam("log"),
-#'         scaleParam("zscore", MARGIN = 2),
-#'         scaleParam("zscore", MARGIN = 1)
+#'         scaleParam("zscore", MARGIN = 1),
+#'         scaleParam("zscore", MARGIN = 2)
 #'     ),
 #'     name = "scaled2"
 #' )
@@ -89,11 +89,11 @@ NULL
 #' 
 #' # chained operations
 #' log_norm <- normParam("log")
-#' zscore_cols <- scaleParam("zscore")
 #' zscore_rows <- scaleParam("zscore", MARGIN = 1)
+#' zscore_cols <- scaleParam("zscore")
 #' # this is essentially the same as the default giotto normalization
 #' # only difference is the library norm scalefactor change.
-#' processData(m, list(lib_norm, log_norm, zscore_cols, zscore_rows))
+#' processData(m, list(lib_norm, log_norm, zscore_rows, zscore_cols))
 #' @seealso [process_param] for processing operations that can be performed
 #' through `processData()`
 #' @seealso [processExpression()] for the way to use this framework with the 
@@ -691,6 +691,15 @@ setMethod("processData",
 #' @rdname processData
 setMethod("processData",
     signature(x = "exprObj", param = "adjustParam"),
+    function(x, param, name = "custom", ...) {
+        x[] <- processData(x[], param, ...)
+        objName(x) <- name
+        return(x)
+    }
+)
+
+setMethod("processData",
+    signature(x = "exprObj", param = "processParam"),
     function(x, param, name = "custom", ...) {
         x[] <- processData(x[], param, ...)
         objName(x) <- name
