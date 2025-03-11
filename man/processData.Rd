@@ -57,11 +57,11 @@ processData(m, lib_norm)
 
 # chained operations
 log_norm <- normParam("log")
-zscore_cols <- scaleParam("zscore")
 zscore_rows <- scaleParam("zscore", MARGIN = 1)
+zscore_cols <- scaleParam("zscore")
 # this is essentially the same as the default giotto normalization
 # only difference is the library norm scalefactor change.
-processData(m, list(lib_norm, log_norm, zscore_cols, zscore_rows))
+processData(m, list(lib_norm, log_norm, zscore_rows, zscore_cols))
 }
 \seealso{
 \link{process_param} for processing operations that can be performed
