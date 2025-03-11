@@ -69,8 +69,8 @@ processExpression(g,
     list(
         normParam("library"),
         normParam("log"),
-        scaleParam("zscore", MARGIN = 2),
-        scaleParam("zscore", MARGIN = 1)
+        scaleParam("zscore", MARGIN = 1),
+        scaleParam("zscore", MARGIN = 2)
     ),
     name = "scaled2"
 )
