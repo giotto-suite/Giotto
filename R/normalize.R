@@ -175,6 +175,7 @@ NULL
 #' }
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 #' @md
 NULL
 
@@ -206,6 +207,7 @@ NULL
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 NULL
 
 #' @name norm_log
@@ -235,6 +237,7 @@ NULL
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 NULL
 
 #' @name norm_osmfish
@@ -273,6 +276,7 @@ NULL
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 NULL
 
 #' @name norm_pearson
@@ -323,6 +327,7 @@ NULL
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 NULL
 
 #' @name norm_quantile
@@ -362,6 +367,7 @@ NULL
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 NULL
 
 #' @name norm_tfidf
@@ -397,6 +403,7 @@ NULL
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 NULL
 
 #' @name norm_l2
@@ -425,6 +432,7 @@ NULL
 #' 
 #' @family normalization parameters
 #' @seealso [process_param]
+#' @returns normalized object
 #' @md
 NULL
 
@@ -462,6 +470,7 @@ NULL
 #' 
 #' @family normalization parameters
 #' @seealso [process_param()]
+#' @returns normalized object
 #' @md
 NULL
 
@@ -485,6 +494,7 @@ NULL
 #' @md
 #' @family scaling parameters
 #' @seealso [process_param]
+#' @returns scaled object
 NULL
 
 #' @name scale_zscore
@@ -514,6 +524,7 @@ NULL
 #' }
 #' @md
 #' @family scaling parameters
+#' @returns scaled object
 #' @seealso [process_param]
 NULL
 
@@ -532,6 +543,7 @@ NULL
 #'   of information from a Giotto object with information indicating covariates
 #'   to regress out.
 #' }
+#' @returns limmaAdjustParam
 #' @examples
 #' limma <- adjustParam("limma")
 #' limma$covariate_columns <- svkey(feats = c("nr_feats", "total_expr"))
@@ -605,7 +617,7 @@ setClassUnion("allMatrix", members = c("matrix", "Matrix"))
 normParam <- function(method = "default", ...) {
     method <- match.arg(tolower(method),
         c("default", "library", "log", "osmfish", "pearson", "quantile", 
-          "tf-idf", "l2", "arcsinh")
+        "tf-idf", "l2", "arcsinh")
     )
     switch(method,
         "default" = .norm_param_default(...),
@@ -651,9 +663,10 @@ adjustParam <- function(method = "limma", ...) {
 
 setMethod("processData",
 signature(x = "ANY", param = "ANY"), function(x, param, ...) {
-    stop(wrap_txtf("param of class '%s' is not recognized for use with '%s'", 
-                   class(param), class(x)),
-         call. = FALSE)
+    stop(wrap_txtf(
+        "param of class '%s' is not recognized for use with '%s'", 
+        class(param), class(x)),
+        call. = FALSE)
 })
 
 # * exprObj ####
@@ -712,7 +725,8 @@ setMethod("processData",
     signature(x = "exprObj", param = "osmFISHNormParam"), 
     function(x, param, name = "custom", ...) {
         if (!featType(x) %in% c("rna", "RNA")) {
-            warning("Caution: osmFISH normalization was developed for RNA in situ data",
+            warning("Caution: osmFISH normalization was developed for RNA 
+                    in situ data",
                     call. = FALSE)
         }
         x[] <- processData(x[], param, ...)
@@ -726,7 +740,8 @@ setMethod("processData",
     signature(x = "exprObj", param = "pearsonResidNormParam"), 
     function(x, param, name = "scaled", ...) {
         if (!featType(x) %in% c("rna", "RNA")) {
-            warning("Caution: pearson residual normalization was developed for RNA count normalization",
+            warning("Caution: pearson residual normalization was developed 
+                    for RNA count normalization",
                     call. = FALSE)
         }
         x[] <- processData(x[], param, ...)
@@ -863,8 +878,9 @@ setMethod("processData",
     signature("allMatrix", param = "zscoreScaleParam"), 
     function(x, param, ...) {
         if (!param$MARGIN %in% c(1, 2)) {
-            stop("processData zscore: 'MARGIN' must be either 1 (rows) or 2 (cols)", 
-                 call. = FALSE)
+            stop(
+            "processData zscore: 'MARGIN' must be either 1 (rows) or 2 (cols)", 
+            call. = FALSE)
         }
         if (param$MARGIN == 1) x <- t_flex(x)
         x <- standardise_flex(x, center = param$center, scale = param$scale)
@@ -879,8 +895,9 @@ setMethod("processData",
         s1 <-scaleParam("zscore", center = TRUE, scale = TRUE, MARGIN = 1)
         s2 <-scaleParam("zscore", center = TRUE, scale = TRUE, MARGIN = 2)
         if (isTRUE(param$scale_feats) && isTRUE(param$scale_cells)) {
-            scale_order <- match.arg(param$scale_order,
-                                     choices = c("first_feats", "first_cells")
+            scale_order <- match.arg(
+                param$scale_order,
+                choices = c("first_feats", "first_cells")
             )
             if (scale_order == "first_feats") {
                 vmsg(.v = param$verbose, "first scale feats and then cells")
@@ -890,7 +907,7 @@ setMethod("processData",
                 plist <- c(plist, s2, s1)
             } else {
                 stop("processData defaultNormParam: scale order must be given", 
-                     call. = FALSE)
+                    call. = FALSE)
             }
         } else if (isTRUE(param$scale_feats)) {
             plist <- c(plist, s1)
@@ -945,8 +962,8 @@ setMethod("processData",
         }
         # covariates
         if (!is.null(covariates)) {
-            c_dt <- .get_svkey(covariates, context, 
-                               sample_order = sample_order)
+            c_dt <- .get_svkey(
+                covariates, context, sample_order = sample_order)
             limma_args$covariates <- as.matrix(c_dt)
         }
         do.call(limma::removeBatchEffect, args = limma_args) %>%
@@ -1626,10 +1643,10 @@ normalizeGiotto <- function(gobject,
     # print message with information #
     if (verbose) {
         message("using 'Lause/Kobak' method to normalize count matrix If used in
-      published research, please cite:
-      Jan Lause, Philipp Berens, Dmitry Kobak (2020).
-      'Analytic Pearson residuals for normalization of single-cell RNA-seq UMI
-      data' ")
+        published research, please cite:
+        Jan Lause, Philipp Berens, Dmitry Kobak (2020).
+        'Analytic Pearson residuals for normalization of single-cell RNA-seq UMI
+        data' ")
     }
 
     # check feature type compatibility

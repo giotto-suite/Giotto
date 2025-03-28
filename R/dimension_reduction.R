@@ -97,7 +97,7 @@ reduceDims <- function(
 
         # start seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
         }
 
         pca_res <- FactoMineR::PCA(
@@ -106,7 +106,7 @@ reduceDims <- function(
 
         # exit seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = Sys.time())
+            GiottoUtils::local_seed(seed = Sys.time())
         }
 
         # eigenvalues
@@ -136,7 +136,7 @@ reduceDims <- function(
 
         # start seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
         }
 
         pca_res <- FactoMineR::PCA(
@@ -145,7 +145,7 @@ reduceDims <- function(
 
         # exit seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = Sys.time())
+            GiottoUtils::local_seed(seed = Sys.time())
         }
 
         # eigenvalues
@@ -622,7 +622,7 @@ runPCA <- function(
 
     # seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = seed_number)
+        GiottoUtils::local_seed(seed = seed_number)
     }
     on.exit(random_seed(), add = TRUE)
 
@@ -2637,7 +2637,7 @@ runUMAP <- function(
 
         # start seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
             on.exit(
                 {
                     GiottoUtils::random_seed(set.seed = TRUE)
@@ -2664,7 +2664,7 @@ runUMAP <- function(
 
         # exit seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = Sys.time())
+            GiottoUtils::local_seed(seed = Sys.time())
         }
 
 
@@ -2887,7 +2887,7 @@ runUMAPprojection <- function(
 
         # start seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
         }
 
 
@@ -2931,7 +2931,7 @@ runUMAPprojection <- function(
 
         # exit seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = Sys.time())
+            GiottoUtils::local_seed(seed = Sys.time())
         }
     } else if (reduction == "feats") {
         message("Feats reduction is not yet implemented")
@@ -3136,7 +3136,7 @@ runtSNE <- function(
 
         # start seed
         if (isTRUE(set_seed)) {
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
         }
 
         ## run tSNE ##
@@ -3156,7 +3156,7 @@ runtSNE <- function(
 
         # exit seed
         if (isTRUE(set_seed)) {
-            set.seed(Sys.time())
+            GiottoUtils::local_seed(Sys.time())
         }
 
 
@@ -3325,7 +3325,7 @@ runGiottoHarmony <- function(
 
     # start seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = seed_number)
+        GiottoUtils::local_seed(seed = seed_number)
         on.exit(GiottoUtils::random_seed())
     }
 

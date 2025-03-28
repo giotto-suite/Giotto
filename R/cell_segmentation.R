@@ -120,7 +120,8 @@ doCellSegmentation <- function(raster_img,
 #'        If TRUE, normalizes to 1st-99th percentile
 #'        Can be a list with parameters:
 #'        * lowhigh: Numeric vector c(low, high) for manual normalization values
-#'        * sharpen: Numeric, image sharpening factor (1/4-1/8 of cell diameter in pixels)
+#'        * sharpen: Numeric, image sharpening factor 
+#'        (1/4-1/8 of cell diameter in pixels)
 #'        * normalize: Logical, whether to run normalization
 #'        * percentile: Numeric vector c(low_perc, high_perc)
 #'        * tile_norm: Integer, window size in pixels for tile normalization
@@ -128,37 +129,34 @@ doCellSegmentation <- function(raster_img,
 #'        Default: TRUE
 #' @param invert Logical. Inverts pixel intensity before processing.
 #' Default: FALSE
-#' @param rescale Numeric. Resize factor for images.
-#'        Default: NULL (sets to 1.0)
+#' @param rescale Numeric. Resize factor for images. Default: NULL (sets to 1.0)
 #' @param diameter Numeric. Cell diameter for each image.
-#'        Default: NULL (uses diam_mean or diam_train if available)
-#' @param flow_threshold Numeric. Flow error threshold for cell retention (2D only).
-#'        Default: 0.4
+#' Default: NULL (uses diam_mean or diam_train if available)
+#' @param flow_threshold Numeric. Flow error threshold for cell retention 
+#' (2D only). Default: 0.4
 #' @param cellprob_threshold Numeric. Threshold for mask pixel retention.
-#'        Default: 0.0
+#' Default: 0.0
 #' @param do_3D Logical. Enable 3D segmentation for 3D/4D inputs.
-#'        Default: FALSE
+#' Default: FALSE
 #' @param anisotropy Numeric. Z-axis rescaling factor for 3D segmentation.
-#'        Default: NULL
-#' @param stitch_threshold Numeric. Threshold for 3D mask stitching (2D mode only).
-#'        Default: 0.0
-#' @param min_size Integer. Minimum ROI size in pixels.
-#'        Default: 15
+#' Default: NULL
+#' @param stitch_threshold Numeric. Threshold for 3D mask stitching 
+#' (2D mode only). Default: 0.0
+#' @param min_size Integer. Minimum ROI size in pixels. Default: 15
 #' @param max_size_fraction Numeric. Maximum mask size as fraction of image.
-#'        Default: 0.4
+#' Default: 0.4
 #' @param niter Integer. Number of dynamics computation iterations.
-#'        Default: NULL (set based on diameter)
+#' Default: NULL (set based on diameter)
 #' @param augment Logical. Enable tile augmentation with overlapping.
-#'        Default: FALSE
+#' Default: FALSE
 #' @param tile_overlap Numeric. Tile overlap fraction for flow computation.
-#'        Default: 0.1
+#' Default: 0.1
 #' @param bsize Integer. Block size for tiles (recommended: 224).
-#'        Default: 224
+#' Default: 224
 #' @param dP_smooth Integer. Gaussian smoothing standard deviation for 3D flows.
-#' @param interp Logical. Enable interpolation for 2D dynamics.
-#'        Default: TRUE
+#' @param interp Logical. Enable interpolation for 2D dynamics. Default: TRUE
 #' @param compute_masks Logical. Compute dynamics and return masks.
-#'        Default: TRUE
+#' Default: TRUE
 #' @param progress progress bar. Defaults to NULL
 #' @returns No return variable, as this will write directly to output path
 #' provided.
@@ -284,7 +282,8 @@ doCellposeSegmentation <- function(
 #' @name doMesmerSegmentation
 #' @param input character, required. Provide a path to a IF image.
 #' @param python_env python environment with deepcell installed.
-#' default = "giotto_segmentation". See deepcell official website for more details.
+#' default = "giotto_segmentation". See deepcell official website for more 
+#' details.
 #' @param mask_output required. Provide a path to the output mask file.
 #' @param nucleus_channel channel number for Nuclei, default to 1
 #' @param membrane_channel channel number for cell boundary, default to 2
@@ -355,16 +354,19 @@ doMesmerSegmentation <- function(input,
 #' @name doStardistSegmentation
 #' @param input character, required. Provide a path to an image.
 #' @param python_env python environment with Stardist installed.
-#' default = "giotto_segmentation". See Stardist official website for more details.
+#' default = "giotto_segmentation". See Stardist official website for more 
+#' details.
 #' @param mask_output required. Provide a path to the output mask file.
-#' @param model_name Name of the model to run inference. Default to '2D_versatile_fluo'.
-#' If using HE model, input image must be RGB, else the nuclei_channel must be given
-#' @param nuclei_channel Required using IF based nuclei segmentation, channel number of the nuclei staining.
+#' @param model_name Name of the model to run inference. Default to 
+#' '2D_versatile_fluo'. If using HE model, input image must be RGB, else the 
+#' nuclei_channel must be given
+#' @param nuclei_channel Required using IF based nuclei segmentation, channel 
+#' number of the nuclei staining.
 #' @param prob_thresh prob_thresh for model (if not given use model default)
 #' @param nms_thresh nms_thresh for model (if not given use model default)
-#' @returns No return variable, as this will write directly to output path provided.
+#' @returns No return variable, as this will write directly to output path 
+#' provided.
 #' @examples
-#' # example code
 #' doStardistSegmentation(
 #'     input = input_image,
 #'     mask_output = output,
@@ -392,7 +394,9 @@ doStardistSegmentation <- function(input,
 
     # Load the StarDist2D model
     model_name <- match.arg(
-        model_name, unique(c("2D_versatile_fluo", "2D_versatile_he", "2D_paper_dsb2018", "2D_demo", model_name))
+        model_name, unique(c(
+            "2D_versatile_fluo", "2D_versatile_he", "2D_paper_dsb2018", 
+            "2D_demo", model_name))
     )
     vmsg(.v = verbose, "Loading model ", model_name)
 
