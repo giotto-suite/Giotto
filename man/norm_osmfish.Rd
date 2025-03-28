@@ -3,6 +3,9 @@
 \name{norm_osmfish}
 \alias{norm_osmfish}
 \title{osmFISH Normalization}
+\value{
+normalized object
+}
 \description{
 Normalization method as provided by the osmFISH paper
 

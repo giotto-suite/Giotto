@@ -324,7 +324,7 @@ doLeidenClusterIgraph <- function(
     ## set seed
     if (isTRUE(set_seed)) {
         seed_number <- as.integer(seed_number)
-        set.seed(seed_number)
+        GiottoUtils::local_seed(seed_number)
         on.exit(expr = {
             GiottoUtils::random_seed(set.seed = TRUE)
         }, add = TRUE)
@@ -787,7 +787,7 @@ doGiottoClustree <- function(
 
     # start seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = as.integer(seed_number))
+        GiottoUtils::local_seed(seed = as.integer(seed_number))
     }
 
     # data.table variables
@@ -802,7 +802,7 @@ doGiottoClustree <- function(
 
     # exit seed
     if (isTRUE(set_seed)) {
-        set.seed(Sys.time())
+        GiottoUtils::local_seed(Sys.time())
     }
 
 
@@ -1041,7 +1041,7 @@ doRandomWalkCluster <- function(
 
     # start seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = seed_number)
+        GiottoUtils::local_seed(seed = seed_number)
     }
 
     randomwalk_clusters <- igraph::cluster_walktrap(
@@ -1059,7 +1059,7 @@ doRandomWalkCluster <- function(
 
     # exit seed
     if (isTRUE(set_seed)) {
-        set.seed(Sys.time())
+        GiottoUtils::local_seed(Sys.time())
     }
 
     ## return
@@ -1144,7 +1144,7 @@ doSNNCluster <- function(
 
     # start seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = seed_number)
+        GiottoUtils::local_seed(seed = seed_number)
     }
 
     # data.table variables
@@ -1185,7 +1185,7 @@ doSNNCluster <- function(
 
     # exit seed
     if (isTRUE(set_seed)) {
-        set.seed(Sys.time())
+        GiottoUtils::local_seed(Sys.time())
     }
 
     ## add clusters to metadata ##
@@ -1577,7 +1577,7 @@ doHclust <- function(
     ## hierarchical clustering
     # start seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = as.integer(seed_number))
+        GiottoUtils::local_seed(seed = as.integer(seed_number))
     }
 
     # start clustering
@@ -1586,7 +1586,7 @@ doHclust <- function(
 
     # exit seed
     if (isTRUE(set_seed)) {
-        set.seed(seed = Sys.time())
+        GiottoUtils::local_seed(seed = Sys.time())
     }
 
     ident_clusters_DT <- data.table::data.table(
@@ -3137,7 +3137,7 @@ mergeClusters <- function(
         if (verbose == TRUE) cat("height ", n_height, "\n")
 
         # only use dendrogram objects
-        ind <- lapply(dend_list, FUN = function(x) class(x) == "dendrogram")
+        ind <- lapply(dend_list, FUN = function(x) is(x, "dendrogram"))
         dend_list <- dend_list[unlist(ind)]
 
         # check which heights are available
@@ -3172,7 +3172,7 @@ mergeClusters <- function(
 
 
         ## add dendrograms to list
-        ind <- lapply(tempres, FUN = function(x) class(x) == "dendrogram")
+        ind <- lapply(tempres, FUN = function(x) is(x, "dendrogram"))
         tempres_dend <- tempres[unlist(ind)]
 
         dend_list[[i + 1]] <- tempres_dend[[1]]
@@ -3444,7 +3444,7 @@ setGeneric(
     ufids <- intersect(featIDs(x), featIDs(y))
     if (length(ufids) == 0L) {
         stop("labelTransfer harmony: No common features between `x` and `y`",
-             call. = FALSE)
+            call. = FALSE)
     }
 
     # get needed subobjects
@@ -3521,13 +3521,13 @@ setGeneric(
     normalize_params$verbose <- FALSE
     # process
     j <- do.call(normalizeGiotto, 
-                 args = c(list(gobject = j), normalize_params)
+                args = c(list(gobject = j), normalize_params)
     )
     
     if (use_hvf) {
         vmsg(.v = verbose, "-- Calculating HVF...")
         j <- calculateHVF(j)
-        pca_params$feats_to_use = pca_params$feats_to_use %null% "hvf"
+        pca_params$feats_to_use <- pca_params$feats_to_use %null% "hvf"
     } else {
         pca_params <- c(pca_params, list(feats_to_use = NULL))
     }
@@ -3539,23 +3539,23 @@ setGeneric(
     
     # harmony
     integration_params$name <- "harmony"
-    integration_params$vars_use = "list_ID"
-    integration_params$dim_reduction_name = "pca"
-    integration_params$dimensions_to_use = dimensions_to_use
+    integration_params$vars_use <- "list_ID"
+    integration_params$dim_reduction_name <- "pca"
+    integration_params$dimensions_to_use <- dimensions_to_use
     
     vmsg(.v = verbose, "5. Generating shared Harmony embedding space...")
     j <- do.call(runGiottoHarmony,
-                 c(list(gobject = j), integration_params)
+                c(list(gobject = j), integration_params)
     )
     
     # transfer
     transfer_args <- list(...)
     transfer_args$x <- j
     transfer_args$source_cell_ids <- spatIDs(j, subset = list_ID == "y")
-    transfer_args$dimensions_to_use = dimensions_to_use
-    transfer_args$reduction = "cells"
-    transfer_args$reduction_method = "harmony"
-    transfer_args$reduction_name = "harmony"   
+    transfer_args$dimensions_to_use <- dimensions_to_use
+    transfer_args$reduction <- "cells"
+    transfer_args$reduction_method <- "harmony"
+    transfer_args$reduction_name <- "harmony"   
     
     vmsg(.v = verbose, "6. Performing label transfer...")
     j <- do.call(labelTransfer, transfer_args)
@@ -3614,8 +3614,9 @@ setGeneric(
     p2_params$return_plot <- TRUE
     p2_params$title <- "final labels"
     
-    plot_list <- list(label_source_plot = do.call(plotUMAP, p1_params), 
-                      label_final_plot = do.call(plotUMAP, p2_params))
+    plot_list <- list(
+        label_source_plot = do.call(plotUMAP, p1_params), 
+        label_final_plot = do.call(plotUMAP, p2_params))
     
     if (.show_plot) {
         print(plot_grid(plotlist = plot_list))
@@ -3680,7 +3681,7 @@ setMethod("labelTransfer", signature(x = "giotto", y = "giotto"), function(
             do.call(.lab_transfer_harmony, a)
         }, error = function(e) {
             stop(wrap_txtf("labelTransfer: harmony:\n%s", e$message), 
-                 call. = FALSE)
+                call. = FALSE)
         })
         return(res)
     }

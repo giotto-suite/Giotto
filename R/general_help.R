@@ -66,7 +66,7 @@ extended_gini_fun <- function(
         seed = NULL) {
     if (!is.null(seed)) {
         on.exit(random_seed(), add = TRUE)
-        set.seed(seed)
+        GiottoUtils::local_seed(seed)
     }
     sel_gene_km <- stats::kmeans(
         x,
@@ -98,7 +98,7 @@ extended_gini_fun <- function(
 .kmeans_arma_binarize <- function(x, n_iter = 5, seed = NULL) {
     if (!is.null(seed)) {
         on.exit(random_seed(), add = TRUE)
-        set.seed(seed)
+        GiottoUtils::local_seed(seed)
     }
     sel_gene_km_res <- ClusterR::KMeans_arma(
         data = as.matrix(x),
@@ -153,7 +153,7 @@ extended_gini_fun <- function(
 
     if (!is.null(seed)) {
         on.exit(random_seed(), add = TRUE)
-        set.seed(seed)
+        GiottoUtils::local_seed(seed)
     }
     sel_gene_km_res <- ClusterR::KMeans_arma(
         data = as.matrix(testset),

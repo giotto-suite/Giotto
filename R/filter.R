@@ -467,9 +467,9 @@ filterGiotto <- function(gobject,
         }
 
         warning(wrap_txt(
-            'filterGiotto:
-      all_spat_units param is deprecated.
-      Please use spat_unit_fsub = \":all:\" instead. (this is the default)'
+            'filterGiotto: all_spat_units param is deprecated.
+            Please use spat_unit_fsub = \":all:\" instead. 
+            (this is the default)'
         ))
     }
     if (!is.null(all_feat_types)) {

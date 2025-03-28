@@ -3,6 +3,9 @@
 \name{norm_tfidf}
 \alias{norm_tfidf}
 \title{TF-IDF Normalization}
+\value{
+normalized object
+}
 \description{
 TF-IDF (Term Frequency-Inverse Document Frequency) normalization is borrowed
 from natural language processing to identify features that are highly expressed

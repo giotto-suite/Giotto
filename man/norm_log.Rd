@@ -3,6 +3,9 @@
 \name{norm_log}
 \alias{norm_log}
 \title{Log Normalization}
+\value{
+normalized object
+}
 \description{
 Apply a log normalization
 
