@@ -771,7 +771,20 @@ setMethod("processData",
 setMethod("processData",
     signature(x = "allMatrix", param = "libraryNormParam"),
     function(x, param, ...) {
-        .lib_norm_giotto(mymatrix = x, scalefactor = param$scalefactor)
+        libsizes <- colSums_flex(x)
+        .libzero_warn(libsizes = libsizes)
+        t_flex(t_flex(x) / libsizes) * param$scalefactor
+    }
+)
+setMethod("processData",
+    signature(x = "dgCMatrix", param = "libraryNormParam"),
+    function(x, param, ...) {
+        libsizes <- colSums_flex(x)
+        .libzero_warn(libsizes = libsizes)
+        # x / colSums(x) equivalent for dgc
+        x@x <- .dgc_div_csum_sparse_vector(x, colsums = libsizes) * 
+            param$scalefactor
+        x
     }
 )
 # *** log norm ####
@@ -830,7 +843,19 @@ setMethod("processData",
     signature(x = "allMatrix", param = "tfidfNormParam"),
     function(x, param, ...) {
         # compute term frequency (TF)
-        tf <- x / rowSums_flex(x)
+        tf <- x / colSums_flex(x)
+        # compute inverse document frequency (IDF)
+        idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
+        # apply TF-IDF
+        tf * idf
+    }
+)
+setMethod("processData",
+    signature(x = "dgCMatrix", param = "tfidfNormParam"),
+    function(x, param, ...) {
+        # compute term frequency (TF)
+        tf <- x
+        tf@x <- .dgc_div_csum_sparse_vector(x) # x / colSums(x) equivalent
         # compute inverse document frequency (IDF)
         idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
         # apply TF-IDF
@@ -1336,15 +1361,7 @@ normalizeGiotto <- function(gobject,
     'Analytic Pearson residuals for normalization of single-cell RNA-seq UMI data'")
 }
 
-#' @title Normalize expression matrix for library size
-#' @param mymatrix matrix object
-#' @param scalefactor scalefactor
-#' @returns matrix
-#' @keywords internal
-#' @noRd
-.lib_norm_giotto <- function(mymatrix, scalefactor) {
-    libsizes <- colSums_flex(mymatrix)
-
+.libzero_warn <- function(libsizes) {
     if (0 %in% libsizes) {
         warning(wrap_txt("Total library size or counts for individual spat
             units are 0.
@@ -1353,8 +1370,34 @@ normalizeGiotto <- function(gobject,
             units.")
         )
     }
+}
 
-    norm_expr <- t_flex(t_flex(mymatrix) / libsizes) * scalefactor
+# equivalent to calculating x / colSums(x) for dgCMatrix
+# returns just the sparse vector of values that need to be assigned to `@x`
+.dgc_div_csum_sparse_vector <- function(x, colsums = NULL) {
+    if (is.null(colsums)) colsums <- colSums_flex(x)
+    x@x / rep.int(colsums, Matrix::diff(x@p))
+}
+
+#' @title Normalize expression matrix for library size
+#' @param mymatrix matrix object
+#' @param scalefactor scalefactor
+#' @returns matrix
+#' @keywords internal
+#' @noRd
+.lib_norm_giotto <- function(mymatrix, scalefactor) {
+    libsizes <- colSums_flex(mymatrix)
+    .libzero_warn(libsizes = libsizes)
+
+    if (inherits(mymatrix, "dgCMatrix")) {
+        norm_expr <- mymatrix
+        norm_expr@x <- .dgc_div_csum_sparse_vector(norm_expr, 
+            colsums = libsizes) *
+            scalefactor
+    } else {
+        norm_expr <- t_flex(t_flex(mymatrix) / libsizes) * scalefactor
+    }
+    
     return(norm_expr)
 }
 
