@@ -843,7 +843,19 @@ setMethod("processData",
     signature(x = "allMatrix", param = "tfidfNormParam"),
     function(x, param, ...) {
         # compute term frequency (TF)
-        tf <- x / rowSums_flex(x)
+        tf <- x / colSums_flex(x)
+        # compute inverse document frequency (IDF)
+        idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
+        # apply TF-IDF
+        tf * idf
+    }
+)
+setMethod("processData",
+    signature(x = "dgCMatrix", param = "tfidfNormParam"),
+    function(x, param, ...) {
+        # compute term frequency (TF)
+        tf <- x
+        tf@x <- .dgc_div_csum_sparse_vector(x) # x / colSums(x) equivalent
         # compute inverse document frequency (IDF)
         idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
         # apply TF-IDF
