@@ -323,8 +323,7 @@ between data and target. Only applies if \code{y} is non-\code{NULL}.}
     \item{\code{pcg_rand}}{If \code{TRUE}, use the PCG random number generator (O'Neill,
 2014) during optimization. Otherwise, use the faster (but probably less
 statistically good) Tausworthe "taus88" generator. The default is
-\code{TRUE}. This parameter has been superseded by \code{rng_type} -- if
-both are set, \code{rng_type} takes precedence.}
+\code{TRUE}.}
     \item{\code{fast_sgd}}{If \code{TRUE}, then the following combination of parameters
 is set: \code{pcg_rand = TRUE}, \code{n_sgd_threads = "auto"} and
 \code{approx_pow = TRUE}. The default is \code{FALSE}. Setting this to
@@ -525,17 +524,6 @@ conjunction with \code{epsilon}) to avoid an inefficient exhaustive search
 of the data in \code{X}. This parameter only affects neighbor search when
 transforming new data with \code{\link[uwot]{umap_transform}}.
 }}
-    \item{\code{rng_type}}{The type of random number generator to use during
-optimization. One of:
-\itemize{
- \item{\code{"pcg"}}. Use the PCG random number generator (O'Neill, 2014).
- \item{\code{"tausworthe"}}. Use the Tausworthe "taus88" generator.
- \item{\code{"deterministic"}}. Use a deterministic number generator. This
- isn't actually random, but may provide enough variation in the negative
- sampling to give a good embedding and can provide a noticeable speed-up.
-}
-For backwards compatibility, by default this is unset and the choice of
-\code{pcg_rand} is used (making "pcg" the effective default).}
   }}
 }
 \value{
