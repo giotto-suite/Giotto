@@ -139,6 +139,13 @@ NULL
 #' @section adjustParam methods:
 #' 
 #' * [`"limma"`][adjust_limma] - limma batch correction
+#' 
+#' @section thresholdParam methods:
+#' 
+#' * [`"binarize"`][threshold_binarize] - data binarization (matrices and 
+#' rasters)
+#' * [`"minmax"`][threshold_minmax] - value restriction/clamping (matrices 
+#' and rasters)
 #' @details
 #' Generated params are S4 objects inheriting from `processParam` and one of 
 #' `normParam`, `scaleParam`, and `adjustParam`.
@@ -374,36 +381,114 @@ NULL
 #' @title TF-IDF Normalization
 #' @description
 #' TF-IDF (Term Frequency-Inverse Document Frequency) normalization is borrowed 
-#' from natural language processing to identify features that are highly expressed 
-#' in specific samples but not widely expressed across the entire dataset.
+#' from natural language processing to identify features that are highly
+#' expressed in specific samples but not widely expressed across the entire 
+#' dataset.
+#' 
+#' There are several different implementations that apply log or binarization
+#' to different terms. `sub_method = c(1:3)` and `dgCMatrix` optimizations are
+#' based on the ArchR implementations.
 #' 
 #' \deqn{\LARGE
 #' TF_{i,j} = \frac{x_{i,j}}{\sum_{i} x_{i,j}}
 #' }
 #' 
 #' \deqn{\LARGE
-#' IDF_{i} = \log(1 + \frac{n_{samples}}{1 + n_{samples \: where \: feature \: i > 0}})
+#' IDF_{i} = \frac{n_{samples}}{\sum_{j} x_{i,j}}
 #' }
 #' 
 #' \deqn{\LARGE
-#' TFIDF_{i,j} = TF_{i,j} \times IDF_{i}
+#' IBDF_{i} = \frac{n_{samples}}{1 + n_{samples \: where \: feature \: i > 0}}
+#' }
+#' 
+#' **Implementations** (`sub_method`):
+#' 
+#' \deqn{\large
+#' (default) \quad TFIDF_{i,j} = TF_{i,j} \times \log(IBDF_{i} + 1)
+#' }
+#' 
+#' \deqn{\large
+#' (1) \quad TFIDF_{i,j} = TF_{i,j} \times \log(IDF_{i} + 1)
+#' }
+#' 
+#' \deqn{\large
+#' (2) \quad TFIDF_{i,j} = \log(TF_{i,j} \times IDF_{i} \times S + 1) \quad 
+#' }
+#' 
+#' \deqn{\large
+#' (3) \quad TFIDF_{i,j} = \log(TF_{i,j} + 1) \times \log(IDF_{i} + 1)
 #' }
 #' 
 #' Where:
 #' * (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
 #' * (\eqn{TF_{i,j}}) is the term frequency of feature \eqn{i} in sample \eqn{j}
 #' * (\eqn{IDF_{i}}) is the inverse document frequency of feature \eqn{i}
+#' * (\eqn{IBDF_{i}}) is the inverse binarized document frequency of feature \eqn{i}
 #' * (\eqn{TFIDF_{i,j}}) is the final TF-IDF normalized value
+#' * (\eqn{S}) is a scalefactor (default = 10000)
 #' 
 #' # Note
 #' [L2][norm_l2] normalization is commonly performed after TF-IDF normalization
 #' 
 #' @section params:
-#' None
+#' 
+#' \tabular{ll}{
+#'   `sub_method` \tab Either numeric 1, 2, or 3 or "default". Determines which
+#'   set of defaults to use during the TF-IDF calculation. Methods 1-3 map to
+#'   the same `LSIMethod` settings in {ArchR}. See sub_method section below.\cr
+#'   `log_tf` \tab logical (overrides `sub_method` defaults). Whether to log
+#'   transform TF values (includes a +1 offset).\cr
+#'   `log_idf` \tab logical (overrides `sub_method` defaults). Whether to log
+#'   transform IDF values (includes a +1 offset).\cr
+#'   `log_tf_idf` \tab logical (overrides `sub_method` defaults). Whether to log
+#'   transform the TF-IDF value (also applies a scalefactor (\eqn{s}) and +1
+#'   offset before the log operation).\cr
+#'   `binarized_rowsums` \tab logical (overrides `sub_method` defaults).
+#'   Whether to calculate IBDF instead of IDF, where the calculation is based
+#'   on the presence of a feature as opposed to its count.\cr
+#'   `scalefactor` \tab numeric (default = 10000). A scalefactor used when
+#'   `log_tf_idf = TRUE`.
+#' }
+#' 
+#' @section `sub_method`:
+#' `sub_method` can be one of `"default"` or any of the other implementations
+#' from 1 to 3. These apply some defaults to the way that TF-IDF is calculated.
+#' The individual `log_` params will override these defaults.
+#' 
+#' * `"default"` - default Giotto implementation:
+#'   * `log_idf = TRUE`
+#'   * `binarized_rowsums = TRUE`
+#' * `1` - Method introduced in Cusanovich et al. 2018.
+#'   * `log_idf = TRUE`
+#' * `2` - Method introduced in Stuart et al. 2021.
+#'   * `log_tf_idf = TRUE`
+#' * `3` - Method 3 in {ArchR} `iterativeLSI()`
+#'   * `log_tf = TRUE`
+#'   * `log_idf = TRUE`
+#' 
 #' @md
 #' @family normalization parameters
 #' @seealso [process_param]
 #' @returns normalized object
+#' @references
+#' Cusanovich, D., Reddington, J., Garfield, D. et al. The cis-regulatory 
+#' dynamics of embryonic development at single-cell resolution.
+#' Nature 555, 538–542 (2018). https://doi.org/10.1038/nature25981
+#' 
+#' Stuart T, Srivastava A, Madad S, Lareau CA, Satija R. Single-cell chromatin
+#' state analysis with Signac. Nat Methods. 2021 Nov;18(11):1333-1341.
+#' doi: 10.1038/s41592-021-01282-5.
+#' 
+#' Granja JM, Corces MR, Pierce SE, Bagdatli ST, Choudhry H, Chang HY,
+#' Greenleaf WJ. ArchR is a scalable software package for integrative
+#' single-cell chromatin accessibility analysis.
+#' Nat Genet. 2021 Mar;53(3):403-411. doi: 10.1038/s41588-021-00790-6.
+#' @examples
+#' e <- GiottoData::loadSubObjectMini("exprObj")
+#' processData(e, normParam("tf-idf"))
+#' processData(e, normParam("tf-idf", sub_method = 1))
+#' processData(e, normParam("tf-idf", sub_method = 2))
+#' processData(e, normParam("tf-idf", sub_method = 3))
 NULL
 
 #' @name norm_l2
@@ -555,11 +640,79 @@ NULL
 #' @md
 NULL
 
+#' @name threshold_binarize
+#' @title Data Binarization
+#' @description
+#' Binarize values to 0 and 1 based on a minimal value. For matrices, the
+#' default threshold is 0. For rasters, the default is a value determined
+#' through sampled (5e5 pixels) otsu.
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `threshold` \tab numeric (optional) Values above or equal to the threshold
+#'   will be set to 1. Below will be set to 0. If not provided, defaults to 0
+#'   for matrices and a value determined by otsu for rasters. \cr
+#'   `drop0` \tab logical (only for `dgCMatrix`, default = FALSE) Whether to
+#'   run [Matrix::drop0] after binarization 
+#' }
+#' @returns binarizeThreshParam
+#' @examples
+#' e <- GiottoData::loadSubObjectMini("exprObj")
+#' # also works with matrix classes
+#' bin_e <- processData(e, thresholdParam("binarize"))
+#' force(bin_e)
+#' 
+#' gimg <- GiottoData::loadSubObjectMini("giottoLargeImage")
+#' # also works with SpatRasters
+#' bin_img <- processData(gimg, thresholdParam("binarize"))
+#' plot(bin_img)
+#' @family threshold parameters
+#' @seealso [process_param]
+#' @md
+NULL
+
+#' @name threshold_minmax
+#' @title Value MinMax Restriction/Clamping
+#' @description
+#' Set an `upper` and `lower` bound for the data. Values above `upper` will be
+#' set to the `upper` value. Values below `lower` will be set to the `lower`
+#' value.
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `upper` \tab numeric (default = Inf) highest acceptable value. Values
+#'   above this will be set to the same as `upper`. \cr
+#'   `lower` \tab numeric (default = -Inf) lowest acceptable value. Values
+#'   below this will be set to the same as `lower`.\cr
+#'   `values` \tab logical (`SpatRaster` only) If `FALSE` values outside the
+#'   clamping range become `NA`, if `TRUE`, they get the extreme values
+#' }
+#' @returns minmaxThreshParam
+#' @examples
+#' e <- GiottoData::loadSubObjectMini("exprObj")
+#' # also works with matrix classes
+#' max_e <- processData(e, thresholdParam("minmax", upper = 6))
+#' force(max_e)
+#' 
+#' gimg <- GiottoData::loadSubObjectMini("giottoLargeImage")
+#' # also works with SpatRasters
+#' mm_img <- processData(gimg,
+#'     thresholdParam("minmax", lower = 30, upper = 100)
+#' )
+#' plot(mm_img)
+#' @family threshold parameters
+#' @seealso [process_param]
+#' @md
+NULL
+
 
 # VIRTUAL classes ####
 setClass("normParam", contains = c("VIRTUAL", "processParam"))
 setClass("scaleParam", contains = c("VIRTUAL", "processParam"))
 setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
+setClass("threshParam", contains = c("VIRTUAL", "processParam"))
 
 # access ####
 #' @export
@@ -572,6 +725,10 @@ setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
 }
 #' @export
 .DollarNames.adjustParam <- function(x, pattern) {
+    names(x@param)
+}
+#' @export
+.DollarNames.thresholdParam <- function(x, pattern) {
     names(x@param)
 }
 
@@ -603,6 +760,11 @@ setClass("zscoreScaleParam", contains = "scaleParam")
 
 #' @rdname process_param
 setClass("limmaAdjustParam", contains = "adjustParam")
+
+#' @rdname process_param
+setClass("binarizeThreshParam", contains = "threshParam")
+#' @rdname process_param
+setClass("minmaxThreshParam", contains = "threshParam")
 
 # allMatrix signature ####
 setClassUnion("allMatrix", members = c("matrix", "Matrix"))
@@ -655,6 +817,18 @@ adjustParam <- function(method = "limma", ...) {
     )
 }
 
+#' @rdname process_param
+#' @export
+thresholdParam <- function(method = "binarize", ...) {
+    method <- match.arg(tolower(method),
+        c("binarize", "minmax")
+    )
+    switch(method,
+        "binarize" = .thresh_param_binarize(...),
+        "minmax" = .thresh_param_minmax(...)
+    )
+}
+
 
 
 # methods ####
@@ -668,6 +842,34 @@ signature(x = "ANY", param = "ANY"), function(x, param, ...) {
         class(param), class(x)),
         call. = FALSE)
 })
+
+# * giottoLargeImage ####
+
+# TODO make these delayed operations
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "giottoLargeImage", param = "list"),
+    function(x, param, name = NULL, ...) {
+        x[] <- processData(x[], param, ...)
+        if (!is.null(name)) {
+            objName(x) <- name
+        }
+        x
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "giottoLargeImage", param = "processParam"),
+    function(x, param, name = NULL, ...) {
+        x[] <- processData(x[], param, ...)
+        if (!is.null(name)) {
+            objName(x) <- name
+        }
+        x
+    }
+)
 
 # * exprObj ####
 
@@ -757,6 +959,17 @@ setMethod("processData",
 
 #' @rdname processData
 setMethod("processData",
+    signature(x = "SpatRaster", param = "list"),
+    function(x, param, ...) {
+        for (p in param) {
+            x <- processData(x, p, ...)
+        }
+        return(x)
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
     signature(x = "allMatrix", param = "list"),
     function(x, param, ...) {
         for (p in param) {
@@ -842,24 +1055,44 @@ setMethod("processData",
 setMethod("processData",
     signature(x = "allMatrix", param = "tfidfNormParam"),
     function(x, param, ...) {
-        # compute term frequency (TF)
-        tf <- x / colSums_flex(x)
-        # compute inverse document frequency (IDF)
-        idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
-        # apply TF-IDF
-        tf * idf
+        p <- param
+        p <- .norm_param_tfidf_method_defaults(p)
+        # rely on defaults in .tf_idf_norm() for tf_fun and log_scale_fun
+        
+        # finalize args list
+        p$x <- x
+        
+        do.call(.tf_idf_norm, args = p@param)
     }
 )
 setMethod("processData",
     signature(x = "dgCMatrix", param = "tfidfNormParam"),
     function(x, param, ...) {
-        # compute term frequency (TF)
-        tf <- x
-        tf@x <- .dgc_div_csum_sparse_vector(x) # x / colSums(x) equivalent
-        # compute inverse document frequency (IDF)
-        idf <- log(1 + ncol(x) / (1 + rowSums_flex(x > 0)))
-        # apply TF-IDF
-        tf * idf
+        p <- param
+        p <- .norm_param_tfidf_method_defaults(p)
+        # optimizations for dgCMatrix
+        tf_fun <- function(mat) {
+            # x / colSums(x) equivalent
+            mat@x <- .dgc_div_csum_sparse_vector(mat)
+            mat
+        }
+        log_scale_fun <- function(mat, scalef) {
+            mat@x <- log(mat@x * scalef + 1)
+            mat
+        }
+        mat_log_fun <- function(mat) {
+            mat@x <- log(mat@x + 1)
+            mat
+        }
+        
+        # finalize args list
+        p$x <- x
+        p$tf_fun <- tf_fun
+        p$mat_log_fun <- mat_log_fun
+        p$log_scale_fun <- log_scale_fun
+        p$sub_method <- NULL # cleanup
+
+        do.call(.tf_idf_norm, args = p@param)
     }
 )
 # *** default norm ####
@@ -894,6 +1127,82 @@ setMethod("processData",
     signature(x = "allMatrix", param = "arcsinhNormParam"),
     function(x, param, ...) {
         .arcsinh_norm(x, c = param$c)
+    }
+)
+setMethod("processData",
+    signature(x = "SpatRaster", param = "arcsinhNormParam"),
+    function(x, param, ...) {
+        .arcsinh_norm(x, c = param$c)
+    }
+)
+
+
+# ** threshold ------------ #### 
+
+# *** binarization thresh ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "binarizeThreshParam"),
+    function(x, param, ...) {
+        threshold <- param$threshold %null% 0
+        bool_mat <- x > threshold
+        x[TRUE] <- 0L
+        x[bool_mat] <- 1L
+        x
+    }
+)
+setMethod("processData",
+    signature(x = "dgCMatrix", param = "binarizeThreshParam"),
+    function(x, param, ...) {
+        threshold <- param$threshold %null% 0
+        bool <- x@x > threshold
+        drop0 <- param$drop0 %null% FALSE
+        # integers not supported for dgCMatrix @x slot
+        x@x <- rep.int(0, length(x@x))
+        x@x[bool] <- 1
+        if (drop0) x <- Matrix::drop0(x)
+        x
+    }
+)
+setMethod("processData",
+    signature(x = "SpatRaster", param = "binarizeThreshParam"),
+    function(x, param, ...) {
+        lyrnames <- names(x)
+        if (is.null(param$threshold)) {
+            threshold <- .otsu(x)
+        } else {
+            threshold <- param$threshold
+        }
+        x <- terra::app(x, function(val) {
+            ifelse(val >= threshold, 1, 0)
+        })
+        names(x) <- lyrnames
+        x
+    }
+)
+
+# *** minmax thresh ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "minmaxThreshParam"),
+    function(x, param, ...) {
+        upper <- param$upper
+        lower <- param$lower
+        if (!is.infinite(upper)) {
+            x[x > upper] <- upper
+        }
+        if (!is.infinite(lower)) {
+            x[x < lower] <- lower
+        }
+        x
+    }
+)
+setMethod("processData",
+    signature(x = "SpatRaster", param = "minmaxThreshParam"),
+    function(x, param, ...) {
+        p <- param@param # pull param list
+        p$values <- p$values %null% TRUE
+        p$x <- x
+        x <- do.call(terra::clamp, args = p)
+        x
     }
 )
 
@@ -1279,11 +1588,69 @@ normalizeGiotto <- function(gobject,
     p$logbase <- p$logbase %null% 2
     p
 }
-.norm_param_tfidf <- function(...) {
-    new("tfidfNormParam", param = list(...))
-}
 .norm_param_l2 <- function(...) {
     new("l2NormParam", param = list(...))
+}
+.norm_param_tfidf <- function(...) {
+    p <- new("tfidfNormParam", param = list(...))
+    p$scalefactor <- p$scalefactor %null% 1e4
+    # `sub_method` defaults happen at time of `processData()` call
+    # allows opportunity for the user to alter `sub_method` setting via `$<-`
+    
+    # `tf_fun`, `log_scale_fun`, `mat_log_fun` params are assigned in specific
+    # S4 method calls
+    p
+}
+.norm_param_tfidf_method_defaults <- function(p) {
+    checkmate::assert_class(p, "tfidfNormParam")
+    p$sub_method <- p$sub_method %null% "default"
+    if (!identical(p$sub_method, "default") && !p$sub_method %in% seq_len(3)) {
+        stop("[tfidfNormParam] `$sub_method` must be either \"default\" or one of 1, 2, or 3 ",
+             call. = FALSE)
+    } 
+    switch(p$sub_method,
+        "1" = {
+            # Casanovich et al.
+            p$log_tf <- p$log_tf %null% FALSE
+            p$log_idf <- p$log_idf %null% TRUE
+            p$log_tf_idf <- p$log_tf_idf %null% FALSE
+            p$binarized_rowsums <- p$binarized_rowsums %null% FALSE
+        },
+        "2" = {
+            # Stuart et al.
+            p$log_tf <- p$log_tf %null% FALSE
+            p$log_idf <- p$log_idf %null% FALSE
+            p$log_tf_idf <- p$log_tf_idf %null% TRUE
+            p$binarized_rowsums <- p$binarized_rowsums %null% FALSE
+        },
+        "3" = {
+            # ArchR method 3
+            p$log_tf <- p$log_tf %null% TRUE
+            p$log_idf <- p$log_idf %null% TRUE
+            p$log_tf_idf <- p$log_tf_idf %null% FALSE
+            p$binarized_rowsums <- p$binarized_rowsums %null% FALSE
+        },
+        {
+            # Giotto default
+            p$log_tf <- p$log_tf %null% FALSE
+            p$log_idf <- p$log_idf %null% TRUE
+            p$log_tf_idf <- p$log_tf_idf %null% FALSE
+            p$binarized_rowsums <- p$binarized_rowsums %null% TRUE
+        }
+    )
+    p
+}
+
+.thresh_param_binarize <- function(...) {
+    p <- new("binarizeThreshParam", param = list(...))
+    p$threshold <- p$threshold %null% NULL
+    p
+}
+.thresh_param_minmax <- function(...) {
+    p <- new("minmaxThreshParam", param = list(...))
+    p$lower <- p$lower %null% -Inf
+    p$upper <- p$upper %null% Inf
+    p
 }
 
 .scale_param_zscore <- function(...) {
@@ -1807,6 +2174,131 @@ normalizeGiotto <- function(gobject,
     weights <- indices - lower_indices
     result <- (1 - weights) * lower_values + weights * upper_values
     return(result)
+}
+# based on ArchR implementations
+.tf_idf_norm <- function(x,
+    log_tf = FALSE,
+    log_idf = TRUE,
+    log_tf_idf = FALSE, 
+    binarized_rowsums = TRUE,
+    scalefactor = 1e4,
+    tf_fun = function(mat) {
+        mat / colSums_flex(mat)
+    },
+    mat_log_fun = NULL, # default. uses .logvals() below
+    log_scale_fun = function(mat, scalef) {
+        log(mat * scalef + 1)
+    },
+    ...
+) {
+    # for optimizations on TF calc.
+    checkmate::assert_function(tf_fun)
+    # for optimizations on logging scaled values
+    checkmate::assert_function(log_scale_fun)
+    # for optimizations on logging of TF values
+    checkmate::assert_function(mat_log_fun, null.ok = TRUE)
+    .logvals <- function(vals) {
+        log(1 + vals)
+    }
+    if (is.null(mat_log_fun)) mat_log_fun <- .logvals
+    
+    # rowsums calc
+    if (isTRUE(binarized_rowsums)) {
+        # +1 since this will be the denominator
+        rsums <- 1 + rowSums_flex(x > 0)
+    } else {
+        rsums <- rowSums_flex(x)
+    }
+
+    # tf calc
+    tf <- tf_fun(x)
+    if (isTRUE(log_tf)) tf <- mat_log_fun(tf)
+
+    # idf calc
+    idf <- ncol(x) / rsums
+    if (isTRUE(log_idf)) idf <- .logvals(idf)
+
+    tf_idf <- tf * idf
+    if (isTRUE(log_tf_idf)) {
+        tf_idf <- log_scale_fun(tf_idf, scalef = scalefactor)
+    }
+    tf_idf
+}
+
+# find optimal otsu threshold
+# x should be a SpatRaster
+# nbins should usuall be the bitdepth
+.otsu <- function(x, nbins = NULL) {
+    checkmate::assert_numeric(nbins, null.ok = TRUE)
+    vals <- terra::spatSample(x, 
+        method = "regular", size = 5e5, na.rm = TRUE, as.df = TRUE
+    )[[1]]
+    if (is.null(nbins)) {
+        nbins <- .bitdepth(vals = vals, return_max = TRUE)
+    }
+    nbins <- as.integer(nbins)
+    
+    # create histogram
+    h <- hist(vals, breaks = seq(min(vals), max(vals), length.out = nbins + 1),
+              plot = FALSE)
+    counts <- h$counts
+    breaks <- h$breaks
+
+    # Calculate the normalized histogram (probability distribution)
+    p <- counts / sum(counts)
+    
+    # initialize vars
+    max_variance <- 0
+    optimal_idx <- 0
+    # Cumulative sum of probabilities
+    cum_sum <- cumsum(p)
+    # Cumulative mean
+    cum_mean <- cumsum(p * seq_along(p) * (breaks[2] - breaks[1])) / cum_sum
+    # Global mean
+    global_mean <- sum(p * seq_along(p) * (breaks[2] - breaks[1]))
+    
+    # For each possible threshold, calculate between-class variance
+    for (i in 1:(length(p) - 1)) {
+        # Weight of background class
+        w0 <- cum_sum[i]
+        # Weight of foreground class
+        w1 <- 1 - w0
+        # If one of the classes is empty, skip this threshold
+        if (w0 <= 0 || w1 <= 0) {
+            next
+        }
+        # Mean of background class
+        mean0 <- cum_mean[i]
+        # Mean of foreground class
+        mean1 <- (global_mean - w0 * mean0) / w1
+        # Calculate between-class variance
+        between_variance <- w0 * w1 * (mean0 - mean1)^2
+        # Update optimal threshold if current variance is greater
+        if (between_variance > max_variance) {
+            max_variance <- between_variance
+            optimal_idx <- i
+        }
+    }
+    breaks[optimal_idx + 1]
+}
+
+# detect image bitdepth
+# x should be a SpatRaster if vals are still needed
+.bitdepth <- function(x, vals = NULL, return_max = FALSE) {
+    checkmate::assert_numeric(vals, null.ok = TRUE)
+    if (is.null(vals)) {
+        vals <- terra::spatSample(x, 
+            method = "regular", size = 5e5, na.rm = TRUE, as.df = TRUE
+        )[[1]]
+    }
+    res <- ceiling(log(max(vals), base = 2L)) # power of 2 needed to represent
+    # value(s)
+    res <- 2^ceiling(log(res, base = 2L)) # actual bitdepth
+    
+    if (isTRUE(return_max)) {
+        res <- 2^res - 1
+    }
+    res
 }
 
 .csum_nodrop.Matrix <- function(x) {
