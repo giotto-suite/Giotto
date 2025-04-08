@@ -139,6 +139,13 @@ NULL
 #' @section adjustParam methods:
 #' 
 #' * [`"limma"`][adjust_limma] - limma batch correction
+#' 
+#' @section thresholdParam methods:
+#' 
+#' * [`"binarize"`][threshold_binarize] - data binarization (matrices and 
+#' rasters)
+#' * [`"minmax"`][threshold_minmax] - value restriction/clamping (matrices 
+#' and rasters)
 #' @details
 #' Generated params are S4 objects inheriting from `processParam` and one of 
 #' `normParam`, `scaleParam`, and `adjustParam`.
@@ -555,11 +562,79 @@ NULL
 #' @md
 NULL
 
+#' @name threshold_binarize
+#' @title Data Binarization
+#' @description
+#' Binarize values to 0 and 1 based on a minimal value. For matrices, the
+#' default threshold is 0. For rasters, the default is a value determined
+#' through sampled (5e5 pixels) otsu.
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `threshold` \tab numeric (optional) Values above or equal to the threshold
+#'   will be set to 1. Below will be set to 0. If not provided, defaults to 0
+#'   for matrices and a value determined by otsu for rasters. \cr
+#'   `drop0` \tab logical (only for `dgCMatrix`, default = FALSE) Whether to
+#'   run [Matrix::drop0] after binarization 
+#' }
+#' @returns binarizeThreshParam
+#' @examples
+#' e <- GiottoData::loadSubObjectMini("exprObj")
+#' # also works with matrix classes
+#' bin_e <- processData(e, thresholdParam("binarize"))
+#' force(bin_e)
+#' 
+#' gimg <- GiottoData::loadSubObjectMini("giottoLargeImage")
+#' # also works with SpatRasters
+#' bin_img <- processData(gimg, thresholdParam("binarize"))
+#' plot(bin_img)
+#' @family threshold parameters
+#' @seealso [process_param]
+#' @md
+NULL
+
+#' @name threshold_minmax
+#' @title Value MinMax Restriction/Clamping
+#' @description
+#' Set an `upper` and `lower` bound for the data. Values above `upper` will be
+#' set to the `upper` value. Values below `lower` will be set to the `lower`
+#' value.
+#' 
+#' @section params:
+#' 
+#' \tabular{ll}{
+#'   `upper` \tab numeric (default = Inf) highest acceptable value. Values
+#'   above this will be set to the same as `upper`. \cr
+#'   `lower` \tab numeric (default = -Inf) lowest acceptable value. Values
+#'   below this will be set to the same as `lower`.\cr
+#'   `values` \tab logical (`SpatRaster` only) If `FALSE` values outside the
+#'   clamping range become `NA`, if `TRUE`, they get the extreme values
+#' }
+#' @returns minmaxThreshParam
+#' @examples
+#' e <- GiottoData::loadSubObjectMini("exprObj")
+#' # also works with matrix classes
+#' max_e <- processData(e, thresholdParam("minmax", upper = 6))
+#' force(max_e)
+#' 
+#' gimg <- GiottoData::loadSubObjectMini("giottoLargeImage")
+#' # also works with SpatRasters
+#' mm_img <- processData(gimg,
+#'     thresholdParam("minmax", lower = 30, upper = 100)
+#' )
+#' plot(mm_img)
+#' @family threshold parameters
+#' @seealso [process_param]
+#' @md
+NULL
+
 
 # VIRTUAL classes ####
 setClass("normParam", contains = c("VIRTUAL", "processParam"))
 setClass("scaleParam", contains = c("VIRTUAL", "processParam"))
 setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
+setClass("threshParam", contains = c("VIRTUAL", "processParam"))
 
 # access ####
 #' @export
@@ -572,6 +647,10 @@ setClass("adjustParam", contains = c("VIRTUAL", "processParam"))
 }
 #' @export
 .DollarNames.adjustParam <- function(x, pattern) {
+    names(x@param)
+}
+#' @export
+.DollarNames.thresholdParam <- function(x, pattern) {
     names(x@param)
 }
 
@@ -603,6 +682,11 @@ setClass("zscoreScaleParam", contains = "scaleParam")
 
 #' @rdname process_param
 setClass("limmaAdjustParam", contains = "adjustParam")
+
+#' @rdname process_param
+setClass("binarizeThreshParam", contains = "threshParam")
+#' @rdname process_param
+setClass("minmaxThreshParam", contains = "threshParam")
 
 # allMatrix signature ####
 setClassUnion("allMatrix", members = c("matrix", "Matrix"))
@@ -655,6 +739,18 @@ adjustParam <- function(method = "limma", ...) {
     )
 }
 
+#' @rdname process_param
+#' @export
+thresholdParam <- function(method = "binarize", ...) {
+    method <- match.arg(tolower(method),
+        c("binarize", "minmax")
+    )
+    switch(method,
+        "binarize" = .thresh_param_binarize(...),
+        "minmax" = .thresh_param_minmax(...)
+    )
+}
+
 
 
 # methods ####
@@ -668,6 +764,34 @@ signature(x = "ANY", param = "ANY"), function(x, param, ...) {
         class(param), class(x)),
         call. = FALSE)
 })
+
+# * giottoLargeImage ####
+
+# TODO make these delayed operations
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "giottoLargeImage", param = "list"),
+    function(x, param, name = NULL, ...) {
+        x[] <- processData(x[], param, ...)
+        if (!is.null(name)) {
+            objName(x) <- name
+        }
+        x
+    }
+)
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "giottoLargeImage", param = "processParam"),
+    function(x, param, name = NULL, ...) {
+        x[] <- processData(x[], param, ...)
+        if (!is.null(name)) {
+            objName(x) <- name
+        }
+        x
+    }
+)
 
 # * exprObj ####
 
@@ -754,6 +878,17 @@ setMethod("processData",
 # * matrix ####
 
 # ** param list ####
+
+#' @rdname processData
+setMethod("processData",
+    signature(x = "SpatRaster", param = "list"),
+    function(x, param, ...) {
+        for (p in param) {
+            x <- processData(x, p, ...)
+        }
+        return(x)
+    }
+)
 
 #' @rdname processData
 setMethod("processData",
@@ -894,6 +1029,82 @@ setMethod("processData",
     signature(x = "allMatrix", param = "arcsinhNormParam"),
     function(x, param, ...) {
         .arcsinh_norm(x, c = param$c)
+    }
+)
+setMethod("processData",
+    signature(x = "SpatRaster", param = "arcsinhNormParam"),
+    function(x, param, ...) {
+        .arcsinh_norm(x, c = param$c)
+    }
+)
+
+
+# ** threshold ------------ #### 
+
+# *** binarization thresh ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "binarizeThreshParam"),
+    function(x, param, ...) {
+        threshold <- param$threshold %null% 0
+        bool_mat <- x > threshold
+        x[TRUE] <- 0L
+        x[bool_mat] <- 1L
+        x
+    }
+)
+setMethod("processData",
+    signature(x = "dgCMatrix", param = "binarizeThreshParam"),
+    function(x, param, ...) {
+        threshold <- param$threshold %null% 0
+        bool <- x@x > threshold
+        drop0 <- param$drop0 %null% FALSE
+        # integers not supported for dgCMatrix @x slot
+        x@x <- rep.int(0, length(x@x))
+        x@x[bool] <- 1
+        if (drop0) x <- Matrix::drop0(x)
+        x
+    }
+)
+setMethod("processData",
+    signature(x = "SpatRaster", param = "binarizeThreshParam"),
+    function(x, param, ...) {
+        lyrnames <- names(x)
+        if (is.null(param$threshold)) {
+            threshold <- .otsu(x)
+        } else {
+            threshold <- param$threshold
+        }
+        x <- terra::app(x, function(val) {
+            ifelse(val >= threshold, 1, 0)
+        })
+        names(x) <- lyrnames
+        x
+    }
+)
+
+# *** minmax thresh ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "minmaxThreshParam"),
+    function(x, param, ...) {
+        upper <- param$upper
+        lower <- param$lower
+        if (!is.infinite(upper)) {
+            x[x > upper] <- upper
+        }
+        if (!is.infinite(lower)) {
+            x[x < lower] <- lower
+        }
+        x
+    }
+)
+setMethod("processData",
+    signature(x = "SpatRaster", param = "minmaxThreshParam"),
+    function(x, param, ...) {
+        p <- param@param # pull param list
+        p$values <- p$values %null% TRUE
+        p$x <- x
+        x <- do.call(terra::clamp, args = p)
+        x
     }
 )
 
@@ -1284,6 +1495,17 @@ normalizeGiotto <- function(gobject,
 }
 .norm_param_l2 <- function(...) {
     new("l2NormParam", param = list(...))
+}
+.thresh_param_binarize <- function(...) {
+    p <- new("binarizeThreshParam", param = list(...))
+    p$threshold <- p$threshold %null% NULL
+    p
+}
+.thresh_param_minmax <- function(...) {
+    p <- new("minmaxThreshParam", param = list(...))
+    p$lower <- p$lower %null% -Inf
+    p$upper <- p$upper %null% Inf
+    p
 }
 
 .scale_param_zscore <- function(...) {
@@ -1807,6 +2029,82 @@ normalizeGiotto <- function(gobject,
     weights <- indices - lower_indices
     result <- (1 - weights) * lower_values + weights * upper_values
     return(result)
+}
+
+# find optimal otsu threshold
+# x should be a SpatRaster
+# nbins should usuall be the bitdepth
+.otsu <- function(x, nbins = NULL) {
+    checkmate::assert_numeric(nbins, null.ok = TRUE)
+    vals <- terra::spatSample(x, 
+        method = "regular", size = 5e5, na.rm = TRUE, as.df = TRUE
+    )[[1]]
+    if (is.null(nbins)) {
+        nbins <- .bitdepth(vals = vals, return_max = TRUE)
+    }
+    nbins <- as.integer(nbins)
+    
+    # create histogram
+    h <- hist(vals, breaks = seq(min(vals), max(vals), length.out = nbins + 1),
+              plot = FALSE)
+    counts <- h$counts
+    breaks <- h$breaks
+
+    # Calculate the normalized histogram (probability distribution)
+    p <- counts / sum(counts)
+    
+    # initialize vars
+    max_variance <- 0
+    optimal_idx <- 0
+    # Cumulative sum of probabilities
+    cum_sum <- cumsum(p)
+    # Cumulative mean
+    cum_mean <- cumsum(p * seq_along(p) * (breaks[2] - breaks[1])) / cum_sum
+    # Global mean
+    global_mean <- sum(p * seq_along(p) * (breaks[2] - breaks[1]))
+    
+    # For each possible threshold, calculate between-class variance
+    for (i in 1:(length(p) - 1)) {
+        # Weight of background class
+        w0 <- cum_sum[i]
+        # Weight of foreground class
+        w1 <- 1 - w0
+        # If one of the classes is empty, skip this threshold
+        if (w0 <= 0 || w1 <= 0) {
+            next
+        }
+        # Mean of background class
+        mean0 <- cum_mean[i]
+        # Mean of foreground class
+        mean1 <- (global_mean - w0 * mean0) / w1
+        # Calculate between-class variance
+        between_variance <- w0 * w1 * (mean0 - mean1)^2
+        # Update optimal threshold if current variance is greater
+        if (between_variance > max_variance) {
+            max_variance <- between_variance
+            optimal_idx <- i
+        }
+    }
+    breaks[optimal_idx + 1]
+}
+
+# detect image bitdepth
+# x should be a SpatRaster if vals are still needed
+.bitdepth <- function(x, vals = NULL, return_max = FALSE) {
+    checkmate::assert_numeric(vals, null.ok = TRUE)
+    if (is.null(vals)) {
+        vals <- terra::spatSample(x, 
+            method = "regular", size = 5e5, na.rm = TRUE, as.df = TRUE
+        )[[1]]
+    }
+    res <- ceiling(log(max(vals), base = 2L)) # power of 2 needed to represent
+    # value(s)
+    res <- 2^ceiling(log(res, base = 2L)) # actual bitdepth
+    
+    if (isTRUE(return_max)) {
+        res <- 2^res - 1
+    }
+    res
 }
 
 .csum_nodrop.Matrix <- function(x) {

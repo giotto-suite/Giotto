@@ -15,9 +15,12 @@
 \alias{defaultScaleParam-class}
 \alias{zscoreScaleParam-class}
 \alias{limmaAdjustParam-class}
+\alias{binarizeThreshParam-class}
+\alias{minmaxThreshParam-class}
 \alias{normParam}
 \alias{scaleParam}
 \alias{adjustParam}
+\alias{thresholdParam}
 \title{Data Processing Parameter Classes}
 \usage{
 normParam(method = "default", ...)
@@ -25,6 +28,8 @@ normParam(method = "default", ...)
 scaleParam(method = "default", ...)
 
 adjustParam(method = "limma", ...)
+
+thresholdParam(method = "binarize", ...)
 }
 \arguments{
 \item{method}{character. Name of method to use. See details.}
@@ -77,6 +82,16 @@ with a \code{MARGIN} param allowing scaling long either cols or rows
 
 \itemize{
 \item \code{\link[=adjust_limma]{"limma"}} - limma batch correction
+}
+}
+
+\section{thresholdParam methods}{
+
+\itemize{
+\item \code{\link[=threshold_binarize]{"binarize"}} - data binarization (matrices and
+rasters)
+\item \code{\link[=threshold_minmax]{"minmax"}} - value restriction/clamping (matrices
+and rasters)
 }
 }
 
