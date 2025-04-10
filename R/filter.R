@@ -132,7 +132,7 @@ filterDistributions <- function(gobject,
                 ggplot2::aes(x = "feats", y = V1 + axis_offset),
                 fill = fill_color
             )
-            pl <- pl + ggplot2::scale_y_continuous(trans = scale_axis)
+            pl <- pl + ggplot2::scale_y_continuous(transform = scale_axis)
             pl <- pl + ggplot2::labs(y = mytitle, x = "")
         } else if (plot_type == "histogram") {
             pl <- ggplot2::ggplot()
@@ -142,7 +142,7 @@ filterDistributions <- function(gobject,
                 ggplot2::aes(x = V1 + axis_offset),
                 color = "white", bins = nr_bins, fill = fill_color
             )
-            pl <- pl + ggplot2::scale_x_continuous(trans = scale_axis)
+            pl <- pl + ggplot2::scale_x_continuous(transform = scale_axis)
             pl <- pl + ggplot2::labs(x = mytitle, y = y_title)
         }
 
@@ -181,7 +181,7 @@ filterDistributions <- function(gobject,
                 ggplot2::aes(x = "cells", y = V1 + axis_offset),
                 fill = fill_color
             )
-            pl <- pl + ggplot2::scale_y_continuous(trans = scale_axis)
+            pl <- pl + ggplot2::scale_y_continuous(transform = scale_axis)
             pl <- pl + ggplot2::labs(y = mytitle, x = "")
         } else if (plot_type == "histogram") {
             pl <- ggplot2::ggplot()
@@ -191,7 +191,7 @@ filterDistributions <- function(gobject,
                 ggplot2::aes(x = V1 + axis_offset),
                 color = "white", bins = nr_bins, fill = fill_color
             )
-            pl <- pl + ggplot2::scale_x_continuous(trans = scale_axis)
+            pl <- pl + ggplot2::scale_x_continuous(transform = scale_axis)
             pl <- pl + ggplot2::labs(x = mytitle, y = y_title)
         }
     }
