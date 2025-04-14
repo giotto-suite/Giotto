@@ -142,12 +142,10 @@ NULL
 #' 
 #' @section thresholdParam methods:
 #' 
-#' * [`"binarize"`][threshold_binarize] - converts values to 0 or 1 based on
-#' whether they meet the threshold (matrices and rasters)
-#' * [`"minmax"`][threshold_minmax] - restriction/clamping of values to
-#' a specified range (matrices and rasters)
-#' * [`"cutoff"`][threshold_cutoff] - replace values not meeting threshold
-#' with a specific value (matrices)
+#' * [`"binarize"`][threshold_binarize] - data binarization (matrices and 
+#' rasters)
+#' * [`"minmax"`][threshold_minmax] - value restriction/clamping (matrices 
+#' and rasters)
 #' @details
 #' Generated params are S4 objects inheriting from `processParam` and one of 
 #' `normParam`, `scaleParam`, and `adjustParam`.
@@ -709,29 +707,6 @@ NULL
 #' @md
 NULL
 
-#' @name threshold_cutoff
-#' @title Apply a Threshold Cutoff
-#' @description
-#' Replace values not meeting the threshold with a specific value.
-#' 
-#' @section params:
-#' 
-#' \tabular{ll}{
-#'   `threshold` \tab numeric (default = 1). Threshold value to apply. Values
-#'   less than the threshold will be replaced.\cr
-#'   `replacement_value` \tab numeric (default = 0). Value to replace the
-#'   values that do not meet the threshold with. Can accept `NA_real_`
-#' }
-#' @returns cutoffThreshParam
-#' @examples
-#' e <- GiottoData::loadSubObjectMini("exprObj")
-#' # also works with matrix classes
-#' cutoff_e <- processData(e, thresholdParam("cutoff", threshold = 6))
-#' force(cutoff_e)
-#' @family threshold parameters
-#' @seealso [process_param]
-#' @md
-NULL
 
 # VIRTUAL classes ####
 setClass("normParam", contains = c("VIRTUAL", "processParam"))
@@ -790,8 +765,6 @@ setClass("limmaAdjustParam", contains = "adjustParam")
 setClass("binarizeThreshParam", contains = "threshParam")
 #' @rdname process_param
 setClass("minmaxThreshParam", contains = "threshParam")
-#' @rdname process_param
-setClass("cutoffThreshParam", contains = "threshParam")
 
 # allMatrix signature ####
 setClassUnion("allMatrix", members = c("matrix", "Matrix"))
@@ -848,12 +821,11 @@ adjustParam <- function(method = "limma", ...) {
 #' @export
 thresholdParam <- function(method = "binarize", ...) {
     method <- match.arg(tolower(method),
-        c("binarize", "minmax", "cutoff")
+        c("binarize", "minmax")
     )
     switch(method,
         "binarize" = .thresh_param_binarize(...),
-        "minmax" = .thresh_param_minmax(...),
-        "cutoff" = .thresh_param_cutoff(...)
+        "minmax" = .thresh_param_minmax(...)
     )
 }
 
@@ -1230,24 +1202,6 @@ setMethod("processData",
         p$values <- p$values %null% TRUE
         p$x <- x
         x <- do.call(terra::clamp, args = p)
-        x
-    }
-)
-
-# *** cutoff thresh ####
-setMethod("processData",
-    signature(x = "allMatrix", param = "cutoffThreshParam"),
-    function(x, param, ...) {
-        threshold <- param$threshold
-        x[x < threshold] <- param$replacement_value
-        x
-    }
-)
-setMethod("processData",
-    signature(x = "dgCMatrix", param = "cutoffThreshParam"),
-    function(x, param, ...) {
-        threshold <- param$threshold
-        x@x[x@x < threshold] <- param$replacement_value
         x
     }
 )
@@ -1696,12 +1650,6 @@ normalizeGiotto <- function(gobject,
     p <- new("minmaxThreshParam", param = list(...))
     p$lower <- p$lower %null% -Inf
     p$upper <- p$upper %null% Inf
-    p
-}
-.thresh_param_cutoff <- function(...) {
-    p <- new("cutoffThreshParam", param = list(...))
-    p$threshold <- p$threshold %null% 1
-    p$replacement_value <- 0
     p
 }
 
