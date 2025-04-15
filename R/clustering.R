@@ -1057,11 +1057,6 @@ doRandomWalkCluster <- function(
     )
     data.table::setnames(ident_clusters_DT, "name", name)
 
-    # exit seed
-    if (isTRUE(set_seed)) {
-        GiottoUtils::local_seed(Sys.time())
-    }
-
     ## return
     if (return_gobject == TRUE) {
         gobject <- addCellMetadata(
