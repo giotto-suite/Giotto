@@ -122,16 +122,10 @@ read_crossSection <- function(
 
 
 
-#' @title estimateCellCellDistance
-#' @name estimateCellCellDistance
-#' @description estimate average distance between neighboring cells
-#' @param gobject gobject
-#' @param spat_unit spatial unit
-#' @param spatial_network_name spatial_network_name
-#' @param method method
-#' @returns matrix
-#' @keywords internal
-estimateCellCellDistance <- function(
+
+# estimate average distance between neighboring cells
+# returns matrix
+.estimate_cell_cell_distance <- function(
         gobject,
         spat_unit = NULL,
         spatial_network_name = "Delaunay_network",
@@ -147,25 +141,16 @@ estimateCellCellDistance <- function(
         output = "networkDT"
     )
 
-    CellCellDistance <- get_distance(
+    cell_cell_distance <- get_distance(
         networkDT = net,
         method = method
     )
 
-    return(CellCellDistance)
+    return(cell_cell_distance)
 }
-#' @title get_sectionThickness
-#' @name get_sectionThickness
-#' @description get section thickness
-#' @param gobject gobject
-#' @param spat_unit spatial unit
-#' @param thickness_unit thickness_unit
-#' @param spatial_network_name spatial_network_name
-#' @param cell_distance_estimate_method cell_distance_estimate_method
-#' @param plane_equation plane_equation
-#' @returns numeric
-#' @keywords internal
-get_sectionThickness <- function(
+
+# returns numeric
+.get_section_thickness <- function(
         gobject,
         spat_unit = NULL,
         thickness_unit = c("cell", "natural"),
@@ -174,16 +159,19 @@ get_sectionThickness <- function(
         cell_distance_estimate_method = c("mean", "median"),
         plane_equation = NULL) {
     thickness_unit <- match.arg(thickness_unit, c("cell", "natural"))
+    cell_distance_estimate_method <- match.arg(
+        cell_distance_estimate_method, choices = c("mean", "median")
+    )
 
     section_thickness <- switch(thickness_unit,
         "cell" = {
-            CellCellDistance <- estimateCellCellDistance(
+            cell_cell_distance <- .estimate_cell_cell_distance(
                 gobject = gobject,
                 spat_unit = spat_unit,
                 method = cell_distance_estimate_method,
                 spatial_network_name = spatial_network_name
             )
-            CellCellDistance * slice_thickness
+            cell_cell_distance * slice_thickness
         },
         "natural" = slice_thickness
     )
@@ -499,8 +487,7 @@ create_mesh_grid_lines <- function(cell_subset_projection_locations,
 
 #' @title createCrossSection
 #' @description Create a virtual 2D cross section.
-#' @param gobject giotto object
-#' @param spat_unit spatial unit
+#' @inheritParams data_access_params
 #' @param spat_loc_name name of spatial locations
 #' @param name name of cress section object. (default = cross_sectino)
 #' @param spatial_network_name name of spatial network object.
@@ -515,7 +502,7 @@ create_mesh_grid_lines <- function(cell_subset_projection_locations,
 #' ratio of extension compared to the borders of the vitural tissue section.
 #' (default = 0.2)
 #' @param method method to define the cross section plane.
-#' If equation, the plane is defined by a four element numerical vector
+#' If `"equation"`, the plane is defined by a four element numerical vector
 #' (equation) in the form of c(A,B,C,D), corresponding to a plane with
 #' equation Ax+By+Cz=D.
 #' If 3 points, the plane is define by the coordinates of 3 points, as given by
@@ -527,8 +514,8 @@ create_mesh_grid_lines <- function(cell_subset_projection_locations,
 #' one point (point1) in the plane and the coordinates of two vectors
 #' (planeVector1, planeVector2) in the plane.
 #' (default = equation)
-#' @param equation equation required by method "equation".equations needs to be
-#' a numerical vector of length 4, in the form of c(A,B,C,D), which defines
+#' @param equation equation required by method `"equation"`. Equations needs to
+#' be a numerical vector of length 4, in the form of c(A,B,C,D), which defines
 #' plane Ax+By+Cz=D.
 #' @param point1 coordinates of the first point required by method
 #' "3 points","point and norm vector", and "point and two plane vectors".
@@ -542,9 +529,11 @@ create_mesh_grid_lines <- function(cell_subset_projection_locations,
 #' method "point and two plane vectors"
 #' @param mesh_grid_n numer of meshgrid lines to generate along both directions
 #' for the cross section plane.
-#' @param return_gobject boolean: return giotto object (default = TRUE)
+#' @param return_gobject logical. Whether to return giotto object
+#' (default = TRUE)
 #' @param verbose be verbose
-#' @returns giotto object with updated spatial network slot
+#' @returns if `return_gobject = TRUE` `giotto` with updated spatial network 
+#' containing cross section information. Otherwise returns the cross section.
 #' @details Creates a virtual 2D cross section object for a given spatial
 #' network object. The users need to provide the definition of the cross
 #' section plane (see method).
@@ -583,6 +572,12 @@ createCrossSection <- function(
         mesh_grid_n = 20,
         return_gobject = TRUE,
         verbose = NULL) {
+    checkmate::assert_numeric(equation, null.ok = TRUE, len = 4L)
+    checkmate::assert_character(name, len = 1L)
+    checkmate::assert_logical(return_gobject)
+    checkmate::assert_character(spat_unit, null.ok = TRUE, len = 1L)
+    checkmate::assert_character(method)
+    
     spat_unit <- set_default_spat_unit(
         gobject = gobject, spat_unit = spat_unit
     )
@@ -593,12 +588,7 @@ createCrossSection <- function(
         set_defaults = FALSE, verbose = FALSE, output = "spatLocsObj"
     )
 
-    spatial_locations <- as.matrix(spatial_locations, id_rownames = TRUE)
-    cell_ID_vec <- seq_len(nrow(spatial_locations))
-    names(cell_ID_vec) <- rownames(spatial_locations)
-
     # generate section plane equation
-
     method <- match.arg(
         method,
         c(
@@ -606,55 +596,57 @@ createCrossSection <- function(
             "point and two plane vectors"
         )
     )
+    thickness_unit <- match.arg(thickness_unit, c("cell", "natural"))
+    
+    spatial_locations <- as.matrix(spatial_locations, id_rownames = TRUE)
+    cell_ID_vec <- seq_len(nrow(spatial_locations))
+    names(cell_ID_vec) <- rownames(spatial_locations)
 
     switch(method,
         "equation" = {
             if (is.null(equation)) {
-                message("equation was not provided.")
-            } else {
-                plane_equation <- equation
-                plane_equation[4] <- -equation[4]
+                stop("createCrossSection: equation was not provided.\n",
+                     call. = FALSE)
             }
+            plane_equation <- equation
+            plane_equation[4] <- -equation[4]
         },
         "point and norm vector" = {
             if (is.null(point1) || is.null(normVector)) {
-                message("either point or norm vector was not provided.")
-            } else {
-                plane_equation <- c()
-                plane_equation[seq_len(3)] <- normVector
-                plane_equation[4] <- -point1 %*% normVector
+                stop("either point or norm vector was not provided.\n",
+                     call. = FALSE)
             }
+            plane_equation <- c()
+            plane_equation[seq_len(3)] <- normVector
+            plane_equation[4] <- -point1 %*% normVector
         },
         "point and two plane vectors" = {
             if (is.null(point1) ||
                 is.null(planeVector1) ||
                 is.null(planeVector2)) {
-                message("either point or any of the two plane vectors was not
-                    provided.")
-            } else {
-                normVector <- crossprod(planeVector1, planeVector2)
-                plane_equation[seq_len(3)] <- normVector
-                plane_equation[4] <- -point1 %*% normVector
+                stop("either point or any of the two plane vectors was not",
+                     " provided.\n",call. = FALSE)
             }
+            normVector <- crossprod(planeVector1, planeVector2)
+            plane_equation[seq_len(3)] <- normVector
+            plane_equation[4] <- -point1 %*% normVector
         },
         "3 points" = {
             if (is.null(point1) || is.null(point2) || is.null(point3)) {
-                message("not all three points were provided.")
-            } else {
-                planeVector1 <- point2 - point1
-                planeVector2 <- point3 - point1
-                normVector <- crossprod(planeVector1, planeVector2)
-                plane_equation[seq_len(3)] <- normVector
-                plane_equation[4] <- -point1 %*% normVector
+                stop("not all three points were provided.\n", call. = FALSE)
             }
+            planeVector1 <- point2 - point1
+            planeVector2 <- point3 - point1
+            normVector <- crossprod(planeVector1, planeVector2)
+            plane_equation[seq_len(3)] <- normVector
+            plane_equation[4] <- -point1 %*% normVector
         }
     )
 
     names(plane_equation) <- c("A", "B", "C", "D")
 
     # determine section thickness
-    thickness_unit <- match.arg(thickness_unit, c("cell", "natural"))
-    sectionThickness <- get_sectionThickness(gobject,
+    section_thickness <- .get_section_thickness(gobject,
         spat_unit = spat_unit,
         thickness_unit = thickness_unit,
         slice_thickness = slice_thickness,
@@ -663,7 +655,7 @@ createCrossSection <- function(
         plane_equation = plane_equation
     )
 
-    max_distance_to_section_plane <- sectionThickness / 2
+    max_distance_to_section_plane <- section_thickness / 2
 
     # calculate distances to cross section
     spatial_locations_mat <- cbind(
