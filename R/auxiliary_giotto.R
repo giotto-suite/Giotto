@@ -400,7 +400,7 @@ addFeatStatistics <- function(gobject,
                 description = "_feat_stats"
             )
         } else {
-            fname <- as.character(cl[[1]])
+            fname <- tail(as.character(cl[[1]]), n = 1)
             if (fname == "addStatistics") {
                 gobject <- update_giotto_params(gobject,
                     description = "_feat_stats",
@@ -558,7 +558,7 @@ addCellStatistics <- function(gobject,
                 description = "_cell_stats"
             )
         } else {
-            fname <- as.character(cl[[1]])
+            fname <- tail(as.character(cl[[1]]), n = 1)
             if (fname == "addStatistics") {
                 gobject <- update_giotto_params(gobject,
                     description = "_cell_stats",
