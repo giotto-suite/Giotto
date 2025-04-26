@@ -835,8 +835,11 @@ findNetworkNeighbors <- function(gobject,
 #' @keywords internal
 #' @noRd
 .mean_expr_det_test <- function(mymatrix, detection_threshold = 1) {
-    unlist(apply(X = mymatrix, MARGIN = 1, FUN = function(x) {
-        detected_x <- x[x > detection_threshold]
-        mean(detected_x)
-    }))
+  mask <- mymatrix > detection_threshold
+  sum_detected   <- rowSums_flex(mymatrix * mask)
+  count_detected <- rowSums_flex(mask)
+
+  out <- sum_detected / count_detected
+  out[count_detected == 0] <- NaN
+  out
 }
