@@ -3458,7 +3458,7 @@ runIterativeLSI <- function(
     values = expression_values, 
     output = "matrix", 
     set_defaults = FALSE
-  )[]
+  )
   
   if (!inherits(mat, "dgCMatrix")) stop("Matrix must be sparse (dgCMatrix)")
   if (!is.null(feats_to_use)) mat <- mat[feats_to_use, , drop = FALSE]
