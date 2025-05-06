@@ -56,7 +56,7 @@ make_simulated_network <- function(gobject,
     for (sim in seq_len(number_of_simulations)) {
         if (set_seed == TRUE) {
             seed_number <- seed_number + sim
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
         }
 
         reshuffled_all_cell_type <- sample(
@@ -728,7 +728,7 @@ NULL
     all_ind <- c(select_ind, other_ind)
 
     if (set_seed == TRUE) {
-        set.seed(seed = seed_number)
+        GiottoUtils::local_seed(seed = seed_number)
     }
     random_select <- sample(all_ind, size = l_select_ind, replace = FALSE)
     random_other <- all_ind[!all_ind %in% random_select]
@@ -2311,7 +2311,7 @@ exprCellCellcom <- function(gobject,
             cell_types <- cell_metadata[[cluster_column]]
             if (set_seed == TRUE) {
                 seed_number <- seed_number + sim
-                set.seed(seed = seed_number)
+                GiottoUtils::local_seed(seed = seed_number)
             }
             random_cell_types <- sample(
                 x = cell_types, size = length(cell_types)
@@ -2450,7 +2450,7 @@ exprCellCellcom <- function(gobject,
             needed_cell_types == uniq_type
         ])
         if (set_seed == TRUE) {
-            set.seed(seed = seed_number)
+            GiottoUtils::local_seed(seed = seed_number)
         }
         sub_sample_ids <- possible_metadata[get(cluster_column) == uniq_type][
             sample(x = seq_len(.N), size = length_random)
@@ -2880,7 +2880,7 @@ specificCellCellcommunicationScores <- function(
             # get random ids and subset
             if (set_seed == TRUE) {
                 seed_number <- seed_number + sim
-                set.seed(seed = seed_number)
+                GiottoUtils::local_seed(seed = seed_number)
             }
             random_ids <- .create_cell_type_random_cell_IDs(
                 gobject = gobject,

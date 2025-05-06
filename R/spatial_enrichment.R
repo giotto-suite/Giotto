@@ -440,7 +440,7 @@ makeSignMatrixRank <- function(
         all_sample_names <- NULL
         all_sample_list <- NULL
         for (j in seq_len(ntimes)) {
-            set.seed(j)
+            GiottoUtils::local_seed(j)
             random_gene <- sample(rownames(
                 gobject@expression$rna$normalized
             ), gene_num, replace = FALSE)
@@ -855,7 +855,7 @@ runPAGEEnrich <- function(
 .do_rank_permutation <- function(sc_gene, n) {
     random_df <- data.frame(matrix(ncol = n, nrow = length(sc_gene)))
     for (i in seq_len(n)) {
-        set.seed(i)
+        GiottoUtils::local_seed(i)
         random_rank <- sample(
             seq_along(sc_gene), length(sc_gene),
             replace = FALSE
@@ -1632,7 +1632,7 @@ spatialAutoCorGlobal <- function(
                 "Global spatial autocorrelations on cell_meta or external data
                 should not",
                 "be returned to the gobject.
-         > Please set return_gobject = FALSE",
+                > Please set return_gobject = FALSE",
                 errWidth = TRUE
             ))
         }
@@ -2237,7 +2237,7 @@ spatialAutoCorLocal <- function(
     if ((nrow(use_values) != ncol(weight_matrix)) |
         (nrow(use_values) != nrow(weight_matrix))) {
         stop(wrap_txt("Number of values to correlate do not match number of
-                      weight matrix entries",
+                    weight matrix entries",
             errWidth = TRUE
         ))
     }
@@ -2628,7 +2628,7 @@ find_dampening_constant <- function(
         solutions <- NULL
         seeds <- seq_len(100)
         for (i in seq_len(100)) {
-            set.seed(seeds[i]) # make nondeterministic
+            GiottoUtils::local_seed(seeds[i]) # make nondeterministic
             subset <- sample(length(ws), size = length(ws) * 0.5)
             # randomly select half of gene set
 

@@ -3,6 +3,9 @@
 \name{adjust_limma}
 \alias{adjust_limma}
 \title{Limma Batch Correction}
+\value{
+limmaAdjustParam
+}
 \description{
 Batch effect removal via \code{\link[limma:removeBatchEffect]{limma::removeBatchEffect()}}
 }

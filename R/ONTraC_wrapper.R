@@ -668,9 +668,6 @@ plotNicheClusterConnectivity <- function(gobject,
     save_plot = NULL,
     save_param = list(),
     default_save_name = "NicheClusterConnectivity") {
-    # load `guide_edge_colourbar` function in ggraph,
-    # otherwise it will raise an error when using `scale_edge_colour_gradientn`
-    library(ggraph)
 
     # get the niche cluster connectivity matrix
     niche_cluster_connectivites <- getExpression(

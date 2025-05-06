@@ -71,7 +71,8 @@ determined. Defaults to NULL.}
 If TRUE, normalizes to 1st-99th percentile
 Can be a list with parameters:
 * lowhigh: Numeric vector c(low, high) for manual normalization values
-* sharpen: Numeric, image sharpening factor (1/4-1/8 of cell diameter in pixels)
+* sharpen: Numeric, image sharpening factor 
+(1/4-1/8 of cell diameter in pixels)
 * normalize: Logical, whether to run normalization
 * percentile: Numeric vector c(low_perc, high_perc)
 * tile_norm: Integer, window size in pixels for tile normalization
@@ -81,14 +82,13 @@ Default: TRUE}
 \item{invert}{Logical. Inverts pixel intensity before processing.
 Default: FALSE}
 
-\item{rescale}{Numeric. Resize factor for images.
-Default: NULL (sets to 1.0)}
+\item{rescale}{Numeric. Resize factor for images. Default: NULL (sets to 1.0)}
 
 \item{diameter}{Numeric. Cell diameter for each image.
 Default: NULL (uses diam_mean or diam_train if available)}
 
-\item{flow_threshold}{Numeric. Flow error threshold for cell retention (2D only).
-Default: 0.4}
+\item{flow_threshold}{Numeric. Flow error threshold for cell retention 
+(2D only). Default: 0.4}
 
 \item{cellprob_threshold}{Numeric. Threshold for mask pixel retention.
 Default: 0.0}
@@ -99,11 +99,10 @@ Default: FALSE}
 \item{anisotropy}{Numeric. Z-axis rescaling factor for 3D segmentation.
 Default: NULL}
 
-\item{stitch_threshold}{Numeric. Threshold for 3D mask stitching (2D mode only).
-Default: 0.0}
+\item{stitch_threshold}{Numeric. Threshold for 3D mask stitching 
+(2D mode only). Default: 0.0}
 
-\item{min_size}{Integer. Minimum ROI size in pixels.
-Default: 15}
+\item{min_size}{Integer. Minimum ROI size in pixels. Default: 15}
 
 \item{max_size_fraction}{Numeric. Maximum mask size as fraction of image.
 Default: 0.4}
@@ -122,8 +121,7 @@ Default: 224}
 
 \item{dP_smooth}{Integer. Gaussian smoothing standard deviation for 3D flows.}
 
-\item{interp}{Logical. Enable interpolation for 2D dynamics.
-Default: TRUE}
+\item{interp}{Logical. Enable interpolation for 2D dynamics. Default: TRUE}
 
 \item{compute_masks}{Logical. Compute dynamics and return masks.
 Default: TRUE}

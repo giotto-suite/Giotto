@@ -21,7 +21,8 @@ doMesmerSegmentation(
 \item{mask_output}{required. Provide a path to the output mask file.}
 
 \item{python_env}{python environment with deepcell installed.
-default = "giotto_segmentation". See deepcell official website for more details.}
+default = "giotto_segmentation". See deepcell official website for more 
+details.}
 
 \item{nucleus_channel}{channel number for Nuclei, default to 1}
 

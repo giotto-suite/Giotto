@@ -3,6 +3,9 @@
 \name{norm_quantile}
 \alias{norm_quantile}
 \title{Quantile Normalization}
+\value{
+normalized object
+}
 \description{
 Quantile normalization makes the statistical distribution of values in each
 column identical by replacing the original values with the mean of the

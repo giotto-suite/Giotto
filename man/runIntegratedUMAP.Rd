@@ -15,6 +15,7 @@ runIntegratedUMAP(
   spread = 5,
   min_dist = 0.01,
   force = FALSE,
+  seed = 1234,
   ...
 )
 }
@@ -38,6 +39,8 @@ runIntegratedUMAP(
 \item{min_dist}{UMAP param: min_dist}
 
 \item{force}{force calculation of integrated kNN. Default = FALSE}
+
+\item{seed}{seed. Default 1234}
 
 \item{...}{additional UMAP parameters}
 }

@@ -3,6 +3,9 @@
 \name{norm_pearson}
 \alias{norm_pearson}
 \title{Lause/Kobak Pearson Residuals Normalization}
+\value{
+normalized object
+}
 \description{
 Calculate Pearson residuals with a dispersion adjustment, to identify cells
 that deviate significantly from what would be expected under independence.
