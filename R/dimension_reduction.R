@@ -3368,7 +3368,7 @@ runGiottoHarmony <- function(gobject,
     }
 }
 
-#---------------------------------------------------------------------------------------
+#------------------------------------- IterativeLSI ------------------------------------------
 
 #' @title Run Iterative Latent Semantic Indexing (LSI)
 #' @description Performs Iterative LSI on a Giotto object, replicating ArchR's 
@@ -3384,7 +3384,7 @@ runGiottoHarmony <- function(gobject,
 #' @param sample_cells_pre Cells to subsample in early iterations
 #' @param sample_cells_final Cells to subsample in final iteration (NULL = all)
 #' @param var_features Number of variable features (default = 25000)
-#' @param dims LSI dimensions to retain (default = seq_len(30))
+#' @param dims Vector of LSI dimensions to use for clustering and projection steps, number of dimensions - max(dims) (default = 1:30)
 #' @param scale_to TF-IDF scaling factor for sub_method 2 (default = 10000)
 #' @param lsi_method TF-IDF method: 1 = Casanovich, 2 = Stuart, 3 = ArchR, 
 #' 4 = Giotto (default = 3). See [Giotto::norm_tfidf] for more information on 
@@ -3393,80 +3393,76 @@ runGiottoHarmony <- function(gobject,
 #' @param first_selection "top" (accessibility) or "var" (variance) 
 #' (default = "var")
 #' @param k Number of nearest neighbors for sNN (default = 10)
+#' @param corCutOff Correlation cutoff for filtering LSI dimensions correlated with sequencing depth in intermediate steps (default = 0.75)
 #' @param seed Seed for reproducibility (default = 1234)
 #' @param set_seed Logical, whether to set a seed (default = TRUE)
 #' @param verbose Verbosity (default = NULL, inherits from gobject)
 #' @returns Giotto object or LSI coordinates
 #' @export
 runIterativeLSI <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        expression_values = "raw",
-        name = NULL,
-        feats_to_use = NULL,
-        return_gobject = TRUE,
-        iterations = 2,
-        sample_cells_pre = 10000,
-        sample_cells_final = NULL,
-        var_features = 25000,
-        dims = 30,
-        scale_to = 10000,
-        lsi_method = 2,
-        resolution = 2,
-        first_selection = "top",
-        k = 10,
-        seed = 1234,
-        set_seed = TRUE,
-        verbose = NULL) {
-    
-    # ---- Setup Section ----
-    spat_unit <- set_default_spat_unit(gobject, spat_unit = spat_unit)
-    feat_type <- set_default_feat_type(
-        gobject, 
-        spat_unit = spat_unit, 
-        feat_type = feat_type)
-    
+    gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    expression_values = "raw",
+    name = NULL,
+    feats_to_use = NULL,
+    return_gobject = TRUE,
+    iterations = 2,
+    sample_cells_pre = 10000,
+    sample_cells_final = NULL,
+    var_features = 25000,
+    dims = 1:30,
+    scale_to = 10000,
+    lsi_method = 2,
+    resolution = 2,
+    first_selection = "top",
+    k = 10,
+    corCutOff = 0.75
+    seed = 1234,
+    set_seed = TRUE,
+    verbose = NULL
+) {
+  
+  # ---- Setup Section ----
+  spat_unit <- set_default_spat_unit(gobject, spat_unit = spat_unit)
+  feat_type <- set_default_feat_type(gobject, spat_unit = spat_unit, feat_type = feat_type)
+  if (is.null(name)) name <- paste0(feat_type, "_iterative_lsi")
+  if (!lsi_method %in% c(1, 2, 3, "default")) stop("lsi_method must be 1, 2, 3, or 'default'")
+  if (!is.numeric(dims) || any(dims < 1) || any(dims != floor(dims))) {
+    stop("dims must be a vector of positive integers")
+  }
+  if (set_seed) GiottoUtils::local_seed(seed)
+  instrs <- instructions(gobject)
+  dims <- seq_len(dims)
+  
+  # Validate feat_type
+  available_feats <- names(gobject@expression[[spat_unit]])
+  if (!feat_type %in% available_feats) stop("feat_type '", feat_type, "' not found in gobject")
+  
+  # Fetch expression matrix
+  vmsg(.v = verbose, sprintf("Fetching expression data: [%s][%s][%s]", spat_unit, feat_type, expression_values))
+  mat <- getExpression(gobject = gobject, 
+                        spat_unit = spat_unit, 
+                        feat_type = feat_type, 
+                        values = expression_values, 
+                        output = "matrix", 
+                        set_defaults = FALSE
+  )
+  
+  if (!inherits(mat, "dgCMatrix")) stop("Matrix must be sparse (dgCMatrix)")
+  if (!is.null(feats_to_use)) mat <- mat[feats_to_use, , drop = FALSE]
+  
+  # Initial variables
+  n_cells <- ncol(mat)
+  cell_names <- colnames(mat)
+  depth <- log10(colSums_flex(mat) + 1)
+  n_subsample <- min(sample_cells_pre, n_cells)
+  if (!is.null(sample_cells_final)) sample_cells_final <- min(sample_cells_final, n_cells)
+  
+  # ---- Start Iterative LSI Loop ----
+  for (i in seq_len(iterations)) {
+    vmsg(.v = verbose, sprintf("Iteration %d/%d", i, iterations))
 
-    if (is.null(name)) name <- paste0(feat_type, "_iterative_lsi")
-    if (!lsi_method %in% c(1, 2, 3, "default")) 
-        stop("lsi_method must be 1, 2, 3, or 'default'")
-    if (set_seed) GiottoUtils::local_seed(seed)
-    instrs <- instructions(gobject)
-    dims <- seq_len(dims)
-
-    # Validate feat_type
-    available_feats <- names(gobject@expression[[spat_unit]])
-    if (!feat_type %in% available_feats) 
-        stop("feat_type '", feat_type, "' not found in gobject")
-
-    # Fetch expression matrix
-    vmsg(.v = verbose, 
-        sprintf("Fetching expression data: [%s][%s][%s]", 
-                spat_unit, feat_type, expression_values))
-    mat <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = expression_values,
-        output = "matrix",
-        set_defaults = FALSE
-    )
-
-    if (!inherits(mat, "dgCMatrix")) stop("Matrix must be sparse (dgCMatrix)")
-    if (!is.null(feats_to_use)) mat <- mat[feats_to_use, , drop = FALSE]
-
-    # Initial variables
-    n_cells <- ncol(mat)
-    cell_names <- colnames(mat)
-    depth <- log10(colSums_flex(mat) + 1)
-    n_subsample <- min(sample_cells_pre, n_cells)
-    if (!is.null(sample_cells_final)) 
-        sample_cells_final <- min(sample_cells_final, n_cells)
-
-    # ---- Start Iterative LSI Loop ----
-    for (i in seq_len(iterations)) {
-        vmsg(.v = verbose, sprintf("Iteration %d/%d", i, iterations))
 
         # ---- Subsample Cells for LSI Computation ----
         if (i < iterations && n_subsample < n_cells) {
@@ -3707,6 +3703,7 @@ runIterativeLSI <- function(
             )
             gobject <- setGiotto(gobject, x = dim_obj, verbose = FALSE)
         }
+
     }
     # ---- End Iterative LSI Loop ----
 
@@ -3716,6 +3713,7 @@ runIterativeLSI <- function(
         return(gobject)
     } else {
         return(final_coords)
+
     }
 }
 
