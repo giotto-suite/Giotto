@@ -8,6 +8,7 @@
 * fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
 * fix `createGiottoCosMxObject()` not passing `load_expression`, `load_cellmeta`, `load_transcripts` params to `importCosMx()`
 * fix convenience functions for {terra} `v1.8-21`
+* fix `Giotto::` scoped calls for functions that call `update_giotto_params()`
 
 ## Enhancements
 * `poly_pref` param for `createGiottoCosMxObject()` and `importCosMx()` to select between loading the mask images or the `polygons.csv` as polygon info. 
