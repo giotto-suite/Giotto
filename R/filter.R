@@ -73,9 +73,9 @@ filterDistributions <- function(gobject,
     expression_threshold = 1,
     detection = c("feats", "cells"),
     plot_type = c("histogram", "violin"),
-    scale_y = NULL,
     nr_bins = 30,
     fill_color = "lightblue",
+    scale_y = "identity",
     scale_axis = "identity",
     axis_offset = 0,
     show_plot = NULL,
@@ -166,8 +166,7 @@ filterDistributions <- function(gobject,
     }
     if (detection == "cells") dep_var <- "observations"
     if (detection == "feats") dep_var <- "features"
-    if (!is.null(scale_y)) {
-        calc_val[, V1 := do.call(what = scale_y, list(V1))]
+    if (!scale_y %in% c("identity", "reverse")) {
         dep_var <- paste(scale_y, dep_var) # append dep var title modifier
     }
     dep_var <- paste(dep_var, "(count)") # dep var units
@@ -185,6 +184,7 @@ filterDistributions <- function(gobject,
         "histogram" = {
             plot_args$x_title <- indep_var
             plot_args$y_title <- dep_var
+            plot_args$scale_y <- scale_y
             plot_args$nr_bins <- nr_bins
             pl <- do.call(.hist_plot, args = plot_args)
         },
@@ -226,7 +226,8 @@ filterDistributions <- function(gobject,
     pl + ggplot2::labs(title = title, x = x, y = y_title)
 }
 
-.hist_plot <- function(data, axis_offset, nr_bins, fill_color, scale_axis, title, x_title, y_title) {
+.hist_plot <- function(data, axis_offset, nr_bins, fill_color, scale_axis, 
+                       scale_y, title, x_title, y_title) {
     V1 <- NULL # NSE var
     pl <- ggplot2::ggplot()
     pl <- pl + ggplot2::theme_classic()
@@ -236,6 +237,7 @@ filterDistributions <- function(gobject,
         color = "white", bins = nr_bins, fill = fill_color
     )
     pl <- pl + ggplot2::scale_x_continuous(transform = scale_axis)
+    pl <- pl + ggplot2::scale_y_continuous(transform = scale_y)
     pl + ggplot2::labs(title = title, x = x_title, y = y_title)
 }
 
