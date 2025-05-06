@@ -3386,7 +3386,7 @@ runGiottoHarmony <- function(
     }
 }
 
-#---------------------------------------------------------------------------------------
+#------------------------------------- IterativeLSI ------------------------------------------
 
 #' @title Run Iterative Latent Semantic Indexing (LSI)
 #' @description Performs Iterative LSI on a Giotto object, replicating ArchR's approach using Giotto functions.
@@ -3401,12 +3401,13 @@ runGiottoHarmony <- function(
 #' @param sample_cells_pre Cells to subsample in early iterations
 #' @param sample_cells_final Cells to subsample in final iteration (NULL = all)
 #' @param var_features Number of variable features (default = 25000)
-#' @param dims LSI dimensions to retain (default = seq_len(30))
+#' @param dims Vector of LSI dimensions to use for clustering and projection steps, number of dimensions - max(dims) (default = 1:30)
 #' @param scale_to TF-IDF scaling factor for sub_method 2 (default = 10000)
 #' @param lsi_method TF-IDF method: 1 = Casanovich, 2 = Stuart, 3 = ArchR, 4 = Giotto (default = 3). See [Giotto::norm_tfidf] for more information on how each of these are calculated.
 #' @param resolution Clustering resolution (default = 2)
 #' @param first_selection "top" (accessibility) or "var" (variance) (default = "var")
 #' @param k Number of nearest neighbors for sNN (default = 10)
+#' @param corCutOff Correlation cutoff for filtering LSI dimensions correlated with sequencing depth in intermediate steps (default = 0.75)
 #' @param seed Seed for reproducibility (default = 1234)
 #' @param set_seed Logical, whether to set a seed (default = TRUE)
 #' @param verbose Verbosity (default = NULL, inherits from gobject)
@@ -3425,12 +3426,13 @@ runIterativeLSI <- function(
     sample_cells_pre = 10000,
     sample_cells_final = NULL,
     var_features = 25000,
-    dims = 30,
+    dims = 1:30,
     scale_to = 10000,
     lsi_method = 2,
     resolution = 2,
     first_selection = "top",
     k = 10,
+    corCutOff = 0.75
     seed = 1234,
     set_seed = TRUE,
     verbose = NULL
@@ -3438,9 +3440,12 @@ runIterativeLSI <- function(
   
   # ---- Setup Section ----
   spat_unit <- set_default_spat_unit(gobject, spat_unit = spat_unit)
-  feat_type <- set_default_feat_type(gobject, feat_type = feat_type)
+  feat_type <- set_default_feat_type(gobject, spat_unit = spat_unit, feat_type = feat_type)
   if (is.null(name)) name <- paste0(feat_type, "_iterative_lsi")
   if (!lsi_method %in% c(1, 2, 3, "default")) stop("lsi_method must be 1, 2, 3, or 'default'")
+  if (!is.numeric(dims) || any(dims < 1) || any(dims != floor(dims))) {
+    stop("dims must be a vector of positive integers")
+  }
   if (set_seed) GiottoUtils::local_seed(seed)
   instrs <- instructions(gobject)
   dims <- seq_len(dims)
@@ -3451,13 +3456,12 @@ runIterativeLSI <- function(
   
   # Fetch expression matrix
   vmsg(.v = verbose, sprintf("Fetching expression data: [%s][%s][%s]", spat_unit, feat_type, expression_values))
-  mat <- getExpression(
-    gobject = gobject, 
-    spat_unit = spat_unit, 
-    feat_type = feat_type, 
-    values = expression_values, 
-    output = "matrix", 
-    set_defaults = FALSE
+  mat <- getExpression(gobject = gobject, 
+                        spat_unit = spat_unit, 
+                        feat_type = feat_type, 
+                        values = expression_values, 
+                        output = "matrix", 
+                        set_defaults = FALSE
   )
   
   if (!inherits(mat, "dgCMatrix")) stop("Matrix must be sparse (dgCMatrix)")
@@ -3553,25 +3557,32 @@ runIterativeLSI <- function(
     vmsg(.v = verbose, sprintf("After selection, sub_mat dims: %d %d", nrow(sub_mat), ncol(sub_mat)))
     
     # ---- TF-IDF and SVD on Subsampled Data ----
-    sub_mat_exprobj <- createExprObj(
-      sub_mat, 
-      name = "raw", 
-      spat_unit = "cell", 
-      feat_type = feat_type,
-      expression_matrix_class = "dgCMatrix"
+    sub_mat_exprobj <- createExprObj(sub_mat, 
+                                    name = "raw", 
+                                    spat_unit = "cell", 
+                                    feat_type = feat_type,
+                                    expression_matrix_class = "dgCMatrix"
     )
     mini_g <- giotto(instructions = instrs)
-    mini_g <- setExpression(mini_g, sub_mat_exprobj, spat_unit = "cell", feat_type = feat_type)
+    mini_g <- setExpression(mini_g, 
+                            sub_mat_exprobj, 
+                            spat_unit = "cell", 
+                            feat_type = feat_type)
     vmsg(.v = verbose, "Normalizing sub-matrix with TF-IDF")
-    mini_g <- processExpression(mini_g, normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
-    tfidf <- getExpression(
-      mini_g, 
-      spat_unit = "cell", 
-      feat_type = feat_type, 
-      values = "normalized", 
-      output = "matrix"
+    mini_g <- processExpression(mini_g, 
+                                spat_unit = spat_unit, 
+                                feat_type = feat_type, 
+                                expression_values = "raw", 
+                                name = "normalized", 
+                                normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
+    tfidf <- getExpression(mini_g, 
+                        spat_unit = "cell", 
+                        feat_type = feat_type, 
+                        values = "normalized", 
+                        output = "matrix"
     )
     
+    # SVD computes max(dims) dimensions
     n_dims <- min(max(dims), min(nrow(tfidf), ncol(tfidf)) - 1)
     if (n_dims <= 0) stop("Matrix too small for SVD")
     svd_result <- BiocSingular::runSVD(
@@ -3581,43 +3592,65 @@ runIterativeLSI <- function(
       nv = n_dims, 
       BSPARAM = BiocSingular::IrlbaParam()
     )
-    n_dims <- min(n_dims, length(svd_result$d))
+    
+    # Filter dims for intermediate steps using corCutOff
+    if (!is.null(corCutOff)) {
+      correlations <- apply(svd_result$v[, dims, drop = FALSE], 2, function(x) {
+        cor(x, depth[sub_idx], method = "pearson")
+      })
+      valid_dims <- dims[abs(correlations) <= corCutOff]
+      if (length(valid_dims) == 0) {
+        warning("No dimensions remain after correlation filtering. Using all dimensions.")
+        valid_dims <- dims
+      }
+    } else {
+      correlations <- NULL
+      valid_dims <- dims
+    }
+
+    # Intermediate LSI coordinates use valid_dims
+    n_dims <- min(length(valid_dims), length(svd_result$d))
     svd_diag <- matrix(0, n_dims, n_dims)
-    diag(svd_diag) <- svd_result$d[seq_len(n_dims)]
-    coords <- t_flex(svd_diag %*% t_flex(svd_result$v[, seq_len(n_dims)]))
+    diag(svd_diag) <- svd_result$d[valid_dims]
+    coords <- t_flex(svd_diag %*% t_flex(svd_result$v[, valid_dims]))
     rownames(coords) <- colnames(sub_mat)
-    colnames(coords) <- paste0("LSI", seq_len(n_dims))
+    colnames(coords) <- paste0("LSI", valid_dims)
     
     # ---- Project LSI to All Cells ----
     projected_g <- giotto(instructions = instrs)
     full_mat <- mat[feats, , drop = FALSE]
     vmsg(.v = verbose, "Normalizing full matrix with TF-IDF for projection")
-    full_mat_exprobj <- createExprObj(
-      full_mat, 
-      name = "raw", 
-      spat_unit = "cell", 
-      feat_type = feat_type,
-      expression_matrix_class = "dgCMatrix"
+    full_mat_exprobj <- createExprObj(full_mat, 
+                                        name = "raw", 
+                                        spat_unit = "cell", 
+                                        feat_type = feat_type,
+                                        expression_matrix_class = "dgCMatrix"
     )
-    projected_g <- setExpression(projected_g, full_mat_exprobj, spat_unit = "cell", feat_type = feat_type)
-    projected_g <- processExpression(projected_g, normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
-    tfidf_full <- getExpression(
-      projected_g, 
-      spat_unit = "cell", 
-      feat_type = feat_type, 
-      values = "normalized", 
-      output = "matrix"
+    projected_g <- setExpression(projected_g, 
+                                full_mat_exprobj, 
+                                spat_unit = "cell", 
+                                feat_type = feat_type)
+    projected_g <- processExpression(projected_g, 
+                                    spat_unit = spat_unit, 
+                                    feat_type = feat_type, 
+                                    expression_values = "raw", 
+                                    name = "normalized",
+                                    normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
+    tfidf_full <- getExpression(projected_g, 
+                                spat_unit = "cell", 
+                                feat_type = feat_type, 
+                                values = "normalized", 
+                                output = "matrix"
     )
     vmsg(.v = verbose, sprintf("TF-IDF full dims: %d %d", nrow(tfidf_full), ncol(tfidf_full)))
     
-    # Project using SVD from mini_g
+    # Intermediate projection uses valid_dims
     stopifnot(nrow(tfidf_full) == nrow(svd_result$u))
-    n_dims <- min(n_dims, ncol(svd_result$u), length(svd_result$d))
     vmsg(.v = verbose, sprintf("Projection n_dims: %d", n_dims))
-    u_subset <- as.matrix(svd_result$u[, seq_len(n_dims), drop = FALSE])
+    u_subset <- as.matrix(svd_result$u[, valid_dims, drop = FALSE])
     full_coords <- t_flex(tfidf_full) %*% u_subset  
-    colnames(full_coords) <- paste0("LSI", seq_len(n_dims))
-    vmsg(.v = verbose, sprintf("Full coords dims: %d %d", nrow(full_coords), ncol(full_coords)))
+    colnames(full_coords) <- paste0("LSI", valid_dims)
+    vmsg(.v = verbose, sprintf("Coords dims: %d %d", nrow(full_coords), ncol(full_coords)))
     
     # ---- Clustering on All Cells ----
     if (i < iterations) {
@@ -3630,10 +3663,14 @@ runIterativeLSI <- function(
         reduction = "cells",
         method = "lsi"
       )
-      projected_g <- setDimReduction(projected_g, lsi_obj, spat_unit = "cell", feat_type = feat_type)
+      projected_g <- setDimReduction(projected_g, 
+                                    lsi_obj, 
+                                    spat_unit = "cell", 
+                                    feat_type = feat_type)
       
+      # Clustering uses valid_dims
       n_dims_available <- ncol(lsi_obj)
-      dims_to_use <- seq_len(min(n_dims, n_dims_available))
+      dims_to_use <- valid_dims[valid_dims <= n_dims_available]
       projected_g <- createNearestNetwork(
         gobject = projected_g,
         spat_unit = "cell",
@@ -3658,13 +3695,24 @@ runIterativeLSI <- function(
         set_seed = set_seed,
         seed_number = seed
       )
-      prev_clusters <- spatValues(projected_g, feats = paste0("clus_iter", i))$clus_iter
+      prev_clusters <- spatValues(projected_g, 
+                                spat_unit = spat_unit,
+                                feat_type = feat_type,
+                                feats = paste0("clus_iter", i))$clus_iter
     }
     
     # ---- Final Output to gobject ----
     if (i == iterations) {
-      final_coords <- full_coords[, seq_len(min(ncol(full_coords), length(dims))), drop = FALSE]
-      colnames(final_coords) <- paste0("LSI", seq_len(ncol(final_coords)))
+      # Compute final_coords for 1:max(dims) dimensions, ignoring corCutOff
+      final_n_dims <- min(max(dims), ncol(svd_result$u), length(svd_result$d))
+      if (final_n_dims < max(dims)) {
+        warning(sprintf("Requested %d final dimensions, but only %d are available.", max(dims), final_n_dims))
+      }
+      final_valid_dims <- seq_len(final_n_dims)
+      u_subset <- as.matrix(svd_result$u[, final_valid_dims, drop = FALSE])
+      final_coords <- t_flex(tfidf_full) %*% u_subset
+      colnames(final_coords) <- paste0("LSI", final_valid_dims)
+      vmsg(.v = verbose, sprintf("Final coords dims: %d %d", nrow(final_coords), ncol(final_coords)))
       dim_obj <- createDimObj(
         name = name,
         feat_type = feat_type,
@@ -3673,9 +3721,12 @@ runIterativeLSI <- function(
         method = "lsi",
         coordinates = final_coords,
         misc = list(
-            eigenvalues = svd_result$d[seq_len(n_dims)]^2, 
-            loadings = svd_result$v[, seq_len(n_dims)], 
-            features = feats)
+          eigenvalues = svd_result$d[final_valid_dims]^2,
+          loadings = svd_result$v[, final_valid_dims],
+          features = feats,
+          dims_used = valid_dims,  
+          depth_correlations = correlations  
+        )
       )
       gobject <- setGiotto(gobject, x = dim_obj, verbose = FALSE)
     }
