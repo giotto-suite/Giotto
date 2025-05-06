@@ -3,6 +3,9 @@
 \name{scale_default}
 \alias{scale_default}
 \title{Default Giotto Scaling}
+\value{
+scaled object
+}
 \description{
 2 step \link[=scale_zscore]{z-scoring} along features and samples
 }

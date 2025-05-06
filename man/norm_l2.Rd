@@ -3,6 +3,9 @@
 \name{norm_l2}
 \alias{norm_l2}
 \title{L2 Normalization}
+\value{
+normalized object
+}
 \description{
 L2 normalization (also known as Euclidean normalization) scales each column
 (sample) in the expression matrix to have unit Euclidean length. This

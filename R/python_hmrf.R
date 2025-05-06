@@ -134,8 +134,9 @@ doHMRF <- function(gobject,
     }
 
     if (!"matrix" %in% class(expr_values)) {
-        warning("\n this matrix will be converted to a dense and memory intensive
-                base matrix ...\n")
+        warning(
+        "\n this matrix will be converted to a dense and memory intensive
+        base matrix ...\n")
         expr_values <- as.matrix(expr_values)
     }
 
@@ -991,7 +992,7 @@ sampling_sp_genes <- function(
         genes[i] <- num_g
         num_sample[i] <- round(num_g / (num_g^(1 / sample_rate)) * factor)
     }
-    set.seed(seed)
+    GiottoUtils::local_seed(seed)
     samples <- list()
     union_genes <- c()
     for (i in seq(1, num_cluster)) {
@@ -1899,8 +1900,8 @@ doHMRF_V2 <- function(HMRF_init_obj, betas = NULL) {
     Nature biotechnology 36 (12), 1183-1190. 2018"
     )
 
-    message("\n Please find more explanation and instruction of the HMRF function
-    on \n https://bitbucket.org/qzhudfci/smfishhmrf-r/src/master/TRANSITION.md")
+    #message("\n Please find more explanation and instruction of the HMRF function
+    #on \n https://bitbucket.org/qzhudfci/smfishhmrf-r/src/master/TRANSITION.md")
     if (!"y" %in% names(HMRF_init_obj)) {
         stop("\n expression matrix 'y' not in the intialization object")
     }

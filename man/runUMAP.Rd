@@ -323,7 +323,8 @@ between data and target. Only applies if \code{y} is non-\code{NULL}.}
     \item{\code{pcg_rand}}{If \code{TRUE}, use the PCG random number generator (O'Neill,
 2014) during optimization. Otherwise, use the faster (but probably less
 statistically good) Tausworthe "taus88" generator. The default is
-\code{TRUE}.}
+\code{TRUE}. This parameter has been superseded by \code{rng_type} -- if
+both are set, \code{rng_type} takes precedence.}
     \item{\code{fast_sgd}}{If \code{TRUE}, then the following combination of parameters
 is set: \code{pcg_rand = TRUE}, \code{n_sgd_threads = "auto"} and
 \code{approx_pow = TRUE}. The default is \code{FALSE}. Setting this to

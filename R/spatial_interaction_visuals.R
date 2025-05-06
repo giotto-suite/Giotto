@@ -3355,7 +3355,7 @@ cellProximitySpatPlot2D <- function(
         default_save_name = "cellProximitySpatPlot2D") {
     if (is.null(interaction_name)) {
         stop("you need to specific at least one interaction name, run
-             cellProximityEnrichment")
+            cellProximityEnrichment")
     }
 
 

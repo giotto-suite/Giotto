@@ -3,21 +3,47 @@
 \name{norm_tfidf}
 \alias{norm_tfidf}
 \title{TF-IDF Normalization}
+\value{
+normalized object
+}
 \description{
 TF-IDF (Term Frequency-Inverse Document Frequency) normalization is borrowed
-from natural language processing to identify features that are highly expressed
-in specific samples but not widely expressed across the entire dataset.
+from natural language processing to identify features that are highly
+expressed in specific samples but not widely expressed across the entire
+dataset.
+
+There are several different implementations that apply log or binarization
+to different terms. \code{sub_method = c(1:3)} and \code{dgCMatrix} optimizations are
+based on the ArchR implementations.
 
 \deqn{\LARGE
 TF_{i,j} = \frac{x_{i,j}}{\sum_{i} x_{i,j}}
 }
 
 \deqn{\LARGE
-IDF_{i} = \log(1 + \frac{n_{samples}}{1 + n_{samples \: where \: feature \: i > 0}})
+IDF_{i} = \frac{n_{samples}}{\sum_{j} x_{i,j}}
 }
 
 \deqn{\LARGE
-TFIDF_{i,j} = TF_{i,j} \times IDF_{i}
+IBDF_{i} = \frac{n_{samples}}{1 + n_{samples \: where \: feature \: i > 0}}
+}
+
+\strong{Implementations} (\code{sub_method}):
+
+\deqn{\large
+(default) \quad TFIDF_{i,j} = TF_{i,j} \times \log(IBDF_{i} + 1)
+}
+
+\deqn{\large
+(1) \quad TFIDF_{i,j} = TF_{i,j} \times \log(IDF_{i} + 1)
+}
+
+\deqn{\large
+(2) \quad TFIDF_{i,j} = \log(TF_{i,j} \times IDF_{i} \times S + 1) \quad 
+}
+
+\deqn{\large
+(3) \quad TFIDF_{i,j} = \log(TF_{i,j} + 1) \times \log(IDF_{i} + 1)
 }
 
 Where:
@@ -25,7 +51,9 @@ Where:
 \item (\eqn{x_{i,j}}) is the raw count for feature \eqn{i} in sample \eqn{j}
 \item (\eqn{TF_{i,j}}) is the term frequency of feature \eqn{i} in sample \eqn{j}
 \item (\eqn{IDF_{i}}) is the inverse document frequency of feature \eqn{i}
+\item (\eqn{IBDF_{i}}) is the inverse binarized document frequency of feature \eqn{i}
 \item (\eqn{TFIDF_{i,j}}) is the final TF-IDF normalized value
+\item (\eqn{S}) is a scalefactor (default = 10000)
 }
 }
 \section{Note}{
@@ -34,9 +62,74 @@ Where:
 
 \section{params}{
 
-None
+
+\tabular{ll}{
+\code{sub_method} \tab Either numeric 1, 2, or 3 or "default". Determines which
+set of defaults to use during the TF-IDF calculation. Methods 1-3 map to
+the same \code{LSIMethod} settings in {ArchR}. See sub_method section below.\cr
+\code{log_tf} \tab logical (overrides \code{sub_method} defaults). Whether to log
+transform TF values (includes a +1 offset).\cr
+\code{log_idf} \tab logical (overrides \code{sub_method} defaults). Whether to log
+transform IDF values (includes a +1 offset).\cr
+\code{log_tf_idf} \tab logical (overrides \code{sub_method} defaults). Whether to log
+transform the TF-IDF value (also applies a scalefactor (\eqn{s}) and +1
+offset before the log operation).\cr
+\code{binarized_rowsums} \tab logical (overrides \code{sub_method} defaults).
+Whether to calculate IBDF instead of IDF, where the calculation is based
+on the presence of a feature as opposed to its count.\cr
+\code{scalefactor} \tab numeric (default = 10000). A scalefactor used when
+\code{log_tf_idf = TRUE}.
+}
 }
 
+\section{\code{sub_method}}{
+
+\code{sub_method} can be one of \code{"default"} or any of the other implementations
+from 1 to 3. These apply some defaults to the way that TF-IDF is calculated.
+The individual \code{log_} params will override these defaults.
+\itemize{
+\item \code{"default"} - default Giotto implementation:
+\itemize{
+\item \code{log_idf = TRUE}
+\item \code{binarized_rowsums = TRUE}
+}
+\item \code{1} - Method introduced in Cusanovich et al. 2018.
+\itemize{
+\item \code{log_idf = TRUE}
+}
+\item \code{2} - Method introduced in Stuart et al. 2021.
+\itemize{
+\item \code{log_tf_idf = TRUE}
+}
+\item \code{3} - Method 3 in {ArchR} \code{iterativeLSI()}
+\itemize{
+\item \code{log_tf = TRUE}
+\item \code{log_idf = TRUE}
+}
+}
+}
+
+\examples{
+e <- GiottoData::loadSubObjectMini("exprObj")
+processData(e, normParam("tf-idf"))
+processData(e, normParam("tf-idf", sub_method = 1))
+processData(e, normParam("tf-idf", sub_method = 2))
+processData(e, normParam("tf-idf", sub_method = 3))
+}
+\references{
+Cusanovich, D., Reddington, J., Garfield, D. et al. The cis-regulatory
+dynamics of embryonic development at single-cell resolution.
+Nature 555, 538–542 (2018). https://doi.org/10.1038/nature25981
+
+Stuart T, Srivastava A, Madad S, Lareau CA, Satija R. Single-cell chromatin
+state analysis with Signac. Nat Methods. 2021 Nov;18(11):1333-1341.
+doi: 10.1038/s41592-021-01282-5.
+
+Granja JM, Corces MR, Pierce SE, Bagdatli ST, Choudhry H, Chang HY,
+Greenleaf WJ. ArchR is a scalable software package for integrative
+single-cell chromatin accessibility analysis.
+Nat Genet. 2021 Mar;53(3):403-411. doi: 10.1038/s41588-021-00790-6.
+}
 \seealso{
 \link{process_param}
 

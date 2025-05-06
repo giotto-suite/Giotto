@@ -3,6 +3,9 @@
 \name{norm_default}
 \alias{norm_default}
 \title{Default Giotto Normalization}
+\value{
+normalized object
+}
 \description{
 Expression matrix normalization method.
 

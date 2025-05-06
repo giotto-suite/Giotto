@@ -3,6 +3,9 @@
 \name{scale_zscore}
 \alias{scale_zscore}
 \title{Z Score Scaling}
+\value{
+scaled object
+}
 \description{
 Wrapper around \code{base::scale()} to make it compatible with the
 \code{\link[=processData]{processData()}} framework. Additionally provides a \code{MARGIN} param.
