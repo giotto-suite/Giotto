@@ -409,7 +409,7 @@ addFeatStatistics <- function(gobject,
                 description = "_feat_stats"
             )
         } else {
-            fname <- as.character(cl[[1]])
+            fname <- tail(as.character(cl[[1]]), n = 1)
             if (fname == "addStatistics") {
                 gobject <- update_giotto_params(gobject,
                     description = "_feat_stats",
@@ -567,7 +567,7 @@ addCellStatistics <- function(gobject,
                 description = "_cell_stats"
             )
         } else {
-            fname <- as.character(cl[[1]])
+            fname <- tail(as.character(cl[[1]]), n = 1)
             if (fname == "addStatistics") {
                 gobject <- update_giotto_params(gobject,
                     description = "_cell_stats",
@@ -938,8 +938,11 @@ findNetworkNeighbors <- function(gobject,
 #' @keywords internal
 #' @noRd
 .mean_expr_det_test <- function(mymatrix, detection_threshold = 1) {
-    unlist(apply(X = mymatrix, MARGIN = 1, FUN = function(x) {
-        detected_x <- x[x > detection_threshold]
-        mean(detected_x)
-    }))
+  mask <- mymatrix > detection_threshold
+  sum_detected   <- rowSums_flex(mymatrix * mask)
+  count_detected <- rowSums_flex(mask)
+
+  out <- sum_detected / count_detected
+  out[count_detected == 0] <- NaN
+  out
 }
