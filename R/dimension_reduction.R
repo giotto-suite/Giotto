@@ -3368,34 +3368,29 @@ runGiottoHarmony <- function(gobject,
     }
 }
 
-#------------------------------------- IterativeLSI ------------------------------------------
-
+#--------------------------------IterativeLSI-----------------------------------
 #' @title Run Iterative Latent Semantic Indexing (LSI)
-#' @description Performs Iterative LSI on a Giotto object, replicating ArchR's 
-#' approach using Giotto functions.
+#' @description Performs Iterative LSI on a Giotto object, replicating ArchR's approach using Giotto functions.
 #' @param gobject Giotto object
 #' @param spat_unit Spatial unit (e.g., "cell")
 #' @param feat_type Feature type (e.g., "spatial_atac")
 #' @param expression_values Values to use (e.g., "raw")
-#' @param name Name for reduction (default: feat_type + ".iterative.lsi")
+#' @param name Name for reduction (default: feat_type + "_iterative_lsi")
 #' @param feats_to_use Initial feature subset (NULL = all)
 #' @param return_gobject Return Giotto object (default = TRUE)
 #' @param iterations Number of iterations (default = 2)
 #' @param sample_cells_pre Cells to subsample in early iterations
 #' @param sample_cells_final Cells to subsample in final iteration (NULL = all)
 #' @param var_features Number of variable features (default = 25000)
-#' @param dims Vector of LSI dimensions to use for clustering and projection steps, number of dimensions - max(dims) (default = 1:30)
+#' @param dims Vector of LSI dimensions to use for clustering and projection steps (default = 1:30)
 #' @param scale_to TF-IDF scaling factor for sub_method 2 (default = 10000)
-#' @param lsi_method TF-IDF method: 1 = Casanovich, 2 = Stuart, 3 = ArchR, 
-#' 4 = Giotto (default = 3). See [Giotto::norm_tfidf] for more information on 
-#' how each of these are calculated.
+#' @param lsi_method TF-IDF method: 1 = Casanovich, 2 = Stuart, 3 = ArchR, 4 = Giotto (default = 3). See [Giotto::norm_tfidf] for more information on how each of these are calculated.
 #' @param resolution Clustering resolution (default = 2)
-#' @param first_selection "top" (accessibility) or "var" (variance) 
-#' (default = "var")
+#' @param first_selection "top" (accessibility) or "var" (variance) (default = "var")
 #' @param k Number of nearest neighbors for sNN (default = 10)
-#' @param corCutOff Correlation cutoff for filtering LSI dimensions correlated with sequencing depth in intermediate steps (default = 0.75)
 #' @param seed Seed for reproducibility (default = 1234)
 #' @param set_seed Logical, whether to set a seed (default = TRUE)
+#' @param cor_cutoff Correlation cutoff for filtering LSI dimensions correlated with sequencing depth in intermediate steps (default = 0.75)
 #' @param verbose Verbosity (default = NULL, inherits from gobject)
 #' @returns Giotto object or LSI coordinates
 #' @export
@@ -3417,9 +3412,9 @@ runIterativeLSI <- function(
     resolution = 2,
     first_selection = "top",
     k = 10,
-    corCutOff = 0.75
     seed = 1234,
     set_seed = TRUE,
+    cor_cutoff = 0.75,
     verbose = NULL
 ) {
   
@@ -3433,7 +3428,6 @@ runIterativeLSI <- function(
   }
   if (set_seed) GiottoUtils::local_seed(seed)
   instrs <- instructions(gobject)
-  dims <- seq_len(dims)
   
   # Validate feat_type
   available_feats <- names(gobject@expression[[spat_unit]])
@@ -3441,12 +3435,13 @@ runIterativeLSI <- function(
   
   # Fetch expression matrix
   vmsg(.v = verbose, sprintf("Fetching expression data: [%s][%s][%s]", spat_unit, feat_type, expression_values))
-  mat <- getExpression(gobject = gobject, 
-                        spat_unit = spat_unit, 
-                        feat_type = feat_type, 
-                        values = expression_values, 
-                        output = "matrix", 
-                        set_defaults = FALSE
+  mat <- getExpression(
+    gobject = gobject, 
+    spat_unit = spat_unit, 
+    feat_type = feat_type, 
+    values = expression_values, 
+    output = "matrix", 
+    set_defaults = FALSE
   )
   
   if (!inherits(mat, "dgCMatrix")) stop("Matrix must be sparse (dgCMatrix)")
@@ -3462,259 +3457,262 @@ runIterativeLSI <- function(
   # ---- Start Iterative LSI Loop ----
   for (i in seq_len(iterations)) {
     vmsg(.v = verbose, sprintf("Iteration %d/%d", i, iterations))
-
-
-        # ---- Subsample Cells for LSI Computation ----
-        if (i < iterations && n_subsample < n_cells) {
-            q <- quantile(depth, c(0.02, 0.98))
-            idx <- which(depth >= q[1] & depth <= q[2])
-            sub_idx <- sample(idx, min(n_subsample, length(idx)))
-            sub_mat <- mat[, sub_idx, drop = FALSE]
-        } else if (i == iterations && !is.null(sample_cells_final) && sample_cells_final < n_cells) {
-            q <- quantile(depth, c(0.02, 0.98))
-            idx <- which(depth >= q[1] & depth <= q[2])
-            sub_idx <- sample(idx, min(sample_cells_final, length(idx)))
-            sub_mat <- mat[, sub_idx, drop = FALSE]
-        } else {
-            sub_mat <- mat
-            sub_idx <- seq_len(n_cells)
-        }
-        sub_cell_names <- colnames(sub_mat)
-
-        # ---- Feature Selection ----
-        if (i == 1) {
-            if (first_selection == "top") {
-                row_sums <- rowSums_flex(mat)
-                filter_thresh <- quantile(row_sums, 0.995)
-                valid_feats <- row_sums[row_sums <= filter_thresh & row_sums > 0]
-                sorted_idx <- order(valid_feats, decreasing = TRUE)
-                top_idx <- sorted_idx[seq_len(min(var_features, length(valid_feats)))]
-                if (!is.null(rownames(mat))) {
-                    feats <- rownames(mat)[top_idx]
-                } else {
-                    feats <- top_idx
-                }
-            } else {
-                log_mat <- sub_mat
-                log_mat@x <- log2(log_mat@x + 1)
-                feat_vars <- apply(log_mat, 1, var)
-                sorted_idx <- order(feat_vars, decreasing = TRUE)
-                top_idx <- sorted_idx[seq_len(min(var_features, sum(feat_vars > 0)))]
-                if (!is.null(rownames(sub_mat))) {
-                    feats <- rownames(sub_mat)[top_idx]
-                } else {
-                    feats <- top_idx
-                }
-            }
-        } else {
-            vmsg(.v = verbose, sprintf("Before cluster selection, sub_mat dims: %d %d", nrow(sub_mat), ncol(sub_mat)))
-            clusters <- prev_clusters[match(sub_cell_names, cell_names)]
-            col_sums <- colSums_flex(sub_mat)
-            norm_mat <- t_flex(t_flex(sub_mat) / col_sums) * scale_to
-            log_norm_mat <- norm_mat
-            log_norm_mat@x <- log2(log_norm_mat@x + 1)
-
-            # Optimized variance by cluster
-            unique_clusters <- unique(clusters)
-            vars_by_cluster <- vector("list", length(unique_clusters))
-            names(vars_by_cluster) <- unique_clusters
-            for (cl in unique_clusters) {
-                cell_idx <- which(clusters == cl)
-                sub_mat_cl <- log_norm_mat[, cell_idx, drop = FALSE]
-                n_cells <- length(cell_idx)
-                row_means <- rowSums_flex(sub_mat_cl) / n_cells
-                row_sumsq <- rowSums_flex(sub_mat_cl^2)
-                vars <- (row_sumsq / n_cells) - (row_means^2)
-                vars_by_cluster[[cl]] <- vars
-            }
-
-            feats <- unique(unlist(lapply(vars_by_cluster, function(v) {
-                sorted_idx <- order(v, decreasing = TRUE)
-                top_idx <- sorted_idx[seq_len(min(var_features, length(v)))]
-                if (!is.null(names(v))) {
-                    names(v)[top_idx]
-                } else {
-                    top_idx
-                }
-            })))
-            feats <- intersect(feats, if (!is.null(rownames(sub_mat))) rownames(sub_mat) else seq_len(nrow(sub_mat)))
-        }
-        sub_mat <- sub_mat[feats, , drop = FALSE]
-        vmsg(.v = verbose, sprintf("After selection, sub_mat dims: %d %d", nrow(sub_mat), ncol(sub_mat)))
-
-        # ---- TF-IDF and SVD on Subsampled Data ----
-        sub_mat_exprobj <- createExprObj(
-            sub_mat,
-            name = "raw",
-            spat_unit = "cell",
-            feat_type = feat_type,
-            expression_matrix_class = "dgCMatrix"
-        )
-        mini_g <- giotto(instructions = instrs)
-        mini_g <- setExpression(
-            mini_g, 
-            sub_mat_exprobj, 
-            spat_unit = "cell", 
-            feat_type = feat_type)
-        
-        vmsg(.v = verbose, "Normalizing sub-matrix with TF-IDF")
-        mini_g <- processExpression(
-            mini_g, 
-            spat_unit = "cell", 
-            feat_type = feat_type,
-            param = normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
-        
-        tfidf <- getExpression(
-            mini_g,
-            spat_unit = "cell",
-            feat_type = feat_type,
-            values = "normalized",
-            output = "matrix"
-        )
-
-        n_dims <- min(max(dims), min(nrow(tfidf), ncol(tfidf)) - 1)
-        if (n_dims <= 0) stop("Matrix too small for SVD")
-        svd_result <- BiocSingular::runSVD(
-            tfidf,
-            k = n_dims,
-            nu = n_dims,
-            nv = n_dims,
-            BSPARAM = BiocSingular::IrlbaParam()
-        )
-        n_dims <- min(n_dims, length(svd_result$d))
-        svd_diag <- matrix(0, n_dims, n_dims)
-        diag(svd_diag) <- svd_result$d[seq_len(n_dims)]
-        coords <- t_flex(svd_diag %*% t_flex(svd_result$v[, seq_len(n_dims)]))
-        rownames(coords) <- colnames(sub_mat)
-        colnames(coords) <- paste0("LSI", seq_len(n_dims))
-
-        # ---- Project LSI to All Cells ----
-        projected_g <- giotto(instructions = instrs)
-        full_mat <- mat[feats, , drop = FALSE]
-        vmsg(.v = verbose, "Normalizing full matrix with TF-IDF for projection")
-        full_mat_exprobj <- createExprObj(
-            full_mat,
-            name = "raw",
-            spat_unit = "cell",
-            feat_type = feat_type,
-            expression_matrix_class = "dgCMatrix"
-        )
-        projected_g <- setExpression(
-            projected_g, 
-            full_mat_exprobj, 
-            spat_unit = "cell", 
-            feat_type = feat_type)
-        
-        projected_g <- processExpression(
-            projected_g, 
-            spat_unit = "cell", 
-            feat_type = feat_type,
-            normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
-        
-        tfidf_full <- getExpression(
-            projected_g,
-            spat_unit = "cell",
-            feat_type = feat_type,
-            values = "normalized",
-            output = "matrix"
-        )
-        
-        vmsg(.v = verbose, sprintf("TF-IDF full dims: %d %d", nrow(tfidf_full), ncol(tfidf_full)))
-
-        # Project using SVD from mini_g
-        stopifnot(nrow(tfidf_full) == nrow(svd_result$u))
-        n_dims <- min(n_dims, ncol(svd_result$u), length(svd_result$d))
-        vmsg(.v = verbose, sprintf("Projection n_dims: %d", n_dims))
-        u_subset <- as.matrix(svd_result$u[, seq_len(n_dims), drop = FALSE])
-        full_coords <- t_flex(tfidf_full) %*% u_subset
-        colnames(full_coords) <- paste0("LSI", seq_len(n_dims))
-        vmsg(.v = verbose, sprintf("Full coords dims: %d %d", nrow(full_coords), ncol(full_coords)))
-
-        # ---- Clustering on All Cells ----
-        if (i < iterations) {
-            # Use full_coords for clustering on all cells
-            lsi_obj <- createDimObj(
-                coordinates = full_coords,
-                name = name,
-                spat_unit = "cell",
-                feat_type = feat_type,
-                reduction = "cells",
-                method = "lsi"
-            )
-            
-            projected_g <- setDimReduction(
-                projected_g, 
-                lsi_obj, 
-                spat_unit = "cell", 
-                feat_type = feat_type)
-
-            n_dims_available <- ncol(lsi_obj)
-            dims_to_use <- seq_len(min(n_dims, n_dims_available))
-            
-            projected_g <- createNearestNetwork(
-                gobject = projected_g,
-                spat_unit = "cell",
-                feat_type = feat_type,
-                type = "sNN",
-                dim_reduction_to_use = "lsi",
-                dim_reduction_name = name,
-                dimensions_to_use = dims_to_use,
-                name = "snn_lsi",
-                k = k,
-                verbose = FALSE
-            )
-            
-            projected_g <- doLeidenClusterIgraph(
-                gobject = projected_g,
-                spat_unit = "cell",
-                feat_type = feat_type,
-                name = paste0("clus_iter", i),
-                nn_network_to_use = "sNN",
-                network_name = "snn_lsi",
-                resolution = resolution,
-                return_gobject = TRUE,
-                set_seed = set_seed,
-                seed_number = seed
-            )
-            prev_clusters <- spatValues(
-                gobject = projected_g, 
-                spat_unit = "cell",
-                feat_type = feat_type,
-                feats = paste0("clus_iter", i))$clus_iter
-        }
-
-        # ---- Final Output to gobject ----
-        if (i == iterations) {
-            final_coords <- full_coords[, seq_len(min(ncol(full_coords), length(dims))), drop = FALSE]
-            colnames(final_coords) <- paste0("LSI", seq_len(ncol(final_coords)))
-            
-            dim_obj <- createDimObj(
-                name = name,
-                feat_type = feat_type,
-                spat_unit = spat_unit,
-                reduction = "cells",
-                method = "lsi",
-                coordinates = final_coords,
-                misc = list(
-                    eigenvalues = svd_result$d[seq_len(n_dims)]^2,
-                    loadings = svd_result$v[, seq_len(n_dims)],
-                    features = feats
-                )
-            )
-            gobject <- setGiotto(gobject, x = dim_obj, verbose = FALSE)
-        }
-
-    }
-    # ---- End Iterative LSI Loop ----
-
-    # ---- Return Results ----
-    if (return_gobject) {
-        gobject <- update_giotto_params(gobject, description = "_iterative_lsi")
-        return(gobject)
+    
+    # ---- Subsample Cells for LSI Computation ----
+    if (i < iterations && n_subsample < n_cells) {
+      q <- quantile(depth, c(0.02, 0.98))
+      idx <- which(depth >= q[1] & depth <= q[2])
+      sub_idx <- sample(idx, min(n_subsample, length(idx)))
+      sub_mat <- mat[, sub_idx, drop = FALSE]
+    } else if (i == iterations && !is.null(sample_cells_final) && sample_cells_final < n_cells) {
+      q <- quantile(depth, c(0.02, 0.98))
+      idx <- which(depth >= q[1] & depth <= q[2])
+      sub_idx <- sample(idx, min(sample_cells_final, length(idx)))
+      sub_mat <- mat[, sub_idx, drop = FALSE]
     } else {
-        return(final_coords)
-
+      sub_mat <- mat
+      sub_idx <- seq_len(n_cells)
     }
+    sub_cell_names <- colnames(sub_mat)
+    
+    # ---- Feature Selection ----
+    if (i == 1) {
+      if (first_selection == "top") {
+        row_sums <- rowSums_flex(mat)  
+        filter_thresh <- quantile(row_sums, 0.995)
+        valid_feats <- row_sums[row_sums <= filter_thresh & row_sums > 0]
+        sorted_idx <- order(valid_feats, decreasing = TRUE)
+        top_idx <- sorted_idx[seq_len(min(var_features, length(valid_feats)))]
+        if (!is.null(rownames(mat))) {
+          feats <- rownames(mat)[top_idx]
+        } else {
+          feats <- top_idx
+        }
+      } else {
+        log_mat <- sub_mat
+        log_mat@x <- log2(log_mat@x + 1)  
+        feat_vars <- apply(log_mat, 1, var)
+        sorted_idx <- order(feat_vars, decreasing = TRUE)
+        top_idx <- sorted_idx[seq_len(min(var_features, sum(feat_vars > 0)))]
+        if (!is.null(rownames(sub_mat))) {
+          feats <- rownames(sub_mat)[top_idx]
+        } else {
+          feats <- top_idx
+        }
+      }
+    } else {
+      vmsg(.v = verbose, sprintf("Before cluster selection, sub_mat dims: %d %d", nrow(sub_mat), ncol(sub_mat)))
+      clusters <- prev_clusters[match(sub_cell_names, cell_names)]
+      col_sums <- colSums_flex(sub_mat)
+      norm_mat <- t_flex(t_flex(sub_mat) / col_sums) * scale_to
+      log_norm_mat <- norm_mat
+      log_norm_mat@x <- log2(log_norm_mat@x + 1)
+      
+      # Optimized variance by cluster
+      unique_clusters <- unique(clusters)
+      vars_by_cluster <- vector("list", length(unique_clusters))
+      names(vars_by_cluster) <- unique_clusters
+      for (cl in unique_clusters) {
+        cell_idx <- which(clusters == cl)
+        sub_mat_cl <- log_norm_mat[, cell_idx, drop = FALSE]
+        n_cells <- length(cell_idx)
+        row_means <- rowSums_flex(sub_mat_cl) / n_cells
+        row_sumsq <- rowSums_flex(sub_mat_cl^2)
+        vars <- (row_sumsq / n_cells) - (row_means^2)
+        vars_by_cluster[[cl]] <- vars
+      }
+      
+      feats <- unique(unlist(lapply(vars_by_cluster, function(v) {
+        sorted_idx <- order(v, decreasing = TRUE)
+        top_idx <- sorted_idx[seq_len(min(var_features, length(v)))]
+        if (!is.null(names(v))) {
+          names(v)[top_idx]
+        } else {
+          top_idx
+        }
+      })))
+      feats <- intersect(feats, if (!is.null(rownames(sub_mat))) rownames(sub_mat) else seq_len(nrow(sub_mat)))
+    }
+    sub_mat <- sub_mat[feats, , drop = FALSE]
+    vmsg(.v = verbose, sprintf("After selection, sub_mat dims: %d %d", nrow(sub_mat), ncol(sub_mat)))
+    
+    # ---- TF-IDF and SVD on Subsampled Data ----
+    sub_mat_exprobj <- createExprObj(
+      sub_mat, 
+      name = "raw", 
+      spat_unit = "cell", 
+      feat_type = feat_type,
+      expression_matrix_class = "dgCMatrix"
+    )
+    mini_g <- giotto(instructions = instrs)
+    mini_g <- setExpression(mini_g, sub_mat_exprobj, spat_unit = "cell", feat_type = feat_type)
+    vmsg(.v = verbose, "Normalizing sub-matrix with TF-IDF")
+    mini_g <- processExpression(mini_g, 
+                                spat_unit = spat_unit, 
+                                feat_type = feat_type, 
+                                expression_values = "raw", 
+                                name = "normalized",
+                                normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
+    tfidf <- getExpression(
+      mini_g, 
+      spat_unit = "cell", 
+      feat_type = feat_type, 
+      values = "normalized", 
+      output = "matrix"
+    )
+    
+    # SVD computes max(dims) dimensions
+    n_dims <- min(max(dims), min(nrow(tfidf), ncol(tfidf)) - 1)
+    if (n_dims <= 0) stop("Matrix too small for SVD")
+    svd_result <- BiocSingular::runSVD(
+      tfidf, 
+      k = n_dims, 
+      nu = n_dims, 
+      nv = n_dims, 
+      BSPARAM = BiocSingular::IrlbaParam()
+    )
+    
+    # Filter dims for intermediate steps using cor_cutoff
+    if (!is.null(cor_cutoff)) {
+      correlations <- apply(svd_result$v[, dims, drop = FALSE], 2, function(x) {
+        cor(x, depth[sub_idx], method = "pearson")
+      })
+      valid_dims <- dims[abs(correlations) <= cor_cutoff]
+      if (length(valid_dims) == 0) {
+        warning("No dimensions remain after correlation filtering. Using all dimensions.")
+        valid_dims <- dims
+      }
+    } else {
+      correlations <- NULL
+      valid_dims <- dims
+    }
+    
+    # Intermediate LSI coordinates use valid_dims
+    n_dims <- min(length(valid_dims), length(svd_result$d))
+    svd_diag <- matrix(0, n_dims, n_dims)
+    diag(svd_diag) <- svd_result$d[valid_dims]
+    coords <- t_flex(svd_diag %*% t_flex(svd_result$v[, valid_dims]))
+    rownames(coords) <- colnames(sub_mat)
+    colnames(coords) <- paste0("LSI", valid_dims)
+    
+    # ---- Project LSI to All Cells ----
+    projected_g <- giotto(instructions = instrs)
+    full_mat <- mat[feats, , drop = FALSE]
+    vmsg(.v = verbose, "Normalizing full matrix with TF-IDF for projection")
+    full_mat_exprobj <- createExprObj(
+      full_mat, 
+      name = "raw", 
+      spat_unit = "cell", 
+      feat_type = feat_type,
+      expression_matrix_class = "dgCMatrix"
+    )
+    projected_g <- setExpression(projected_g, full_mat_exprobj, spat_unit = "cell", feat_type = feat_type)
+    projected_g <- processExpression(projected_g, 
+                                     spat_unit = spat_unit, 
+                                     feat_type = feat_type, 
+                                     expression_values = "raw", 
+                                     normParam("tf-idf", sub_method = lsi_method, scale_factor = scale_to))
+    tfidf_full <- getExpression(
+      projected_g, 
+      spat_unit = "cell", 
+      feat_type = feat_type, 
+      values = "normalized", 
+      output = "matrix"
+    )
+    vmsg(.v = verbose, sprintf("TF-IDF full dims: %d %d", nrow(tfidf_full), ncol(tfidf_full)))
+    
+    # Intermediate projection uses valid_dims
+    stopifnot(nrow(tfidf_full) == nrow(svd_result$u))
+    vmsg(.v = verbose, sprintf("Projection n_dims: %d", n_dims))
+    u_subset <- as.matrix(svd_result$u[, valid_dims, drop = FALSE])
+    full_coords <- t_flex(tfidf_full) %*% u_subset  
+    colnames(full_coords) <- paste0("LSI", valid_dims)
+    vmsg(.v = verbose, sprintf("Full coords dims: %d %d", nrow(full_coords), ncol(full_coords)))
+    
+    # ---- Clustering on All Cells ----
+    if (i < iterations) {
+      # Use full_coords for clustering on all cells
+      lsi_obj <- createDimObj(
+        coordinates = full_coords,
+        name = name,
+        spat_unit = "cell",
+        feat_type = feat_type,
+        reduction = "cells",
+        method = "lsi"
+      )
+      projected_g <- setDimReduction(projected_g, lsi_obj, spat_unit = "cell", feat_type = feat_type)
+      
+      # Clustering uses valid_dims
+      n_dims_available <- ncol(lsi_obj)
+      dims_to_use <- valid_dims[valid_dims <= n_dims_available]
+      projected_g <- createNearestNetwork(
+        gobject = projected_g,
+        spat_unit = "cell",
+        feat_type = feat_type,
+        type = "sNN",
+        dim_reduction_to_use = "lsi", 
+        dim_reduction_name = name,
+        dimensions_to_use = dims_to_use,
+        name = "snn_lsi",
+        k = k,
+        verbose = FALSE
+      )
+      projected_g <- doLeidenClusterIgraph(
+        gobject = projected_g,
+        spat_unit = "cell",
+        feat_type = feat_type,
+        name = paste0("clus_iter", i),
+        nn_network_to_use = "sNN",
+        network_name = "snn_lsi",
+        resolution = resolution,
+        return_gobject = TRUE,
+        set_seed = set_seed,
+        seed_number = seed
+      )
+      prev_clusters <- spatValues(projected_g, 
+                                  spat_unit = spat_unit,
+                                  feat_type = feat_type,
+                                  feats = paste0("clus_iter", i))$clus_iter
+    }
+    
+    # ---- Final Output to gobject ----
+    if (i == iterations) {
+      # Compute final_coords for 1:max(dims) dimensions, ignoring cor_cutoff
+      final_n_dims <- min(max(dims), ncol(svd_result$u), length(svd_result$d))
+      if (final_n_dims < max(dims)) {
+        warning(sprintf("Requested %d final dimensions, but only %d are available.", max(dims), final_n_dims))
+      }
+      final_valid_dims <- seq_len(final_n_dims)
+      u_subset <- as.matrix(svd_result$u[, final_valid_dims, drop = FALSE])
+      final_coords <- t_flex(tfidf_full) %*% u_subset
+      colnames(final_coords) <- paste0("LSI", final_valid_dims)
+      vmsg(.v = verbose, sprintf("Final coords dims: %d %d", nrow(final_coords), ncol(final_coords)))
+      dim_obj <- createDimObj(
+        name = name,
+        feat_type = feat_type,
+        spat_unit = spat_unit,
+        reduction = "cells",
+        method = "lsi",
+        coordinates = final_coords,
+        misc = list(
+          eigenvalues = svd_result$d[final_valid_dims]^2,
+          loadings = svd_result$v[, final_valid_dims],
+          features = feats,
+          dims_used = valid_dims,  
+          depth_correlations = correlations  
+        )
+      )
+      gobject <- setGiotto(gobject, x = dim_obj, verbose = FALSE)
+    }
+  }
+  # ---- End Iterative LSI Loop ----
+  
+  # ---- Return Results ----
+  if (return_gobject) {
+    gobject <- update_giotto_params(gobject, description = "_iterative_lsi")
+    return(gobject)
+  } else {
+    return(final_coords)
+  }
 }
-
-#---------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
