@@ -2,13 +2,20 @@
 % Please edit documentation in R/normalize.R
 \name{processData}
 \alias{processData}
+\alias{processData,giottoLargeImage,list-method}
+\alias{processData,giottoLargeImage,processParam-method}
 \alias{processData,exprObj,list-method}
 \alias{processData,exprObj,normParam-method}
 \alias{processData,exprObj,scaleParam-method}
 \alias{processData,exprObj,adjustParam-method}
+\alias{processData,SpatRaster,list-method}
 \alias{processData,allMatrix,list-method}
 \title{Composable Data Processing}
 \usage{
+\S4method{processData}{giottoLargeImage,list}(x, param, name = NULL, ...)
+
+\S4method{processData}{giottoLargeImage,processParam}(x, param, name = NULL, ...)
+
 \S4method{processData}{exprObj,list}(x, param, name = "scaled", ...)
 
 \S4method{processData}{exprObj,normParam}(x, param, name = "normalized", ...)
@@ -16,6 +23,8 @@
 \S4method{processData}{exprObj,scaleParam}(x, param, name = "scaled", ...)
 
 \S4method{processData}{exprObj,adjustParam}(x, param, name = "custom", ...)
+
+\S4method{processData}{SpatRaster,list}(x, param, ...)
 
 \S4method{processData}{allMatrix,list}(x, param, ...)
 }

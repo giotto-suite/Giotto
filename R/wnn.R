@@ -433,6 +433,7 @@ runWNN <- function(
 #' @param integration_method multiomics integration method used. Default = 'WNN'
 #' @param matrix_result_name Default = 'theta_weighted_matrix'
 #' @param force force calculation of integrated kNN. Default = FALSE
+#' @param seed seed. Default 1234
 #' @param ... additional UMAP parameters
 #'
 #' @returns A Giotto object with integrated UMAP
@@ -448,6 +449,7 @@ runIntegratedUMAP <- function(
         spread = 5,
         min_dist = 0.01,
         force = FALSE,
+        seed = 1234,
         ...) {
     # validate feat_types
     for (feat_type in feat_types) {
@@ -565,7 +567,7 @@ runIntegratedUMAP <- function(
 
 
     #### using nn_network pre-calculation
-    set.seed(4567)
+    GiottoUtils::local_seed(seed)
     integrated_umap <- uwot::umap(
         X = theta_weighted,
         n_neighbors = k,

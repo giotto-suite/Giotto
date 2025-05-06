@@ -3,6 +3,9 @@
 \name{norm_arcsinh}
 \alias{norm_arcsinh}
 \title{Arcsinh Normalization}
+\value{
+normalized object
+}
 \description{
 A normalization commonly used with intensity-based data (CODEX, CyCIF, IMC).
 It effectively handles a wide dynamic range and zero/near-zero values while

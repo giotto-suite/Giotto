@@ -3,6 +3,9 @@
 \name{norm_library}
 \alias{norm_library}
 \title{Library Size Normalization}
+\value{
+normalized object
+}
 \description{
 Normalize expression matrix for total library size and then scale by
 a custom scalefactor.

@@ -29,7 +29,7 @@ setClass(
 setMethod("show", signature("CosmxReader"), function(object) {
     cat(sprintf("Giotto <%s>\n", "CosmxReader"))
     print_slots <- c("version", "dir", "slide", "fovs",
-                     "micron", "poly_pref", "offsets", "funs")
+                    "micron", "poly_pref", "offsets", "funs")
     pre <- sprintf(
         "%s :", format(print_slots)
     )
@@ -102,9 +102,9 @@ setMethod(
             dat_grey <- dat[!fov_sel]
             dat_black <- dat[fov_sel]
             text(y ~ x, data = dat_grey, labels = dat_grey$fov, 
-                 cex = cex, col = "grey", ...)
+                cex = cex, col = "grey", ...)
             text(y ~ x, data = dat_black, labels = dat_black$fov, 
-                 cex = cex, col = "black", ...)
+                cex = cex, col = "black", ...)
         }
     }
 )
@@ -557,8 +557,10 @@ setMethod(
                     dir_imgs <- do.call(funs$load_images, img_args)
                     imglist <- c(imglist, dir_imgs)
                 }
-                g <- addGiottoLargeImage(g, largeImages = imglist, 
-                                         verbose = FALSE)
+                g <- addGiottoLargeImage(
+                    g, 
+                    largeImages = imglist, 
+                    verbose = FALSE)
             }
 
             # expression & meta
@@ -739,7 +741,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     gpoints_params$x_colname <- "x_global_px"
     gpoints_params$y_colname <- "y_global_px"
     gpoints_params$feat_ID_colname <- "target"
-    gpoints_params$verbose = FALSE
+    gpoints_params$verbose <- FALSE
 
     gpoints <- do.call(createGiottoPoints, c(list(x = tx), gpoints_params))
     # ensure output is always a list
@@ -1002,7 +1004,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     if (missing(path)) {
         c("No path to mask image subdirectory or polygons csv", 
-          "provided or auto-detected") %>%
+        "provided or auto-detected") %>%
             wrap_txt() %>%
             stop(call. = FALSE)
     }
@@ -1359,8 +1361,7 @@ createGiottoCosMxObject <- function(
         slide = 1,
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
-        load_images = list(composite = "composite", 
-                           overlay = "overlay"),
+        load_images = list(composite = "composite", overlay = "overlay"),
         load_expression = FALSE,
         load_cellmeta = TRUE,
         load_transcripts = TRUE,

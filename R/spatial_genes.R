@@ -1783,12 +1783,13 @@ silhouetteRankTest <- function(
             conda_path = reticulate::miniconda_path()
             conda_full_path = paste0(conda_path,'/','bin/conda')
             full_envname = paste0(conda_path,'/envs/giotto_env')
-            reticulate::py_install(packages = 'silhouetteRank',
-                       envname = full_envname,
-                       method = 'conda',
-                       conda = conda_full_path,
-                       pip = TRUE,
-                       python_version = '3.6')")
+            reticulate::py_install(
+                packages = 'silhouetteRank',
+                envname = full_envname,
+                method = 'conda',
+                conda = conda_full_path,
+                pip = TRUE,
+                python_version = '3.6')")
     }
 
 
@@ -1973,12 +1974,13 @@ spatialDE <- function(
             conda_path = reticulate::miniconda_path()
             conda_full_path = paste0(conda_path,'/','bin/conda')
             full_envname = paste0(conda_path,'/envs/giotto_env')
-            reticulate::py_install(packages = c('NaiveDE', 'patsy', 'SpatialDE'),
-                                   envname = full_envname,
-                                   method = 'conda',
-                                   conda = conda_full_path,
-                                   pip = TRUE,
-                                   python_version = '3.6')")
+            reticulate::py_install(
+            packages = c('NaiveDE', 'patsy', 'SpatialDE'),
+                        envname = full_envname,
+                        method = 'conda',
+                        conda = conda_full_path,
+                        pip = TRUE,
+                        python_version = '3.6')")
     }
 
 
@@ -4282,7 +4284,7 @@ getBalancedSpatCoexpressionFeats <- function(
     if (rank == "random") {
         if (!is.na(seed) & is.numeric(seed)) {
             on.exit(random_seed(), add = TRUE)
-            set.seed(seed)
+            GiottoUtils::local_seed(seed)
             wrap_msg("Seed has been set for random")
         } else {
             wrap_msg("Random is selected, but no seed has been set \n

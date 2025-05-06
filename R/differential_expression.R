@@ -215,10 +215,10 @@ findScranMarkers_one_vs_all <- function(
     # print message with information #
     if (verbose) {
         message("using 'Scran' to detect marker feats. If used in published
-      research, please cite: Lun ATL, McCarthy DJ, Marioni JC (2016).
-      'A step-by-step workflow for low-level analysis of single-cell RNA-seq
-      data with Bioconductor.'
-      F1000Res., 5, 2122. doi: 10.12688/f1000research.9501.2. ")
+        research, please cite: Lun ATL, McCarthy DJ, Marioni JC (2016).
+        'A step-by-step workflow for low-level analysis of single-cell RNA-seq
+        data with Bioconductor.'
+        F1000Res., 5, 2122. doi: 10.12688/f1000research.9501.2. ")
     }
 
 
@@ -837,9 +837,9 @@ findMastMarkers <- function(
     # print message with information #
     if (verbose) {
         message("using 'MAST' to detect marker feats. If used in published
-      research, please cite: McDavid A, Finak G, Yajima M (2020).
-      MAST: Model-based Analysis of Single Cell Transcriptomics.
-      R package version 1.14.0, https://github.com/RGLab/MAST/.")
+        research, please cite: McDavid A, Finak G, Yajima M (2020).
+        MAST: Model-based Analysis of Single Cell Transcriptomics.
+        R package version 1.14.0, https://github.com/RGLab/MAST/.")
     }
 
     ## select expression values to use
