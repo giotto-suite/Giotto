@@ -31,7 +31,7 @@ createCrossSection(
 \arguments{
 \item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
 \item{spat_loc_name}{name of spatial locations}
 
@@ -54,7 +54,7 @@ ratio of extension compared to the borders of the vitural tissue section.
 (default = 0.2)}
 
 \item{method}{method to define the cross section plane.
-If equation, the plane is defined by a four element numerical vector
+If `"equation"`, the plane is defined by a four element numerical vector
 (equation) in the form of c(A,B,C,D), corresponding to a plane with
 equation Ax+By+Cz=D.
 If 3 points, the plane is define by the coordinates of 3 points, as given by
@@ -67,8 +67,8 @@ one point (point1) in the plane and the coordinates of two vectors
 (planeVector1, planeVector2) in the plane.
 (default = equation)}
 
-\item{equation}{equation required by method "equation".equations needs to be
-a numerical vector of length 4, in the form of c(A,B,C,D), which defines
+\item{equation}{equation required by method `"equation"`. Equations needs to
+be a numerical vector of length 4, in the form of c(A,B,C,D), which defines
 plane Ax+By+Cz=D.}
 
 \item{point1}{coordinates of the first point required by method
@@ -90,12 +90,14 @@ method "point and two plane vectors"}
 \item{mesh_grid_n}{numer of meshgrid lines to generate along both directions
 for the cross section plane.}
 
-\item{return_gobject}{boolean: return giotto object (default = TRUE)}
+\item{return_gobject}{logical. Whether to return giotto object
+(default = TRUE)}
 
 \item{verbose}{be verbose}
 }
 \value{
-giotto object with updated spatial network slot
+if `return_gobject = TRUE` `giotto` with updated spatial network 
+containing cross section information. Otherwise returns the cross section.
 }
 \description{
 Create a virtual 2D cross section.
