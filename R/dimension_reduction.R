@@ -3418,6 +3418,13 @@ runIterativeLSI <- function(
     verbose = NULL
 ) {
   
+  if (isTRUE(verbose)) {
+    message("Using iterative LSI adapted from ArchR. If used in published research, please cite:\n",
+            "Granja JM, Corces MR, Pierce SE, et al. (2021). ",
+            "'ArchR: An integrative and scalable software package for single-cell chromatin accessibility analysis.' ",
+            "Genome Res., 31(10), 1943-1957. doi: 10.1101/gr.265595.120.\n")
+  }
+  
   # ---- Setup Section ----
   spat_unit <- set_default_spat_unit(gobject, spat_unit = spat_unit)
   feat_type <- set_default_feat_type(gobject, spat_unit = spat_unit, feat_type = feat_type)
