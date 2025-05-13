@@ -171,7 +171,7 @@ runWNN <- function(
         feat_type <- feat_types[i]
 
         sNN_result <- createNearestNetwork(gobject,
-            spat_unit = "cell",
+            spat_unit = spat_unit,
             feat_type = feat_type,
             type = "sNN",
             dim_reduction_to_use = reduction_methods[i],
