@@ -1,4 +1,4 @@
-# Giotto 4.2.1 (2025/02/04)
+# Giotto 4.2.1 (2025/05/06)
 
 ## Changes
 * GiottoUtils req raised to 0.2.4
@@ -8,6 +8,7 @@
 * fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
 * fix `createGiottoCosMxObject()` not passing `load_expression`, `load_cellmeta`, `load_transcripts` params to `importCosMx()`
 * fix convenience functions for {terra} `v1.8-21`
+* fix `Giotto::` scoped calls for functions that call `update_giotto_params()`
 
 ## Enhancements
 * `poly_pref` param for `createGiottoCosMxObject()` and `importCosMx()` to select between loading the mask images or the `polygons.csv` as polygon info. 
@@ -15,10 +16,13 @@
 * `slide` param made more prominent in `createGiottoCosMxObject()`
 * `importCosMx()` now supports vectors of filepaths when provided to `$load_images()` and `$load_polys()`
 * `importCosMx()` Selected FOVs are now selected in `plot()`.
+* performance improvements for default normalization workflow
 
 ## New
 * `processExpression()` for `giotto` implemented via the `processData()` framework in {GiottoClass} v0.4.7 (see `?processData` and `?process_param`)
 * `arcsinh`, `L2`, and `TF-IDF` normalization methods accessible via the `processData()` framework
+* `runIterativeLSI()` based on {ArchR} implementation
+
 
 # Giotto 4.2.0 (2025/01/17)
 

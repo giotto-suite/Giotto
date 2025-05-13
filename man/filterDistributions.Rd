@@ -13,9 +13,9 @@ filterDistributions(
   expression_threshold = 1,
   detection = c("feats", "cells"),
   plot_type = c("histogram", "violin"),
-  scale_y = NULL,
   nr_bins = 30,
   fill_color = "lightblue",
+  scale_y = "identity",
   scale_axis = "identity",
   axis_offset = 0,
   show_plot = NULL,
@@ -28,39 +28,46 @@ filterDistributions(
 \arguments{
 \item{gobject}{giotto object}
 
-\item{feat_type}{feature type}
+\item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
-\item{expression_values}{expression values to use}
+\item{expression_values}{character. Name of set of expression values to use.
+(default = \code{"raw"})}
 
-\item{method}{method to create distribution (see details)}
+\item{method}{character. One of \code{"threshold"} (default), \code{"sum"}, \code{"mean"}.
+Method to create distribution (see details)}
 
-\item{expression_threshold}{threshold to consider a gene expressed}
+\item{expression_threshold}{numeric (default = 1). Threshold to consider a
+feature expressed. Applied only for \code{method = "threshold"}}
 
-\item{detection}{consider features (e.g. genes) or cells}
+\item{detection}{character. One of \code{"feats"} (default) or \code{"cells"}.
+Calculate statistics based on features (e.g. genes) or cells/observations}
 
-\item{plot_type}{type of plot}
+\item{plot_type}{character. One of \code{"histogram"} (default) or \code{"violin"}.
+Type of plot to create.}
 
-\item{scale_y}{scale y-axis (e.g. "log"), NULL = no scaling}
+\item{nr_bins}{numeric. Number of bins for histogram plot}
 
-\item{nr_bins}{number of bins for histogram plot}
+\item{fill_color}{fill color for plots. (Default = \code{"lightblue"})}
 
-\item{fill_color}{fill color for plots}
+\item{scale_y}{character. Scaling operation to apply on y-axis (e.g. \code{"log"})}
 
-\item{scale_axis}{ggplot transformation for axis (e.g. log2)}
+\item{scale_axis}{character. {ggplot2} transformation for axis
+(e.g. \code{"log2"}). This is passed to the \code{transform} param of
+\code{\link[ggplot2:scale_continuous]{ggplot2::scale_x_continuous()}}}
 
-\item{axis_offset}{offset to be used together with the scaling
+\item{axis_offset}{numeric. offset to be used together with the scaling
 transformation}
 
 \item{show_plot}{logical. show plot}
 
 \item{return_plot}{logical. return ggplot object}
 
-\item{save_plot}{logical. directly save the plot}
+\item{save_plot}{logical. save the plot}
 
-\item{save_param}{list of saving parameters from
-\link[GiottoVisuals:plot_save]{GiottoVisuals::all_plots_save_function}}
+\item{save_param}{list of saving parameters, see
+\code{\link{showSaveParameters}}}
 
 \item{default_save_name}{default save name for saving, don't change,
 change save_name in save_param}
@@ -69,20 +76,42 @@ change save_name in save_param}
 ggplot object
 }
 \description{
-show gene or cell distribution after filtering on expression
-threshold
+Show feature or cell distribution after filtering on expression threshold.
+General sum and mean statistics for the expression values can also be
+plotted, however these are not affected by the \code{expression_threshold} value.
 }
 \details{
-There are 3 ways to create a distribution profile and summarize it for
-either the features or the cells (spatial units) \cr
+The distribution to plot is calculated based on the \code{detection} and \code{method}
+params. \code{detection} decides if values are computed rowwise (\code{"feats"}) or
+colwise (\code{"cells"}) across the feature x cell expression matrix.
+\code{method} determines how the distribution is calculated:
 \itemize{
-\item{1. threshold: calculate features that cross a thresold (default)}
-\item{2. sum: summarize the features, i.e. total of a feature}
-\item{3. mean: calculate mean of the features, i.e. average expression}
+\item \code{"threshold"} - calculate number of features that cross the
+\code{expression_threshold} (default)
+\item \code{"sum"} - find the sum of the features, i.e. total of a feature across
+all observations.
+\item \code{"mean"} - find the mean of the features, i.e. average expression
 }
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 
+# visualize feature expression prevalence across observations (histogram)
 filterDistributions(g)
+# visualize with a threshold of 3
+filterDistributions(g, expression_threshold = 3)
+# visualize sum of feature expression across dataset
+filterDistributions(g, method = "sum")
+# visualize with a log scaling
+filterDistributions(g, method = "sum", scale_axis = "log2")
+
+# visualize as violinplot
+filterDistributions(g, plot_type = "violin")
+# visualize mean expression per cell
+filterDistributions(g,
+    detection = "cell",
+    plot_type = "violin",
+    method = "mean",
+    scale_axis = "log2"
+)
 }

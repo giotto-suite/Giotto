@@ -16,7 +16,7 @@ runIterativeLSI(
   sample_cells_pre = 10000,
   sample_cells_final = NULL,
   var_features = 25000,
-  dims = 30,
+  dims = 1:30,
   scale_to = 10000,
   lsi_method = 2,
   resolution = 2,
@@ -24,6 +24,7 @@ runIterativeLSI(
   k = 10,
   seed = 1234,
   set_seed = TRUE,
+  cor_cutoff = 0.75,
   verbose = NULL
 )
 }
@@ -36,7 +37,7 @@ runIterativeLSI(
 
 \item{expression_values}{Values to use (e.g., "raw")}
 
-\item{name}{Name for reduction (default: feat_type + ".iterative.lsi")}
+\item{name}{Name for reduction (default: feat_type + "_iterative_lsi")}
 
 \item{feats_to_use}{Initial feature subset (NULL = all)}
 
@@ -50,18 +51,15 @@ runIterativeLSI(
 
 \item{var_features}{Number of variable features (default = 25000)}
 
-\item{dims}{LSI dimensions to retain (default = seq_len(30))}
+\item{dims}{Vector of LSI dimensions to use for clustering and projection steps (default = 1:30)}
 
 \item{scale_to}{TF-IDF scaling factor for sub_method 2 (default = 10000)}
 
-\item{lsi_method}{TF-IDF method: 1 = Casanovich, 2 = Stuart, 3 = ArchR, 
-4 = Giotto (default = 3). See [Giotto::norm_tfidf] for more information on 
-how each of these are calculated.}
+\item{lsi_method}{TF-IDF method: 1 = Casanovich, 2 = Stuart, 3 = ArchR, 4 = Giotto (default = 3). See [Giotto::norm_tfidf] for more information on how each of these are calculated.}
 
 \item{resolution}{Clustering resolution (default = 2)}
 
-\item{first_selection}{"top" (accessibility) or "var" (variance) 
-(default = "var")}
+\item{first_selection}{"top" (accessibility) or "var" (variance) (default = "var")}
 
 \item{k}{Number of nearest neighbors for sNN (default = 10)}
 
@@ -69,12 +67,13 @@ how each of these are calculated.}
 
 \item{set_seed}{Logical, whether to set a seed (default = TRUE)}
 
+\item{cor_cutoff}{Correlation cutoff for filtering LSI dimensions correlated with sequencing depth in intermediate steps (default = 0.75)}
+
 \item{verbose}{Verbosity (default = NULL, inherits from gobject)}
 }
 \value{
 Giotto object or LSI coordinates
 }
 \description{
-Performs Iterative LSI on a Giotto object, replicating ArchR's 
-approach using Giotto functions.
+Performs Iterative LSI on a Giotto object, replicating ArchR's approach using Giotto functions.
 }
