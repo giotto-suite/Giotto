@@ -1,3 +1,9 @@
+# Giotto 4.2.2 (TBD)
+
+## Changes
+* deprecate `doRandomWalkCluster()` and `doSNNCluster()`. These functions will be removed soon.
+
+
 # Giotto 4.2.1 (2025/05/06)
 
 ## Changes

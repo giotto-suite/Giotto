@@ -1027,6 +1027,12 @@ doRandomWalkCluster <- function(
         return_gobject = TRUE,
         set_seed = FALSE,
         seed_number = 1234) {
+    
+    deprecate_warn(
+        when = "4.2.2", 
+        what = "doRandomWalkCluster()"
+    )
+    
     ## get cell IDs ##
     cell_ID_vec <- gobject@cell_ID
 
@@ -1120,6 +1126,12 @@ doSNNCluster <- function(
         return_gobject = TRUE,
         set_seed = FALSE,
         seed_number = 1234) {
+    
+    deprecate_warn(
+        when = "4.2.2", 
+        what = "doSNNCluster()"
+    )
+    
     ## get cell IDs ##
     cell_ID_vec <- gobject@cell_ID
 
