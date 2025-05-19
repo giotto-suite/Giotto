@@ -525,6 +525,17 @@ conjunction with \code{epsilon}) to avoid an inefficient exhaustive search
 of the data in \code{X}. This parameter only affects neighbor search when
 transforming new data with \code{\link[uwot]{umap_transform}}.
 }}
+    \item{\code{rng_type}}{The type of random number generator to use during
+optimization. One of:
+\itemize{
+ \item{\code{"pcg"}}. Use the PCG random number generator (O'Neill, 2014).
+ \item{\code{"tausworthe"}}. Use the Tausworthe "taus88" generator.
+ \item{\code{"deterministic"}}. Use a deterministic number generator. This
+ isn't actually random, but may provide enough variation in the negative
+ sampling to give a good embedding and can provide a noticeable speed-up.
+}
+For backwards compatibility, by default this is unset and the choice of
+\code{pcg_rand} is used (making "pcg" the effective default).}
   }}
 }
 \value{
