@@ -10,4 +10,8 @@ Virtual subclass of \code{BlusterParam} that designates network clustering
 methods which are supported via Giotto-specific methods instead of directly
 via \pkg{bluster}.
 }
-\keyword{internal}
+\seealso{
+concrete class examples: \linkS4class{LeidenPythonClusParam},
+\linkS4class{LeidenIgraphClusParam}, \linkS4class{LouvainCommunityClusParam},
+\linkS4class{LouvainMultinetClusParam}
+}
