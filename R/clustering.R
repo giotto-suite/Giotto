@@ -56,7 +56,8 @@ NULL
 #' type methods instead use Giotto-specific implementations that work on top
 #' of Giotto's calculated nearest neighbor networks.
 #' @param x data object to cluster
-#' @param param S4 param class inheriting from [bluster::BlusterParam-class]
+#' @param param S4 param class inheriting from [bluster::BlusterParam-class] or
+#' [NNClusParam-class]
 #' @param what character. One of `"expression"`, `"dimension_reduction"`, or
 #' `"spatial_enrichment"` indicating what data in `giotto` object to cluster.
 #' (matrix-like clustering only)
@@ -82,11 +83,9 @@ NULL
 #' Mainly here to highlight that clustering is performed on row-wise cells.
 #' @param set_seed logical, default = `TRUE`. Whether to set a seed for
 #' reproducibility.
-#' @param seed_number numeric default = 1234. If `set_seed = TRUE`, seed number
+#' @param seed_number numeric, default = 1234. If `set_seed = TRUE`, seed number
 #' to use.
 #' @param output character. Type of output. 
-#' @param .n integer. Used in recording object history. Number of stack frames
-#' back to record call of interest.
 #' 
 #' * `"factor"` returns a numeric factor
 #' of clustering results, named by cell_ID. 
@@ -97,7 +96,12 @@ NULL
 #' * `"gobject"` can only be selected when `x` is a `giotto` object. The
 #' clustering results are appended to the cell metadata column designated by 
 #' `name` param and the `giotto` object is returned.
-#' @param \dots additional params to pass to methods.
+#' @param .n integer. Used in recording object history 
+#' (see [update_giotto_params()]). Number of stack frames back to record call
+#' of interest. Set to a large negative number (e.g. -1000) to avoid recording
+#' altogether (useful when there is another record call elsewhere in the stack
+#' you want to use.)
+#' @param \dots additional params to pass to underlying algorithms, if any.
 #' @seealso [clusterParam()] for a convenient factory function to generate
 #' clustering param classes.
 #' @examples
@@ -120,7 +124,9 @@ NULL
 #' methods which are supported via Giotto-specific methods instead of directly
 #' via \pkg{bluster}.
 #' @md
-#' @keywords internal
+#' @seealso concrete class examples: [LeidenPythonClusParam-class],
+#' [LeidenIgraphClusParam-class], [LouvainCommunityClusParam-class],
+#' [LouvainMultinetClusParam-class]
 NULL
 
 #' @title Leiden Clustering
@@ -263,7 +269,7 @@ setClass("LeidenPythonClusParam", contains = "LeidenClusParam",
     slots = list(
         resolution = "numeric",
         n_iterations = "numeric",
-        weight_col = "character",
+        weight_col = "ANY",
         partition_type = "character",
         initial_membership = "ANY"
     )
@@ -287,7 +293,7 @@ setClass("LeidenIgraphClusParam", contains = "LeidenClusParam",
 setClass("LouvainCommunityClusParam", contains = "LouvainClusParam",
     slots = list(
         resolution = "numeric",
-        weight_col = "character",
+        weight_col = "ANY",
         louv_random = "logical"
     )
 )
@@ -306,6 +312,7 @@ setClass("LouvainMultinetClusParam", contains = "LouvainClusParam",
 
 # assumes input has IDs on rows
 
+# * allMatrix / BlusterParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("allMatrix", "BlusterParam"), function(x, param,
@@ -357,6 +364,7 @@ setMethod("clusterData", signature("allMatrix", "BlusterParam"), function(x, par
     )
 })
 
+# * allMatrix / NNClusParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("allMatrix", "NNClusParam"), function(x, param, 
@@ -413,6 +421,7 @@ setMethod("clusterData", signature("allMatrix", "NNClusParam"), function(x, para
     idx
 }
 
+# * exprObj / BlusterParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("exprObj", "BlusterParam"), function(x, param, 
@@ -433,6 +442,7 @@ setMethod("clusterData", signature("exprObj", "BlusterParam"), function(x, param
     )
 })
 
+# * dimObj / BlusterParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("dimObj", "BlusterParam"), function(x, param,
@@ -453,6 +463,7 @@ setMethod("clusterData", signature("dimObj", "BlusterParam"), function(x, param,
     )
 })
 
+# * spatEnrObj / BlusterParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("spatEnrObj", "BlusterParam"), function(x, param,
@@ -476,6 +487,7 @@ setMethod("clusterData", signature("spatEnrObj", "BlusterParam"), function(x, pa
     )
 })
 
+# * nnNetObj / NNClusParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("nnNetObj", "NNClusParam"), function(x, param,
@@ -492,13 +504,13 @@ setMethod("clusterData", signature("nnNetObj", "NNClusParam"), function(x, param
     )
 })
 
+# * igraph / LouvCommunity ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("igraph", "LouvainCommunityClusParam"), function(x, param,
     set_seed = TRUE,
     seed_number = 1234,
-    output = c("data.table", "factor"),
-    ...) {
+    output = c("data.table", "factor")) {
     output <- match.arg(output, choices = c("data.table", "factor"))
     weight_col <- param$weight_col
     
@@ -538,15 +550,13 @@ setMethod("clusterData", signature("igraph", "LouvainCommunityClusParam"), funct
         pyth_louv_result <- python_louvain(
             df = network_edge_dt, 
             resolution = param$resolution, 
-            random_state = seed_number,
-            ...
+            random_state = seed_number
         )
     } else {
         pyth_louv_result <- python_louvain(
             df = network_edge_dt, 
             resolution = param$resolution, 
-            randomize = FALSE,
-            ...
+            randomize = FALSE
         )
     }
     ident_clusters_dt <- data.table::data.table(
@@ -562,13 +572,13 @@ setMethod("clusterData", signature("igraph", "LouvainCommunityClusParam"), funct
     )
 })
 
+# * igraph / LouvMultinet ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("igraph", "LouvainMultinetClusParam"), function(x, param,
     set_seed = TRUE,
     seed_number = 1234,
-    output = c("data.table", "factor"),
-    ...) {
+    output = c("data.table", "factor")) {
     package_check("multinet")
     output <- match.arg(output, choices = c("data.table", "factor"))
     actor <- NULL # NSE vars
@@ -584,7 +594,9 @@ setMethod("clusterData", signature("igraph", "LouvainMultinetClusParam"), functi
     }
     # run generalized louvain
     louvain_clusters <- multinet::glouvain_ml(
-        n = mln_object, gamma = param$gamma, omega = param$omega, ...
+        n = mln_object, 
+        gamma = param$gamma, 
+        omega = param$omega # no other params for (...)
     )
     ident_clusters_dt <- data.table::setDT(louvain_clusters)
     # drop layers col since there is only one.
@@ -603,13 +615,13 @@ setMethod("clusterData", signature("igraph", "LouvainMultinetClusParam"), functi
     )
 })
 
+# * igraph / LeidenPy ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("igraph", "LeidenPythonClusParam"), function(x, param,
     set_seed = TRUE,
     seed_number = 1234,
-    output = c("data.table", "factor"),
-    ...) {
+    output = c("data.table", "factor")) {
     output <- match.arg(output, choices = c("data.table", "factor"))
     weight_col <- param$weight_col
     partition_type <- match.arg(param$partition_type, 
@@ -658,8 +670,7 @@ setMethod("clusterData", signature("igraph", "LeidenPythonClusParam"), function(
         weights = "weight",
         n_iterations = as.integer(param$n_iterations),
         seed = as.integer(seed_number),
-        resolution_parameter = param$resolution,
-        ...
+        resolution_parameter = param$resolution
     )
     ident_clusters_dt <- data.table::data.table(
         cell_ID = pyth_leid_result[[1]], "cluster" = pyth_leid_result[[2]]
@@ -674,6 +685,7 @@ setMethod("clusterData", signature("igraph", "LeidenPythonClusParam"), function(
     )
 })
 
+# * igraph / LeidenIgraph ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("igraph", "LeidenIgraphClusParam"), function(x, param,
@@ -716,6 +728,7 @@ setMethod("clusterData", signature("igraph", "LeidenIgraphClusParam"), function(
     )
 })
 
+# * giotto / BlusterParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
@@ -788,6 +801,7 @@ setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
     return(x)
 })
 
+# * giotto / NNClusParam ####
 #' @rdname clusterData
 #' @export
 setMethod("clusterData", signature("giotto", "NNClusParam"), function(x, param,
@@ -958,6 +972,7 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 
 
 
+# convenience ####
 
 
 #' @title doLeidenCluster
@@ -1135,8 +1150,6 @@ doLeidenClusterIgraph <- function(
 
 
 
-
-# old ####
 
 
 #' @title doGiottoClustree
@@ -1623,7 +1636,7 @@ doGiottoClustree <- function(
 #' @param nn_network_to_use type of NN network to use (kNN vs sNN), default to
 #' "sNN"
 #' @param network_name name of NN network to use, default to "sNN.pca"
-#' @param python_path [community] specify specific path to python if required
+#' @param python_path deprecated.
 #' @param resolution [community] resolution, default = 1
 #' @param louv_random [community] Will randomize the node evaluation order and
 #' the community evaluation order to get different partitions at each call
@@ -1635,8 +1648,7 @@ doGiottoClustree <- function(
 #' louvain method, default = 1
 #' @param return_gobject boolean: return giotto object (default = TRUE)
 #' @param set_seed set seed (default = FALSE)
-#' @param ... arguments passed to \code{\link{.doLouvainCluster_community}} or
-#' \code{\link{.doLouvainCluster_multinet}}
+#' @param ... arguments passed to \code{\link{.doLouvainCluster_community}}
 #' @param seed_number number for seed
 #'
 #' @returns giotto object with new clusters appended to cell metadata
@@ -1657,7 +1669,7 @@ doLouvainCluster <- function(
         name = "louvain_clus",
         nn_network_to_use = "sNN",
         network_name = "sNN.pca",
-        python_path = NULL,
+        python_path = deprecated(),
         resolution = 1,
         weight_col = NULL,
         gamma = 1,
@@ -1667,61 +1679,39 @@ doLouvainCluster <- function(
         set_seed = FALSE,
         seed_number = 1234,
         ...) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-
-
+    if (is_present(python_path)) {
+        deprecate_warn(
+            when = "4.2.2",
+            what = "doLouvainCluster(python_path)"
+        )
+    }
+    
     ## louvain clustering version to use
     version <- match.arg(version, c("community", "multinet"))
-
-    # python community implementation
-    if (version == "community") {
-        result <- .doLouvainCluster_community(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            name = name,
-            nn_network_to_use = nn_network_to_use,
-            network_name = network_name,
-            python_path = python_path,
-            resolution = resolution,
-            weight_col = weight_col,
-            louv_random = louv_random,
-            return_gobject = return_gobject,
-            set_seed = set_seed,
-            seed_number = seed_number,
-            ...
-        )
-
-        return(result)
-
-        ## r multinet implementation
-    } else if (version == "multinet") {
-        result <- .doLouvainCluster_multinet(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            name = name,
-            nn_network_to_use = nn_network_to_use,
-            network_name = network_name,
-            gamma = gamma,
-            omega = omega,
-            return_gobject = return_gobject,
-            set_seed = set_seed,
-            seed_number = seed_number
-        )
-
-        return(result)
-    }
+    switch(version,
+        "community" = {
+            p <- clusterParam("louvain_community")
+            p$resolution <- resolution
+            p$weight_col <- weight_col
+            p$louv_random <- louv_random
+        },
+        "multinet" = {
+            p <- clusterParam("louvain_multinet")
+            p$gamma <- gamma
+            p$omega <- omega
+        }
+    )
+    clusterData(gobject, p,
+        name = name,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        nn_network_to_use = nn_network_to_use,
+        network_name = network_name,
+        set_seed = set_seed,
+        seed_number = seed_number,
+        output = "gobject",
+        .n = 3L
+    )
 }
 
 

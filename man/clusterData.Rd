@@ -77,8 +77,7 @@
   param,
   set_seed = TRUE,
   seed_number = 1234,
-  output = c("data.table", "factor"),
-  ...
+  output = c("data.table", "factor")
 )
 
 \S4method{clusterData}{igraph,LouvainMultinetClusParam}(
@@ -86,8 +85,7 @@
   param,
   set_seed = TRUE,
   seed_number = 1234,
-  output = c("data.table", "factor"),
-  ...
+  output = c("data.table", "factor")
 )
 
 \S4method{clusterData}{igraph,LeidenPythonClusParam}(
@@ -95,8 +93,7 @@
   param,
   set_seed = TRUE,
   seed_number = 1234,
-  output = c("data.table", "factor"),
-  ...
+  output = c("data.table", "factor")
 )
 
 \S4method{clusterData}{igraph,LeidenIgraphClusParam}(
@@ -120,6 +117,7 @@
   spat_unit = NULL,
   feat_type = NULL,
   output = c("gobject", "data.table", "factor", "full"),
+  .n = 1L,
   ...
 )
 
@@ -132,13 +130,15 @@
   spat_unit = NULL,
   feat_type = NULL,
   output = c("gobject", "data.table", "factor"),
+  .n = 1L,
   ...
 )
 }
 \arguments{
 \item{x}{data object to cluster}
 
-\item{param}{S4 param class inheriting from \link[bluster:BlusterParam-class]{bluster::BlusterParam}}
+\item{param}{S4 param class inheriting from \link[bluster:BlusterParam-class]{bluster::BlusterParam} or
+\linkS4class{NNClusParam}}
 
 \item{cell_subset}{numeric, logical, factor, or character vector of cells to
 use. (matrix-like clustering only)}
@@ -152,7 +152,7 @@ Mainly here to highlight that clustering is performed on row-wise cells.}
 \item{set_seed}{logical, default = \code{TRUE}. Whether to set a seed for
 reproducibility.}
 
-\item{seed_number}{numeric default = 1234. If \code{set_seed = TRUE}, seed number
+\item{seed_number}{numeric, default = 1234. If \code{set_seed = TRUE}, seed number
 to use.}
 
 \item{output}{character. Type of output.
@@ -168,7 +168,7 @@ clustering results are appended to the cell metadata column designated by
 \code{name} param and the \code{giotto} object is returned.
 }}
 
-\item{\dots}{additional params to pass to methods.}
+\item{\dots}{additional params to pass to underlying algorithms, if any.}
 
 \item{what}{character. One of \code{"expression"}, \code{"dimension_reduction"}, or
 \code{"spatial_enrichment"} indicating what data in \code{giotto} object to cluster.
@@ -191,6 +191,12 @@ on active spatial unit.}
 
 \item{feat_type}{character. Feature type to use. NULL will autodetect based
 on active feature type.}
+
+\item{.n}{integer. Used in recording object history
+(see \code{\link[=update_giotto_params]{update_giotto_params()}}). Number of stack frames back to record call
+of interest. Set to a large negative number (e.g. -1000) to avoid recording
+altogether (useful when there is another record call elsewhere in the stack
+you want to use.)}
 
 \item{nn_network_to_use}{character. Type of nearest neighbor network to use.
 Currently one of \code{"sNN"} or \code{"kNN"}.}
