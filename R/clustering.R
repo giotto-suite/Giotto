@@ -20,10 +20,10 @@
 #' * [`"diana"`][bluster::DianaParam] - Divisive analysis clustering
 #' * [`"hclust"`][bluster::HclustParam] - Hierarchical clustering
 #' * [`"dbscan"`][bluster::DbscanParam] - Density-based clustering with DBSCAN
-#' * [`"dmm"`][bluster::DmmParam] - Dirichlet multinomial mixture clustering
+#' * [`"dmm"`][bluster::DmmParam] - Dirichlet multinomial mixture clustering (needs \pkg{DirichletMultinomial})
 #' * [`"twostep"`][bluster::TwoStepParam] - Two step clustering with vector quantization
 #' * [`"clara"`][bluster::ClaraParam] - Clustering large applications (pam for large datasets)
-#' * [`"mbkmeans"`][bluster::MbkmeansParam] - Mini-batch k-means clustering
+#' * [`"mbkmeans"`][bluster::MbkmeansParam] - Mini-batch k-means clustering (needs \pkg{mbkmeans})
 #' * [`"pam"`][bluster::PamParam] - Partitioning around medoids
 #' 
 #' @section giotto-specific (works on networks): 
@@ -883,16 +883,28 @@ clusterParam <- function(method, ...) {
     )
     switch(method,
         "kmeans" = bluster::KmeansParam(...),
-        "affinity" = bluster::AffinityParam(...),
-        "som" = bluster::SomParam(...),
+        "affinity" = {
+            package_check("apcluster")
+            bluster::AffinityParam(...)
+        },
+        "som" = {
+            package_check("kohonen")
+            bluster::SomParam(...)
+        },
         "agnes" = bluster::AgnesParam(...),
         "diana" = bluster::DianaParam(...),
         "hclust" = bluster::HclustParam(...),
         "dbscan" = bluster::DbscanParam(...),
-        "dmm" = bluster::DmmParam(...),
+        "dmm" = {
+            package_check("DirichletMultinomial", repository = "Bioc")
+            bluster::DmmParam(...)
+        },
         "twostep" = bluster::TwoStepParam(...),
         "clara" = bluster::ClaraParam(...),
-        "mbkmeans" = bluster::MbkmeansParam(...),
+        "mbkmeans" = {
+            package_check("mbkmeans", repository = "Bioc")
+            bluster::MbkmeansParam(...)
+        },
         "pam" = bluster::PamParam(...),
         "leiden_igraph" = .clus_param_leiden_igraph(...),
         "leiden_python" = .clus_param_leiden_python(...),
