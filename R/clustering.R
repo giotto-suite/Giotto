@@ -85,6 +85,8 @@ NULL
 #' @param seed_number numeric default = 1234. If `set_seed = TRUE`, seed number
 #' to use.
 #' @param output character. Type of output. 
+#' @param .n integer. Used in recording object history. Number of stack frames
+#' back to record call of interest.
 #' 
 #' * `"factor"` returns a numeric factor
 #' of clustering results, named by cell_ID. 
@@ -536,13 +538,15 @@ setMethod("clusterData", signature("igraph", "LouvainCommunityClusParam"), funct
         pyth_louv_result <- python_louvain(
             df = network_edge_dt, 
             resolution = param$resolution, 
-            random_state = seed_number
+            random_state = seed_number,
+            ...
         )
     } else {
         pyth_louv_result <- python_louvain(
             df = network_edge_dt, 
             resolution = param$resolution, 
-            randomize = FALSE
+            randomize = FALSE,
+            ...
         )
     }
     ident_clusters_dt <- data.table::data.table(
@@ -580,7 +584,7 @@ setMethod("clusterData", signature("igraph", "LouvainMultinetClusParam"), functi
     }
     # run generalized louvain
     louvain_clusters <- multinet::glouvain_ml(
-        n = mln_object, gamma = param$gamma, omega = param$omega
+        n = mln_object, gamma = param$gamma, omega = param$omega, ...
     )
     ident_clusters_dt <- data.table::setDT(louvain_clusters)
     # drop layers col since there is only one.
@@ -654,7 +658,8 @@ setMethod("clusterData", signature("igraph", "LeidenPythonClusParam"), function(
         weights = "weight",
         n_iterations = as.integer(param$n_iterations),
         seed = as.integer(seed_number),
-        resolution_parameter = param$resolution
+        resolution_parameter = param$resolution,
+        ...
     )
     ident_clusters_dt <- data.table::data.table(
         cell_ID = pyth_leid_result[[1]], "cluster" = pyth_leid_result[[2]]
@@ -723,6 +728,7 @@ setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
     spat_unit = NULL,
     feat_type = NULL,
     output = c("gobject", "data.table", "factor", "full"),
+    .n = 1L,
     ...) {
     what <- match.arg(what,
         choices = c("expression", "dimension_reduction", "spatial_enrichment")
@@ -777,7 +783,7 @@ setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
     # update params
     x <- update_giotto_params(x, 
         description = sprintf("_%s_cluster", class(param)),
-        toplevel = 3
+        toplevel = 2L + .n
     )
     return(x)
 })
@@ -791,6 +797,7 @@ setMethod("clusterData", signature("giotto", "NNClusParam"), function(x, param,
     spat_unit = NULL,
     feat_type = NULL,
     output = c("gobject", "data.table", "factor"),
+    .n = 1L,
     ...) {
     output <- match.arg(output, 
         choices = c("gobject", "data.table", "factor")
@@ -827,7 +834,7 @@ setMethod("clusterData", signature("giotto", "NNClusParam"), function(x, param,
     # update params
     x <- update_giotto_params(x, 
         description = sprintf("_%s_cluster", class(param)),
-        toplevel = 3
+        toplevel = 2L + .n
     )
     return(x)
 })
@@ -951,7 +958,7 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 
 
 
-# old ####
+
 
 #' @title doLeidenCluster
 #' @name doLeidenCluster
@@ -964,7 +971,7 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 #' @param nn_network_to_use type of NN network to use (kNN vs sNN), default to
 #' "sNN"
 #' @param network_name name of NN network to use, default to "sNN.pca"
-#' @param python_path specify specific path to python if required
+#' @param python_path deprecated.
 #' @param resolution resolution, default = 1
 #' @param weight_col weight column to use for edges, default to "weight"
 #' @param partition_type The type of partition to use for optimization.
@@ -1021,164 +1028,31 @@ doLeidenCluster <- function(
         return_gobject = TRUE,
         set_seed = TRUE,
         seed_number = 1234) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
+    if (!is.null(python_path)) {
+        deprecate_warn(
+            when = "4.2.2",
+            what = "doLeidenCluster(python_path)"
+        )
+    }
 
-    ## get cell IDs ##
-    cell_ID_vec <- gobject@cell_ID[[spat_unit]]
-
-    ## select network to use
-    igraph_object <- getNearestNetwork(
-        gobject = gobject,
+    p <- clusterParam("leiden_python")
+    p$resolution <- resolution
+    p$n_iterations <- n_iterations
+    p$initial_membership <- init_membership
+    p$weight_col <- weight_col
+    p$partition_type <- partition_type
+    clusterData(gobject, p,
+        name = name,
         spat_unit = spat_unit,
         feat_type = feat_type,
-        nn_type = nn_network_to_use,
-        name = network_name,
-        output = "igraph"
+        nn_network_to_use = nn_network_to_use,
+        network_name = network_name,
+        set_seed = set_seed,
+        seed_number = seed_number,
+        output = "gobject",
+        .n = 3L
     )
-
-
-
-    ## select partition type
-    partition_type <- match.arg(partition_type,
-        choices = c(
-            "RBConfigurationVertexPartition", "ModularityVertexPartition"
-        )
-    )
-
-    ## check or make paths
-    # python path
-    if (is.null(python_path)) {
-        python_path <- readGiottoInstructions(gobject, param = "python_path")
-    }
-
-    ## prepare python path and louvain script
-    reticulate::use_python(required = TRUE, python = python_path)
-    python_leiden_function <- system.file("python", "python_leiden.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_leiden_function)
-
-    ## set seed
-    if (isTRUE(set_seed)) {
-        seed_number <- as.integer(seed_number)
-    } else {
-        seed_number <- as.integer(sample(x = seq(10000), size = 1))
-    }
-
-    ## extract NN network
-    network_edge_dt <- data.table::as.data.table(
-        igraph::as_data_frame(x = igraph_object, what = "edges")
-    )
-
-    # data.table variables
-    weight <- NULL
-
-    # add weight for edges or set to 1 for all
-    if (!is.null(weight_col)) {
-        if (!weight_col %in% colnames(network_edge_dt)) {
-            stop("weight column is not an igraph attribute")
-        } else {
-            # weight is defined by attribute of igraph object
-            network_edge_dt <- network_edge_dt[
-                , c("from", "to", weight_col),
-                with = FALSE
-            ]
-            data.table::setnames(network_edge_dt, weight_col, "weight")
-        }
-    } else {
-        # weight is the same
-        network_edge_dt <- network_edge_dt[, c("from", "to"), with = FALSE]
-        network_edge_dt[, weight := 1]
-    }
-
-
-
-
-    ## do python leiden clustering
-    reticulate::py_set_seed(
-        seed = seed_number,
-        disable_hash_randomization = TRUE
-    )
-    pyth_leid_result <- python_leiden(
-        df = network_edge_dt,
-        partition_type = partition_type,
-        initial_membership = init_membership,
-        weights = "weight",
-        n_iterations = n_iterations,
-        seed = seed_number,
-        resolution_parameter = resolution
-    )
-
-    ident_clusters_DT <- data.table::data.table(
-        cell_ID = pyth_leid_result[[1]], "name" = pyth_leid_result[[2]]
-    )
-    data.table::setnames(ident_clusters_DT, "name", name)
-
-
-
-    ## add clusters to metadata ##
-    if (return_gobject == TRUE) {
-        cluster_names <- names(pDataDT(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type
-        ))
-
-        if (name %in% cluster_names) {
-            cat(name, " has already been used, will be overwritten")
-            cell_metadata <- getCellMetadata(
-                gobject,
-                spat_unit = spat_unit,
-                feat_type = feat_type,
-                output = "cellMetaObj",
-                copy_obj = TRUE
-            )
-
-            cell_metadata[][, eval(name) := NULL]
-
-            ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-            gobject <- setCellMetadata(
-                gobject,
-                x = cell_metadata,
-                verbose = FALSE,
-                initialize = FALSE
-            )
-            ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        }
-
-        gobject <- addCellMetadata(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            new_metadata = ident_clusters_DT[
-                , c("cell_ID", name),
-                with = FALSE
-            ],
-            by_column = TRUE,
-            column_cell_ID = "cell_ID"
-        )
-
-        ## update parameters used ##
-        gobject <- update_giotto_params(gobject, description = "_cluster")
-        return(gobject)
-    } else {
-        # else return clustering result
-        return(ident_clusters_DT)
-    }
 }
-
-
-
-
 
 
 
@@ -1196,7 +1070,6 @@ doLeidenCluster <- function(
 #' @param objective_function objective function for the leiden algo
 #' @param weights weights of edges
 #' @param resolution resolution, default = 1
-#' @param resolution_parameter deprecated. Use `resolution` instead
 #' @param beta leiden randomness
 #' @param initial_membership initial membership of cells for the partition
 #' @param n_iterations number of interations to run the Leiden algorithm.
@@ -1232,7 +1105,6 @@ doLeidenClusterIgraph <- function(
         objective_function = c("modularity", "CPM"),
         weights = NULL,
         resolution = 1,
-        resolution_parameter = deprecated(),
         beta = 0.01,
         initial_membership = NULL,
         n_iterations = 1000,
@@ -1240,125 +1112,31 @@ doLeidenClusterIgraph <- function(
         set_seed = TRUE,
         seed_number = 1234,
         ...) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    resolution <- deprecate_param(
-        x = resolution_parameter,
-        y = resolution,
-        fun = "doLeidenClusterIgraph",
-        when = "4.1.4"
-    )
-
-    ## get cell IDs ##
-    cell_ID_vec <- gobject@cell_ID[[spat_unit]]
-
-    ## select network to use
-    igraph_object <- getNearestNetwork(
-        gobject = gobject,
+    p <- clusterParam("leiden_igraph")
+    p$resolution <- resolution
+    p$n_iterations <- n_iterations
+    p$initial_membership <- initial_membership
+    p$beta <- beta
+    p$weights <- weights
+    p$objective_function <- objective_function
+    clusterData(gobject, p,
+        name = name,
         spat_unit = spat_unit,
         feat_type = feat_type,
-        nn_type = nn_network_to_use,
-        name = network_name,
-        output = "igraph"
-    )
-
-    ## select partition type
-    objective_function <- match.arg(objective_function,
-        choices = c("modularity", "CPM")
-    )
-
-    ## set seed
-    if (isTRUE(set_seed)) {
-        seed_number <- as.integer(seed_number)
-        GiottoUtils::local_seed(seed_number)
-        on.exit(expr = {
-            GiottoUtils::random_seed(set.seed = TRUE)
-        }, add = TRUE)
-    }
-
-    # make igraph network undirected
-    graph_object_undirected <- igraph::as.undirected(igraph_object)
-    leiden_clusters <- igraph::cluster_leiden(
-        graph = graph_object_undirected,
-        objective_function = objective_function,
-        resolution = resolution,
-        beta = beta,
-        weights = weights,
-        initial_membership = initial_membership,
-        n_iterations = n_iterations,
+        nn_network_to_use = nn_network_to_use,
+        network_name = network_name,
+        set_seed = set_seed,
+        seed_number = seed_number,
+        output = "gobject",
+        .n = 3L,
         ...
     )
-
-    # summarize results
-    ident_clusters_DT <- data.table::data.table(
-        "cell_ID" = leiden_clusters$names, "name" = leiden_clusters$membership
-    )
-    data.table::setnames(ident_clusters_DT, "name", name)
-
-
-
-    ## add clusters to metadata ##
-    if (isTRUE(return_gobject)) {
-        cluster_names <- names(pDataDT(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type
-        ))
-
-        if (name %in% cluster_names) {
-            cat(name, " has already been used, will be overwritten")
-            cell_metadata <- getCellMetadata(gobject,
-                spat_unit = spat_unit,
-                feat_type = feat_type,
-                output = "cellMetaObj",
-                copy_obj = TRUE
-            )
-
-            cell_metadata[][, eval(name) := NULL]
-
-            ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-            gobject <- setCellMetadata(gobject,
-                x = cell_metadata,
-                verbose = FALSE,
-                initialize = FALSE
-            )
-            ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        }
-
-        gobject <- addCellMetadata(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            new_metadata = ident_clusters_DT[
-                , c("cell_ID", name),
-                with = FALSE
-            ],
-            by_column = TRUE,
-            column_cell_ID = "cell_ID"
-        )
-
-        ## update parameters used ##
-        gobject <- update_giotto_params(gobject, description = "_cluster")
-        return(gobject)
-    } else {
-        # else return clustering result
-        return(ident_clusters_DT)
-    }
 }
 
 
 
 
-
+# old ####
 
 
 #' @title doGiottoClustree
