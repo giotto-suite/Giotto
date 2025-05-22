@@ -200,7 +200,7 @@ runWNN <- function(
             ### 20 small jaccard values
             jaccard_values <- sNN_list[[feat_type]][sNN_list[[feat_type]]$from == cell_a, ]
 
-            if (nrow(jaccard_values == 20)) {
+            if (nrow(jaccard_values) == 20) {
                 further_cell_cell_distances <- all_cell_distances[[feat_type]][[feat_type]][
                     cell_a, jaccard_values$to
                 ]
