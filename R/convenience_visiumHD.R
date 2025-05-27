@@ -352,7 +352,7 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object, visiumHD_
     .Object@calls$load_scalefactor <- read_scalefactors
 
     load_image_fun <- function(path = spatial_dir,
-    image_name = c("hires", "lowres"),
+    image_name = c("cytassist", "hires", "lowres"),
     scale_factor_name = c("tissue_hires_scalef", "tissue_lowres_scalef"),
     verbose = NULL) {
         .visiumHD_image(
@@ -474,7 +474,7 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object, visiumHD_
 
         images <- funs$load_image(
             path = spatial_dir,
-            image_name = c("hires", "lowres"),
+            image_name = c("cytassist", "hires", "lowres"),
             scale_factor_name = c("tissue_hires_scalef", "tissue_lowres_scalef"),
             verbose = NULL
         )
@@ -602,11 +602,18 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
     ## 3. check spatial image
     if (is.null(png_name)) {
-        png_list <- list.files(spatial_dir, pattern = "*.png")
-        png_name <- png_list[1]
+        # prioritize cytassist_image.tiff if exists
+        tiff_list <- list.files(spatial_dir, pattern = "*.tiff")
+        if (!is.null(tiff_list)) {
+            img_name <- tiff_list[1]
+        }
+        else {
+            png_list <- list.files(spatial_dir, pattern = "*.png")
+            img_name <- png_list[1]
+        }
     }
-    png_path <- paste0(spatial_dir, "/", png_name)
-    if (!file.exists(png_path)) .gstop(png_path, " does not exist!")
+    img_path <- paste0(spatial_dir, "/", img_name)
+    if (!file.exists(img_path)) .gstop(img_path, " does not exist!")
 
     ## 4. check scalefactors
     scalefactors_path <- paste0(spatial_dir, "/", "scalefactors_json.json")
@@ -619,7 +626,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         expr_counts_path = expr_counts_path,
         gene_column_index = gene_column_index,
         tissue_positions_path = tissue_positions_path,
-        image_path = png_path,
+        image_path = img_path,
         scale_json_path = scalefactors_path
     )
 }
@@ -798,14 +805,14 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
     return(px_to_micron)
 }
-.get_image_type <- function(png_name) {
-    possible_types <- c("lowres", "hires")
+.get_image_type <- function(img_name) {
+    possible_types <- c("cytassist", "lowres", "hires")
     for (img_type in possible_types) {
-        if (grepl(img_type, png_name)) {
+        if (grepl(img_type, img_name)) {
             return(img_type)
         }
     }
-    stop("image_path filename did not match either 'lowres' or 'hires'.
+    stop("image_path filename did not match one of 'lowres', 'hires', or 'cytassist'.
         Ensure the image is named accordingly.")
 }
 
@@ -821,6 +828,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     scale_factor <- switch(visiumHD_img_type,
         "lowres" = json_info[["tissue_lowres_scalef"]],
         "hires" = json_info[["tissue_hires_scalef"]],
+        "cytassist" = 1,
         stop("Unexpected image type: ", visiumHD_img_type)
     )
 
@@ -860,7 +868,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     image_path <- image_path[[4]]
     json_info <- .visiumHD_read_scalefactors(dirname(image_path))
     if (!is.null(json_info)) checkmate::assert_list(json_info)
-    png_name <- basename(image_path) # used for name pattern matching only
+    img_name <- basename(image_path) # used for name pattern matching only
 
     if (is.null(json_info)) { # if none provided
         warning(wrap_txt(
@@ -872,14 +880,14 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
         scale_factor <- NULL # initial value
     }
-    visiumHD_img_type <- .get_image_type(png_name)
+    visiumHD_img_type <- .get_image_type(img_name)
     scale_factor <- .get_scale_factor(visiumHD_img_type, json_info)
     # scale_factor <- .apply_micron_scale(scale_factor, json_info, px_to_micron)
 
     # 2. create image -------------------------------------------------------- #
     visiumHD_img <- createGiottoLargeImage(
         raster_object = image_path,
-        name = "image",
+        name = tools::file_path_sans_ext(img_name),
         negative_y = TRUE,
         scale_factor = (1 / scale_factor)
     )
@@ -1182,12 +1190,8 @@ createGiottoVisiumHDObject <- function(visiumHD_dir = NULL,
         stop("readerHD is not provided")
     }
 
-    expr_counts_path <- readerHD$read_folder()[[1]]
     # 1. expression
-    expr_results <- get10Xmatrix(
-        path_to_data = expr_counts_path,
-        gene_column_index = gene_column_index
-    )
+    expr_results <- readerHD$load_expression()
 
     # if expr_results is not a list, make it a list compatible with downstream
     if (!is.list(expr_results)) {
@@ -1196,7 +1200,7 @@ createGiottoVisiumHDObject <- function(visiumHD_dir = NULL,
 
     # format expected data into list to be used with readExprData()
     raw_matrix_list <- list("cell" = list("rna" = list(
-        "raw" = expr_results[["Gene Expression"]]
+        "raw" = expr_results$rna
     )))
 
     # add protein expression data to list if it exists
@@ -1205,21 +1209,29 @@ createGiottoVisiumHDObject <- function(visiumHD_dir = NULL,
     }
 
     # 2. spatial locations
-    tissue_positions_path <- readerHD$read_folder()[[2]]
     spatial_results <- readerHD$load_tissue_position()
     data.table::setnames(spatial_results, old = "barcode", new = "cell_ID")
-    spatial_locs <- spatial_results[
-        , .(cell_ID, pxl_row_in_fullres, -pxl_col_in_fullres)
-    ] # flip x and y
-    colnames(spatial_locs) <- c("cell_ID", "sdimx", "sdimy")
 
-    # 3. scalefactors (optional)
+    # 3. filtering - removes spots without expression
+    expr_sums <- Matrix::colSums(expr_results$rna@exprMat)
+    valid_ids <- names(expr_sums)[expr_sums > 0]
+    data.table::setDT(spatial_results)
+    spatial_locs <- spatial_results[
+        cell_ID %in% valid_ids,
+        .(
+            cell_ID,
+            sdimx = pxl_col_in_fullres,
+            sdimy = pxl_row_in_fullres
+        )
+        ]
+
+    # 4. scalefactors (optional)
     json_info <- readerHD$load_scalefactor()
 
-    # 4. image (optional)
-    visium_png_list <- readerHD$load_image()
+    # 5. image (optional) - prioritizes cytassist image when it exists, otherwise fall back to hires image
+    visium_img_list <- readerHD$load_image()
 
-    # 5. metadata
+    # 6. metadata
     meta_results <- spatial_results[, .(cell_ID, in_tissue, array_row, array_col)]
     expr_types <- names(raw_matrix_list$cell)
     meta_list <- list()
@@ -1227,16 +1239,12 @@ createGiottoVisiumHDObject <- function(visiumHD_dir = NULL,
         meta_list[[etype]] <- meta_results
     }
 
-    # 6. giotto object
+    # 7. initial giotto object
     giotto_object <- createGiottoObject(
-        expression = raw_matrix_list,
-        spatial_locs = spatial_locs,
-        instructions = instructions,
-        cell_metadata = meta_list,
-        images = visium_png_list
+        instructions = instructions
     )
 
-    # 7. polygon information
+    # 8. polygon information
     visium_polygons <- readerHD$load_polygon()
     giotto_object <- setPolygonInfo(
         gobject = giotto_object,
@@ -1244,6 +1252,33 @@ createGiottoVisiumHDObject <- function(visiumHD_dir = NULL,
         centroids_to_spatlocs = FALSE,
         verbose = FALSE,
         initialize = TRUE
+    )
+
+    # 9. add additional info
+    expression_obj <- readExprData(raw_matrix_list)
+    giotto_object <- setExpression(
+        gobject = giotto_object,
+        x = expression_obj,
+        initialize = FALSE
+    )
+
+    spat_locs_obj <- readSpatLocsData(spatial_locs)
+    giotto_object <- setSpatialLocations(
+        gobject = giotto_object,
+        x = spat_locs_obj,
+        initialize = FALSE
+    )
+    
+    cell_meta_obj <- readCellMetadata(meta_list)
+    giotto_object <- setCellMetadata(
+        gobject = giotto_object,
+        x = cell_meta_obj,
+        initialize = FALSE
+    )
+
+    giotto_object <- addGiottoImage(
+        gobject = giotto_object,
+        images = visium_img_list
     )
 
     return(giotto_object)
