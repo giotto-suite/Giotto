@@ -792,6 +792,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             # Usual yshift variance / fov expected when correct is 0 to 1e-22
             # if var is too high for any fov, swap `flip_loc_y` value
             y <- tx_head[, var(y_global_px + y_local_px), by = fov]
+            y <- subset(y, !is.na(V1)) # If FOV has only 1 entry, var returns NA and next step breaks
             if (y[, any(V1 > 0.001)]) {
                 return(.cosmx_infer_fov_shifts(
                     tx_dt = tx_dt, flip_loc_y = FALSE, navg = navg
@@ -814,6 +815,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
                 , var(CenterY_global_px + CenterY_local_px),
                 by = fov
             ]
+            y <- subset(y, !is.na(V1)) # If FOV has only 1 entry, var returns NA and next step breaks
             if (y[, any(V1 > 0.001)]) {
                 return(.cosmx_infer_fov_shifts(
                     meta_dt = meta_dt, flip_loc_y = FALSE, navg = navg
