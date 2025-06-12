@@ -667,7 +667,6 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     if (is.null(path)) return(NULL) # return early (empty case)
     fov_shifts <- data.table::fread(path)
     fs_colnames <- colnames(fov_shifts)
-    if (!"X_mm" %in% fs_colnames) return(NULL) # return early (WTX)
     
     offset_colnames <- c("fov", "x", "y")
     
