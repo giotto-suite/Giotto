@@ -4,6 +4,8 @@
 * deprecate `doRandomWalkCluster()` and `doSNNCluster()`. These functions will be removed soon.
 * switch to clustering framework based on {bluster} via `clusterData()` and `clusterParam()`
 
+## Bug fixes
+* fix fov shift detection logic in CosMx imports [#1168](https://github.com/drieslab/Giotto/pull/1168) by jral3s
 
 
 # Giotto 4.2.1 (2025/05/06)
