@@ -102,11 +102,6 @@ reduceDims <- function(gobject,
             X = x, ncp = ncp, scale.unit = scale, graph = FALSE, ...
         )
 
-        # exit seed
-        if (isTRUE(set_seed)) {
-            GiottoUtils::local_seed(seed = Sys.time())
-        }
-
         # eigenvalues
         eigenvalues <- pca_res$eig[, 1]
 
@@ -140,11 +135,6 @@ reduceDims <- function(gobject,
         pca_res <- FactoMineR::PCA(
             X = x, ncp = ncp, scale.unit = scale, graph = FALSE, ...
         )
-
-        # exit seed
-        if (isTRUE(set_seed)) {
-            GiottoUtils::local_seed(seed = Sys.time())
-        }
 
         # eigenvalues
         eigenvalues <- pca_res$eig[, 1]
