@@ -750,7 +750,7 @@ runPAGEEnrich <- function(
     # expression values to be used
     values <- match.arg(
         expression_values,
-        unique(c("normalized", "scaled", "custom"), expression_values)
+        unique(c("normalized", "scaled", "custom", expression_values))
     )
     expr_values <- getExpression(
         gobject = gobject,

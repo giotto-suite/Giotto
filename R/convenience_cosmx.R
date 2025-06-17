@@ -667,7 +667,9 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     if (is.null(path)) return(NULL) # return early (empty case)
     fov_shifts <- data.table::fread(path)
     fs_colnames <- colnames(fov_shifts)
-    if (!"X_mm" %in% fs_colnames) return(NULL) # return early (WTX)
+    # WTX datasets only have mm values for shifts.
+    # mm->px conversion fragile if scalefactors not certain
+    if ("X_mm" %in% fs_colnames) return(NULL) # return early (if WTX dataset)
     
     offset_colnames <- c("fov", "x", "y")
     
@@ -783,7 +785,12 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @keywords internal
 .cosmx_infer_fov_shifts <- function(tx_dt, meta_dt,
     flip_loc_y = TRUE, navg = 100L) {
-    fov <- NULL # NSE vars
+    fov <- V1 <- NULL # NSE vars
+    if (!missing(tx_dt) && !missing(meta_dt)) {
+        stop("[.cosmx_infer_fov_shifts] Only one of tx_dt or meta_dt should be supplied\n",
+             call. = FALSE)
+    }
+    
     if (!missing(tx_dt)) {
         tx_head <- tx_dt[, head(.SD, navg), by = fov]
         x <- tx_head[, mean(x_global_px - x_local_px), by = fov]
@@ -792,6 +799,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             # Usual yshift variance / fov expected when correct is 0 to 1e-22
             # if var is too high for any fov, swap `flip_loc_y` value
             y <- tx_head[, var(y_global_px + y_local_px), by = fov]
+            y <- subset(y, !is.na(V1)) # If FOV has only 1 entry, var returns NA and next step breaks
             if (y[, any(V1 > 0.001)]) {
                 return(.cosmx_infer_fov_shifts(
                     tx_dt = tx_dt, flip_loc_y = FALSE, navg = navg
@@ -814,6 +822,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
                 , var(CenterY_global_px + CenterY_local_px),
                 by = fov
             ]
+            y <- subset(y, !is.na(V1)) # If FOV has only 1 entry, var returns NA and next step breaks
             if (y[, any(V1 > 0.001)]) {
                 return(.cosmx_infer_fov_shifts(
                     meta_dt = meta_dt, flip_loc_y = FALSE, navg = navg

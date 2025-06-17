@@ -20,4 +20,5 @@
 #' @importFrom igraph set_edge_attr
 #' @importFrom igraph simplify
 #' @importClassesFrom Matrix Matrix
+#' @importClassesFrom bluster BlusterParam
 NULL
