@@ -36,7 +36,7 @@ doLeidenCluster(
 
 \item{network_name}{name of NN network to use, default to "sNN.pca"}
 
-\item{python_path}{specify specific path to python if required}
+\item{python_path}{deprecated.}
 
 \item{resolution}{resolution, default = 1}
 

@@ -14,7 +14,6 @@ doLeidenClusterIgraph(
   objective_function = c("modularity", "CPM"),
   weights = NULL,
   resolution = 1,
-  resolution_parameter = deprecated(),
   beta = 0.01,
   initial_membership = NULL,
   n_iterations = 1000,
@@ -44,8 +43,6 @@ doLeidenClusterIgraph(
 
 \item{resolution}{resolution, default = 1}
 
-\item{resolution_parameter}{deprecated. Use `resolution` instead}
-
 \item{beta}{leiden randomness}
 
 \item{initial_membership}{initial membership of cells for the partition}
@@ -61,6 +58,7 @@ doLeidenClusterIgraph(
 \item{...}{
   Arguments passed on to \code{\link[igraph:cluster_leiden]{igraph::cluster_leiden}}
   \describe{
+    \item{\code{resolution_parameter}}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#superseded}{\figure{lifecycle-superseded.svg}{options: alt='[Superseded]'}}}{\strong{[Superseded]}} Use \code{resolution} instead.}
     \item{\code{vertex_weights}}{the vertex weights used in the Leiden algorithm.
 If this is not provided, it will be automatically determined on the basis
 of the \code{objective_function}. Please see the details of this function

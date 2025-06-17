@@ -12,7 +12,7 @@ doLouvainCluster(
   name = "louvain_clus",
   nn_network_to_use = "sNN",
   network_name = "sNN.pca",
-  python_path = NULL,
+  python_path = deprecated(),
   resolution = 1,
   weight_col = NULL,
   gamma = 1,
@@ -40,7 +40,7 @@ doLouvainCluster(
 
 \item{network_name}{name of NN network to use, default to "sNN.pca"}
 
-\item{python_path}{[community] specify specific path to python if required}
+\item{python_path}{deprecated.}
 
 \item{resolution}{[community] resolution, default = 1}
 
@@ -62,8 +62,7 @@ the community evaluation order to get different partitions at each call
 
 \item{seed_number}{number for seed}
 
-\item{...}{arguments passed to \code{\link{.doLouvainCluster_community}} or
-\code{\link{.doLouvainCluster_multinet}}}
+\item{...}{arguments passed to \code{\link{.doLouvainCluster_community}}}
 }
 \value{
 giotto object with new clusters appended to cell metadata
