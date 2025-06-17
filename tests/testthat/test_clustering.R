@@ -1,4 +1,4 @@
-g <- GiottoData::loadGiottoMini("visium")
+g <- test_data$vis
 
 test_that("leiden (python) clustering works", {
     test <- doLeidenCluster(g,
