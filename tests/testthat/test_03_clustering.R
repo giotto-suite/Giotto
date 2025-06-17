@@ -1,6 +1,6 @@
-g <- test_data$vis
 
 test_that("leiden (python) clustering works", {
+    g <- test_data$vis
     test <- doLeidenCluster(g,
         resolution = 0.1,
         name = "test_col"
@@ -11,6 +11,7 @@ test_that("leiden (python) clustering works", {
 })
 
 test_that("leiden (igraph) clustering works", {
+    g <- test_data$vis
     test <- doLeidenClusterIgraph(g,
         resolution = 0.1,
         name = "test_col"
@@ -21,6 +22,7 @@ test_that("leiden (igraph) clustering works", {
 })
 
 test_that("leiden clustering works", {
+    g <- test_data$vis
     test <- doLouvainCluster(g,version = "community",
         resolution = 0.1,
         name = "test_col"

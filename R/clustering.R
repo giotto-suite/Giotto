@@ -382,10 +382,7 @@ setMethod("clusterData", signature("allMatrix", "NNClusParam"), function(x, para
     checkmate::assert_numeric(margin)
     checkmate::assert_numeric(dim, len = 1L)
     
-    what <- switch(margin,
-        "1" = "cells",
-        "2" = "feats"
-    )
+    what <- switch(margin, "cells", "feats")
     fname <- "[clusterData]"
     w <- function() { # send warning
         warning(wrap_txtf("%s '%s_subset' out of bounds.
@@ -781,7 +778,7 @@ setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
     
     output2 <- output
     if (output == "gobject") output2 <- "data.table"
-    res <- clusterData(data, param = param, output = "data.table", ...)
+    res <- clusterData(data, param = param, output = output2, ...)
     if (!output == "gobject") return(res)
     
     # append results to gobject
@@ -833,7 +830,7 @@ setMethod("clusterData", signature("giotto", "NNClusParam"), function(x, param,
     
     output2 <- output
     if (output == "gobject") output2 <- "data.table"
-    res <- clusterData(data, param = param, output = "data.table", ...)
+    res <- clusterData(data, param = param, output = output2, ...)
     if (!output == "gobject") return(res)
     
     # append results to gobject
