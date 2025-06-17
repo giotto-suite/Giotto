@@ -15,20 +15,25 @@ describe("Integrative testing with visium dataset", {
         "https://cf.10xgenomics.com/samples/spatial-exp/1.3.0/Visium_Mouse_Olfactory_Bulb/Visium_Mouse_Olfactory_Bulb_spatial.tar.gz"
     )
     
-    datadir <- paste0(getwd(), "/testdata/vis_1_3_0")
-    if (!dir.exists(datadir)) dir.create(datadir)
+    data_dir <- file.path(tempdir(), "testdata", "vis_1_3_0")
+    if (!dir.exists(data_dir)) dir.create(data_dir)
     
     # download files
     lapply(urls,
         function(url) {
             myfilename <- basename(url)
-            mydestfile <- file.path(datadir, myfilename)
-            download.file(url = url, destfile = mydestfile, quiet = TRUE)
+            mydestfile <- file.path(data_dir, myfilename)
+            download.file(
+                url = url, 
+                destfile = mydestfile,
+                mode = "wb",
+                quiet = TRUE
+            )
             return(invisible())
         }
     )
     
-    manifest <- file.path(datadir, basename(urls))
+    manifest <- file.path(data_dir, basename(urls))
     names(manifest) <- gsub("Visium_Mouse_Olfactory_Bulb_", "", basename(manifest))
     
     lapply(
@@ -38,7 +43,7 @@ describe("Integrative testing with visium dataset", {
             "spatial.tar.gz"
         )],
         untar,
-        exdir = datadir
+        exdir = data_dir
     )
 
     options("giotto.use_conda" = FALSE)
@@ -48,7 +53,7 @@ describe("Integrative testing with visium dataset", {
     on.exit({
         options("giotto.use_conda" = TRUE)
         options("giotto.no_python_warn" = FALSE)
-        unlink(datadir, recursive = TRUE, force = TRUE)
+        unlink(data_dir, recursive = TRUE, force = TRUE)
     }, add = TRUE)
     
     ext_to_rounded_num <- function(e) {
@@ -58,7 +63,7 @@ describe("Integrative testing with visium dataset", {
     it("visium create dir raw is working", {
         # unfiltered (all spots)
         g_nofil <- createGiottoVisiumObject(
-            visium_dir = datadir,
+            visium_dir = data_dir,
             expr_data = "raw",
             verbose = FALSE
         )
@@ -88,7 +93,7 @@ describe("Integrative testing with visium dataset", {
     it("visium create dir filtered is working", {
         # filtered (in_tissue spots only)
         g_fil <- suppressWarnings(createGiottoVisiumObject(
-            visium_dir = datadir,
+            visium_dir = data_dir,
             expr_data = "filter",
             verbose = FALSE
         ))
@@ -120,13 +125,13 @@ describe("Integrative testing with visium dataset", {
             h5_visium_path = manifest["raw_feature_bc_matrix.h5"],
             h5_gene_ids = "symbols",
             h5_json_scalefactors_path = file.path(
-                datadir, "spatial", "scalefactors_json.json"
+                data_dir, "spatial", "scalefactors_json.json"
             ),
             h5_image_png_path = file.path(
-                datadir, "spatial", "tissue_lowres_image.png"
+                data_dir, "spatial", "tissue_lowres_image.png"
             ),
             h5_tissue_positions_path = file.path(
-                datadir, "spatial", "tissue_positions_list.csv"
+                data_dir, "spatial", "tissue_positions_list.csv"
             ),
             verbose = FALSE
         )
@@ -159,13 +164,13 @@ describe("Integrative testing with visium dataset", {
             h5_visium_path = manifest["filtered_feature_bc_matrix.h5"],
             h5_gene_ids = "ensembl",
             h5_json_scalefactors_path = file.path(
-                datadir, "spatial", "scalefactors_json.json"
+                data_dir, "spatial", "scalefactors_json.json"
             ),
             h5_image_png_path = file.path(
-                datadir, "spatial", "tissue_lowres_image.png"
+                data_dir, "spatial", "tissue_lowres_image.png"
             ),
             h5_tissue_positions_path = file.path(
-                datadir, "spatial", "tissue_positions_list.csv"
+                data_dir, "spatial", "tissue_positions_list.csv"
             ),
             verbose = FALSE
         )
