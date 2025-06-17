@@ -667,6 +667,9 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     if (is.null(path)) return(NULL) # return early (empty case)
     fov_shifts <- data.table::fread(path)
     fs_colnames <- colnames(fov_shifts)
+    # WTX datasets only have mm values for shifts.
+    # mm->px conversion fragile if scalefactors not certain
+    if ("X_mm" %in% fs_colnames) return(NULL) # return early (if WTX dataset)
     
     offset_colnames <- c("fov", "x", "y")
     
@@ -783,6 +786,11 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 .cosmx_infer_fov_shifts <- function(tx_dt, meta_dt,
     flip_loc_y = TRUE, navg = 100L) {
     fov <- NULL # NSE vars
+    if (!missing(tx_dt) && !missing(meta_dt)) {
+        stop("[.cosmx_infer_fov_shifts] Only one of tx_dt or meta_dt should be supplied\n",
+             call. = FALSE)
+    }
+    
     if (!missing(tx_dt)) {
         tx_head <- tx_dt[, head(.SD, navg), by = fov]
         x <- tx_head[, mean(x_global_px - x_local_px), by = fov]
