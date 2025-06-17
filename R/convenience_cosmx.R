@@ -785,7 +785,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' @keywords internal
 .cosmx_infer_fov_shifts <- function(tx_dt, meta_dt,
     flip_loc_y = TRUE, navg = 100L) {
-    fov <- NULL # NSE vars
+    fov <- V1 <- NULL # NSE vars
     if (!missing(tx_dt) && !missing(meta_dt)) {
         stop("[.cosmx_infer_fov_shifts] Only one of tx_dt or meta_dt should be supplied\n",
              call. = FALSE)
