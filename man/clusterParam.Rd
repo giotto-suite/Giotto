@@ -27,10 +27,10 @@ relevant parameters in an easily accessible format.
 \item \code{\link[bluster:DianaParam-class]{"diana"}} - Divisive analysis clustering
 \item \code{\link[bluster:HclustParam-class]{"hclust"}} - Hierarchical clustering
 \item \code{\link[bluster:DbscanParam-class]{"dbscan"}} - Density-based clustering with DBSCAN
-\item \code{\link[bluster:DmmParam-class]{"dmm"}} - Dirichlet multinomial mixture clustering
+\item \code{\link[bluster:DmmParam-class]{"dmm"}} - Dirichlet multinomial mixture clustering (needs \pkg{DirichletMultinomial})
 \item \code{\link[bluster:TwoStepParam-class]{"twostep"}} - Two step clustering with vector quantization
 \item \code{\link[bluster:ClaraParam-class]{"clara"}} - Clustering large applications (pam for large datasets)
-\item \code{\link[bluster:MbkmeansParam-class]{"mbkmeans"}} - Mini-batch k-means clustering
+\item \code{\link[bluster:MbkmeansParam-class]{"mbkmeans"}} - Mini-batch k-means clustering (needs \pkg{mbkmeans})
 \item \code{\link[bluster:PamParam-class]{"pam"}} - Partitioning around medoids
 }
 }
