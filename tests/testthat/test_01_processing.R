@@ -1,12 +1,10 @@
-# silence deprecated internal functions
-rlang::local_options(lifecycle_verbosity = "quiet")
 
 # DATA TO USE
 # visium mini expression
 g <- GiottoData::loadGiottoMini("visium")
 
 
-
+g <- test_data$vis
 
 # normalize ####
 

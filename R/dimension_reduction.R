@@ -102,11 +102,6 @@ reduceDims <- function(gobject,
             X = x, ncp = ncp, scale.unit = scale, graph = FALSE, ...
         )
 
-        # exit seed
-        if (isTRUE(set_seed)) {
-            GiottoUtils::local_seed(seed = Sys.time())
-        }
-
         # eigenvalues
         eigenvalues <- pca_res$eig[, 1]
 
@@ -140,11 +135,6 @@ reduceDims <- function(gobject,
         pca_res <- FactoMineR::PCA(
             X = x, ncp = ncp, scale.unit = scale, graph = FALSE, ...
         )
-
-        # exit seed
-        if (isTRUE(set_seed)) {
-            GiottoUtils::local_seed(seed = Sys.time())
-        }
 
         # eigenvalues
         eigenvalues <- pca_res$eig[, 1]
@@ -3417,6 +3407,13 @@ runIterativeLSI <- function(
     cor_cutoff = 0.75,
     verbose = NULL
 ) {
+  
+  if (isTRUE(verbose)) {
+    message("Using iterative LSI adapted from ArchR. If used in published research, please cite:\n",
+            "Granja JM, Corces MR, Pierce SE, et al. (2021). ",
+            "'ArchR: An integrative and scalable software package for single-cell chromatin accessibility analysis.' ",
+            "Genome Res., 31(10), 1943-1957. doi: 10.1101/gr.265595.120.\n")
+  }
   
   # ---- Setup Section ----
   spat_unit <- set_default_spat_unit(gobject, spat_unit = spat_unit)
