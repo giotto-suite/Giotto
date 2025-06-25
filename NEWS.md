@@ -1,3 +1,8 @@
+# Giotto 4.2.3
+
+## Changes
+* rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
+
 # Giotto 4.2.2 (2025/06/17)
 
 ## Changes
