@@ -5,42 +5,169 @@
 \title{Create 10x VisiumHD Giotto Object}
 \usage{
 createGiottoVisiumHDObject(
-  visiumHD_dir = NULL,
-  expr_data = c("raw", "filter"),
-  gene_column_index = 1,
+  visiumhd_dir,
+  bin = 8,
+  micron = FALSE,
+  load_expression = TRUE,
+  load_spatlocs = TRUE,
+  load_metadata = TRUE,
+  load_image = TRUE,
+  load_transcripts = FALSE,
+  create_tessellated_polys = FALSE,
+  tissue_only = FALSE,
+  barcodes = NULL,
+  array_subset_row = NULL,
+  array_subset_col = NULL,
+  pxl_subset_row = NULL,
+  pxl_subset_col = NULL,
+  filter = NULL,
+  filter_coverage_cutoff = 0.5,
+  expression_source = "raw",
+  feature_id_type = c("symbol", "ensembl"),
+  expression_remove_zero_rows = TRUE,
+  expression_split_by_type = TRUE,
+  image_type = "hires",
+  tessellate_shape = "hexagon",
+  tessellate_shape_size = 400,
+  tessellate_name = sprintf("\%s\%d", tessellate_shape,
+    as.integer(tessellate_shape_size)),
+  tissue_positions_path = NULL,
+  scalefactors_path = NULL,
+  expression_path = NULL,
+  image_path = NULL,
+  outdir = NULL,
+  force_untar = FALSE,
+  untar_params = list(),
   instructions = NULL,
-  expression_matrix_class = c("dgCMatrix", "DelayedArray"),
-  cores = NA,
-  verbose = FALSE
+  verbose = NULL
 )
 }
 \arguments{
-\item{expr_data}{raw or filtered data (see details)}
+\item{visiumhd_dir}{filepath to the exported visiumHD directory}
 
-\item{gene_column_index}{which column index to select (see details)}
+\item{bin}{numeric. One of 2, 8, 16. Which binning resolution to load
+expression and spatial locations from.}
 
-\item{expression_matrix_class}{class of expression matrix to use
-(e.g. "dgCMatrix", "DelayedArray")}
+\item{micron}{logical. Set `TRUE` to load in micron scale instead of fullres 
+image mapping.}
 
-\item{cores}{how many cores or threads to use to read data if paths are
-provided}
+\item{load_expression}{logical. Whether to load in expression matrix}
 
-\item{verbose}{be verbose}
+\item{load_spatlocs}{logical. Whether to load in spatial locations}
 
-\item{VisiumHD_dir}{full path to the exported visiumHD directory}
+\item{load_metadata}{logical. Whether to include array row/col and in_tissue
+metadata information.}
+
+\item{load_image}{logical. Whether to load in paired image information.}
+
+\item{load_transcripts}{logical. Whether to load in bin 2 micron data as
+transcripts information. Very memory expensive. Using `filter` or subsets
+on array or pixel row/col is recommended.}
+
+\item{create_tessellated_polys}{logical. Whether to generate tessellated
+polys across the dataset.}
+
+\item{tissue_only}{logical. Whether to only load information tagged as
+`in_tissue` (in `tissue_positions.parquet`). This is ignored by transcript
+loading.}
+
+\item{barcodes}{character. Specific pixel barcodes to keep.}
+
+\item{array_subset_row}{numeric vector, length = 2. Min/max of array rows to
+keep}
+
+\item{array_subset_col}{numeric vector, length = 2. Min/max of array cols to
+keep}
+
+\item{pxl_subset_row}{numeric vector, length = 2. Min/max of fullres image
+mapped rows to keep. Note that values are inverted into the negatives.}
+
+\item{pxl_subset_col}{numeric vector, length = 2. Min/max of fullres image
+mapped cols to keep.}
+
+\item{filter}{a `SpatVector`, `sf`, or `giottoPolygon` to spatially filter
+the data by.}
+
+\item{filter_coverage_cutoff}{numeric between 0 and 1. Minimal fraction of 
+pixel coverage by `filter` in order to be selected.}
+
+\item{expression_source}{character. One of `"raw"` or `"filtered"`.
+Designates whether to pull expression value from raw or filtered matrix
+outputs. These refer to whether they only include `in_tissue` pixels.}
+
+\item{feature_id_type}{character. One of `"symbol"` or `"ensembl"`.
+Determines which to use as the feature identifiers.}
+
+\item{expression_remove_zero_rows}{logical (default = `TRUE`). Whether to
+remove features with no detections.}
+
+\item{expression_split_by_type}{logical (default = `TRUE`). Whether to
+split expression information (and generated transcripts) by feature types
+in the dataset (if multi modalities present).}
+
+\item{image_type}{character. One of `"hires"` (default) or `"lowres"`.
+Determines which image output to load. Ignored if `image_path` is provided.
+Fullres image should be created separately with `createGiottoLargeImage()`
+and attached with `setGiotto()`.}
+
+\item{tessellate_shape}{character, One of `"hexagon"` or `"square"`. Shape
+of poly to tessellate if `create_tessellated_polys = TRUE`}
+
+\item{tessellate_shape_size}{numeric. Size of shape to tessellate 
+(see [GiottoClass::tessellate()]).}
+
+\item{tessellate_name}{name of tessellated polygons to create.}
+
+\item{tissue_positions_path}{(optional) filepath to `tissue_positions.parquet`.}
+
+\item{scalefactors_path}{(optional) filepath to `scalefactors_json.json`}
+
+\item{expression_path}{(optional) filepath to .h5 or matrix market directory}
+
+\item{image_path}{(optional) filepath to image to use}
+
+\item{outdir}{(optional) directory to unpack bin output tar contents into.
+(Default is the same directory as the tarfile.)}
+
+\item{force_untar}{logical. Whether to force a untarring operation. Useful
+when files have changed or a previous untar operation was interrupted.}
+
+\item{untar_params}{list. Additional named params to pass to [untar()].}
+
+\item{instructions}{giotto instructions to apply.}
+
+\item{verbose}{verbosity}
 }
 \value{
 giotto object
 }
 \description{
 Given the path to a VisiumHD output folder, creates a
-Giotto object
+Giotto object. For lower-level and independent loading of specific pieces
+of data, see [importVisiumHD()].
+
+VisiumHD is a sequencing array-based spatial transcriptomic
+assay. The array is composed of regular 2x2 micron "pixels". In addition
+to the 2 micron resolution, lower resolution 8 and 16 binned outputs are
+also provided. Individual pixels are referred to by barcode identifiers.
 }
-\details{
-\itemize{
-  \item{expr_data: raw will take expression data from raw_feature_bc_matrix
-  and filter from filtered_feature_bc_matrix}
-  \item{gene_column_index: which gene identifiers (names) to use if there
-  are multiple columns (e.g. ensemble and gene symbol)}
+\examples{
+if (FALSE) {
+data_dir <- "path/to/visiumhd/dir/containing/tar/outputs"
+g <- createGiottoVisiumHDObject(data_dir, tissue_only = TRUE, bin = 16)
+
+# example spatial filter (this would have to be relative to your fullres)
+sv <- createSpatLocsObj(c(1e4, -1.5e4)) |> 
+    as.points() |> 
+    buffer(5000)
+g <- createGiottoVisiumHDObject(data_dir, 
+    tissue_only = TRUE, 
+    load_transcripts = TRUE, 
+    bin = 16, 
+    filter = sv
+)
 }
+}
+\seealso{
+[importVisiumHD()]
 }
