@@ -394,38 +394,23 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
 
     # detect paths and subdirs -------------------------------------------- #
     p <- .Object@visiumhd_dir
-
-    .visiumhd_detect <- function(pattern, path = p, recursive = FALSE) {
-        .detect_in_dir(
-            pattern = pattern, path = path,
-            recursive = recursive, platform = "visiumHD"
+    
+    # test if provided directory has expected output structure
+    is_output <- .visiumhd_validate_output_dir(p,
+        bin = bin, expression_source = ex_src, warn = FALSE
+    )
+    if (is_output) {
+        binpath <- p # directly use if output dir structure match
+    } else {
+        # otherwise, check expected .tar or subdir naming
+        binpath <- .visiumhd_detect_output_dir(p, 
+            bin = bin, expression_source = ex_src
         )
     }
-
-    # all that's needed are the bin output tar files
-    binpath <- .visiumhd_detect(sprintf("*.%03dum_outputs.tar", .Object@bin))
-    if (is.null(binpath)) { # if tar missing, try extracted default name
-        binpath <- .visiumhd_detect(sprintf(".*square%03dum$", .Object@bin))
-    }
-    if (is.null(binpath)) {
-        warning(wrap_txtf(
-            "Expected path to %d bin .tar or extracted 'square_%03dum' subdirectory not discovered.
-            `Use importVisiumHD() for more specific filepaths`", .Object@bin, .Object@bin),
-            call. = FALSE
-        )
-    }
-    # bin 2 for 
-    binpath2 <- .visiumhd_detect(sprintf("*.%03dum_outputs.tar", 2L))
-    if (is.null(binpath2)) { # if tar missing, try extracted default name
-        binpath2 <- .visiumhd_detect(sprintf(".*square%03dum$", 2L))
-    }
-    if (is.null(binpath2) && .Object@bin != 2L) {
-        warning(wrap_txtf(
-            "Expected path to %d bin .tar or extracted 'square_%03dum' subdirectory not discovered.
-            `Use importVisiumHD() for more specific filepaths`", 2L, 2L),
-            call. = FALSE
-        )
-    }
+    
+    binpath2 <- .visiumhd_detect_output_dir(p, 
+        bin = 2L, expression_source = ex_src
+    )
 
     # setup closures ------------------------------------------------------ #
     ## expression load call
@@ -833,67 +818,109 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
 # MODULAR ####
 
-# .visiumHD_read_folder <- function(path,
-#     expr_data = c("raw", "filter"),
-#     gene_column_index = 1,
-#     png_name = NULL,
-#     verbose = NULL) {
-#     vmsg(.v = verbose, "A structured visium directory will be used")
-# 
-#     if (is.null(path)) {
-#         .gstop("path needs to be a path to a visium directory")
-#     }
-#     path <- path.expand(path)
-#     path <- dirname(path)
-#     if (!dir.exists(path)) .gstop(path, " does not exist!")
-#     expr_data <- match.arg(expr_data, choices = c("raw", "filter"))
-# 
-#     ## 1. check expression
-#     expr_counts_path <- switch(expr_data,
-#         "raw" = paste0(path, "/", "raw_feature_bc_matrix/"),
-#         "filter" = paste0(path, "/", "filtered_feature_bc_matrix/")
-#     )
-#     if (!file.exists(expr_counts_path)) {
-#         .gstop(expr_counts_path, "does not exist!")
-#     }
-# 
-#     ## 2. check spatial locations
-#     spatial_dir <- paste0(path, "/", "spatial")
-#     tissue_positions_path <- Sys.glob(paths = file.path(
-#         spatial_dir,
-#         "tissue_positions*"
-#     ))
-# 
-#     ## 3. check spatial image
-#     if (is.null(png_name)) {
-#         # prioritize cytassist_image.tiff if exists
-#         tiff_list <- list.files(spatial_dir, pattern = "*.tiff")
-#         if (!is.null(tiff_list)) {
-#             img_name <- tiff_list[1]
-#         }
-#         else {
-#             png_list <- list.files(spatial_dir, pattern = "*.png")
-#             img_name <- png_list[1]
-#         }
-#     }
-#     img_path <- paste0(spatial_dir, "/", img_name)
-#     if (!file.exists(img_path)) .gstop(img_path, " does not exist!")
-# 
-#     ## 4. check scalefactors
-#     scalefactors_path <- paste0(spatial_dir, "/", "scalefactors_json.json")
-#     if (!file.exists(scalefactors_path)) {
-#         .gstop(scalefactors_path, "does not exist!")
-#     }
-# 
-# 
-#     list(
-#         expr_counts_path = expr_counts_path,
-#         gene_column_index = gene_column_index,
-#         tissue_positions_path = tissue_positions_path,
-#         image_path = img_path,
-#         scale_json_path = scalefactors_path
-#     )
-# }
+# detect default expected locations for output directory
+.visiumhd_detect_output_dir <- function(p, bin, 
+    expression_source = c("raw", "filtered"),
+    verbose = NULL) {
+    p <- normalizePath(p)
+    bin <- as.integer(bin)
+    expression_source <- match.arg(expression_source, c("raw", "filtered"))
+    
+    # template detection within dir function
+    .visiumhd_detect <- function(pattern, path = p, recursive = FALSE) {
+        .detect_in_dir(
+            pattern = pattern, path = path,
+            recursive = recursive, platform = "visiumHD"
+        )
+    }
+    
+    binpath <- NULL
+    # detect if input is already the extracted bin folder (based on naming)
+    is_output <- grepl(pattern = sprintf(".*square_%03dum$", bin), p)
+    if (is_output) binpath <- p
+    
+    # if not already extracted...
+    if (is.null(binpath)) {
+        # detect if tar file is present (preferred)
+        binpath <- .visiumhd_detect(sprintf("%03dum_outputs.tar", bin))
+        # if tar missing, try extracted default name as subdirectory
+        if (is.null(binpath)) {
+            binpath <- .visiumhd_detect(sprintf("square_%03dum$", bin))
+            # validation of bin subdir contents (if missing, send warning)
+            if (!is.null(binpath)) {
+                # no returns. This is just for checking
+                .visiumhd_validate_output_dir(binpath, bin, expression_source, 
+                    warn = TRUE
+                )
+            }
+        }
+    }
+    # if still missing, throw warning
+    if (is.null(binpath)) {
+        warning(wrap_txtf(
+            "Expected path to %d bin .tar or extracted 'square_%03dum' subdirectory not discovered.
+            `Use importVisiumHD() for more specific filepaths`", bin, bin),
+            call. = FALSE
+        )
+    }
+    binpath
+}
+
+# check if a provided directory path is likely a bin output directory
+# contains:
+# - a set of expression data (.h5 or matrix market)
+# - spatial data
+#   - tissue positions
+#   - scalefactors
+#   - hi/lowres images
+.visiumhd_validate_output_dir <- function(binpath, bin, expression_source, 
+    warn = TRUE) {
+    bin <- as.integer(bin)
+    expression_source <- match.arg(expression_source, c("raw", "filtered"))
+    p <- binpath # shorten naming
+    
+    if (is.null(p)) return(FALSE)
+    
+    output_base <- sprintf("visiumHD bin %d output", bin)
+    .visiumhd_bindata_detect <- function(pattern, path = p, recursive = FALSE) {
+        .detect_in_dir(
+            pattern = pattern, path = path, recursive = recursive,
+            platform = output_base, warn = warn
+        )
+    }
+    
+    # check that at least one of the matrix market or .h5 are present
+    expr_pattern <- switch(expression_source,
+        "raw" = "raw_feature_bc_matrix",
+        "filtered" = "filtered_feature_bc_matrix"
+    )
+    expr <- .visiumhd_bindata_detect(expr_pattern)
+    if (is.null(expr)) return(FALSE)
+    spatial <- .visiumhd_bindata_detect("spatial")
+    if (is.null(spatial)) return(FALSE)
+    
+    # proceed with spatial subdir checks if spatial found
+    .visiumhd_spatial_detect <- function(pattern, 
+        path = spatial, recursive = FALSE) {
+        .detect_in_dir(
+            pattern = pattern, path = path, recursive = recursive,
+            platform = paste(output_base, "spatial"), warn = warn
+        )
+    }
+    
+    # no return of these values. This is just for checking/warning throws
+    # when these items are expected from a global structured output
+    # 
+    # actual detection is handled per modular .visiumhd_* load function
+    contents <- c(
+        .visiumhd_spatial_detect("tissue_positions.parquet"),
+        .visiumhd_spatial_detect("scalefactors_json.json"),
+        .visiumhd_spatial_detect("hires_image"),
+        .visiumhd_spatial_detect("lowres_image")
+    )
+    if (length(contents) == 0L) return(FALSE)
+    TRUE
+}
 
 .visiumhd_expression <- function(path,
     feature_id_type = c("symbols", "ensembl"),
