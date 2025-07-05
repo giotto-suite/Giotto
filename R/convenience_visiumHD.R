@@ -64,21 +64,30 @@ setMethod("show", signature("VisiumHDReader"), function(object) {
         cat(pre["dir"], "\n")
     }
     
+    is_seg <- .visiumhd_is_segmentation_output(object@visiumhd_dir)
+    
     # bin
     bin <- object@bin
-    cat(pre["bin"], bin, "\n")
+    if (is_seg) {
+        cat(pre["bin"], "cell segmentation", "\n")
+    } else {
+        cat(pre["bin"], bin, "\n")
+    }
+    
     
     # micron
     micron <- object@micron
     cat(pre["micron"], micron, "\n")
     
     # outdir
-    od <- object@outdir
-    if (!is.null(od)) {
-        od <- GiottoUtils::str_abbreviate(od)
-        cat(pre["outdir"], od, "\n")
-    } else {
-        cat(pre["outdir"], "default\n")
+    if (!is_seg) {
+        od <- object@outdir
+        if (!is.null(od)) {
+            od <- GiottoUtils::str_abbreviate(od)
+            cat(pre["outdir"], od, "\n")
+        } else {
+            cat(pre["outdir"], "default\n")
+        }
     }
     
     # expression_source
@@ -90,40 +99,44 @@ setMethod("show", signature("VisiumHDReader"), function(object) {
     cat(pre["feature_id_type"], feature_id_type, "\n")
     
     # tissue_only
-    tissue_only <- object@tissue_only
-    cat(pre["tissue_only"], tissue_only, "\n")
+    if (!is_seg) {
+        tissue_only <- object@tissue_only
+        cat(pre["tissue_only"], tissue_only, "\n")
+    }
 
     # barcodes
     barcodes <- ifelse(!is.null(object@barcodes), "found", "none")
     cat(pre["barcodes"], barcodes, "\n")
 
-    # array_subset_row
-    array_subset_row <- ifelse(!is.null(object@array_subset_row),
-        "found", "none"
-    )
-    cat(pre["array_subset_row"], array_subset_row, "\n")
-
-    # array_subset_col
-    array_subset_col <- ifelse(!is.null(object@array_subset_col),
-        "found", "none"
-    )
-    cat(pre["array_subset_col"], array_subset_col, "\n")
-
-    # pxl_subset_row
-    pxl_subset_row <- ifelse(!is.null(object@pxl_subset_row), "found", "none")
-    cat(pre["pxl_subset_row"], pxl_subset_row, "\n")
-
-    # pxl_subset_col
-    pxl_subset_col <- ifelse(!is.null(object@pxl_subset_col), "found", "none")
-    cat(pre["pxl_subset_col"], pxl_subset_col, "\n")
+    if (!is_seg ) {
+        # array_subset_row
+        array_subset_row <- ifelse(!is.null(object@array_subset_row),
+            "found", "none"
+        )
+        cat(pre["array_subset_row"], array_subset_row, "\n")
+        
+        # array_subset_col
+        array_subset_col <- ifelse(!is.null(object@array_subset_col),
+            "found", "none"
+        )
+        cat(pre["array_subset_col"], array_subset_col, "\n")
     
-    # filter
-    filter <- ifelse(!is.null(object@filter), "found", "none")
-    cat(pre["filter_poly"], filter, "\n")
+        # pxl_subset_row
+        pxl_subset_row <- ifelse(!is.null(object@pxl_subset_row), "found", "none")
+        cat(pre["pxl_subset_row"], pxl_subset_row, "\n")
     
-    # filter_coverage
-    filter_coverage <- object@filter_coverage
-    cat(pre["filter_coverage_cutoff"], filter_coverage, "\n")
+        # pxl_subset_col
+        pxl_subset_col <- ifelse(!is.null(object@pxl_subset_col), "found", "none")
+        cat(pre["pxl_subset_col"], pxl_subset_col, "\n")
+        
+        # filter
+        filter <- ifelse(!is.null(object@filter), "found", "none")
+        cat(pre["filter_poly"], filter, "\n")
+        
+        # filter_coverage
+        filter_coverage <- object@filter_coverage
+        cat(pre["filter_coverage_cutoff"], filter_coverage, "\n")
+    }
 
     # funs
     .reader_fun_prints(x = object, pre = pre["funs"])
@@ -408,9 +421,14 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
         )
     }
     
-    binpath2 <- .visiumhd_detect_output_dir(p, 
-        bin = 2L, expression_source = ex_src
-    )
+    # if it is a segmentation output directory
+    is_seg <- .visiumhd_is_segmentation_output(binpath)
+    
+    if (!is_seg) {
+        binpath2 <- .visiumhd_detect_output_dir(p, 
+            bin = 2L, expression_source = ex_src
+        )
+    }
 
     # setup closures ------------------------------------------------------ #
     ## expression load call
@@ -432,7 +450,8 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
     .Object@calls$load_expression <- expression_fun
 
     ## tissue position load call
-    tissue_position_fun <- function(
+    if (!is_seg) {
+        tissue_position_fun <- function(
         path = binpath,
         outdir = .Object@outdir,
         bin = .Object@bin,
@@ -450,10 +469,11 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
         output = c("spatLocsObj", "arrow", "data.frame", "barcodes"),
         verbose = NULL,
         ...) {
-        a <- get_args_list(...)
-        do.call(.visiumhd_tissue_positions, a)
+            a <- get_args_list(...)
+            do.call(.visiumhd_tissue_positions, a)
+        }
+        .Object@calls$load_tissue_position <- tissue_position_fun
     }
-    .Object@calls$load_tissue_position <- tissue_position_fun
 
     ## scale factor load call
     read_scalefactors <- function(
@@ -485,7 +505,8 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
     .Object@calls$load_image <- load_image_fun
 
     ## tessellated poly create call
-    tess_poly_fun <- function(
+    if (!is_seg) {
+        tess_poly_fun <- function(
         tissue_positions_path = binpath,
         shape = "hexagon",
         shape_size = 400,
@@ -497,13 +518,33 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
         force_untar = FALSE,
         untar_params = list(),
         verbose = NULL) {
-        a <- get_args_list()
-        do.call(.visiumhd_tessellate, a)
+            a <- get_args_list()
+            do.call(.visiumhd_tessellate, a)
+        }
+        .Object@calls$tessellate_polygon <- tess_poly_fun
     }
-    .Object@calls$tessellate_polygon <- tess_poly_fun
+    
+    if (is_seg) {
+        poly_fun <- function(
+        path = binpath,
+        type = c("cell", "nucleus"),
+        name = NULL,
+        graphclust_annotated = FALSE,
+        scalefactors_path = NULL,
+        micron = FALSE,
+        id_fmt = "cellid_%09d-1",
+        flip_vertical = TRUE,
+        verbose = NULL
+        ) {
+            a <- get_args_list()
+            do.call(.visiumhd_poly, a)
+        }
+        .Object@calls$load_polygon <- poly_fun 
+    }
 
     ## metadata load call
-    meta_fun <- function(
+    if (!is_seg) {
+        meta_fun <- function(
         tissue_positions_path = binpath,
         outdir = .Object@outdir,
         bin = .Object@bin,
@@ -512,13 +553,15 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
         force_untar = FALSE,
         untar_params = list(),
         verbose = NULL) {
-        a <- get_args_list()
-        do.call(.visiumhd_cellmeta, a)
+            a <- get_args_list()
+            do.call(.visiumhd_cellmeta, a)
+        }
+        .Object@calls$load_cellmeta <- meta_fun
     }
-    .Object@calls$load_cellmeta <- meta_fun
 
     ## transcript load call
-    transcript_fun <- function(
+    if (!is_seg) {
+        transcript_fun <- function(
         expr_path = binpath2,
         feature_id_type = .Object@feature_id_type,
         remove_zero_rows = TRUE,
@@ -542,229 +585,344 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
         output = c("giottoPoints", "full"),
         verbose = NULL,
         ...) {
-        a <- get_args_list(...) # expr_list and spatlocs can also be passed
-        do.call(.visiumhd_transcript, a)
+            a <- get_args_list(...) # expr_list and spatlocs can also be passed
+            do.call(.visiumhd_transcript, a)
+        }
+        .Object@calls$load_transcripts <- transcript_fun
     }
-    .Object@calls$load_transcripts <- transcript_fun
 
-    giotto_object_fun <- function(
+    if (!is_seg) {
+        giotto_object_fun <- function(
         # what to add to gobject
-        load_expression = TRUE,
-        load_spatlocs = TRUE,
-        load_metadata = TRUE,
-        load_transcripts = FALSE,
-        load_image = TRUE,
-        create_tessellated_polys = FALSE,
-        # loading modifiers & subsetting
-        bin = .Object@bin,
-        micron = .Object@micron,
-        tissue_only = .Object@tissue_only,
-        barcodes = .Object@barcodes,
-        array_subset_row = .Object@array_subset_row,
-        array_subset_col = .Object@array_subset_col,
-        pxl_subset_row = .Object@pxl_subset_row,
-        pxl_subset_col = .Object@pxl_subset_col,
-        filter = .Object@filter,
-        filter_coverage_cutoff = .Object@filter_coverage,
-        # item-specific params
-        # [expression]
-        expression_source = .Object@expression_source,
-        feature_id_type = .Object@feature_id_type,
-        expression_remove_zero_rows = TRUE,
-        expression_split_by_type = TRUE,
-        # [image]
-        image_type = NULL, # not actually used if full image_path is provided.
-        # [tessellate]
-        tessellate_shape = "hexagon",
-        tessellate_shape_size = 400,
-        tessellate_name = sprintf("%s%d", 
-            tessellate_shape, as.integer(tessellate_shape_size)),
-        # filepaths to data
-        tissue_positions_path = binpath,
-        scalefactors_path = binpath,
-        expression_path = binpath,
-        image_path = binpath,
-        # untar and filesys params
-        outdir = .Object@outdir,
-        force_untar = FALSE, # should only apply once
-        untar_params = list(), # additional params for `untar()`
-        # general params
-        instructions = NULL,
-        verbose = NULL) {
-
-        checkmate::assert_list(untar_params)
-        load_expression <- as.logical(load_expression)
-        load_spatlocs <- as.logical(load_spatlocs)
-        load_metadata <- as.logical(load_metadata)
-        load_transcripts <- as.logical(load_transcripts)
-        load_image <- as.logical(load_image)
-        create_tessellated_polys <- as.logical(create_tessellated_polys)
-        
-        # validate settings
-        pre <- "[VisiumHD]"
-        if (load_spatlocs && !load_expression) {
-            stop(wrap_txtf("%s load_spatlocs = TRUE & load_expression = FALSE:
+            load_expression = TRUE,
+            load_spatlocs = TRUE,
+            load_metadata = TRUE,
+            load_transcripts = FALSE,
+            load_image = TRUE,
+            create_tessellated_polys = FALSE,
+            # loading modifiers & subsetting
+            bin = .Object@bin,
+            micron = .Object@micron,
+            tissue_only = .Object@tissue_only,
+            barcodes = .Object@barcodes,
+            array_subset_row = .Object@array_subset_row,
+            array_subset_col = .Object@array_subset_col,
+            pxl_subset_row = .Object@pxl_subset_row,
+            pxl_subset_col = .Object@pxl_subset_col,
+            filter = .Object@filter,
+            filter_coverage_cutoff = .Object@filter_coverage,
+            # item-specific params
+            # [expression]
+            expression_source = .Object@expression_source,
+            feature_id_type = .Object@feature_id_type,
+            expression_remove_zero_rows = TRUE,
+            expression_split_by_type = TRUE,
+            # [image]
+            image_type = NULL, # not actually used if full image_path is provided.
+            # [tessellate]
+            tessellate_shape = "hexagon",
+            tessellate_shape_size = 400,
+            tessellate_name = sprintf("%s%d", 
+                                      tessellate_shape, as.integer(tessellate_shape_size)),
+            # filepaths to data
+            tissue_positions_path = binpath,
+            scalefactors_path = binpath,
+            expression_path = binpath,
+            image_path = binpath,
+            # untar and filesys params
+            outdir = .Object@outdir,
+            force_untar = FALSE, # should only apply once
+            untar_params = list(), # additional params for `untar()`
+            # general params
+            instructions = NULL,
+            verbose = NULL) {
+            
+            checkmate::assert_list(untar_params)
+            load_expression <- as.logical(load_expression)
+            load_spatlocs <- as.logical(load_spatlocs)
+            load_metadata <- as.logical(load_metadata)
+            load_transcripts <- as.logical(load_transcripts)
+            load_image <- as.logical(load_image)
+            create_tessellated_polys <- as.logical(create_tessellated_polys)
+            
+            # validate settings
+            pre <- "[VisiumHD]"
+            if (load_spatlocs && !load_expression) {
+                stop(wrap_txtf("%s load_spatlocs = TRUE & load_expression = FALSE:
                 spatlocs can only be loaded with expression info.", pre))
-        }
-        if (load_metadata && !load_expression) {
-            stop(wrap_txtf("%s load_metadata = TRUE & load_expression = FALSE:
+            }
+            if (load_metadata && !load_expression) {
+                stop(wrap_txtf("%s load_metadata = TRUE & load_expression = FALSE:
                 metadata can only be loaded with expression info.", pre))
-        }
-        
-        # setup param lists
-        basic_params <- untar_params
-        basic_params$bin <- bin
-        basic_params$force <- FALSE
-        basic_params$outdir <- outdir
-        basic_params$verbose <- verbose
-        
-        spat_filter_params <- list(
-            array_subset_row = array_subset_row,
-            array_subset_col = array_subset_col,
-            pxl_subset_row = pxl_subset_row,
-            pxl_subset_col = pxl_subset_col,
-            filter = filter,
-            filter_coverage_cutoff = filter_coverage_cutoff
-        )
-        
-        mat_params <- list(
-            feature_id_type = feature_id_type,
-            remove_zero_rows = expression_remove_zero_rows,
-            split_by_type = expression_split_by_type,
-            expression_source = expression_source
-        )
-        
-        scalef_params <- list(
-            micron = micron,
-            scalefactors_path = scalefactors_path
-        )
-        
-        # directly attempt untar if `force_untar` = TRUE
-        if (force_untar) {
-            force_params <- basic_params
-            force_params$force <- TRUE
-            force_params$spatial_only <- FALSE
-            do.call(.visiumhd_untar_if_not, force_params)
-        }
-
-        # data loading
-        funs <- .Object@calls
-
-        sl_barcodes <- sl <- NULL
-        if (load_spatlocs) {
-            tp_params <- basic_params
-            tp_params$path <- tissue_positions_path
-            tp_params$barcodes <- barcodes
-            tp_params$tissue_only <- tissue_only
-            tp_params$output <- "spatLocsObj"
-            sl <- do.call(.visiumhd_tissue_positions, 
-                args = c(tp_params, spat_filter_params, scalef_params))
-            # update barcodes with any sl results
-            sl_barcodes <- spatIDs(sl)
-            barcodes <- sl_barcodes %null% barcodes
-        }
-
-        ex_barcodes <- expr_list <- NULL
-        if (load_expression) {
-            expr_params <- basic_params
-            expr_params$path <- expression_path
-            expr_params$barcodes <- barcodes
-            expr_list <- do.call(.visiumhd_expression, 
-                args = c(expr_params, mat_params)) # this is a list output
-            # update barcodes with any expr results
-            ex_barcodes <- spatIDs(expr_list[[1L]])
-            barcodes <- ex_barcodes %null% barcodes
-            # match expression barcodes back onto spatlocs just in case
-            if (!is.null(sl)) sl <- sl[barcodes]
-        }
-
-        tx_list <- NULL
-        if (load_transcripts) {
-            tx_params <- basic_params
-            tx_params$bin <- 2L # override basic_param
-            if (bin == 2) {
-                # reuse if available and of bin 2
-                tx_params$expr_list <- expr_list 
-                tx_params$spatlocs <- sl
             }
-            tx_params$output <- "full"
-            # only used if `sl` is still NULL or not of bin 2
-            tx_params$expr_path <- binpath2
-            # only used if `expr_list` is still NULL or not of bin 2
-            tx_params$tissue_positions_path <- binpath2
-            tx_params$tissue_only <- FALSE
-            tx_params$barcodes <- NULL # ignore
-            # custom spat filter params
-            tx_params$pxl_subset_row <- pxl_subset_row
-            tx_params$pxl_subset_col = pxl_subset_col
-            tx_params$filter = filter
-            tx_params$filter_coverage_cutoff = filter_coverage_cutoff
-            if (!is.null(array_subset_row)) {
-                tx_params$array_subset_row = array_subset_row * (bin / 2)
+            
+            # setup param lists
+            basic_params <- untar_params
+            basic_params$bin <- bin
+            basic_params$force <- FALSE
+            basic_params$outdir <- outdir
+            basic_params$verbose <- verbose
+            
+            spat_filter_params <- list(
+                array_subset_row = array_subset_row,
+                array_subset_col = array_subset_col,
+                pxl_subset_row = pxl_subset_row,
+                pxl_subset_col = pxl_subset_col,
+                filter = filter,
+                filter_coverage_cutoff = filter_coverage_cutoff
+            )
+            
+            mat_params <- list(
+                feature_id_type = feature_id_type,
+                remove_zero_rows = expression_remove_zero_rows,
+                split_by_type = expression_split_by_type,
+                expression_source = expression_source
+            )
+            
+            scalef_params <- list(
+                micron = micron,
+                scalefactors_path = scalefactors_path
+            )
+            
+            # directly attempt untar if `force_untar` = TRUE
+            if (force_untar) {
+                force_params <- basic_params
+                force_params$force <- TRUE
+                force_params$spatial_only <- FALSE
+                do.call(.visiumhd_untar_if_not, force_params)
             }
-            if (!is.null(array_subset_col)) {
-                tx_params$array_subset_col = array_subset_col * (bin / 2)
+            
+            # data loading
+            funs <- .Object@calls
+            
+            sl_barcodes <- sl <- NULL
+            if (load_spatlocs) {
+                tp_params <- basic_params
+                tp_params$path <- tissue_positions_path
+                tp_params$barcodes <- barcodes
+                tp_params$tissue_only <- tissue_only
+                tp_params$output <- "spatLocsObj"
+                sl <- do.call(.visiumhd_tissue_positions, 
+                              args = c(tp_params, spat_filter_params, scalef_params))
+                # update barcodes with any sl results
+                sl_barcodes <- spatIDs(sl)
+                barcodes <- sl_barcodes %null% barcodes
             }
-            res <- do.call(funs$load_transcripts, 
-                args = c(tx_params, scalef_params, mat_params))
-            tx_list <- res$gpoints
-            # extract and update barcodes
-            barcodes <- spatIDs(res$tissue_positions)
-            rm(res) # cleanup
+            
+            ex_barcodes <- expr_list <- NULL
+            if (load_expression) {
+                expr_params <- basic_params
+                expr_params$path <- expression_path
+                expr_params$barcodes <- barcodes
+                expr_list <- do.call(.visiumhd_expression, 
+                                     args = c(expr_params, mat_params)) # this is a list output
+                # update barcodes with any expr results
+                ex_barcodes <- spatIDs(expr_list[[1L]])
+                barcodes <- ex_barcodes %null% barcodes
+                # match expression barcodes back onto spatlocs just in case
+                if (!is.null(sl)) sl <- sl[barcodes]
+            }
+            
+            tx_list <- NULL
+            if (load_transcripts) {
+                tx_params <- basic_params
+                tx_params$bin <- 2L # override basic_param
+                if (bin == 2) {
+                    # reuse if available and of bin 2
+                    tx_params$expr_list <- expr_list 
+                    tx_params$spatlocs <- sl
+                }
+                tx_params$output <- "full"
+                # only used if `sl` is still NULL or not of bin 2
+                tx_params$expr_path <- binpath2
+                # only used if `expr_list` is still NULL or not of bin 2
+                tx_params$tissue_positions_path <- binpath2
+                tx_params$tissue_only <- FALSE
+                tx_params$barcodes <- NULL # ignore
+                # custom spat filter params
+                tx_params$pxl_subset_row <- pxl_subset_row
+                tx_params$pxl_subset_col = pxl_subset_col
+                tx_params$filter = filter
+                tx_params$filter_coverage_cutoff = filter_coverage_cutoff
+                if (!is.null(array_subset_row)) {
+                    tx_params$array_subset_row = array_subset_row * (bin / 2)
+                }
+                if (!is.null(array_subset_col)) {
+                    tx_params$array_subset_col = array_subset_col * (bin / 2)
+                }
+                res <- do.call(funs$load_transcripts, 
+                               args = c(tx_params, scalef_params, mat_params))
+                tx_list <- res$gpoints
+                # extract and update barcodes
+                barcodes <- spatIDs(res$tissue_positions)
+                rm(res) # cleanup
+            }
+            
+            cmeta <- NULL
+            if (load_metadata) {
+                cm_params <- basic_params
+                cm_params$tissue_positions_path <- tissue_positions_path
+                cm_params$barcodes <- barcodes
+                cm_params$tissue_only <- tissue_only
+                cmeta <- do.call(.visiumhd_cellmeta, cm_params)
+            }
+            
+            gimg <- NULL
+            if (load_image) {
+                img_params <- basic_params
+                img_params$path <- image_path
+                img_params$image_type <- image_type
+                gimg <- do.call(.visiumhd_image, 
+                                c(img_params, scalef_params))
+            }
+            
+            tess_poly <- NULL
+            if (create_tessellated_polys) {
+                tess_params <- basic_params
+                tess_params$tissue_positions_path <- tissue_positions_path
+                tess_params$shape <- tessellate_shape
+                tess_params$shape_size <- tessellate_shape_size
+                tess_params$name <- tessellate_name
+                tess_poly <- do.call(.visiumhd_tessellate, 
+                                     args = c(tess_params, scalef_params))
+            }
+            
+            # assemble giotto
+            vmsg(.v = verbose, "assembling object ...")
+            g <- giotto(instructions = instructions) # init
+            if (!is.null(expr_list)) {
+                g <- setGiotto(g, expr_list, verbose = verbose)
+            }
+            if (!is.null(sl)) {
+                g <- setGiotto(g, sl, verbose = verbose)
+            }
+            if (!is.null(cmeta)) { # cmeta added here since there is a check in setCellMetadata
+                g <- setGiotto(g, cmeta, verbose = verbose)
+            }
+            if (!is.null(gimg)) {
+                g <- setGiotto(g, gimg, verbose = verbose)
+            }
+            if (!is.null(tess_poly)) {
+                g <- setGiotto(g, tess_poly, verbose = verbose)
+            }
+            if (!is.null(tx_list)) {
+                g <- setGiotto(g, tx_list, verbose = verbose)
+            }
+            gc(verbose = FALSE)
+            g
         }
-        
-        cmeta <- NULL
-        if (load_metadata) {
-            cm_params <- basic_params
-            cm_params$tissue_positions_path <- tissue_positions_path
-            cm_params$barcodes <- barcodes
-            cm_params$tissue_only <- tissue_only
-            cmeta <- do.call(.visiumhd_cellmeta, cm_params)
+    } else {
+        giotto_object_fun <- function( # what to add to gobject
+            load_expression = TRUE,
+            load_polygons = c("cell", "nucleus"),
+            graphclust_annotated = FALSE,
+            load_image = TRUE,
+            # loading modifiers & subsetting
+            micron = .Object@micron,
+            barcodes = .Object@barcodes,
+            # item-specific params
+            # [expression]
+            expression_source = .Object@expression_source,
+            feature_id_type = .Object@feature_id_type,
+            expression_remove_zero_rows = TRUE,
+            expression_split_by_type = TRUE,
+            # [image]
+            image_type = NULL, # not actually used if full image_path is provided.
+            # filepaths to data
+            scalefactors_path = binpath,
+            expression_path = binpath,
+            image_path = binpath,
+            geojson_path = binpath,
+            # general params
+            instructions = NULL,
+            verbose = NULL,
+            ...) {
+            
+            not_used <- names(list(...))
+            if (length(not_used) > 0L) {
+                vmsg(.v = verbose, 
+                     "[visiumHD] params:", toString(not_used), 
+                     "not used with segmentation outputs")
+            }
+            
+            load_expression <- as.logical(load_expression)
+            load_image <- as.logical(load_image)
+            
+            # setup param lists
+            basic_params <- list()
+            basic_params$bin <- NA_integer_ # dummy value
+            basic_params$force <- FALSE # not needed for v4 outputs
+            basic_params$outdir <- NULL # not needed for v4 outputs
+            basic_params$verbose <- verbose
+            
+            mat_params <- list(
+                feature_id_type = feature_id_type,
+                remove_zero_rows = expression_remove_zero_rows,
+                split_by_type = expression_split_by_type,
+                expression_source = expression_source
+            )
+            
+            scalef_params <- list(
+                micron = micron,
+                scalefactors_path = scalefactors_path
+            )
+            
+            # data loading
+            funs <- .Object@calls
+            
+            poly_list <- NULL
+            if (length(load_polygons) > 0L) {
+                load_polygons <- match.arg(load_polygons, 
+                    choices = c("cell", "nucleus"), 
+                    several.ok = TRUE
+                )
+                poly_params <- list(verbose = verbose)
+                poly_params$path <- geojson_path
+                poly_params$graphclust_annotated <- graphclust_annotated
+                poly_params$scalefactors_path <- scalefactors_path
+                poly_params$micron <- micron
+                poly_params$verbose <- verbose
+                poly_params$barcodes <- barcodes
+                poly_list <- lapply(load_polygons, function(ptype) {
+                    do.call(.visiumhd_poly, c(list(type = ptype), poly_params))
+                })
+            }
+            
+            ex_barcodes <- expr_list <- NULL
+            if (load_expression) {
+                expr_params <- basic_params
+                expr_params$path <- expression_path
+                expr_params$barcodes <- barcodes
+                expr_list <- do.call(.visiumhd_expression, 
+                    args = c(expr_params, mat_params)) # this is a list output
+            }
+            
+            gimg <- NULL
+            if (load_image) {
+                img_params <- basic_params
+                img_params$path <- image_path
+                img_params$image_type <- image_type
+                gimg <- do.call(.visiumhd_image, 
+                    c(img_params, scalef_params))
+            }
+            
+            # assemble giotto
+            vmsg(.v = verbose, "assembling object ...")
+            g <- giotto(instructions = instructions) # init
+            if (!is.null(poly_list)) {
+                g <- setGiotto(g, poly_list, 
+                    centroids_to_spatlocs = TRUE, verbose = verbose
+                )
+            }
+            if (!is.null(expr_list)) {
+                g <- setGiotto(g, expr_list, verbose = verbose)
+            }
+            if (!is.null(gimg)) {
+                g <- setGiotto(g, gimg, verbose = verbose)
+            }
+            gc(verbose = FALSE)
+            g
         }
-        
-        gimg <- NULL
-        if (load_image) {
-            img_params <- basic_params
-            img_params$path <- image_path
-            img_params$image_type <- image_type
-            gimg <- do.call(.visiumhd_image, 
-                c(img_params, scalef_params))
-        }
-        
-        tess_poly <- NULL
-        if (create_tessellated_polys) {
-            tess_params <- basic_params
-            tess_params$tissue_positions_path <- tissue_positions_path
-            tess_params$shape <- tessellate_shape
-            tess_params$shape_size <- tessellate_shape_size
-            tess_params$name <- tessellate_name
-            tess_poly <- do.call(.visiumhd_tessellate, 
-                args = c(tess_params, scalef_params))
-        }
-
-        # assemble giotto
-        vmsg(.v = verbose, "assembling object ...")
-        g <- giotto(instructions = instructions) # init
-        if (!is.null(expr_list)) {
-            g <- setGiotto(g, expr_list, verbose = verbose)
-        }
-        if (!is.null(sl)) {
-            g <- setGiotto(g, sl, verbose = verbose)
-        }
-        if (!is.null(cmeta)) { # cmeta added here since there is a check in setCellMetadata
-            g <- setGiotto(g, cmeta, verbose = verbose)
-        }
-        if (!is.null(gimg)) {
-            g <- setGiotto(g, gimg, verbose = verbose)
-        }
-        if (!is.null(tess_poly)) {
-            g <- setGiotto(g, tess_poly, verbose = verbose)
-        }
-        if (!is.null(tx_list)) {
-            g <- setGiotto(g, tx_list, verbose = verbose)
-        }
-        gc(verbose = FALSE)
-        g
     }
     .Object@calls$create_gobject <- giotto_object_fun
 
@@ -818,6 +976,11 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
 # MODULAR ####
 
+.visiumhd_is_segmentation_output <- function(path) {
+    p <- path[[1L]]
+    dir.exists(p) && grepl("segmented_output", basename(p))
+}
+
 # detect default expected locations for output directory
 .visiumhd_detect_output_dir <- function(p, bin, 
     expression_source = c("raw", "filtered"),
@@ -827,7 +990,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     expression_source <- match.arg(expression_source, c("raw", "filtered"))
     
     # template detection within dir function
-    .visiumhd_detect <- function(pattern, path = p, recursive = FALSE) {
+    .detect <- function(pattern, path = p, recursive = FALSE) {
         .detect_in_dir(
             pattern = pattern, path = path,
             recursive = recursive, platform = "visiumHD"
@@ -842,10 +1005,10 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     # if not already extracted...
     if (is.null(binpath)) {
         # detect if tar file is present (preferred)
-        binpath <- .visiumhd_detect(sprintf("%03dum_outputs.tar", bin))
+        binpath <- .detect(sprintf("%03dum_outputs.tar", bin))
         # if tar missing, try extracted default name as subdirectory
         if (is.null(binpath)) {
-            binpath <- .visiumhd_detect(sprintf("square_%03dum$", bin))
+            binpath <- .detect(sprintf("square_%03dum$", bin))
             # validation of bin subdir contents (if missing, send warning)
             if (!is.null(binpath)) {
                 # no returns. This is just for checking
@@ -866,13 +1029,27 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     binpath
 }
 
+# * validate output dir structure ####
+
 # check if a provided directory path is likely a bin output directory
 # contains:
+# 
+# <binned data>
 # - a set of expression data (.h5 or matrix market)
 # - spatial data
 #   - tissue positions
 #   - scalefactors
 #   - hi/lowres images
+# 
+# <segmented data>
+# - cell_segmentations (any)
+# - nucleus_segmentations (any)
+# - graphclust_annotated_cell_segmentations.geojson
+# - a set of expression data (.h5 or matrix market)
+# - spatial data
+#   - scalefactors
+#   - hi/lowres images
+
 .visiumhd_validate_output_dir <- function(binpath, bin, expression_source, 
     warn = TRUE) {
     bin <- as.integer(bin)
@@ -881,26 +1058,33 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     
     if (is.null(p)) return(FALSE)
     
-    output_base <- sprintf("visiumHD bin %d output", bin)
-    .visiumhd_bindata_detect <- function(pattern, path = p, recursive = FALSE) {
+    # determine if segemented or bin outputs
+    type <- ifelse(grepl("segmented_outputs", basename(p)), "seg", "bin")
+    
+    output_base <- switch(type,
+        "bin" = sprintf("visiumHD bin %d output", bin),
+        "seg" = "visiumHD segmented output"
+    )
+    
+    .detect <- function(pattern, path = p, recursive = FALSE) {
         .detect_in_dir(
             pattern = pattern, path = path, recursive = recursive,
             platform = output_base, warn = warn
         )
     }
-    
+
     # check that at least one of the matrix market or .h5 are present
     expr_pattern <- switch(expression_source,
-        "raw" = "raw_feature_bc_matrix",
-        "filtered" = "filtered_feature_bc_matrix"
+        "raw" = "raw_feature",
+        "filtered" = "filtered_feature"
     )
-    expr <- .visiumhd_bindata_detect(expr_pattern)
+    expr <- .detect(expr_pattern)
     if (is.null(expr)) return(FALSE)
-    spatial <- .visiumhd_bindata_detect("spatial")
+    spatial <- .detect("spatial")
     if (is.null(spatial)) return(FALSE)
     
     # proceed with spatial subdir checks if spatial found
-    .visiumhd_spatial_detect <- function(pattern, 
+    .detect_spat <- function(pattern, 
         path = spatial, recursive = FALSE) {
         .detect_in_dir(
             pattern = pattern, path = path, recursive = recursive,
@@ -912,11 +1096,12 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     # when these items are expected from a global structured output
     # 
     # actual detection is handled per modular .visiumhd_* load function
+    if (type == "bin") .detect_spat("tissue_positions.parquet")
+    # tissue positions is not found in segmented outputs
     contents <- c(
-        .visiumhd_spatial_detect("tissue_positions.parquet"),
-        .visiumhd_spatial_detect("scalefactors_json.json"),
-        .visiumhd_spatial_detect("hires_image"),
-        .visiumhd_spatial_detect("lowres_image")
+        .detect_spat("scalefactors_json.json"),
+        .detect_spat("hires_image"),
+        .detect_spat("lowres_image")
     )
     if (length(contents) == 0L) return(FALSE)
     TRUE
@@ -951,7 +1136,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         ), call. = FALSE)
     }
     
-    if (!file.exists(path)) { # works for files and dirs
+    if (!file.exists(path)) { # check if file OR dir
         stop("[VisiumHD] filepath does not exist\n", call. = FALSE)
     }
 
@@ -961,15 +1146,21 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     vmsg(.v = verbose, .is_debug = TRUE, path)
     
     # determine expression source
-    expression_path <- NULL # does not matter unless tar or dir
+    expression_path <- NULL
     if ((.is_tar(path) || checkmate::test_directory_exists(path)) &&
         !.visiumhd_is_mm_dir(path)) {
         # if tar or the tar extracted dir...
         # - `expression_source` param not needed in other cases
         if (is.null(expression_source)) expression_source <- "raw" # default
+        
+        agg_type <- ifelse(grepl("segmented", basename(path)), "seg", "bin")
+        expression_source <- paste(expression_source, agg_type, sep = "_")
+        
         expression_path <- switch(expression_source,
-            "raw" = "raw_feature_bc_matrix",
-            "filtered" = "filtered_feature_bc_matrix",
+            "raw_bin" = "raw_feature_bc_matrix",
+            "filtered_bin" = "filtered_feature_bc_matrix",
+            "raw_seg" = "raw_feature_cell_matrix",
+            "filtered_seg" = "filtered_feature_cell_matrix",
             stop("[VisiumHD] expression_source:", expression_source,
                  "unrecognized\n", call. = FALSE)
         )
@@ -1009,7 +1200,11 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
             x <- x[, bool, drop = FALSE]
         }
         
-        su <- sprintf("bin%03d", as.integer(bin))
+        if (agg_type == "bin") {
+            su <- sprintf("bin%03d", as.integer(bin))
+        } else {
+            su <- "cell"
+        }
         createExprObj(x,
             name = "raw",
             spat_unit = su,
@@ -1231,7 +1426,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 }
 
 .visiumhd_validate_json_names <- function(json_scalefactors, expected_names) {
-    if (!setequal(names(json_scalefactors), expected_names)) {
+    if (!all(expected_names %in% names(json_scalefactors))) {
         warning(GiottoUtils::wrap_txt(
             "scalefactors json names differ from expected. [Expected]:", 
             expected_names, "\n",
@@ -1272,8 +1467,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     json_scalefactors <- read_json(json_path)
 
     expected_json_names <- c(
-        "spot_diameter_fullres",
-        "bin_size_um",
+        # "spot_diameter_fullres",
+        # "bin_size_um",
         "microns_per_pixel",
         "regist_target_img_scalef",
         "tissue_lowres_scalef",
@@ -1408,6 +1603,95 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         gimg <- rescale(gimg, px2um, x0 = 0, y0 = 0)
     }
     gimg
+}
+
+# new to spaceranger V4 outputs
+# path can either be 'segmented_outputs' dir or direct to .geojson.
+# if direct .geojson, scalefactor_path is needed separately if micron = TRUE
+.visiumhd_poly <- function(path, 
+    type = c("cell", "nucleus"),
+    name = NULL,
+    graphclust_annotated = FALSE,
+    scalefactors_path = NULL,
+    barcodes = NULL,
+    micron = FALSE,
+    id_fmt = "cellid_%09d-1",
+    flip_vertical = TRUE,
+    verbose = NULL) {
+    
+    type <- match.arg(type, c("cell", "nucleus"))
+    if (is.null(name)) name <- type
+    checkmate::assert_character(id_fmt, len = 1L)
+    checkmate::assert_character(name, len = 1L)
+    checkmate::assert_character(barcodes, null.ok = TRUE)
+    flip_vertical <- as.logical(flip_vertical)
+    micron <- as.logical(micron)
+    
+    if (missing(path)) {
+        stop(wrap_txt(
+            "No path to polygons provided or auto-detected"
+        ), call. = FALSE)
+    }
+    
+    vmsg(.v = verbose, sprintf("loading %s%s polygons ...", 
+        type, ifelse(graphclust_annotated, " graphclust", "")))
+    vmsg(.v = verbose, .is_debug = TRUE, path)
+
+    if (".geojson" %in% GiottoUtils::file_extension(path)) { # direct filepath
+        poly_path <- path
+        if (micron && is.null(scalefactors_path)) {
+            stop("[VisiumHD] <polygons> `scalefactors_path` needed for micron = TRUE\n",
+                 call. = FALSE)
+        } 
+    } else if (checkmate::test_directory_exists(path)) { # output dir
+        pattern <- c(type, "segmentations.geojson")
+        if (graphclust_annotated) pattern <- c("graphclust_annotated", pattern)
+        pattern <- paste(pattern, collapse = "_")
+        poly_path <- .detect_in_dir(path,
+            pattern = pattern, 
+            recursive = FALSE, 
+            platform = "VisiumHD"
+        )
+        scalefactors_path <- scalefactors_path %null%
+            .detect_in_dir(path,
+                pattern = "scalefactors_json", 
+                recursive = TRUE,
+                platform = "VisiumHD"
+            )
+    } else { # unrecognized
+        stop("[VisiumHD] <polygons> unrecognized filepath\n", call. = FALSE)
+    }
+    
+    # if still no path found, abort
+    if (is.null(poly_path)) {
+        stop(sprintf("[VisiumHD] <polygons> no %s%s polygons file found",
+            type, ifelse(graphclust_annotated, " graphclust", "")),
+            call. = FALSE)
+    }
+    
+    # createGiottoPolygon() seems to have some difficulty with the default ids
+    sv <- terra::vect(poly_path, crs = "local")
+    if (flip_vertical) sv <- flip(sv)
+    
+    if (micron) {
+        px2um <- GiottoUtils::read_json(scalefactors_path)$microns_per_pixel
+        sv <- rescale(sv, px2um, x0 = 0, y0 = 0)
+    }
+    
+    # .geojson comes with an attribute col called cell_id with integers
+    sv$cell_id <- sprintf(id_fmt, as.integer(sv$cell_id))
+    
+    # assemble giottopolygon
+    p <- createGiottoPolygon(sv,
+        name = name,
+        calc_centroids = TRUE,
+        verbose = FALSE
+    )
+    
+    if (!is.null(barcodes)) {
+        p <- p[barcodes]
+    }
+    p
 }
 
 # run tessellate() based on extent of VisiumHD data
@@ -1667,7 +1951,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     verbose = NULL, 
     spatial_only = FALSE,
     ...) {
-    if (!file.exists(path)) { # works for files and dirs
+    if (!file.exists(path)) { # checks if path is file OR dir
         stop("[VisiumHD] filepath does not exist\n", call. = FALSE)
     }
 
