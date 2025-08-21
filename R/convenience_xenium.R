@@ -227,12 +227,14 @@ setMethod(
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -387,12 +389,14 @@ setMethod(
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         load_images = "focus",
         load_aligned_images = NULL,
@@ -705,12 +709,14 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -1018,6 +1024,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     dropcols <- dropcols[dropcols %in% colnames(feat_meta)]
     # remove dropcols
     if (length(dropcols) > 0L) feat_meta[, (dropcols) := NULL]
+    
+    feat_meta <- unique(feat_meta)
 
     fx <- createFeatMetaObj(
         metadata = feat_meta,
@@ -1114,6 +1122,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
     # specific feat type naming updates
     fname[fname == "Gene Expression"] <- "rna"
+    fname[fname == "Protein Expression"] <- "protein"
     fname[fname == "Negative Control Codeword"] <- "NegControlCodeword"
     fname[fname == "Negative Control Probe"] <- "NegControlProbe"
     fname[fname == "Blank Codeword"] <- "UnassignedCodeword" # from legacy Xenium pipeline
@@ -1305,6 +1314,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         # fullpath of tiff to write
         tiff_path <- file.path(output_dir, basename(path))
         tiff_path <- gsub(".ome.tif", ".tif", tiff_path)
+
         if (checkmate::test_file_exists(tiff_path)) {
             vmsg(.is_debug = TRUE, sprintf(
                 "converted tiff already present\n%s", tiff_path
@@ -1457,12 +1467,14 @@ createGiottoXeniumObject <- function(
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         qv_threshold = 20,
         load_images = "focus",
