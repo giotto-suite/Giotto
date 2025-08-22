@@ -1136,6 +1136,13 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
+        
+        if(!inherits(ex_list[[ex_i]], "Matrix")) {
+            i_vector <- ex_list[[ex_i]]
+            ex_list[[ex_i]] <- t(Matrix::Matrix(ex_list[[ex_i]], sparse = TRUE))
+            colnames(ex_list[[ex_i]]) <- names(i_vector)
+        }
+        
         createExprObj(
             expression_data = ex_list[[ex_i]],
             name = "raw",
