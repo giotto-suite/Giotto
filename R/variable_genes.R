@@ -108,7 +108,7 @@
     # NSE vars
     var <- selected <- NULL
 
-    if (isTRUE(use_parallel)) {
+    if (!isTRUE(use_parallel)) {
         test <- apply(X = scaled_matrix, MARGIN = 1, FUN = function(x) var(x))
     } else {
         test <- future.apply::future_apply(
@@ -353,7 +353,7 @@ calculateHVF <- function(
 
     # create a random subset if random_subset is not NULL
     if (!is.null(random_subset)) {
-        if (isTRUE(set_seed)) set.seed(seed = seed_number)
+        if (isTRUE(set_seed)) GiottoUtils::local_seed(seed = seed_number)
 
         random_selection <- sort(sample(
             seq_len(ncol(expr_values)), random_subset

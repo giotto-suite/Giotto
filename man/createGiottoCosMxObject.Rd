@@ -5,48 +5,116 @@
 \title{Create Nanostring CosMx Giotto Object}
 \usage{
 createGiottoCosMxObject(
-  cosmx_dir = NULL,
-  data_to_use = c("all", "subcellular", "aggregate"),
-  remove_background_polygon = TRUE,
-  background_algo = c("range"),
-  remove_unvalid_polygons = TRUE,
+  cosmx_dir,
+  version = "default",
   FOVs = NULL,
-  instructions = NULL,
+  slide = 1,
+  feat_type = c("rna", "negprobes"),
+  split_keyword = list("NegPrb"),
+  load_images = list(composite = "composite", overlay = "overlay"),
+  load_expression = FALSE,
+  load_cellmeta = TRUE,
+  load_transcripts = TRUE,
+  poly_pref = "mask",
+  image_negative_y = NULL,
+  fov_shifts_path = NULL,
+  transcript_path = NULL,
+  cell_labels_dir = NULL,
+  expression_path = NULL,
+  metadata_path = NULL,
   cores = determine_cores(),
-  verbose = TRUE
+  verbose = NULL,
+  instructions = NULL,
+  remove_unvalid_polygons = deprecated(),
+  data_to_use = deprecated(),
+  remove_background_polygon = deprecated(),
+  background_algo = deprecated(),
+  ...
 )
 }
 \arguments{
 \item{cosmx_dir}{full path to the exported cosmx directory}
 
-\item{data_to_use}{which type(s) of expression data to build the gobject with
-Default is \code{'all'} information available. \code{'subcellular'} loads
-the transcript coordinates only. \code{'aggregate'} loads the provided
-aggregated expression matrix.}
+\item{version}{character. Version of CosMx output. Current selections are
+either "default", "v6", and "legacy" (for the NSCLC dataset).}
 
-\item{remove_background_polygon}{try to remove background polygon
-(default: FALSE)}
+\item{FOVs}{field of views to load.}
 
-\item{background_algo}{algorithm to remove background polygon}
+\item{slide}{numeric. Slide number. Defaults to 1. This must be correct so
+that cell_IDs will match across polygons and (if loaded) expression matrix.}
 
-\item{remove_unvalid_polygons}{remove unvalid polygons (default: TRUE)}
+\item{feat_type}{character. feature type. Provide more than one value if
+using the \code{split_keyword} param. For each set of keywords to split by, an
+additional feat_type should be provided in the same order. Affects how
+the transcripts information is loaded. Helpful for separating out the
+QC probes. See details.}
 
-\item{FOVs}{field of views to load (only affects subcellular data and images)}
+\item{split_keyword}{list of character vectors of keywords to split the
+transcripts based on their feat_ID. Keywords will be \code{grepl()}
+matched against the feature IDs information. See details.}
+
+\item{load_images}{named list of filepaths to directories. Loads the
+composite and overlay images by default.}
+
+\item{load_expression}{logical. (Default = FALSE) whether to load provided
+expression matrix}
+
+\item{load_cellmeta}{logical. (Default = TRUE) whether to load provided
+cell metadata}
+
+\item{load_transcripts}{logical. (Default = TRUE) whether to load provided
+transcript detections}
+
+\item{poly_pref}{character. "mask" or "csv". Determines whether to load in
+the polygons from the mask images (default) or the csv polygons file.}
+
+\item{image_negative_y}{Optional logical. Whether images are assumed to map
+to positive or negative y values before fov shifts are applied. Affects
+images (and polygons generated from masks). This overrides any settings from
+selecting \code{version}.}
+
+\item{fov_shifts_path}{Optional. Filepath to fov_positions_file}
+
+\item{transcript_path}{Optional. Filepath to desired transcripts file to
+load.}
+
+\item{cell_labels_dir}{Optional. Path to directory containing CellLabels
+images to load as polygons.}
+
+\item{expression_path}{Optional. Filepath to cell feature matrix to load.}
+
+\item{metadata_path}{Optional. Filepath to metadata file to load.}
+
+\item{cores}{nthreads to use when loading in cell metadata and transcripts}
+
+\item{verbose}{be verbose when building Giotto object}
 
 \item{instructions}{list of instructions or output result
 from \code{\link[GiottoClass]{createGiottoInstructions}}}
 
-\item{cores}{how many cores or threads to use to read data if paths are
-provided}
+\item{remove_unvalid_polygons}{deprecated. Now always done}
 
-\item{verbose}{be verbose when building Giotto object}
+\item{data_to_use}{deprecated. Not used}
+
+\item{remove_background_polygon}{deprecated. Now always done}
+
+\item{background_algo}{deprecated. Not used}
+
+\item{...}{
+  Arguments passed on to \code{\link[=importCosMx]{importCosMx}}
+  \describe{
+    \item{\code{micron}}{logical. Whether to scale spatial information as micron
+instead of the default pixels}
+    \item{\code{px2um}}{numeric. Scalefactor from pixels to micron. Defaults to 0.12028
+based on `CosMx-ReadMe.html` info. May be different depending on dataset.}
+  }}
 }
 \value{
 a giotto object
 }
 \description{
 Given the path to a CosMx experiment directory, creates a Giotto
-object.
+object. For lower level control over loading, please see \code{\link[=importCosMx]{importCosMx()}}
 }
 \details{
 [\strong{Expected Directory}] This function generates a giotto object when
@@ -54,37 +122,71 @@ given a link to a cosmx output directory. It expects the following items
 within the directory where the \strong{bolded} portions are what this
 function matches against:
 \itemize{
-  \item{\strong{CellComposite} (folder of images)}
-  \item{\strong{CellLabels} (folder of images)}
-  \item{\strong{CellOverlay} (folder of images)}
-  \item{\strong{CompartmentLabels} (folder of images)}
-  \item{experimentname_\strong{exprMat_file}.csv (file)}
-  \item{experimentname_\strong{fov_positions_file}.csv (file)}
-  \item{experimentname_\strong{metadata_file}.csv (file)}
-  \item{experimentname_\strong{tx_file}.csv (file)}
+\item{\strong{CellComposite} (folder of images)}
+\item{\strong{CellLabels} (folder of images)}
+\item{\strong{CellOverlay} (folder of images)}
+\item{\strong{CompartmentLabels} (folder of images)}
+\item{experimentname_\strong{exprMat_file}.csv (file)}
+\item{experimentname_\strong{fov_positions_file}.csv (file)}
+\item{experimentname_\strong{metadata_file}.csv (file)}
+\item{experimentname_\strong{tx_file}.csv (file)}
+\item{experimentname-\strong{polygons}.csv (file)}
 }
 
-[\strong{Workflows}] Workflow to use is accessed through the data_to_use
-param
-\itemize{
-  \item{'all' - loads and requires subcellular information from tx_file and
-  fov_positions_file
-  and also the existing aggregated information
-  (expression, spatial locations, and metadata)
-  from exprMat_file and metadata_file.}
-  \item{'subcellular' - loads and requires subcellular information from
-  tx_file and
-  fov_positions_file only.}
-  \item{'aggregate' - loads and requires the existing aggregate information
-  (expression, spatial locations, and metadata) from exprMat_file and
-  metadata_file.}
-}
+The subdirectories should contain only the image files in order to be loaded
+correctly.
 
-[\strong{Images}] Images in the default CellComposite, CellLabels,
-CompartmentLabels, and CellOverlay
-folders will be loaded as giotto largeImage objects in all workflows as
-long as they are available. Additionally, CellComposite images will be
-converted to giotto image objects, making plotting with
-these image objects more responsive when accessing them from a server.
+[\strong{feat_type and split_keyword}]
+Additional QC probe information is in the subcellular feature detections
+information and must be separated from the gene expression information
+during processing.
+The QC probes have prefixes that allow them to be selected from the rest of
+the feature IDs.
+Giotto uses \code{feat_type} and \code{split_keyword} params to select these QC
+probes out as separate feature types. See examples in
+\verb{[GiottoClass::createGiottoPoints]} for how this works.
+
+The Gene expression subset labeled as \code{rna} is accepted as the subset of
+feat_IDs that do not get matched to any of the \code{split_keywords}.
+
+[\strong{Images}] Images in the expected CellComposite and CellOverlay
+folders will be loaded as giotto largeImage objects by default.
+
+[\strong{Polygons}] Some outputs provide both the mask images and the
+\code{polygons.csv}. Giotto uses the mask images by default to convert to polygons
+info. However, if only the \code{polygons.csv} file is present or
+\code{poly_pref = csv} is set, then the csv file will be used instead. One thing
+to watch out for when loading from the \code{csv} is that in some datasets, the
+polygons preferably should not overlap each other. Giotto is not fully
+compatible with overlapping annotations. It also opens up the possibility
+of double counting transcripts. Polygon overlaps do not appear to be an
+issue in the most recent outputs.
+
+[\strong{Spatial Alignment Issues}] Different versions of the CosMx output have
+changed how images (and polygons generated from masks) should be aligned
+relative to the vector information (transcript detections). The \code{version}
+param affects how the images are mapped by default. \code{image_negative_y} is
+a toggle that overrides the image mapping style when an appropriate \code{version}
+is difficult to determine.
 \code{\link{showGiottoImageNames}} can be used to see the available images.
+}
+\examples{
+\dontrun{
+f <- "file path to cosmx flatfile output directory"
+createGiottoCosMxObject(f)
+
+# load older CosMx format
+createGiottoCosMxObject(f, version = "legacy")
+
+# force images and mask image polygons to shift up one image height
+createGiottoCosMxObject(f, image_negative_y = FALSE)
+
+# load only aggregated data
+createGiottoCosMxObject(f,
+    load_cellmeta = TRUE,
+    load_expression = TRUE,
+    load_transcripts = FALSE
+    # data filepaths not needed unless they are not in expected locations
+)
+}
 }

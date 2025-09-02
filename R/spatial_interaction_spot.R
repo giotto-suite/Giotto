@@ -844,7 +844,7 @@ NULL
     all_ints <- all_ints[!rownames(proximityMat) %in% sel_int]
 
     if (set_seed == TRUE) {
-        set.seed(seed = seed_number)
+        GiottoUtils::local_seed(seed = seed_number)
     }
     random_sel_int <- sample(all_ints, size = l_sel_int, replace = FALSE)
     random_other_ints <- sample(all_ints, size = l_other_ints, replace = FALSE)
@@ -2148,7 +2148,7 @@ plotCellProximityFeatSpot <- function(
             # get random ids and subset
             if (set_seed == TRUE) {
                 seed_number <- seed_number + sim
-                set.seed(seed = seed_number)
+                GiottoUtils::local_seed(seed = seed_number)
             }
 
             random_ids_1 <- sample(
@@ -2409,7 +2409,7 @@ spatCellCellcomSpots <- function(
 
     if (dim(LR_out)[1] > 0) {
         message("Ligand or receptor were removed after computing expresion
-              residual.")
+                residual.")
         print(LR_out)
         LR_comb <- LR_comb[LR_comb$ligand %in% rownames(expr_residual) &
             LR_comb$receptor %in% rownames(expr_residual)]

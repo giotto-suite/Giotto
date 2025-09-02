@@ -1,3 +1,65 @@
+# Giotto 4.2.3
+
+## Changes
+* rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
+
+# Giotto 4.2.2 (2025/06/17)
+
+## Changes
+* deprecate `doRandomWalkCluster()` and `doSNNCluster()`. These functions will be removed soon.
+* switch to clustering framework based on {bluster} via `clusterData()` and `clusterParam()`
+
+## Bug fixes
+* fix fov shift detection logic in CosMx imports [#1168](https://github.com/drieslab/Giotto/pull/1168) by jral3s
+* fix fov shift inference logic in CosMx imports [#1169](https://github.com/drieslab/Giotto/pull/1169) by jral3s
+
+
+# Giotto 4.2.1 (2025/05/06)
+
+## Changes
+* GiottoUtils req raised to 0.2.4
+* terra req raised to 1.8-21
+
+## Bug fixes
+* fix `identifyTMAcores()` when no overlap relations are found and an `rbind` error is thrown
+* fix `createGiottoCosMxObject()` not passing `load_expression`, `load_cellmeta`, `load_transcripts` params to `importCosMx()`
+* fix convenience functions for {terra} `v1.8-21`
+* fix `Giotto::` scoped calls for functions that call `update_giotto_params()`
+
+## Enhancements
+* `poly_pref` param for `createGiottoCosMxObject()` and `importCosMx()` to select between loading the mask images or the `polygons.csv` as polygon info. 
+* `image_negative_y` param for `createGiottoCosMxObject()` for toggling how images and polygons from mask images should be spatially mapped
+* `slide` param made more prominent in `createGiottoCosMxObject()`
+* `importCosMx()` now supports vectors of filepaths when provided to `$load_images()` and `$load_polys()`
+* `importCosMx()` Selected FOVs are now selected in `plot()`.
+* performance improvements for default normalization workflow
+
+## New
+* `processExpression()` for `giotto` implemented via the `processData()` framework in {GiottoClass} v0.4.7 (see `?processData` and `?process_param`)
+* `arcsinh`, `L2`, and `TF-IDF` normalization methods accessible via the `processData()` framework
+* `runIterativeLSI()` based on {ArchR} implementation
+
+
+# Giotto 4.2.0 (2025/01/17)
+
+## Breaking Changes
+* Large changes to `createGiottoCosMxObject()` that better reflect NanoString provided outputs. 
+* Param naming changes for segmentation wrapper functions `doMesmerSegmentation()`, `doCellposeSegmentation()` `doStardistSegmentation()`
+
+## Bug fixes
+* fix `importCosMx()` fov shifts file detection
+* fix micron scaling for `importCosMx()`
+* `callSpdep()` should also automatically convert *Matrix* classes to `listw`
+
+## Enhancements
+* new `stats` param in `addStatistics()` to control which statistics are calculated.
+* `"area"` calculation added as an `addStatistics()` `stats` selection
+* `adjustGiottoMatrix()` now outputs a `Matrix` structure instead of a base `matrix`
+
+## Changes
+* GiottoUtils req raised to 0.2.3
+* `adjustGiottoMatrix()` `update_slot` param deprecated in favor of `name`.
+
 
 # Giotto 4.1.6 (2024/12/09)
 
@@ -15,8 +77,8 @@
 * re-export of `dotPlot()` from GiottoVisuals
 
 ## Changes
-* GiottoClass req raised to 0.4.5
 * GiottoUtils req raised to 0.2.2
+* GiottoClass req raised to 0.4.5
 * GiottoVisuals req raised to 0.2.10
 
 

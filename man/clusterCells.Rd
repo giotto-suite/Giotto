@@ -46,7 +46,8 @@ clusterCells(
   hc_h = NULL,
   return_gobject = TRUE,
   set_seed = TRUE,
-  seed_number = 1234
+  seed_number = 1234,
+  ...
 )
 }
 \arguments{
@@ -127,6 +128,8 @@ clusterCells(
 \item{set_seed}{set seed}
 
 \item{seed_number}{number for seed}
+
+\item{\dots}{additional params to pass to specific clustering method}
 }
 \value{
 giotto object with new clusters appended to cell metadata

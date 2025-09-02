@@ -302,7 +302,7 @@ cellProximityNetwork <- function(
         )
     }
 
-    edges_sizes <- igraph::get.edge.attribute(igd, "enrichm")
+    edges_sizes <- igraph::edge_attr(igd, "enrichm")
     post_edges_sizes <- edges_sizes[edges_sizes > 0]
     neg_edges_sizes <- edges_sizes[edges_sizes <= 0]
 
@@ -349,7 +349,7 @@ cellProximityNetwork <- function(
 
     ## only show attractive edges
     if (only_show_enrichment_edges == TRUE) {
-        colors <- igraph::get.edge.attribute(igd, name = "color")
+        colors <- igraph::edge_attr(igd, name = "color")
         subvertices_ids <- which(colors == "enriched")
         igd <- igraph::subgraph.edges(graph = igd, eids = subvertices_ids)
 
@@ -3355,7 +3355,7 @@ cellProximitySpatPlot2D <- function(
         default_save_name = "cellProximitySpatPlot2D") {
     if (is.null(interaction_name)) {
         stop("you need to specific at least one interaction name, run
-             cellProximityEnrichment")
+            cellProximityEnrichment")
     }
 
 

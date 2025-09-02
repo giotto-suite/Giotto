@@ -59,7 +59,7 @@ setMethod("show", signature("XeniumReader"), function(object) {
     # dir
     d <- object@xenium_dir
     if (length(d) > 0L) {
-        d <- abbrev_path(d)
+        d <- GiottoUtils::str_abbreviate(d)
         cat(pre["dir"], d, "\n")
     } else {
         cat(pre["dir"], "\n")
@@ -227,12 +227,14 @@ setMethod(
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -258,6 +260,10 @@ setMethod(
         poly_fun <- function(
         path = cell_bound_path,
         name = "cell",
+        part_col = "label_id",
+        split_geom = FALSE,
+        split_geom_fmt = "%d",
+        split_geom_sourcename = "cell_poly_id",
         flip_vertical = TRUE,
         calc_centroids = TRUE,
         cores = determine_cores(),
@@ -265,6 +271,10 @@ setMethod(
             .xenium_poly(
                 path = path,
                 name = name,
+                part_col = part_col,
+                split_geom = split_geom,
+                split_geom_fmt = split_geom_fmt,
+                split_geom_sourcename = split_geom_sourcename,
                 flip_vertical = flip_vertical,
                 calc_centroids = calc_centroids,
                 cores = cores,
@@ -379,12 +389,14 @@ setMethod(
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         load_images = "focus",
         load_aligned_images = NULL,
@@ -457,11 +469,27 @@ setMethod(
                 blist <- list()
                 bnames <- names(load_bounds)
                 for (b_i in seq_along(load_bounds)) {
-                    b <- funs$load_polys(
-                        path = load_bounds[[b_i]],
-                        name = bnames[[b_i]],
-                        verbose = verbose
-                    )
+                    b_name <- bnames[[b_i]]
+                    if (b_name == "nucleus") {
+                        b <- funs$load_polys(
+                            path = load_bounds[[b_i]],
+                            name = b_name,
+                            part_col = "label_id",
+                            split_geom = TRUE,
+                            split_geom_fmt = "nucleus_%d",
+                            split_geom_sourcename = "cell_poly_id",
+                            verbose = verbose
+                        )
+                    } else {
+                        b <- funs$load_polys(
+                            path = load_bounds[[b_i]],
+                            name = b_name,
+                            part_col = "label_id",
+                            split_geom = FALSE,
+                            verbose = verbose
+                        )
+                    }
+                    
                     blist <- c(blist, b)
                 }
                 g <- setGiotto(g, blist, verbose = FALSE)
@@ -681,12 +709,14 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -840,6 +870,10 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 .xenium_poly <- function(
         path,
+        part_col = "label_id",
+        split_geom = FALSE,
+        split_geom_fmt = "%d",
+        split_geom_sourcename = "cell_poly_id",
         name = "cell",
         flip_vertical = TRUE,
         calc_centroids = TRUE,
@@ -871,10 +905,17 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     verbose <- verbose %null% FALSE
     gpolys <- createGiottoPolygon(
         x = polys,
+        part_col = part_col,
         name = name,
         calc_centroids = calc_centroids,
         verbose = verbose
     )
+    if (isTRUE(split_geom)) {
+        gpolys <- splitGeom(gpolys, 
+            fmt = split_geom_fmt,
+            previous_id = split_geom_sourcename
+        )
+    }
     return(gpolys)
 }
 
@@ -983,6 +1024,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     dropcols <- dropcols[dropcols %in% colnames(feat_meta)]
     # remove dropcols
     if (length(dropcols) > 0L) feat_meta[, (dropcols) := NULL]
+    
+    feat_meta <- unique(feat_meta)
 
     fx <- createFeatMetaObj(
         metadata = feat_meta,
@@ -1079,6 +1122,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
     # specific feat type naming updates
     fname[fname == "Gene Expression"] <- "rna"
+    fname[fname == "Protein Expression"] <- "protein"
     fname[fname == "Negative Control Codeword"] <- "NegControlCodeword"
     fname[fname == "Negative Control Probe"] <- "NegControlProbe"
     fname[fname == "Blank Codeword"] <- "UnassignedCodeword" # from legacy Xenium pipeline
@@ -1092,6 +1136,13 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
+        
+        if(!inherits(ex_list[[ex_i]], "Matrix")) {
+            i_vector <- ex_list[[ex_i]]
+            ex_list[[ex_i]] <- t(Matrix::Matrix(ex_list[[ex_i]], sparse = TRUE))
+            colnames(ex_list[[ex_i]]) <- names(i_vector)
+        }
+        
         createExprObj(
             expression_data = ex_list[[ex_i]],
             name = "raw",
@@ -1270,6 +1321,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         # fullpath of tiff to write
         tiff_path <- file.path(output_dir, basename(path))
         tiff_path <- gsub(".ome.tif", ".tif", tiff_path)
+
         if (checkmate::test_file_exists(tiff_path)) {
             vmsg(.is_debug = TRUE, sprintf(
                 "converted tiff already present\n%s", tiff_path
@@ -1422,12 +1474,14 @@ createGiottoXeniumObject <- function(
             "rna",
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
-            "NegControlCodeword"
+            "NegControlCodeword",
+            "GenomicControl"
         ),
         qv_threshold = 20,
         load_images = "focus",

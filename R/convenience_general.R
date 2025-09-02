@@ -169,7 +169,7 @@ NULL
     # 3. select first path in list if multiple are detected
     if (any(dir_items_lengths > 1)) {
         warning(wrap_txt("Multiple matches for expected directory item(s).
-                     First matching item selected"))
+                        First matching item selected"))
 
         multiples <- which(dir_items_lengths > 1)
         for (mult_i in multiples) {
@@ -187,15 +187,6 @@ NULL
 
 
 
-abbrev_path <- function(path, head = 15, tail = 35L) {
-    nch <- nchar(path)
-    if (nch > 60L) {
-        p1 <- substring(path, first = 0L, last = head)
-        p2 <- substring(path, first = nch - tail, last = nch)
-        path <- paste0(p1, "[...]", p2)
-    }
-    return(path)
-}
 
 .reader_fun_prints <- function(x, pre) {
     nfun <- length(x@calls)
@@ -740,7 +731,7 @@ addVisiumPolygons <- function(gobject,
     if (!setequal(names(json_scalefactors), expected_json_names)) {
         warning(GiottoUtils::wrap_txt(
             "h5 scalefactors json names differ from expected.
-       [Expected]:", expected_json_names, "\n",
+            [Expected]:", expected_json_names, "\n",
             "[Actual]:", names(json_scalefactors)
         ))
     }

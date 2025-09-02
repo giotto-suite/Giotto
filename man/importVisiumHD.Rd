@@ -2,76 +2,114 @@
 % Please edit documentation in R/convenience_visiumHD.R
 \name{importVisiumHD}
 \alias{importVisiumHD}
+\alias{plot,VisiumHDReader,missing-method}
 \title{Import a Visium HD assay}
 \usage{
 importVisiumHD(
-  visiumHD_dir = NULL,
+  visiumhd_dir = NULL,
+  bin = 8,
+  micron = FALSE,
+  outdir = NULL,
   expression_source = "raw",
-  gene_column_index = 2,
+  feature_id_type = c("symbol", "ensembl"),
+  tissue_only = FALSE,
   barcodes = NULL,
   array_subset_row = NULL,
   array_subset_col = NULL,
   pxl_subset_row = NULL,
   pxl_subset_col = NULL,
-  shape = "hexagon",
-  shape_size = 400
+  filter = NULL,
+  filter_coverage_cutoff = 0.5
 )
+
+\S4method{plot}{VisiumHDReader,missing}(x, image = FALSE, ...)
 }
 \arguments{
-\item{visiumHD_dir}{Visium HD output directory (e.g. square_016um)}
+\item{visiumhd_dir}{Visium HD output directory containing tar outputs or
+their extracted `square_?um` directories.}
+
+\item{bin}{numeric. Bin level to load from. Currently one of 2, 8, or 16.}
+
+\item{micron}{logical. Set `TRUE` to load in micron scale instead of fullres
+image mapping.}
+
+\item{outdir}{(optional) directory to unpack bin output tar contents into.
+(Default is the same directory as the tarfile.)}
 
 \item{expression_source}{character. Raw or filter expression data. Defaults
 to "raw"}
 
-\item{gene_column_index}{numeric. Expression column to use for gene names
-1 = Ensembl and 2 = gene symbols}
+\item{feature_id_type}{character. One of `"symbol"` or `"ensembl"`.
+Determines which to use as the feature identifiers.}
 
-\item{barcodes}{character vector. (optional) Use if you only want to load
-a subset of the pixel barcodes}
+\item{tissue_only}{logical. Whether to only load information tagged as
+`in_tissue` (in `tissue_positions.parquet`). This is ignored by transcript
+loading.}
 
-\item{array_subset_row}{numeric vector. (optional) Vector with min and max
-values to subset based on array rows}
+\item{barcodes}{(optional) character. Specific pixel barcodes to keep.}
 
-\item{array_subset_col}{numeric vector. (optional) Vector with min and max
-values to subset based on array columns}
+\item{array_subset_row}{(optional) numeric vector, length = 2. Min/max of
+array rows to keep}
 
-\item{pxl_subset_row}{numeric vector. (optional) Vector with min and max
-values to subset based on row pixels}
+\item{array_subset_col}{(optional) numeric vector, length = 2. Min/max of
+array cols to keep}
 
-\item{pxl_subset_col}{numeric vector. (optional) Vector with min and max
-values to subset based on column pixels}
+\item{pxl_subset_row}{(optional) numeric vector, length = 2. Min/max of
+fullres image mapped rows to keep. Note that values are inverted into the
+negatives.}
+
+\item{pxl_subset_col}{(optional) numeric vector, length = 2. Min/max of
+fullres image mapped cols to keep.}
+
+\item{filter}{(optional) a `SpatVector`, `sf`, or `giottoPolygon` to
+spatially filter the data by.}
+
+\item{filter_coverage_cutoff}{numeric between 0 and 1. Minimal fraction of
+pixel coverage by `filter` in order to be selected.}
+
+\item{x}{`VisiumHDReader`}
+
+\item{image}{logical. Whether to plot the image}
+
+\item{...}{additional params to pass}
 }
 \value{
-VisiumHDReader object
+`VisiumHDReader` object
 }
 \description{
-Giotto import functionalities for Visium HD datasets. This function generates
-a `VisiumHDReader` instance that has convenient reader functions for
-converting individual pieces of Visium HD data into Giotto-compatible
-representations when the param `visiumHD_dir` is provided.
-A function that creates the full `giotto` object is also available.
-These functions should have all param values provided as defaults, but
-can be flexibly modified to do things such as look in alternative
-directories or paths.
+Giotto import functionalities for Visium HD datasets. This
+function generates a `VisiumHDReader` instance that has convenient reader
+functions for converting individual pieces of Visium HD data into
+Giotto-compatible representations when the param `visiumhd_dir` is provided.
+A function that creates the full `giotto` object is also available. These
+functions should have all param values provided as defaults, but can be
+flexibly modified to do things such as look in alternative directories or
+paths.
 }
 \details{
-Loading functions are generated after the `visiumHD_dir` is added.
+Loading functions are generated after the `visiumhd_dir` is added.
 }
 \examples{
 \dontrun{
 # Create a `VisiumHDReader` object
-reader <- importVisiumHD()
+reader <- importVisiumHD(bin = 16, tissue_only = TRUE)
 
-# Set the visiumHD_dir
-reader$visiumHD_dir <- "path to visium HD dir"
-readerHD$visiumHD_dir <- visiumHD_dir
+# visualization
+plot(reader)
+plot(reader, image = TRUE)
+reader$micron <- TRUE
+plot(reader, image = TRUE)
+reader$micron <- FALSE # reset
+
+# Set the visiumhd_dir
+reader$visiumhd_dir <- "path to visium HD dir"
+readerHD$visiumhd_dir <- visiumhd_dir
 
 # Load tissue positions or create cell metadata
 tissue_pos <- readerHD$load_tissue_position()
-metadata <- readerHD$load_metadata()
+metadata <- readerHD$load_cellmeta()
 
 # Load matrix or create expression object
-matrix <- readerHD$load_matrix()
 expression_obj <- readerHD$load_expression()
 
 # Load transcript data (cell metadata, expression object, and transcripts
@@ -82,6 +120,6 @@ my_transcripts <- readerHD$load_transcripts(
 )
 
 # Create a `giotto` object and add the loaded data
-# TODO
+g <- reader$create_gobject()
 }
 }

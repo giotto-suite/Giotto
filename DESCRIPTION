@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.1.6
+Version: 4.2.3
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -28,17 +28,18 @@ RoxygenNote: 7.3.2
 Depends:
     R (>= 4.4.0),
     methods,
-    GiottoClass (>= 0.4.5)
+    GiottoClass (>= 0.4.7)
 Imports:
     BiocParallel,
     BiocSingular,
+    bluster,
     checkmate,
     data.table (>= 1.12.2),
     dbscan (>= 1.1-3),
     ggraph,
     ggplot2 (>= 3.1.1),
-    GiottoUtils (>= 0.2.2),
-    GiottoVisuals (>= 0.2.10),
+    GiottoUtils (>= 0.2.4),
+    GiottoVisuals (>= 0.2.12),
     igraph (>= 1.2.4.1),
     Matrix (>= 1.6-2),
     MatrixGenerics,
@@ -46,7 +47,7 @@ Imports:
     scales (>= 1.0.0),
     sparseMatrixStats,
     stats,
-    terra (>= 1.7-39),
+    terra (>= 1.8-21),
     uwot (>= 0.0.0.9010)
 Suggests:
     ArchR,
@@ -116,6 +117,8 @@ Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
     'cell_segmentation.R'
+    'package_imports.R'
+    'normalize.R'
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
@@ -135,8 +138,6 @@ Collate:
     'image_registration.R'
     'interactivity.R'
     'kriging.R'
-    'normalize.R'
-    'package_imports.R'
     'poly_influence.R'
     'python_hmrf.R'
     'python_scrublet.R'
