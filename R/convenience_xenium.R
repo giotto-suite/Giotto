@@ -39,7 +39,7 @@ setClass(
         filetype = list(
             transcripts = "parquet",
             boundaries = "parquet",
-            expression = "h5",
+            expression = c("h5", "mtx"),
             cell_meta = "parquet"
         ),
         qv = 20,
@@ -145,7 +145,7 @@ setMethod(
                 call. = FALSE
             )
         }
-        if (!ftype$expression %in% ft_exp) {
+        if (!all(ftype$expression %in% ft_exp)) {
             stop(
                 wrap_txt(
                     "`$filetype$expression` must be one of",
@@ -185,9 +185,15 @@ setMethod(
 
         expr_path <- .xenium_detect("cell_feature_matrix", first = FALSE)
 
+        # .xenium_ftype <- function(paths, ftype) {
+        #     paths[grepl(pattern = paste0(".", ftype), x = paths)]
+        # }
         .xenium_ftype <- function(paths, ftype) {
-            paths[grepl(pattern = paste0(".", ftype), x = paths)]
+            paths[grepl(pattern = paste0("\\.", ftype, "$"),
+                        x = paths,
+                        ignore.case = TRUE)]
         }
+
 
 
         # select file formats based on reader settings
@@ -196,16 +202,55 @@ setMethod(
         nuc_bound_path <- .xenium_ftype(nuc_bound_path, ftype$boundaries)
         cell_meta_path <- .xenium_ftype(cell_meta_path, ftype$cell_meta)
 
-        # for mtx, check if directory instead
-        if (ftype$expression == "mtx") {
-            is_dir <- vapply(
-                expr_path, checkmate::test_directory,
-                FUN.VALUE = logical(1L)
-            )
-            expr_path <- expr_path[is_dir]
-        } else {
-            expr_path <- .xenium_ftype(expr_path, ftype$expression)
+        expr_candidates <- character(0)
+        if ("h5" %in% ftype$expression) {
+            expr_candidates <- c(
+                expr_candidates,
+                .xenium_ftype(expr_path, "h5"))
         }
+        # for mtx, check if directory instead
+        if ("mtx" %in% ftype$expression) {
+            is_dir <- vapply(
+                expr_path,
+                checkmate::test_directory,
+                FUN.VALUE = logical(1L))
+            expr_candidates <- c(
+                expr_candidates,
+                expr_path[is_dir])
+        }
+        expr_candidates <- unique(expr_candidates)
+        if (length(expr_candidates) == 0L) {
+            stop("No expression path matching allowed types (",
+                 paste(ftype$expression, collapse = ", "),
+                 ") found in: ", p)
+        }
+        mtx_dirs <- expr_candidates[vapply(expr_candidates,
+                                           checkmate::test_directory,
+                                           FUN.VALUE = logical(1L))]
+        h5_files <- grep("\\.h5$",
+                         expr_candidates,
+                         ignore.case = TRUE,
+                         value = TRUE)
+
+        if (length(mtx_dirs)) {
+            expr_path <- mtx_dirs[[1]]
+        } else if (length(h5_files)) {
+            expr_path <- h5_files[[1]]
+        } else {
+            stop("No usable expression path among candidates: ",
+                 paste(expr_candidates,
+                       collapse = ", "))
+        }
+
+        # if (ftype$expression == "mtx") {
+        #     is_dir <- vapply(
+        #         expr_path, checkmate::test_directory,
+        #         FUN.VALUE = logical(1L)
+        #     )
+        #     expr_path <- expr_path[is_dir]
+        # } else {
+        #     expr_path <- .xenium_ftype(expr_path, ftype$expression)
+        # }
 
         # decide micron scaling
         if (length(obj@micron) == 0) { # if no value already set
@@ -489,7 +534,7 @@ setMethod(
                             verbose = verbose
                         )
                     }
-                    
+
                     blist <- c(blist, b)
                 }
                 g <- setGiotto(g, blist, verbose = FALSE)
@@ -535,18 +580,18 @@ setMethod(
             if (!is.null(load_images)) {
                 load_images <- lapply(load_images, normalizePath, mustWork = FALSE)
                 img_focus_path <- normalizePath(img_focus_path, mustWork = FALSE)
-                
+
                 # replace shortname
                 load_images[load_images == "focus"] <- img_focus_path
-                
+
                 is_dir <- dir.exists(img_focus_path)
                 is_focus <- load_images == img_focus_path
                 is_focus_image <- is_focus & !is_dir
                 is_focus_dir <- is_focus & is_dir
-                
+
                 # handle matches to single focus images instead of a directory
                 names(load_images)[is_focus_image] <- "dapi"
-                
+
                 # [exception] handle focus image dir
                 if (any(is_focus_dir)) {
                     # split the focus image dir away from other entries
@@ -554,14 +599,14 @@ setMethod(
                     focus_dir <- img_focus_path
                     focus_files <- list.files(focus_dir, full.names = TRUE)
                     # ignore matches to export dir (if it is a subdirectory)
-                    focus_files <- focus_files[!dir.exists(focus_files)] 
+                    focus_files <- focus_files[!dir.exists(focus_files)]
                     if (length(focus_files) > 0L) {
                         nbound <- length(focus_files) - 1L
                         focus_names <- c(
                             "dapi", sprintf("bound%d", seq_len(nbound))
                         )
                         names(focus_files) <- focus_names
-                        
+
                         # append to rest of entries
                         load_images <- c(load_images, focus_files)
                     }
@@ -738,7 +783,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
     output <- match.arg(output, choices = c("giottoPoints", "data.table"))
-    
+
     # read in as data.table
     a <- list(
         path = path,
@@ -762,7 +807,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     if (flip_vertical) tx[, y := -y]
 
     if (output == "data.table") return(tx)
-    
+
     # create gpoints
     gpointslist <- createGiottoPoints(
         x = tx,
@@ -911,7 +956,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         verbose = verbose
     )
     if (isTRUE(split_geom)) {
-        gpolys <- splitGeom(gpolys, 
+        gpolys <- splitGeom(gpolys,
             fmt = split_geom_fmt,
             previous_id = split_geom_sourcename
         )
@@ -1024,7 +1069,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     dropcols <- dropcols[dropcols %in% colnames(feat_meta)]
     # remove dropcols
     if (length(dropcols) > 0L) feat_meta[, (dropcols) := NULL]
-    
+
     feat_meta <- unique(feat_meta)
 
     fx <- createFeatMetaObj(
@@ -1136,13 +1181,13 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
-        
+
         if(!inherits(ex_list[[ex_i]], "Matrix")) {
             i_vector <- ex_list[[ex_i]]
             ex_list[[ex_i]] <- t(Matrix::Matrix(ex_list[[ex_i]], sparse = TRUE))
             colnames(ex_list[[ex_i]]) <- names(i_vector)
         }
-        
+
         createExprObj(
             expression_data = ex_list[[ex_i]],
             name = "raw",

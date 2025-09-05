@@ -699,7 +699,8 @@ get10Xmatrix_h5 <- function(
             ]
 
             # change names to gene symbols if it's expression
-            if (fclass == "Gene Expression" && gene_ids == "symbols") {
+            if ((fclass %in% c("Gene Expression", "Protein Expression")) && gene_ids == "symbols") {
+
                 conv_vector <- features_dt$uniq_name
                 names(conv_vector) <- features_dt$id
 
