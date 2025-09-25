@@ -1729,7 +1729,7 @@ normalizeGiotto <- function(gobject,
 }
 
 .libzero_warn <- function(libsizes) {
-    if (0 %in% libsizes) {
+    if (any(0 == libsizes)) {
         warning(wrap_txt("Total library size or counts for individual spat
             units are 0.
             This will likely result in normalization problems.
