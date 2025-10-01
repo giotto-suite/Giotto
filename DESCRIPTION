@@ -24,7 +24,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 URL: https://drieslab.github.io/Giotto/, https://github.com/drieslab/Giotto
 BugReports: https://github.com/drieslab/Giotto/issues
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Depends:
     R (>= 4.4.1),
     methods,
@@ -122,6 +122,7 @@ Collate:
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
+    'convenience_stomics.r'
     'convenience_visiumHD.R'
     'convenience_xenium.R'
     'cross_section.R'
