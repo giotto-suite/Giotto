@@ -22,8 +22,8 @@ file (default) or "cellbin" to read expression from *.adjusted.cellbin.gef
 file.}
 
 \item{bin_size}{bin size to select from *.tissue.gef file. Choose a value 
-from "bin1", "bin10", "bin20", "bin50", "bin100", or "bin200". Only needed 
-when using type = "squarebin".}
+from "bin1", "bin5", "bin10", "bin20", "bin50", "bin100", "bin150", or 
+"bin200". Only needed when using type = "squarebin".}
 
 \item{gene_column}{(optional) character. Which column contains the gene names
 within the geneExp information. Choose from "geneName" (default), or "geneID"}
