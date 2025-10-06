@@ -102,36 +102,134 @@ createGiottoSTOmicsObject <- function(
             "Finished reading in tissue.gef", bin_size)
     }
     
-    # 2. create spatial locations
-    if (isTRUE(verbose)) wrap_msg("2. Create spatial_locations... \n")
-    cell_locations <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
-    cell_locations[, bin_ID := as.factor(seq_len(nrow(cell_locations)))]
-    cell_locations[, cell_ID := paste0("cell_", bin_ID)]
-    data.table::setcolorder(cell_locations, c("x", "y", "cell_ID", "bin_ID"))
+    if(type == "cellbin") {
+        expression_file <- file.path(
+            stomics_dir, "outs", "feature_expression", 
+            dir_files[grep(".adjusted.cellbin.gef", dir_files)])
+        
+        if (!file.exists(expression_file)) stop(
+            "Path to expression file ", expression_file, " does not exist")
+        
+        # check if proper bin_size is selected. These are determined in SAW pipeline
+        wrap_msg("1. Reading expression file... \n")
+        
+        # 1. read tissue.gef file at specific bin size
+        geneExpData <- rhdf5::h5read(
+            file = expression_file,
+            name = "cellBin"
+        )
+        
+        exprDT <- data.table::as.data.table(geneExpData[["cellExp"]])
+        exprDT_cell <- data.table::as.data.table(geneExpData[["geneExp"]])
+        exprDT[, cell_ID := exprDT_cell[["cellID"]]]
+        data.table::setorder(exprDT, geneID) # sort by geneID (ascending)
+        geneDT <- data.table::as.data.table(geneExpData[["gene"]])
+        
+        # check valid gene_column value
+        if(!gene_column %in% c("geneName", "geneID")) stop(
+            "Provide a valid 'gene_column' value. It should be 'geneName' or
+            'geneID'")
+        
+        # process duplicated gene symbol
+        if (any(duplicated(geneDT[[gene_column]]))) {
+            duplicated_genes <- unique(
+                geneDT[[gene_column]][duplicated(geneDT[[gene_column]])])
+            cat("Ops!!! Duplicated_genes, processing: sum(count), mean(offset)\n")
+            # merge
+            for (gene in duplicated_genes) {
+                # indices
+                idx <- which(geneDT[[gene_column]] == gene)
+                
+                cat("Original count values for", gene, ":", geneDT$cellCount[idx], "\n")
+                
+                # update
+                geneDT$cellCount[idx[1]] <- sum(geneDT$cellCount[idx]) # 对重复的 count 求和
+                geneDT$offset[idx[1]] <- mean(geneDT$offset[idx]) # 对重复的 offset 求平均
+                
+                #
+                cat("Updated count for", gene, ":", geneDT$cellCount[idx[1]], "\n")
+                cat("Updated offset for", gene, ":", geneDT$offset[idx[1]], "\n")
+                
+                #
+                geneDT <- geneDT[-idx[-1], ]
+            }
+        }
+        
+        if (isTRUE(verbose)) wrap_msg(
+            "Finished reading in adjusted.cellbin.gef")
+    }
     
-    # ensure first non-numerical col is cell_ID
-    if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " bins in total \n")
+    # 2. create spatial locations
+    if (isTRUE(verbose)) wrap_msg("2. create spatial_locations... \n")
+    
+    if(type == "squarebin") {
+        cell_locations <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
+        cell_locations[, bin_ID := as.factor(seq_len(nrow(cell_locations)))]
+        cell_locations[, cell_ID := paste0("cell_", bin_ID)]
+        data.table::setcolorder(cell_locations, c("x", "y", "cell_ID", "bin_ID"))
+        # ensure first non-numerical col is cell_ID
+        if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " bins in total \n")
+    }
+    
+    if(type == "cellbin") {
+        cell_locations <- unique(
+            geneExpData[["cell"]][, c("x", "y", "id")], by = c("x", "y"))
+        cell_locations <- data.table::as.data.table(cell_locations)
+        cell_locations[, cell_ID := paste0("cell_", id)]
+        cell_locations <- cell_locations[, c("x", "y", "cell_ID")]
+        
+        # ensure first non-numerical col is cell_ID
+        data.table::setcolorder(cell_locations, c("x", "y", "cell_ID"))
+        cell_locations[, x := lapply(.SD, as.integer), .SDcols = "x"]
+        cell_locations[, y := lapply(.SD, as.integer), .SDcols = "y"]
+        
+        if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " cells in total \n")
+    }
+    
     if (isTRUE(verbose)) wrap_msg("finished spatial_locations \n")
     
     # 3. create expression matrix
     if (isTRUE(verbose)) wrap_msg("3. create expression matrix... \n")
-    exprDT[, genes := as.character(rep(x = geneDT[[gene_column]], geneDT$count))]
-    exprDT[, gene_idx := as.integer(factor(exprDT$genes,
-                                           levels = unique(exprDT$genes)
-    ))]
     
-    # merge on x,y and populate based on bin_ID values in cell_locations
-    exprDT[cell_locations, cell_ID := i.bin_ID, on = .(x, y)]
-    exprDT$cell_ID <- as.integer(exprDT$cell_ID)
+    if(type == "squarebin") {
+        exprDT[, genes := as.character(
+            rep(x = geneDT[[gene_column]], geneDT$count))]
+        
+        exprDT[, gene_idx := as.integer(factor(exprDT$genes,
+                                               levels = unique(exprDT$genes)
+        ))]
+        
+        # merge on x,y and populate based on bin_ID values in cell_locations
+        exprDT[cell_locations, cell_ID := i.bin_ID, on = .(x, y)]
+        exprDT$cell_ID <- as.integer(exprDT$cell_ID)
+        
+        expMatrix <- Matrix::sparseMatrix(
+            i = exprDT$gene_idx,
+            j = exprDT$cell_ID,
+            x = exprDT$count
+        )
+        
+        colnames(expMatrix) <- cell_locations$cell_ID
+        rownames(expMatrix) <- geneDT[[gene_column]]
+    }
     
-    expMatrix <- Matrix::sparseMatrix(
-        i = exprDT$gene_idx,
-        j = exprDT$cell_ID,
-        x = exprDT$count
-    )
+    if(type == "cellbin") {
+        exprDT[, genes := as.character(
+            rep(x = geneDT[[gene_column]], geneDT$cellCount))]
+        
+        exprDT[, cell_ID := paste0("cell_", cell_ID)]
+        
+        exprDT_wide <- data.table::dcast(
+            exprDT, genes ~ cell_ID, value.var = "count",
+            fun.aggregate = sum)
+        
+        expMatrix <-  Matrix::Matrix(Matrix::as.matrix(exprDT_wide[,-1]),
+                                     sparse = TRUE)
+        
+        colnames(expMatrix) <- colnames(exprDT_wide)[-1]
+        rownames(expMatrix) <- exprDT_wide$genes
+    }
     
-    colnames(expMatrix) <- cell_locations$cell_ID
-    rownames(expMatrix) <- geneDT[[gene_column]]
     rm(exprDT)
     if (isTRUE(verbose)) wrap_msg("finished expression matrix")
     
