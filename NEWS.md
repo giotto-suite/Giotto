@@ -1,7 +1,14 @@
 # Giotto 4.2.3
 
+## New
+* New reader function `createGiottoSTOmicsObject`.
+
 ## Changes
 * rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
+
+## Bug fixes
+* Replace outdated ggplot aes_string with local aes_string2 function.
+* Fix usage of outdated parameter in `giottoToSeuratV5`.
 
 # Giotto 4.2.2 (2025/06/17)
 
