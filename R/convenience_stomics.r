@@ -1,6 +1,6 @@
-#' Create STOmics Giotto Object
+#' Create Stereo-seq Giotto Object
 #'
-#' @param stomics_dir filepath to the exported STOmics directory.
+#' @param stereoseq_dir filepath to the exported Stereo-seq directory.
 #' @param type character. Use "squarebin" to read expression from *.tissue.gef 
 #' file (default) or "cellbin" to read expression from *.adjusted.cellbin.gef 
 #' file.
@@ -14,10 +14,10 @@
 #' @param instructions list of instructions or output result
 #' @param flip_spatial_locs Flip spatial locations in the y axis
 #' from \code{\link{createGiottoInstructions}}
-#' @returns Giotto STOmics object
+#' @returns Giotto Stereo-seq object
 #' @export
-createGiottoSTOmicsObject <- function(
-        stomics_dir,
+createGiottoStereoSeqObject <- function(
+        stereoseq_dir,
         type = c("squarebin", "cellbin"),
         bin_size = "bin100",
         gene_column = c("geneName", "geneID"),
@@ -33,10 +33,10 @@ createGiottoSTOmicsObject <- function(
     package_check(pkg_name = "rhdf5", repository = "Bioc")
     
     # directory check
-    if (!file.exists(stomics_dir)) stop(
+    if (!file.exists(stereoseq_dir)) stop(
         "Path to stomics directory does not exist")
     
-    dir_files <- list.files(file.path(stomics_dir, "outs", "feature_expression"))
+    dir_files <- list.files(file.path(stereoseq_dir, "outs", "feature_expression"))
     
     # file reading type check
     if(!type %in% c("squarebin", "cellbin")) stop(
@@ -45,7 +45,7 @@ createGiottoSTOmicsObject <- function(
     # Read squarebin
     if(type == "squarebin") {
         expression_file <- file.path(
-            stomics_dir, "outs", "feature_expression", 
+            stereoseq_dir, "outs", "feature_expression", 
             dir_files[grep(".tissue.gef", dir_files)])
         
         if (!file.exists(expression_file)) stop(
@@ -105,7 +105,7 @@ createGiottoSTOmicsObject <- function(
     
     if(type == "cellbin") {
         expression_file <- file.path(
-            stomics_dir, "outs", "feature_expression", 
+            stereoseq_dir, "outs", "feature_expression", 
             dir_files[grep(".adjusted.cellbin.gef", dir_files)])
         
         if (!file.exists(expression_file)) stop(
@@ -247,6 +247,10 @@ createGiottoSTOmicsObject <- function(
         rownames(expMatrix) <- exprDT_wide$genes
     }
     
+    if(!cell_locations$cell_ID == colnames(expMatrix)) {
+        cell_locations <- cell_locations[cell_ID %in% colnames(expMatrix),]
+    }
+    
     rm(exprDT)
     vmsg(.v = verbose, "finished expression matrix")
 
@@ -264,7 +268,7 @@ createGiottoSTOmicsObject <- function(
     # 5. add image
     vmsg(.v = verbose, "5. attaching HE image... \n")
     
-    image_dir <- file.path(stomics_dir, "outs", "image")
+    image_dir <- file.path(stereoseq_dir, "outs", "image")
     he_image_path <- list.files(
         path = image_dir, pattern = "HE_regist", full.names = TRUE)
     gimg <- createGiottoLargeImage(he_image_path, name = "HE_regist")
