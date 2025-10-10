@@ -100,8 +100,7 @@ createGiottoSTOmicsObject <- function(
             }
         }
         
-        if (isTRUE(verbose)) wrap_msg(
-            "Finished reading in tissue.gef", bin_size)
+        vmsg(.v = verbose, "Finished reading in tissue.gef")
     }
     
     if(type == "cellbin") {
@@ -157,20 +156,19 @@ createGiottoSTOmicsObject <- function(
             }
         }
         
-        if (isTRUE(verbose)) wrap_msg(
-            "Finished reading in adjusted.cellbin.gef")
+        vmsg(.v = verbose, "Finished reading in adjusted.cellbin.gef")
     }
     
     # 2. create spatial locations
-    if (isTRUE(verbose)) wrap_msg("2. create spatial_locations... \n")
-    
+    vmsg(.v = verbose, "2. create spatial_locations... \n")
+
     if(type == "squarebin") {
         cell_locations <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
         cell_locations[, bin_ID := as.factor(seq_len(nrow(cell_locations)))]
         cell_locations[, cell_ID := paste0("cell_", bin_ID)]
         data.table::setcolorder(cell_locations, c("x", "y", "cell_ID", "bin_ID"))
         # ensure first non-numerical col is cell_ID
-        if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " bins in total \n")
+        vmsg(.v = verbose, nrow(cell_locations), " bins in total \n")
     }
     
     if(type == "cellbin") {
@@ -185,18 +183,18 @@ createGiottoSTOmicsObject <- function(
         cell_locations[, x := lapply(.SD, as.integer), .SDcols = "x"]
         cell_locations[, y := lapply(.SD, as.integer), .SDcols = "y"]
         
-        if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " cells in total \n")
+        vmsg(.v = verbose, nrow(cell_locations), " cells in total \n")
     }
     
     if(isTRUE(flip_spatial_locs)) {
         cell_locations[, y := 0 - y]
     }
     
-    if (isTRUE(verbose)) wrap_msg("finished spatial_locations \n")
-    
+    vmsg(.v = verbose, "finished spatial_locations \n")
+
     # 3. create expression matrix
-    if (isTRUE(verbose)) wrap_msg("3. create expression matrix... \n")
-    
+    vmsg(.v = verbose, "3. create expression matrix... \n")
+
     if(type == "squarebin") {
         exprDT[, genes := as.character(
             rep(x = geneDT[[gene_column]], geneDT$count))]
@@ -250,10 +248,11 @@ createGiottoSTOmicsObject <- function(
     }
     
     rm(exprDT)
-    if (isTRUE(verbose)) wrap_msg("finished expression matrix")
-    
+    vmsg(.v = verbose, "finished expression matrix")
+
     # 4. create minimal giotto object
-    if (isTRUE(verbose)) wrap_msg("4. create giotto object... \n")
+    vmsg(.v = verbose, "4. create giotto object... \n")
+    
     stereo <- createGiottoObject(
         expression = expMatrix,
         spatial_locs = cell_locations,
@@ -263,10 +262,13 @@ createGiottoSTOmicsObject <- function(
     )
     
     # 5. add image
-    if (isTRUE(verbose)) wrap_msg("5. attaching HE image... \n")
+    vmsg(.v = verbose, "5. attaching HE image... \n")
+    
     image_dir <- file.path(stomics_dir, "outs", "image")
-    he_image_path <- list.files(path = image_dir, pattern = "HE_regist", full.names = TRUE)
+    he_image_path <- list.files(
+        path = image_dir, pattern = "HE_regist", full.names = TRUE)
     gimg <- createGiottoLargeImage(he_image_path, name = "HE_regist")
+    
     stereo <- addGiottoLargeImage(
         gobject = stereo,
         largeImages = gimg,
@@ -274,6 +276,6 @@ createGiottoSTOmicsObject <- function(
         verbose = verbose
     )
 
-    if (isTRUE(verbose)) wrap_msg("finished giotto object... \n")
+    vmsg(.v = verbose, "finished giotto object... \n")
     return(stereo)
 }
