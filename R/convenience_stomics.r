@@ -12,6 +12,7 @@
 #' @param verbose logical. Be verbose.
 #' @param h5_file (optional) name to create an on-disk HDF5 file.
 #' @param instructions list of instructions or output result
+#' @param flip_spatial_locs Flip spatial locations in the y axis
 #' from \code{\link{createGiottoInstructions}}
 #' @returns Giotto STOmics object
 #' @export
@@ -20,6 +21,7 @@ createGiottoSTOmicsObject <- function(
         type = c("squarebin", "cellbin"),
         bin_size = "bin100",
         gene_column = c("geneName", "geneID"),
+        flip_spatial_locs = TRUE,
         verbose = TRUE,
         h5_file = NULL,
         instructions = NULL) {
@@ -186,6 +188,10 @@ createGiottoSTOmicsObject <- function(
         if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " cells in total \n")
     }
     
+    if(isTRUE(flip_spatial_locs)) {
+        cell_locations[, y := 0 - y]
+    }
+    
     if (isTRUE(verbose)) wrap_msg("finished spatial_locations \n")
     
     # 3. create expression matrix
@@ -201,16 +207,29 @@ createGiottoSTOmicsObject <- function(
         
         # merge on x,y and populate based on bin_ID values in cell_locations
         exprDT[cell_locations, cell_ID := i.bin_ID, on = .(x, y)]
-        exprDT$cell_ID <- as.integer(exprDT$cell_ID)
+        # exprDT$cell_ID <- as.integer(exprDT$cell_ID)
+        exprDT[, cell_ID := paste0("cell_", cell_ID)]
+        exprDT <- exprDT[, c("genes", "cell_ID", "count")]
+
+        exprDT_wide <- data.table::dcast(
+            exprDT, genes ~ cell_ID, value.var = "count",
+            fun.aggregate = sum)
         
-        expMatrix <- Matrix::sparseMatrix(
-            i = exprDT$gene_idx,
-            j = exprDT$cell_ID,
-            x = exprDT$count
-        )
+        expMatrix <-  Matrix::Matrix(Matrix::as.matrix(exprDT_wide[,-1]),
+                                     sparse = TRUE)
         
-        colnames(expMatrix) <- cell_locations$cell_ID
-        rownames(expMatrix) <- geneDT[[gene_column]]
+        colnames(expMatrix) <- colnames(exprDT_wide)[-1]
+        rownames(expMatrix) <- exprDT_wide$genes
+        
+
+        # expMatrix <- Matrix::sparseMatrix(
+        #     i = exprDT$gene_idx,
+        #     j = exprDT$cell_ID,
+        #     x = exprDT$count
+        # )
+        # 
+        # colnames(expMatrix) <- cell_locations$cell_ID
+        # rownames(expMatrix) <- geneDT[[gene_column]]
     }
     
     if(type == "cellbin") {

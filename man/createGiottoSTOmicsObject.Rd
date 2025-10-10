@@ -9,6 +9,7 @@ createGiottoSTOmicsObject(
   type = c("squarebin", "cellbin"),
   bin_size = "bin100",
   gene_column = c("geneName", "geneID"),
+  flip_spatial_locs = TRUE,
   verbose = TRUE,
   h5_file = NULL,
   instructions = NULL
@@ -28,12 +29,14 @@ from "bin1", "bin5", "bin10", "bin20", "bin50", "bin100", "bin150", or
 \item{gene_column}{(optional) character. Which column contains the gene names
 within the geneExp information. Choose from "geneName" (default), or "geneID"}
 
+\item{flip_spatial_locs}{Flip spatial locations in the y axis
+from \code{\link{createGiottoInstructions}}}
+
 \item{verbose}{logical. Be verbose.}
 
 \item{h5_file}{(optional) name to create an on-disk HDF5 file.}
 
-\item{instructions}{list of instructions or output result
-from \code{\link{createGiottoInstructions}}}
+\item{instructions}{list of instructions or output result}
 }
 \value{
 Giotto STOmics object
