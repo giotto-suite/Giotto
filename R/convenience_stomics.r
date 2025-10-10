@@ -261,7 +261,19 @@ createGiottoSTOmicsObject <- function(
         h5_file = h5_file,
         instructions = instructions
     )
-    if (isTRUE(verbose)) wrap_msg("finished giotto object... \n")
     
+    # 5. add image
+    if (isTRUE(verbose)) wrap_msg("5. attaching HE image... \n")
+    image_dir <- file.path(stomics_dir, "outs", "image")
+    he_image_path <- list.files(path = image_dir, pattern = "HE_regist", full.names = TRUE)
+    gimg <- createGiottoLargeImage(he_image_path, name = "HE_regist")
+    stereo <- addGiottoLargeImage(
+        gobject = stereo,
+        largeImages = gimg,
+        negative_y = TRUE,
+        verbose = verbose
+    )
+
+    if (isTRUE(verbose)) wrap_msg("finished giotto object... \n")
     return(stereo)
 }
