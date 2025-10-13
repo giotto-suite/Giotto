@@ -34,7 +34,7 @@ createGiottoStereoSeqObject <- function(
     
     # directory check
     if (!file.exists(stereoseq_dir)) stop(
-        "Path to stomics directory does not exist")
+        "Path to Stereo-seq directory does not exist")
     
     dir_files <- list.files(file.path(stereoseq_dir, "outs", "feature_expression"))
     
@@ -186,10 +186,6 @@ createGiottoStereoSeqObject <- function(
         vmsg(.v = verbose, nrow(cell_locations), " cells in total \n")
     }
     
-    if(isTRUE(flip_spatial_locs)) {
-        cell_locations[, y := 0 - y]
-    }
-    
     vmsg(.v = verbose, "finished spatial_locations \n")
 
     # 3. create expression matrix
@@ -199,35 +195,21 @@ createGiottoStereoSeqObject <- function(
         exprDT[, genes := as.character(
             rep(x = geneDT[[gene_column]], geneDT$count))]
         
-        exprDT[, gene_idx := as.integer(factor(exprDT$genes,
-                                               levels = unique(exprDT$genes)
-        ))]
-        
         # merge on x,y and populate based on bin_ID values in cell_locations
         exprDT[cell_locations, cell_ID := i.bin_ID, on = .(x, y)]
-        # exprDT$cell_ID <- as.integer(exprDT$cell_ID)
-        exprDT[, cell_ID := paste0("cell_", cell_ID)]
+        exprDT[, cell_ID := lapply(.SD, as.integer), .SDcols = "cell_ID"]
         exprDT <- exprDT[, c("genes", "cell_ID", "count")]
+        data.table::setorder(exprDT, cell_ID)
 
         exprDT_wide <- data.table::dcast(
             exprDT, genes ~ cell_ID, value.var = "count",
             fun.aggregate = sum)
-        
+
         expMatrix <-  Matrix::Matrix(Matrix::as.matrix(exprDT_wide[,-1]),
                                      sparse = TRUE)
-        
-        colnames(expMatrix) <- colnames(exprDT_wide)[-1]
-        rownames(expMatrix) <- exprDT_wide$genes
-        
 
-        # expMatrix <- Matrix::sparseMatrix(
-        #     i = exprDT$gene_idx,
-        #     j = exprDT$cell_ID,
-        #     x = exprDT$count
-        # )
-        # 
-        # colnames(expMatrix) <- cell_locations$cell_ID
-        # rownames(expMatrix) <- geneDT[[gene_column]]
+        colnames(expMatrix) <- paste0("cell_", colnames(exprDT_wide)[-1])
+        rownames(expMatrix) <- exprDT_wide$genes
     }
     
     if(type == "cellbin") {
@@ -247,15 +229,15 @@ createGiottoStereoSeqObject <- function(
         rownames(expMatrix) <- exprDT_wide$genes
     }
     
-    if(!cell_locations$cell_ID == colnames(expMatrix)) {
-        cell_locations <- cell_locations[cell_ID %in% colnames(expMatrix),]
-    }
-    
-    rm(exprDT)
+    # rm(exprDT)
     vmsg(.v = verbose, "finished expression matrix")
 
     # 4. create minimal giotto object
     vmsg(.v = verbose, "4. create giotto object... \n")
+    
+    if(isTRUE(flip_spatial_locs)) {
+        cell_locations[, y := 0 - y]
+    }
     
     stereo <- createGiottoObject(
         expression = expMatrix,
@@ -264,14 +246,14 @@ createGiottoStereoSeqObject <- function(
         h5_file = h5_file,
         instructions = instructions
     )
-    
+
     # 5. add image
     vmsg(.v = verbose, "5. attaching HE image... \n")
     
     image_dir <- file.path(stereoseq_dir, "outs", "image")
     he_image_path <- list.files(
         path = image_dir, pattern = "HE_regist", full.names = TRUE)
-    gimg <- createGiottoLargeImage(he_image_path, name = "HE_regist")
+    gimg <- createGiottoLargeImage(he_image_path, name = "image")
     
     stereo <- addGiottoLargeImage(
         gobject = stereo,
