@@ -1,6 +1,6 @@
-#' Create STOmics Giotto Object
+#' Create Stereo-seq Giotto Object
 #'
-#' @param stomics_dir filepath to the exported STOmics directory.
+#' @param stereoseq_dir filepath to the exported Stereo-seq directory.
 #' @param type character. Use "squarebin" to read expression from *.tissue.gef 
 #' file (default) or "cellbin" to read expression from *.adjusted.cellbin.gef 
 #' file.
@@ -12,14 +12,16 @@
 #' @param verbose logical. Be verbose.
 #' @param h5_file (optional) name to create an on-disk HDF5 file.
 #' @param instructions list of instructions or output result
+#' @param flip_spatial_locs Flip spatial locations in the y axis
 #' from \code{\link{createGiottoInstructions}}
-#' @returns Giotto STOmics object
+#' @returns Giotto Stereo-seq object
 #' @export
-createGiottoSTOmicsObject <- function(
-        stomics_dir,
+createGiottoStereoSeqObject <- function(
+        stereoseq_dir,
         type = c("squarebin", "cellbin"),
         bin_size = "bin100",
         gene_column = c("geneName", "geneID"),
+        flip_spatial_locs = TRUE,
         verbose = TRUE,
         h5_file = NULL,
         instructions = NULL) {
@@ -31,10 +33,10 @@ createGiottoSTOmicsObject <- function(
     package_check(pkg_name = "rhdf5", repository = "Bioc")
     
     # directory check
-    if (!file.exists(stomics_dir)) stop(
-        "Path to stomics directory does not exist")
+    if (!file.exists(stereoseq_dir)) stop(
+        "Path to Stereo-seq directory does not exist")
     
-    dir_files <- list.files(file.path(stomics_dir, "outs", "feature_expression"))
+    dir_files <- list.files(file.path(stereoseq_dir, "outs", "feature_expression"))
     
     # file reading type check
     if(!type %in% c("squarebin", "cellbin")) stop(
@@ -43,7 +45,7 @@ createGiottoSTOmicsObject <- function(
     # Read squarebin
     if(type == "squarebin") {
         expression_file <- file.path(
-            stomics_dir, "outs", "feature_expression", 
+            stereoseq_dir, "outs", "feature_expression", 
             dir_files[grep(".tissue.gef", dir_files)])
         
         if (!file.exists(expression_file)) stop(
@@ -98,13 +100,12 @@ createGiottoSTOmicsObject <- function(
             }
         }
         
-        if (isTRUE(verbose)) wrap_msg(
-            "Finished reading in tissue.gef", bin_size)
+        vmsg(.v = verbose, "Finished reading in tissue.gef")
     }
     
     if(type == "cellbin") {
         expression_file <- file.path(
-            stomics_dir, "outs", "feature_expression", 
+            stereoseq_dir, "outs", "feature_expression", 
             dir_files[grep(".adjusted.cellbin.gef", dir_files)])
         
         if (!file.exists(expression_file)) stop(
@@ -155,20 +156,19 @@ createGiottoSTOmicsObject <- function(
             }
         }
         
-        if (isTRUE(verbose)) wrap_msg(
-            "Finished reading in adjusted.cellbin.gef")
+        vmsg(.v = verbose, "Finished reading in adjusted.cellbin.gef")
     }
     
     # 2. create spatial locations
-    if (isTRUE(verbose)) wrap_msg("2. create spatial_locations... \n")
-    
+    vmsg(.v = verbose, "2. create spatial_locations... \n")
+
     if(type == "squarebin") {
         cell_locations <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
         cell_locations[, bin_ID := as.factor(seq_len(nrow(cell_locations)))]
         cell_locations[, cell_ID := paste0("cell_", bin_ID)]
         data.table::setcolorder(cell_locations, c("x", "y", "cell_ID", "bin_ID"))
         # ensure first non-numerical col is cell_ID
-        if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " bins in total \n")
+        vmsg(.v = verbose, nrow(cell_locations), " bins in total \n")
     }
     
     if(type == "cellbin") {
@@ -183,34 +183,33 @@ createGiottoSTOmicsObject <- function(
         cell_locations[, x := lapply(.SD, as.integer), .SDcols = "x"]
         cell_locations[, y := lapply(.SD, as.integer), .SDcols = "y"]
         
-        if (isTRUE(verbose)) wrap_msg(nrow(cell_locations), " cells in total \n")
+        vmsg(.v = verbose, nrow(cell_locations), " cells in total \n")
     }
     
-    if (isTRUE(verbose)) wrap_msg("finished spatial_locations \n")
-    
+    vmsg(.v = verbose, "finished spatial_locations \n")
+
     # 3. create expression matrix
-    if (isTRUE(verbose)) wrap_msg("3. create expression matrix... \n")
-    
+    vmsg(.v = verbose, "3. create expression matrix... \n")
+
     if(type == "squarebin") {
         exprDT[, genes := as.character(
             rep(x = geneDT[[gene_column]], geneDT$count))]
         
-        exprDT[, gene_idx := as.integer(factor(exprDT$genes,
-                                               levels = unique(exprDT$genes)
-        ))]
-        
         # merge on x,y and populate based on bin_ID values in cell_locations
         exprDT[cell_locations, cell_ID := i.bin_ID, on = .(x, y)]
-        exprDT$cell_ID <- as.integer(exprDT$cell_ID)
-        
-        expMatrix <- Matrix::sparseMatrix(
-            i = exprDT$gene_idx,
-            j = exprDT$cell_ID,
-            x = exprDT$count
-        )
-        
-        colnames(expMatrix) <- cell_locations$cell_ID
-        rownames(expMatrix) <- geneDT[[gene_column]]
+        exprDT[, cell_ID := lapply(.SD, as.integer), .SDcols = "cell_ID"]
+        exprDT <- exprDT[, c("genes", "cell_ID", "count")]
+        data.table::setorder(exprDT, cell_ID)
+
+        exprDT_wide <- data.table::dcast(
+            exprDT, genes ~ cell_ID, value.var = "count",
+            fun.aggregate = sum)
+
+        expMatrix <-  Matrix::Matrix(Matrix::as.matrix(exprDT_wide[,-1]),
+                                     sparse = TRUE)
+
+        colnames(expMatrix) <- paste0("cell_", colnames(exprDT_wide)[-1])
+        rownames(expMatrix) <- exprDT_wide$genes
     }
     
     if(type == "cellbin") {
@@ -230,11 +229,16 @@ createGiottoSTOmicsObject <- function(
         rownames(expMatrix) <- exprDT_wide$genes
     }
     
-    rm(exprDT)
-    if (isTRUE(verbose)) wrap_msg("finished expression matrix")
-    
+    # rm(exprDT)
+    vmsg(.v = verbose, "finished expression matrix")
+
     # 4. create minimal giotto object
-    if (isTRUE(verbose)) wrap_msg("4. create giotto object... \n")
+    vmsg(.v = verbose, "4. create giotto object... \n")
+    
+    if(isTRUE(flip_spatial_locs)) {
+        cell_locations[, y := 0 - y]
+    }
+    
     stereo <- createGiottoObject(
         expression = expMatrix,
         spatial_locs = cell_locations,
@@ -242,12 +246,15 @@ createGiottoSTOmicsObject <- function(
         h5_file = h5_file,
         instructions = instructions
     )
-    
+
     # 5. add image
-    if (isTRUE(verbose)) wrap_msg("5. attaching HE image... \n")
-    image_dir <- file.path(stomics_dir, "outs", "image")
-    he_image_path <- list.files(path = image_dir, pattern = "HE_regist", full.names = TRUE)
-    gimg <- createGiottoLargeImage(he_image_path, name = "HE_regist")
+    vmsg(.v = verbose, "5. attaching HE image... \n")
+    
+    image_dir <- file.path(stereoseq_dir, "outs", "image")
+    he_image_path <- list.files(
+        path = image_dir, pattern = "HE_regist", full.names = TRUE)
+    gimg <- createGiottoLargeImage(he_image_path, name = "image")
+    
     stereo <- addGiottoLargeImage(
         gobject = stereo,
         largeImages = gimg,
@@ -255,6 +262,6 @@ createGiottoSTOmicsObject <- function(
         verbose = verbose
     )
 
-    if (isTRUE(verbose)) wrap_msg("finished giotto object... \n")
+    vmsg(.v = verbose, "finished giotto object... \n")
     return(stereo)
 }
