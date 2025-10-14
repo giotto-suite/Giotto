@@ -216,7 +216,8 @@ createGiottoStereoSeqObject <- function(
         exprDT[, genes := as.character(
             rep(x = geneDT[[gene_column]], geneDT$cellCount))]
         
-        exprDT[, cell_ID := paste0("cell_", cell_ID)]
+        exprDT[, cell_ID := lapply(.SD, as.integer), .SDcols = "cell_ID"]
+        # exprDT[, cell_ID := paste0("cell_", cell_ID)]
         
         exprDT_wide <- data.table::dcast(
             exprDT, genes ~ cell_ID, value.var = "count",
@@ -225,7 +226,7 @@ createGiottoStereoSeqObject <- function(
         expMatrix <-  Matrix::Matrix(Matrix::as.matrix(exprDT_wide[,-1]),
                                      sparse = TRUE)
         
-        colnames(expMatrix) <- colnames(exprDT_wide)[-1]
+        colnames(expMatrix) <- paste0("cell_", colnames(exprDT_wide)[-1])
         rownames(expMatrix) <- exprDT_wide$genes
     }
     
