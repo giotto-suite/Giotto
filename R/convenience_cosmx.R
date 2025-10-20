@@ -369,6 +369,7 @@ setMethod(
         
         poly_fun <- function(
         path = poly_use_path,
+        file_fov_fmt = NULL,
         # VERTICAL FLIP + NO VERTICAL SHIFT
         flip_vertical = FALSE,
         flip_horizontal = FALSE,
@@ -379,6 +380,7 @@ setMethod(
             .cosmx_poly(
                 path = path,
                 fovs = .Object@fovs %none% NULL,
+                file_fov_fmt = file_fov_fmt,
                 flip_vertical = flip_vertical,
                 flip_horizontal = flip_horizontal,
                 shift_vertical_step = shift_vertical_step,
@@ -418,6 +420,7 @@ setMethod(
         
         img_fun <- function(
         path = composite_img_dir,
+        file_fov_fmt = NULL,
         img_type = "composite",
         img_name_fmt = paste0(img_type, "_fov%03d"),
         negative_y = negy,
@@ -427,6 +430,7 @@ setMethod(
             .cosmx_image(
                 path = path,
                 fovs = .Object@fovs %none% NULL,
+                file_fov_fmt = file_fov_fmt,
                 img_type = img_type,
                 img_name_fmt = img_name_fmt,
                 negative_y = negative_y,
@@ -848,6 +852,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     return(res)
 }
 
+# reads the FOV num of a cosmx image of style F(0)n where the number of prefixed
+# 0s does not matter.
 .cosmx_imgname_fovparser <- function(path) {
     if (length(path) == 1) im_names <- list.files(path)
     else im_names <- path
@@ -865,6 +871,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 .cosmx_poly_maskimage <- function(path,
     slide = 1,
     fovs = NULL,
+    file_fov_fmt = NULL,
     name = "cell",
     # VERTICAL FLIP + NO SHIFTS
     flip_vertical = TRUE,
@@ -905,14 +912,34 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     )
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
+    file_fov_fmt <- file_fov_fmt %null% "F%03d"
+    checkmate::assert_character(file_fov_fmt)
     with_pbar({
         p <- pbar(along = fovs)
 
         gpolys <- lapply(fovs, function(f) {
             if (length(path) == 1L) {
-                segfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+                search_fmt <- sprintf("%%s/*%s*", file_fov_fmt)
+                segfile <- Sys.glob(paths = sprintf(search_fmt, path, f))
             } else {
-                segfile <- path[grepl(pattern = sprintf("F%03d", f), path)]
+                segfile <- path[grepl(pattern = sprintf(file_fov_fmt, f), path)]
+            }
+            
+            if (length(segfile) == 0L) {
+                fmt <- sprintf(
+                    "No label images found matching fov [%s]", file_fov_fmt
+                )
+                msg <- sprintf(fmt, f)
+                msg <- paste(msg, "\nCheck if `file_fov_fmt` =", file_fov_fmt,
+                             "is appropriate and that image for fov", f,
+                             "exists")
+                stop(call. = FALSE, msg)
+            }
+            if (length(segfile) > 1L) {
+                warning(sprintf(
+                    "Multiple label images found for fov [%d]\n Using first one.", f
+                ))
+                segfile <- segfile[1L]
             }
             
             # naming format: c_SLIDENUMBER_FOVNUMBER_CELLID
@@ -939,7 +966,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             }
 
             gpoly <- spatShift(x = gpoly, dx = xshift, dy = yshift)
-            p(message = sprintf("F%03d", f))
+            p(message = sprintf(file_fov_fmt, f))
             return(gpoly)
         })
     })
@@ -996,6 +1023,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         path,
         slide = 1,
         fovs = NULL,
+        file_fov_fmt = NULL,
         name = "cell",
         # VERTICAL FLIP + NO SHIFTS
         flip_vertical = TRUE,
@@ -1023,6 +1051,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     } else if (dir.exists(path)) {
         gpolys <- do.call(.cosmx_poly_maskimage, args = a)
     } else if ("csv" %in% GiottoUtils::file_extension(path)) {
+        a$file_fov_fmt <- NULL # not accepted by this function
         gpolys <- do.call(.cosmx_poly_csv, args = a)
     } else {
         "importCosMx - load_polys(): unrecognized path input"
@@ -1168,6 +1197,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     fovs = NULL,
     img_type = "composite",
     img_name_fmt = paste(img_type, "_fov%03d"),
+    file_fov_fmt = NULL,
     negative_y = FALSE,
     flip_vertical = FALSE,
     flip_horizontal = FALSE,
@@ -1186,16 +1216,36 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
+    file_fov_fmt <- file_fov_fmt %null% "F%03d"
+    checkmate::assert_character(file_fov_fmt)
     verbose <- verbose %null% TRUE
 
     with_pbar({
         p <- pbar(along = fovs)
 
         gimg_list <- lapply(fovs, function(f) {
-            if (length(path) == 1) {
-                imgfile <- Sys.glob(paths = sprintf("%s/*F%03d*", path, f))
+            if (length(path) == 1L) {
+                search_fmt <- sprintf("%%s/*%s*", file_fov_fmt)
+                imgfile <- Sys.glob(paths = sprintf(search_fmt, path, f))
             } else {
-                imgfile <- path[grepl(pattern = sprintf("F%03d", f), path)]
+                imgfile <- path[grepl(pattern = sprintf(file_fov_fmt, f), path)]
+            }
+            
+            if (length(imgfile) == 0L) {
+                fmt <- sprintf(
+                    "No images found matching fov [%s]", file_fov_fmt
+                )
+                msg <- sprintf(fmt, f)
+                msg <- paste(msg, "\nCheck if `file_fov_fmt` =", file_fov_fmt,
+                             "is appropriate and that image for fov", f,
+                             "exists")
+                stop(call. = FALSE, msg)
+            }
+            if (length(imgfile) > 1L) {
+                warning(sprintf(
+                    "Multiple images found for fov [%d]\n Using first one.", f
+                ))
+                imgfile <- imgfile[1L]
             }
 
             img_name <- sprintf(img_name_fmt, f)
@@ -1222,7 +1272,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             }
 
             gimg <- spatShift(x = gimg, dx = xshift, dy = yshift)
-            p(message = sprintf("F%03d", f))
+            p(message = sprintf(file_fov_fmt, f))
             return(gimg)
         })
     })
