@@ -149,7 +149,7 @@ setMethod(
             stop(
                 wrap_txt(
                     "`$filetype$expression` must be one of",
-                    paste(tf_exp, collapse = ", ")
+                    paste(ft_exp, collapse = ", ")
                 ),
                 call. = FALSE
             )
@@ -305,7 +305,7 @@ setMethod(
         poly_fun <- function(
         path = cell_bound_path,
         name = "cell",
-        part_col = "label_id",
+        part_col = NULL,
         split_geom = FALSE,
         split_geom_fmt = "%d",
         split_geom_sourcename = "cell_poly_id",
@@ -446,7 +446,7 @@ setMethod(
         load_images = "focus",
         load_aligned_images = NULL,
         load_transcripts = TRUE,
-        load_expression = FALSE,
+        load_expression = TRUE,
         load_cellmeta = FALSE,
         instructions = NULL,
         verbose = NULL) {
@@ -519,7 +519,7 @@ setMethod(
                         b <- funs$load_polys(
                             path = load_bounds[[b_i]],
                             name = b_name,
-                            part_col = "label_id",
+                            part_col = NULL,
                             split_geom = TRUE,
                             split_geom_fmt = "nucleus_%d",
                             split_geom_sourcename = "cell_poly_id",
@@ -529,7 +529,7 @@ setMethod(
                         b <- funs$load_polys(
                             path = load_bounds[[b_i]],
                             name = b_name,
-                            part_col = "label_id",
+                            part_col = NULL,
                             split_geom = FALSE,
                             verbose = verbose
                         )
@@ -597,15 +597,36 @@ setMethod(
                     # split the focus image dir away from other entries
                     load_images <- load_images[!is_focus_dir]
                     focus_dir <- img_focus_path
-                    focus_files <- list.files(focus_dir, full.names = TRUE)
+                    focus_files <- list.files(focus_dir, pattern = "\\.ome\\.tif$", full.names = TRUE)
+                    # fallback: if no OME-TIFFs, try plain TIFs in the same folder
+                    if (length(focus_files) == 0L) {
+                        focus_files <- list.files(focus_dir, pattern = "\\.tif$", full.names = TRUE)
+                        focus_files <- focus_files[!grepl("\\.ome\\.tif$", focus_files, ignore.case = TRUE)]
+                        focus_files <- focus_files[!dir.exists(focus_files)]
+                    }
                     # ignore matches to export dir (if it is a subdirectory)
                     focus_files <- focus_files[!dir.exists(focus_files)]
                     if (length(focus_files) > 0L) {
-                        nbound <- length(focus_files) - 1L
-                        focus_names <- c(
-                            "dapi", sprintf("bound%d", seq_len(nbound))
-                        )
-                        names(focus_files) <- focus_names
+                        bn <- basename(focus_files)
+                        marker <- ifelse(grepl("^ch\\d+_.*\\.ome\\.tif$", bn, ignore.case = TRUE),
+                                         sub("^ch\\d+_(.*?)\\.ome\\.tif$", "\\1", bn, ignore.case = TRUE),
+                                         NA_character_)
+                        is_dapi <- grepl("dapi", bn, ignore.case = TRUE) |
+                            (!is.na(marker) & grepl("^dapi$", marker, ignore.case = TRUE))
+
+                        # put DAPI first if present
+                        ord <- c(which(is_dapi), which(!is_dapi))
+                        focus_files <- focus_files[ord]
+                        marker <- marker[ord]
+                        is_dapi <- is_dapi[ord]
+                        fallback_idx <- which(!is_dapi & is.na(marker))
+                        names_vec <- character(length(focus_files))
+                        names_vec[is_dapi] <- "dapi"
+                        names_vec[!is_dapi & !is.na(marker)] <- marker[!is_dapi & !is.na(marker)]
+                        if (length(fallback_idx)) {
+                            names_vec[fallback_idx] <- sprintf("bound%d", seq_along(fallback_idx))
+                        }
+                        names(focus_files) <- names_vec
 
                         # append to rest of entries
                         load_images <- c(load_images, focus_files)
@@ -915,7 +936,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 .xenium_poly <- function(
         path,
-        part_col = "label_id",
+        part_col = NULL,
         split_geom = FALSE,
         split_geom_fmt = "%d",
         split_geom_sourcename = "cell_poly_id",
@@ -942,6 +963,34 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         "parquet" = do.call(.xenium_poly_parquet, args = a),
         "zarr" = stop("zarr not yet supported")
     )
+
+    if (is.null(part_col) || !part_col %in% colnames(polys)) {
+        prefer <- c(
+            "label_id", "boundary_id",
+            "polygon_id", "poly_id", "object_id",
+            "part_id", "part",
+            "ring_id", "segment_id", "region_id"
+        )
+
+        hit <- intersect(prefer, colnames(polys))
+
+        if (!length(hit)) {
+            # regex fallback that excludes cell_id
+            rx <- "(label|boundary|poly(?:gon)?|object|part|ring|segment|region).*(_?id)?$"
+            cand <- setdiff(colnames(polys), c("cell_id","vertex_x","vertex_y","x","y","z"))
+            hit <- grep(rx, cand, ignore.case = TRUE, value = TRUE)
+        }
+
+        if (length(hit)) {
+            vmsg(sprintf("Using '%s' as polygon part column", hit[[1]]), .v = verbose)
+            part_col <- hit[[1]]
+        } else {
+            vmsg("No polygon part column detected; assuming single part per cell (part_col = NULL)", .v = verbose)
+            part_col <- NULL
+        }
+    }
+
+
 
     vertex_y <- NULL # NSE var
     if (flip_vertical) polys[, vertex_y := -vertex_y]
@@ -1284,10 +1333,15 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             vmsg(.is_debug = TRUE, "img dir input:", dp_i)
 
             # expand and update to per-image
-            dfp_i <- list.files(dp_i, full.names = TRUE) # dir file paths
-            dfp_i <- dfp_i[!dir.exists(dfp_i)] # ignore dir matches
-            # (such as the export directory)
-            dfn_i <- sprintf("%s_%d", dn_i, seq_along(dfp_i)) # dir file names
+            dfp_i <- list.files(dp_i, full.names = TRUE, recursive = FALSE)
+            dfp_i <- dfp_i[!dir.exists(dfp_i)]
+            dfp_i <- dfp_i[grepl("(?i)\\.(ome\\.tif|tif|tiff)$", basename(dfp_i), perl = TRUE)]
+
+            # put DAPI first if present
+            ord <- order(!grepl("(?i)dapi", basename(dfp_i)))
+            dfp_i <- dfp_i[ord]
+
+            dfn_i <- sprintf("%s_%d", dn_i, seq_along(dfp_i))
             vmsg(.is_debug = TRUE, "* [img paths]:\n", paste(dfp_i, collapse = "\n"))
             vmsg(.is_debug = TRUE, "* [img names]:\n", paste(dfn_i, collapse = "\n"))
 
@@ -1326,6 +1380,86 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     })
     return(gimg_list)
 }
+### OME-XML -> LUT helper (channel-scoped)
+.xenium_read_ome_annotations <- function(path,
+                                         collapse = TRUE,
+                                         include_panel = FALSE,
+                                         verbose = NULL) {
+    if (!grepl("(?i)\\.ome\\.tif$", path)) return(NULL)
+    kv <- try(GiottoClass::tif_metadata(path, output = "kv"), silent = TRUE)
+    if (inherits(kv, "try-error") || is.null(kv) || !length(kv)) return(NULL)
+
+    # per Channel block group.
+    keys <- names(kv)
+    starts <- which(keys == "Channel")
+    if (!length(starts)) return(NULL)
+    ends <- c(starts[-1] - 1L, length(kv))
+    blocks <- lapply(seq_along(starts), function(i) {
+        rng <- starts[i]:ends[i]
+        subkeys <- keys[rng]
+        subvals <- kv[rng]
+
+        # normalize names (keep originals too)
+        nrm <- function(x) tolower(gsub("\\s+", "_", x))
+        sublist <- as.list(unname(subvals))
+        names(sublist) <- subkeys
+
+        # add normalized aliases
+        alias <- setNames(seq_along(sublist), nrm(names(sublist)))
+        num <- function(...) {
+            k <- nrm(c(...))
+            hit <- alias[k][!is.na(alias[k])][1]
+            if (is.na(hit)) return(NA_real_)
+            suppressWarnings(as.numeric(sublist[[hit]]))
+        }
+
+        list(
+            channel_label = unname(sublist[["Channel"]]),
+            long_name     = unname(sublist[["Long name"]]),
+            purpose       = unname(sublist[["Purpose"]]),
+            observed_min  = num("Observed min"),
+            observed_max  = num("Observed max"),
+            lut_min       = num("Suggested LUT min","Suggested min","LUT min"),
+            lut_max       = num("Suggested LUT max","Suggested max","LUT max"),
+            pixel_offset  = num("Pixel value offset")
+        )
+    })
+    if (!collapse) return(blocks)
+    `%||%` <- function(a, b) if (is.null(a) || length(a) == 0) b else a
+
+    df <- do.call(rbind, lapply(seq_along(blocks), function(i) {
+        x <- blocks[[i]]
+        data.frame(
+            panel   = if (isTRUE(x$pixel_offset == 0)) "morphology" else if (isTRUE(x$pixel_offset == 100)) "protein" else paste0("offset_", x$pixel_offset),
+            channel = as.character(x$channel_label %||% NA_character_),
+            marker  = as.character(x$long_name     %||% NA_character_),
+            purpose = as.character(x$purpose       %||% NA_character_),
+            obs_min = x$observed_min,
+            obs_max = x$observed_max,
+            lut_min = x$lut_min,
+            lut_max = x$lut_max,
+            stringsAsFactors = FALSE
+        )
+    }))
+
+    # Clean and format
+    df$marker[is.na(df$marker)]   <- ""
+    df$purpose[is.na(df$purpose)] <- ""
+    df$obs_range <- sprintf("%d–%d", df$obs_min, df$obs_max)
+    df$lut_range <- sprintf("%d–%d", df$lut_min, df$lut_max)
+
+    out <- if (include_panel) {
+        df[, c("panel","channel","marker","purpose","obs_range","lut_range")]
+    } else {
+        df[, c("channel","marker","purpose","obs_range","lut_range")]
+    }
+
+    # Order named markers first within channel
+    ord_cols <- c("channel", if (include_panel) NULL)
+    out <- out[order(out$channel, out$marker == "", out$marker), , drop = FALSE]
+
+    if (requireNamespace("tibble", quietly = TRUE)) tibble::as_tibble(out) else out
+}
 
 # per image...
 # if .ome : check that converted output path file exists.
@@ -1352,26 +1486,25 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         ),
         .prefix = ""
     )
-
-    # terra::rast() and gdal still have difficulties with 10x single channel
-    # .ome.tif images. May be related to JP2OpenJPEG driver but even loading
-    # this does not seem to fix it.
+    # NEW: read OME annotations if present
+    ome_ann <- NULL
+    if (grepl("(?i)\\.ome\\.tif{1,2}$", path)) {
+        ome_ann <- try(.xenium_read_ome_annotations(path, collapse = TRUE, include_panel = TRUE), silent = TRUE)
+        if (inherits(ome_ann, "try-error")) ome_ann <- NULL
+    }
     if ("ome" %in% file_extension(path)) {
         if (output_dir == "default") {
-            # default output dir is a new folder under the same directory
             output_dir <- file.path(dirname(path), "tif_exports")
         }
 
-        # check for existence of converted tiff file in output dir
-        # fullpath of tiff to write
-        tiff_path <- file.path(output_dir, basename(path))
-        tiff_path <- gsub(".ome.tif", ".tif", tiff_path)
+        bn <- basename(path)
+        bn <- gsub("(?i)\\.ome\\.tif{1,2}$", ".tif", bn, perl = TRUE)
+        tiff_path <- file.path(output_dir, bn)
 
         if (checkmate::test_file_exists(tiff_path)) {
             vmsg(.is_debug = TRUE, sprintf(
                 "converted tiff already present\n%s", tiff_path
             ))
-            # if found AND overwrite, remove it to be regenerated downstream
             if (isTRUE(overwrite)) {
                 unlink(tiff_path, force = TRUE)
             }
@@ -1404,6 +1537,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         verbose = verbose
     )
     img <- rescale(img, micron, x0 = 0, y0 = 0)
+
+    # NEW
+    if (!is.null(ome_ann)) attr(img, "ome_annotations") <- ome_ann
     return(img)
 }
 
@@ -1532,7 +1668,7 @@ createGiottoXeniumObject <- function(
         load_images = "focus",
         load_aligned_images = NULL,
         load_transcripts = TRUE,
-        load_expression = FALSE,
+        load_expression = TRUE,
         load_cellmeta = FALSE,
         instructions = NULL,
         verbose = NULL) {

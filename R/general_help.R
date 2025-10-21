@@ -628,21 +628,27 @@ get10Xmatrix_h5 <- function(
     # select parameter
     gene_ids <- match.arg(gene_ids, choices = c("symbols", "ensembl"))
 
-    h5 <- hdf5r::H5File$new(path_to_data)
+    protein_scaling_factor <- NA_real_
+    protein_metric <- NULL
 
+    h5 <- hdf5r::H5File$new(path_to_data, mode = "r")
     tryCatch(
         {
             # list objects part of the h5 file
             # hdf5r::list.objects(h5)
 
             # get root folder name e.g. 'matrix'
-            root <- names(h5)
-            root <- root[1]
+            root <- names(h5)[1]
+            #grp  <- h5[[root]]
 
+            get_attr <- function(obj, key) {
+                an <- try(hdf5r::h5attr_names(obj), silent = TRUE)
+                if (inherits(an, "try-error") || is.null(an)) return(NULL)
+                if (key %in% an) hdf5r::h5attr(obj, key) else NULL
+            }
             # extraction information
-            data <- h5[[paste0(root, "/data")]][]
-            data <- as.numeric(data)
 
+            data <- as.numeric(h5[[paste0(root, "/data")]][])
             barcodes <- h5[[paste0(root, "/barcodes")]][]
             feature_tag_keys <- h5[[paste0(root, "/features/_all_tag_keys")]][]
             feature_types <- h5[[paste0(root, "/features/feature_type")]][]
@@ -660,8 +666,39 @@ get10Xmatrix_h5 <- function(
                 "feature_type" = feature_types,
                 "genome" = genome
             )
+
+            #NEW
+            read_sf <- function(node) {
+                if (is.null(node)) return(invisible(NULL))
+                an <- try(hdf5r::h5attr_names(node), silent = TRUE)
+                if (inherits(an, "try-error")) return(invisible(NULL))
+                # prefer 'scaling_factor', fallback to 'protein_scaling_factor'
+                if ("scaling_factor" %in% an) {
+                    val <- suppressWarnings(as.numeric(hdf5r::h5attr(node, "scaling_factor")))
+                    if (is.finite(val)) assign("protein_scaling_factor", val, inherits = TRUE)
+                } else if ("protein_scaling_factor" %in% an) {
+                    val <- suppressWarnings(as.numeric(hdf5r::h5attr(node, "protein_scaling_factor")))
+                    if (is.finite(val)) assign("protein_scaling_factor", val, inherits = TRUE)
+                }
+                if ("protein_metric" %in% an) {
+                    assign("protein_metric", as.character(hdf5r::h5attr(node, "protein_metric")), inherits = TRUE)
+                }
+                invisible(NULL)
+            }
+            read_sf(h5)
+            if (!is.null(root) && h5$exists(root)) read_sf(h5[[root]])
+
         },
         finally = {
+            # read root attributes if present
+            attr_names <- hdf5r::h5attr_names(h5)
+            if ("protein_scaling_factor" %in% attr_names) {
+                protein_scaling_factor <- as.numeric(hdf5r::h5attr(h5, "protein_scaling_factor"))
+            }
+            if ("protein_metric" %in% attr_names) {
+                protein_metric <- as.character(hdf5r::h5attr(h5, "protein_metric"))
+            }
+
             h5$close_all()
         }
     )
@@ -717,6 +754,19 @@ get10Xmatrix_h5 <- function(
                 sparsemat <- sparsemat[rowsums_bool, ]
             })
         }
+        # apply scaling to Protein Expression if provided by 10x
+        if (isTRUE(split_by_type) &&
+            "Protein Expression" %in% names(result_list) &&
+            is.finite(protein_scaling_factor) &&
+            protein_scaling_factor != 0 && protein_scaling_factor != 1) {
+
+            result_list[["Protein Expression"]] <- result_list[["Protein Expression"]] / protein_scaling_factor
+            attr(result_list[["Protein Expression"]], "protein_scaling_factor") <- protein_scaling_factor
+            if (!is.null(protein_metric)) {
+                attr(result_list[["Protein Expression"]], "protein_metric") <- protein_metric
+            }
+        }
+
 
         return(result_list)
     } else {
