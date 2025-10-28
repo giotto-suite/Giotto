@@ -122,7 +122,7 @@ Collate:
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
-    'convenience_stomics.r'
+    'convenience_stereoseq.r'
     'convenience_visiumHD.R'
     'convenience_xenium.R'
     'cross_section.R'
