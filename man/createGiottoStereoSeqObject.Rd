@@ -10,6 +10,7 @@ createGiottoStereoSeqObject(
   bin_size = "bin100",
   gene_column = "geneName",
   negative_y = TRUE,
+  shift_polygon_y = 0,
   verbose = TRUE,
   h5_file = NULL,
   instructions = NULL

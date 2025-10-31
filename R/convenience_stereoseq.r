@@ -24,6 +24,7 @@ createGiottoStereoSeqObject <- function(
         bin_size = "bin100",
         gene_column = "geneName",
         negative_y = TRUE,
+        shift_polygon_y = 0,
         verbose = TRUE,
         h5_file = NULL,
         instructions = NULL) {
@@ -192,21 +193,25 @@ createGiottoStereoSeqObject <- function(
     
     if(type == "subcellular") {
         
+        if(isTRUE(negative_y)) {
+            mask_poly <- spatShift(
+                mask_poly,
+                dy = -(terra::ext(mask_poly)[3] + terra::ext(mask_poly)[4]))
+        }
+        
+        mask_poly <- spatShift(mask_poly, dy = shift_polygon_y)
+        
         spatial_locations <- as.data.frame(
             terra::geom(terra::centroids(mask_poly)))
         spatial_locations$cell_ID <- paste0("cell_", spatial_locations$geom)
         spatial_locations <- spatial_locations[, c("x", "y", "cell_ID")]
         
-        if(isTRUE(negative_y)) {
-            transcripts[, y := 0 - y]
-            spatial_locations$y <- 0 - spatial_locations$y
-        }
-        
         spat_locs <- createSpatLocsObj(coordinates = spatial_locations,
                                        spat_unit = "cell",
                                        name = "raw")
         
-        vmsg(.v = verbose, nrow(spatial_locations), " cells in total \n")
+        vmsg(.v = verbose, nrow(spatial_locations), 
+            " polygons (cells) in total \n")
         
         # merge with geneID column
         transcript_locs <- merge(transcripts, geneDT[, .(geneID, geneName)])
@@ -218,6 +223,13 @@ createGiottoStereoSeqObject <- function(
         g_points <- createGiottoPoints(x = transcript_locs)
         
         vmsg(.v = verbose, nrow(transcript_locs), " transcripts in total \n")
+        
+        if(isTRUE(negative_y)) {
+            g_points <- flip(g_points, direction = "vertical")
+        }
+        
+        g_points <- crop(g_points, terra::ext(mask_poly))
+        
     }
     
     vmsg(.v = verbose, "Finished spatial_locations \n")
@@ -297,6 +309,7 @@ createGiottoStereoSeqObject <- function(
         
         # Add polygon centroids
         stereo <- setGiotto(stereo, spat_locs)
+        
     }
 
     # 5. add image
@@ -307,9 +320,9 @@ createGiottoStereoSeqObject <- function(
         path = image_dir, pattern = "HE_regist", full.names = TRUE)
     gimg <- createGiottoLargeImage(he_image_path, name = "image")
     
-    if(type == "subcellular") {
-        terra::ext(gimg) <- terra::ext(stereo)
-    }
+    # if(type == "subcellular") {
+    #     terra::ext(gimg) <- terra::ext(stereo)
+    # }
 
     stereo <- addGiottoLargeImage(
         gobject = stereo,
