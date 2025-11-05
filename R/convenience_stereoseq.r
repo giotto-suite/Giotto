@@ -194,12 +194,8 @@ createGiottoStereoSeqObject <- function(
     if(type == "subcellular") {
         
         if(isTRUE(negative_y)) {
-            mask_poly <- spatShift(
-                mask_poly,
-                dy = -(terra::ext(mask_poly)[3] + terra::ext(mask_poly)[4]))
+            mask_poly <- terra::flip(mask_poly)
         }
-        
-        mask_poly <- spatShift(mask_poly, dy = shift_polygon_y)
         
         spatial_locations <- as.data.frame(
             terra::geom(terra::centroids(mask_poly)))
@@ -219,17 +215,29 @@ createGiottoStereoSeqObject <- function(
             , c("x", "y", gene_column, "readCount")]
         colnames(transcript_locs)[3] <- "feat_ID"
         
-        # Create giotto points
-        g_points <- createGiottoPoints(x = transcript_locs)
-        
-        vmsg(.v = verbose, nrow(transcript_locs), " transcripts in total \n")
-        
         if(isTRUE(negative_y)) {
-            g_points <- flip(g_points, direction = "vertical")
+            transcript_locs$y <- 0 - transcript_locs$y
+        } else {
+            max_y <- max(transcript_locs$y)
+            middle_point <- max_y/2
+            transcript_locs$y <- 2*middle_point - transcript_locs$y
         }
         
-        g_points <- crop(g_points, terra::ext(mask_poly))
+        # Subset points using polygon area
+        transcript_locs_v <- terra::vect(
+            as.matrix(transcript_locs[, c("x", "y")]),
+            atts = transcript_locs)
         
+        transcript_locs_v <- terra::intersect(
+            transcript_locs_v, mask_poly@spatVector)
+        
+        transcript_locs <- as.data.frame(transcript_locs_v)
+        transcript_locs <- transcript_locs[,c("x", "y", "feat_ID", "readCount")]
+        
+        # Create giotto points
+        g_points <- createGiottoPoints(x = transcript_locs)
+
+        vmsg(.v = verbose, nrow(transcript_locs), " transcripts in total \n")
     }
     
     vmsg(.v = verbose, "Finished spatial_locations \n")
@@ -284,9 +292,10 @@ createGiottoStereoSeqObject <- function(
         spatial_locations[, x := as.integer(x)]
         spatial_locations[, y := as.integer(y)]
         
+        
         if(isTRUE(negative_y)) {
             spatial_locations[, y := 0 - y]
-        }
+        } 
         
         stereo <- createGiottoObject(
             expression = expMatrix,
@@ -318,11 +327,9 @@ createGiottoStereoSeqObject <- function(
     image_dir <- file.path(stereoseq_dir, "outs", "image")
     he_image_path <- list.files(
         path = image_dir, pattern = "HE_regist", full.names = TRUE)
-    gimg <- createGiottoLargeImage(he_image_path, name = "image")
-    
-    # if(type == "subcellular") {
-    #     terra::ext(gimg) <- terra::ext(stereo)
-    # }
+    gimg <- createGiottoLargeImage(he_image_path, 
+                                   name = "image",
+                                   negative_y = negative_y)
 
     stereo <- addGiottoLargeImage(
         gobject = stereo,
