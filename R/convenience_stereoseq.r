@@ -223,19 +223,9 @@ createGiottoStereoSeqObject <- function(
             transcript_locs$y <- 2*middle_point - transcript_locs$y
         }
         
-        # Subset points using polygon area
-        transcript_locs_v <- terra::vect(
-            as.matrix(transcript_locs[, c("x", "y")]),
-            atts = transcript_locs)
-        
-        transcript_locs_v <- terra::intersect(
-            transcript_locs_v, mask_poly@spatVector)
-        
-        transcript_locs <- as.data.frame(transcript_locs_v)
-        transcript_locs <- transcript_locs[,c("x", "y", "feat_ID", "readCount")]
-        
         # Create giotto points
         g_points <- createGiottoPoints(x = transcript_locs)
+        g_points <- crop(g_points, terra::ext(mask_poly))
 
         vmsg(.v = verbose, nrow(transcript_locs), " transcripts in total \n")
     }
@@ -308,7 +298,7 @@ createGiottoStereoSeqObject <- function(
     
     if(type == "subcellular") {
         
-        stereo <- giotto()
+        stereo <- giotto(instructions = instructions)
         
         # Add giotto points 
         stereo <- setGiotto(stereo, g_points)
