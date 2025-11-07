@@ -1,7 +1,7 @@
 # Giotto 4.2.3
 
 ## New
-* New reader function `createGiottoSTOmicsObject`.
+* New reader function `createGiottoStereoSeqObject`.
 
 ## Changes
 * rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
