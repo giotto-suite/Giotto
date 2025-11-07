@@ -213,7 +213,8 @@ createGiottoStereoSeqObject <- function(
         transcript_locs <- merge(transcripts, geneDT[, .(geneID, geneName)])
         transcript_locs <- as.data.frame(transcript_locs)[
             , c("x", "y", gene_column, "readCount")]
-        colnames(transcript_locs)[3] <- "feat_ID"
+        colnames(transcript_locs)[3] <- "feat_ID"        
+        colnames(transcript_locs)[4] <- "count"
         
         if(isTRUE(negative_y)) {
             transcript_locs$y <- 0 - transcript_locs$y
