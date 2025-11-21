@@ -7,6 +7,7 @@
 * rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
 
 ## Bug fixes
+* Update `giottoToAnndataZarr` to use basilisk environments required by basilisk v1.22. 
 * Replace outdated ggplot aes_string with local aes_string2 function.
 * Fix usage of outdated parameter in `giottoToSeuratV5`.
 
