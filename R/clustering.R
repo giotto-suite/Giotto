@@ -1118,7 +1118,7 @@ doLeidenClusterPython <- function(
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
-#' doLeidenClusterIgraph(g)
+#' doLeidenCluster(g)
 #' @export
 doLeidenClusterIgraph <- function(
         gobject,
