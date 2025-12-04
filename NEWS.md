@@ -1,10 +1,11 @@
 # Giotto 4.2.3
 
+## Breaking Changes
+* rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
+* `doLeidenCluster()` now uses the {igraph} method by default. Original python implementation still accessible as `doLeidenClusterPython()`
+
 ## New
 * New reader function `createGiottoStereoSeqObject`.
-
-## Changes
-* rewrite and breaking changes for `createGiottoVisiumHDObject` and `importVisiumHD`
 
 ## Bug fixes
 * Update `giottoToAnndataZarr` to use basilisk environments required by basilisk v1.22. 
