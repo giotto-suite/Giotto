@@ -984,8 +984,8 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 # convenience ####
 
 
-#' @title doLeidenCluster
-#' @name doLeidenCluster
+#' @title doLeidenClusterPython
+#' @name doLeidenClusterPython
 #' @description cluster cells using a NN-network and the Leiden community
 #' detection algorithm
 #' @param gobject giotto object
@@ -1031,9 +1031,9 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
-#' doLeidenCluster(g)
+#' doLeidenClusterPython(g)
 #' @export
-doLeidenCluster <- function(
+doLeidenClusterPython <- function(
         gobject,
         spat_unit = NULL,
         feat_type = NULL,
@@ -1055,7 +1055,7 @@ doLeidenCluster <- function(
     if (!is.null(python_path)) {
         deprecate_warn(
             when = "4.2.2",
-            what = "doLeidenCluster(python_path)"
+            what = "doLeidenClusterPython(python_path)"
         )
     }
 
@@ -1080,8 +1080,9 @@ doLeidenCluster <- function(
 
 
 
-#' @title doLeidenClusterIgraph
-#' @name doLeidenClusterIgraph
+#' @name doLeidenCluster
+#' @title doLeidenCluster
+#' @aliases doLeidenClusterIgraph
 #' @description cluster cells using a NN-network and the Leiden community
 #' detection algorithm as implemented in igraph
 #' @param gobject giotto object
@@ -1136,6 +1137,16 @@ doLeidenClusterIgraph <- function(
         set_seed = TRUE,
         seed_number = 1234,
         ...) {
+    # notify of breaking change
+    if (getOption("giotto.warn_leiden_change", TRUE)) {
+        vmsg(
+            "As of Giotto 4.2.3 doLeidenCluster() works via {igraph}
+            For the python implementation, use doLeidenClusterPython()
+            This message appears once per session."
+        )
+        options("giotto.warn_leiden_change" = FALSE)
+    }
+    
     p <- clusterParam("leiden_igraph")
     p$resolution <- resolution
     p$n_iterations <- n_iterations
@@ -1157,7 +1168,9 @@ doLeidenClusterIgraph <- function(
     )
 }
 
-
+#' @rdname doLeidenCluster
+#' @export
+doLeidenCluster <- doLeidenClusterIgraph
 
 
 
