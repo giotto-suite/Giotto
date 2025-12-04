@@ -5,9 +5,10 @@
 * `doLeidenCluster()` now uses the {igraph} method by default. Original python implementation still accessible as `doLeidenClusterPython()`
 
 ## New
-* New reader function `createGiottoSTOmicsObject`.
+* New reader function `createGiottoStereoSeqObject`.
 
 ## Bug fixes
+* Update `giottoToAnndataZarr` to use basilisk environments required by basilisk v1.22. 
 * Replace outdated ggplot aes_string with local aes_string2 function.
 * Fix usage of outdated parameter in `giottoToSeuratV5`.
 

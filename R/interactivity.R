@@ -762,7 +762,15 @@ plotInteractive3D <- function(
 #' @param expression expression values to extract (e.g. "raw", "normalized",
 #' "scaled")
 #' @param output_path path to create and save the anndata zarr folder
-#'
+#' @param pca_name optional. Default = NULL. Provide the pca name in your 
+#' Giotto object. If a pca exists and a name is not provided, the function will 
+#' use "pca" or the first available pca name.
+#' @param umap_name optional. Default = NULL. Provide the umap name in your 
+#' Giotto object. If a umap exists and a name is not provided, the function 
+#' will use "umap" or the first available umap name.
+#' @param tsne_name optional. Default = NULL. Provide the tsne name in your 
+#' Giotto object. If a tsne exists and a name is not provided, the function 
+#' will use "tsne" or the first available tsne name.
 #' @return local anndata zarr folder
 #' @export
 #'
@@ -784,15 +792,18 @@ plotInteractive3D <- function(
 #'     output_path = tempdir()
 #' )
 giottoToAnndataZarr <- function(
-        gobject, spat_unit = NULL,
-        feat_type = NULL, expression = "raw",
+        gobject, 
+        spat_unit = NULL,
+        feat_type = NULL, 
+        expression = "raw",
+        pca_name = NULL,
+        umap_name = NULL,
+        tsne_name = NULL,
         output_path) {
-    proc <- basilisk::basiliskStart(GiottoClass::instructions(
-        gobject = gobject,
-        param = "python_path"
-    ))
+    
+    proc <- basilisk::basiliskStart(giotto_env)
     on.exit(basilisk::basiliskStop(proc))
-
+    
     success <- basilisk::basiliskRun(
         proc,
         function(
@@ -846,44 +857,56 @@ giottoToAnndataZarr <- function(
                 obsm[["spatial"]] <- spatial_locs_matrix
             }
 
-            # extract pca
-            dim_reducs_pca <- GiottoClass::getDimReduction(
+            # list dimension reductions
+            dim_reductions <- GiottoClass::list_dim_reductions(
                 gobject = gobject,
-                spat_unit = spat_unit,
-                feat_type = feat_type,
-                reduction_method = "pca",
-                output = "matrix"
-            )
-
-            if (!is.null(dim_reducs_pca)) {
+                spat_unit = spat_unit)
+            
+            dim_type <- unique(dim_reductions$dim_type)
+            
+            # extract pca
+            if(length(dim_type[grep("pca", dim_type)]) > 0) {
+                
+                dim_reducs_pca <- GiottoClass::getDimReduction(
+                    gobject = gobject,
+                    spat_unit = spat_unit,
+                    feat_type = feat_type,
+                    reduction_method = "pca",
+                    name = pca_name,
+                    output = "matrix"
+                )
+                
                 obsm[["pca"]] <- dim_reducs_pca[obs$cell_ID, ]
             }
-
+                
+            
             # extract umap
-            dim_reducs_umap <- GiottoClass::getDimReduction(
-                gobject = gobject,
-                spat_unit = spat_unit,
-                feat_type = feat_type,
-                reduction_method = "umap",
-                name = "umap",
-                output = "matrix"
-            )
-
-            if (!is.null(dim_reducs_umap)) {
+            if(length(dim_type[grep("umap", dim_type)]) > 0) {
+                
+                dim_reducs_umap <- GiottoClass::getDimReduction(
+                    gobject = gobject,
+                    spat_unit = spat_unit,
+                    feat_type = feat_type,
+                    reduction_method = "umap",
+                    name = umap_name,
+                    output = "matrix"
+                )
+                
                 obsm[["umap"]] <- dim_reducs_umap[obs$cell_ID, ]
             }
 
             # extract tSNE
-            dim_reducs_tsne <- GiottoClass::getDimReduction(
-                gobject = gobject,
-                spat_unit = spat_unit,
-                feat_type = feat_type,
-                reduction_method = "tsne",
-                name = "tsne",
-                output = "matrix"
-            )
-
-            if (!is.null(dim_reducs_tsne)) {
+            if(length(dim_type[grep("tsne", dim_type)]) > 0) {
+                
+                dim_reducs_tsne <- GiottoClass::getDimReduction(
+                    gobject = gobject,
+                    spat_unit = spat_unit,
+                    feat_type = feat_type,
+                    reduction_method = "tsne",
+                    name = tsne_name,
+                    output = "matrix"
+                )
+                
                 obsm[["tsne"]] <- dim_reducs_tsne[obs$cell_ID, ]
             }
 
