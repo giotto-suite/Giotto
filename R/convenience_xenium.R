@@ -788,7 +788,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         dropcols = c(),
         qv_threshold = 20,
         cores = determine_cores(),
-        output = c("giottoPoints", "data.table"),
+        output = c("giottoPoints", "data.table", "arrow"),
         verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
@@ -803,7 +803,15 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     vmsg(.v = verbose, .is_debug = TRUE, "[TX_READ] FMT =", e)
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
-    output <- match.arg(output, choices = c("giottoPoints", "data.table"))
+    output <- match.arg(output, 
+        choices = c("giottoPoints", "data.table", "arrow")
+    )
+    
+    if (output == "arrow" && e != "parquet") {
+        stop("[TX_READ] arrow output only available with parquet")
+    }
+    parquet_output <- if (output == "arrow") "arrow"
+    else "data.table"
 
     # read in as data.table
     a <- list(
@@ -819,15 +827,22 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         "csv" = do.call(.xenium_transcript_csv,
             args = c(a, list(cores = cores))
         ),
-        "parquet" = do.call(.xenium_transcript_parquet, args = a),
+        "parquet" = do.call(.xenium_transcript_parquet, 
+            args = c(a, list(output = parquet_output))),
         "zarr" = stop("zarr not yet supported")
     )
 
     # flip values vertically
     y <- NULL # NSE var
-    if (flip_vertical) tx[, y := -y]
+    if (flip_vertical) {
+        if (inherits(tx, "data.table")) {
+            tx[, y := -y]
+        } else {
+            tx <- dplyr::mutate(tx, y = -y)
+        }
+    }
 
-    if (output == "data.table") return(tx)
+    if (output %in% c("data.table", "arrow")) return(tx)
 
     # create gpoints
     gpointslist <- createGiottoPoints(
@@ -888,7 +903,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         path,
         dropcols = c(),
         qv_threshold = 20,
-        verbose = NULL) {
+        verbose = NULL,
+        output = c("data.table", "arrow")) {
     package_check("dplyr")
     package_check("arrow", custom_msg = sprintf(
         "package 'arrow' is not yet installed\n\n To install:\n%s\n%s%s",
@@ -896,13 +912,19 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         "install.packages(\"arrow\", ",
         "repos = c(\"https://apache.r-universe.dev\"))"
     ))
+    output <- match.arg(output, c("data.table", "arrow"))
 
     # setup tx parquet query
     tx_arrow <- arrow::read_parquet(file = path, as_data_frame = FALSE) %>%
         dplyr::mutate(transcript_id = cast(transcript_id, arrow::string())) %>%
         dplyr::mutate(cell_id = cast(cell_id, arrow::string())) %>%
         dplyr::mutate(feature_name = cast(feature_name, arrow::string())) %>%
-        dplyr::select(-dplyr::any_of(dropcols))
+        dplyr::select(-dplyr::any_of(dropcols)) %>%
+        dplyr::rename(
+            feat_ID = "feature_name",
+            x = "x_location",
+            y = "y_location"
+        )
 
     # qv filtering
     if (!is.null(qv_threshold)) {
@@ -920,14 +942,13 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
             qv_threshold, n_before - n_after, n_before
         ))
     }
+    
+    if (output == "arrow") {
+        return(tx_arrow)
+    }
 
     # pull into memory as data.table
     tx_dt <- as.data.frame(tx_arrow) %>% data.table::setDT()
-    data.table::setnames(
-        x = tx_dt,
-        old = c("feature_name", "x_location", "y_location"),
-        new = c("feat_ID", "x", "y")
-    )
     return(tx_dt)
 }
 
