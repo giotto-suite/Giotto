@@ -285,7 +285,7 @@ setMethod(
         dropcols = c(),
         qv_threshold = obj@qv,
         cores = determine_cores(),
-        output = c("giottoPoints", "data.table"),
+        output = c("giottoPoints", "data.table", "arrow"),
         verbose = NULL) {
             .xenium_transcript(
                 path = path,
