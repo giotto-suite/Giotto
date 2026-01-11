@@ -1668,10 +1668,9 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
             type, ifelse(graphclust_annotated, " graphclust", "")),
             call. = FALSE)
     }
-    
+
     # createGiottoPolygon() seems to have some difficulty with the default ids
     sv <- terra::vect(poly_path, crs = "local")
-    if (flip_vertical) sv <- flip(sv)
     
     if (micron) {
         px2um <- GiottoUtils::read_json(scalefactors_path)$microns_per_pixel
@@ -1687,6 +1686,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         calc_centroids = TRUE,
         verbose = FALSE
     )
+    
+    if (flip_vertical) p <- flip(p, y0 = 0)
     
     if (!is.null(barcodes)) {
         p <- p[barcodes]
