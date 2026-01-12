@@ -176,7 +176,9 @@ NULL
 #'   `log_norm` \tab logical (default = `TRUE`). Whether to transform values to
 #'   log-scale. \cr
 #'   `log_offset` \tab numeric (default = 1). If `log_norm = TRUE`, offset
-#'   value to add to expression values to avoid `log(0)` \cr
+#'   value to add to expression values to avoid `log(0)`. Note: for sparse-like
+#'   matrices (e.g. `dgCMatrix`, 'dbSparseMatrix'), only `log_offset = 1` is
+#'   supported (log1p) \cr
 #'   `logbase` \tab numeric (default = 2). If `log_norm = TRUE`, log base to
 #'   use to log normalize expression values
 #' }
@@ -240,6 +242,8 @@ NULL
 #'   the above equation. \cr
 #'   `offset` \tab numeric (default = 1). Offset to add to expression values to
 #'   avoid \eqn{\log(0)}. Expressed as \eqn{b} in the above equation.
+#'   For sparse-like matrices and `dbMatrix`, only `offset = 1` is supported;
+#'   other values would change implicit zeros and require densification.
 #' }
 #' @md
 #' @family normalization parameters
@@ -1773,6 +1777,12 @@ normalizeGiotto <- function(gobject,
 #' @keywords internal
 #' @noRd
 .log_norm_giotto <- function(mymatrix, base, offset) {
+    # Enforce log1p for sparse-like matrices
+    if (!isTRUE(offset == 1) && (inherits(mymatrix, "sparseMatrix") || 
+                                 inherits(mymatrix, "dbSparseMatrix"))) {
+        stop("`offset != 1` is not supported for sparse-like matrices.")
+    }
+
     if (methods::is(mymatrix, "DelayedArray")) {
         mymatrix <- log(mymatrix + offset) / log(base)
         # } else if(methods::is(mymatrix, 'DelayedMatrix')) {
