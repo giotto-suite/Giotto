@@ -739,27 +739,38 @@ setClass("threshParam", contains = c("VIRTUAL", "processParam"))
 # extending method classes ####
 
 #' @rdname process_param
+#' @exportClass defaultNormParam
 setClass("defaultNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass libraryNormParam
 setClass("libraryNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass logNormParam
 setClass("logNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass osmFISHNormParam
 setClass("osmFISHNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass pearsonResidNormParam
 setClass("pearsonResidNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass quantileNormParam
 setClass("quantileNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass tfidfNormParam
 setClass("tfidfNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass l2NormParam
 setClass("l2NormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass arcsinhNormParam
 setClass("arcsinhNormParam", contains = "normParam")
 
 #' @rdname process_param
+#' @exportClass defaultScaleParam
 setClass("defaultScaleParam", contains = "scaleParam")
 #' @rdname process_param
+#' @exportClass zscoreScaleParam
 setClass("zscoreScaleParam", contains = "scaleParam")
 
 #' @rdname process_param
