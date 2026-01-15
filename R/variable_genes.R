@@ -336,7 +336,7 @@ calculateHVF <- function(
         save_param = list(),
         default_save_name = "HVFplot",
         return_gobject = TRUE,
-        calc_gini = TRUE,
+        calc_gini = FALSE,
         verbose = TRUE) {
     # NSE vars
     selected <- feats <- var <- NULL
