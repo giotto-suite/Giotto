@@ -1748,7 +1748,7 @@ normalizeGiotto <- function(gobject,
     if (any(0 == libsizes)) {
         warning(wrap_txt("Total library size or counts for individual spat
             units are 0.
-            This will likely result in normalization problems.
+            These units will remain all-zero after library normalization.
             filter (filterGiotto) or impute (imputeGiotto) spatial
             units.")
         )
@@ -1771,6 +1771,8 @@ normalizeGiotto <- function(gobject,
 .lib_norm_giotto <- function(mymatrix, scalefactor) {
     libsizes <- colSums_flex(mymatrix)
     .libzero_warn(libsizes = libsizes)
+
+    libsizes[libsizes == 0] <- 1 # Prevent matrix densification via div by 0
 
     if (inherits(mymatrix, "dgCMatrix")) {
         norm_expr <- mymatrix
