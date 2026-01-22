@@ -19,7 +19,7 @@ createGiottoXeniumObject(
   load_images = "focus",
   load_aligned_images = NULL,
   load_transcripts = TRUE,
-  load_expression = FALSE,
+  load_expression = TRUE,
   load_cellmeta = FALSE,
   instructions = NULL,
   verbose = NULL

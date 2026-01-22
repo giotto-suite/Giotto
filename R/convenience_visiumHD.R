@@ -1668,10 +1668,9 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
             type, ifelse(graphclust_annotated, " graphclust", "")),
             call. = FALSE)
     }
-    
+
     # createGiottoPolygon() seems to have some difficulty with the default ids
     sv <- terra::vect(poly_path, crs = "local")
-    if (flip_vertical) sv <- flip(sv)
     
     if (micron) {
         px2um <- GiottoUtils::read_json(scalefactors_path)$microns_per_pixel
@@ -1687,6 +1686,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         calc_centroids = TRUE,
         verbose = FALSE
     )
+    
+    if (flip_vertical) p <- flip(p, y0 = 0)
     
     if (!is.null(barcodes)) {
         p <- p[barcodes]
@@ -1893,25 +1894,11 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
     # create pts
     res_list <- lapply(expr_list, function(x) {
-        # convert expression matrix to minimal data.table object
-        mat <- x[]
-        matrix_tile_dt <- data.table::as.data.table(Matrix::summary(mat))
-        matrix_tile_dt[, feat_ID := mat@Dimnames[[1L]][i]]
-        matrix_tile_dt[, pixel := mat@Dimnames[[2L]][j]]
-        
-        # get data.table from spatlocs
-        spatlocs_dt <- sl[]
-        
-        # merge data.table matrix and spatial coordinates to create input for
-        # Giotto Polygons
-        gpoints <- data.table::merge.data.table(matrix_tile_dt, spatlocs_dt,
-            by.x = "pixel", by.y = "cell_ID"
+        createGiottoBinPoints(
+            expr_values = x, 
+            spatial_locs = sl, 
+            feat_type = featType(x)
         )
-        gpoints <- gpoints[,
-            c("sdimx", "sdimy", "feat_ID", "x", "pixel"), with = FALSE
-        ]
-        data.table::setnames(gpoints, old = "x", new = "count")
-        createGiottoPoints(gpoints, feat_type = featType(x), verbose = FALSE)
     })
     
     if (output == "full") {

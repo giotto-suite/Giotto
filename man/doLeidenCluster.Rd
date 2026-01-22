@@ -2,8 +2,28 @@
 % Please edit documentation in R/clustering.R
 \name{doLeidenCluster}
 \alias{doLeidenCluster}
+\alias{doLeidenClusterIgraph}
 \title{doLeidenCluster}
 \usage{
+doLeidenClusterIgraph(
+  gobject,
+  spat_unit = NULL,
+  feat_type = NULL,
+  name = "leiden_clus",
+  nn_network_to_use = "sNN",
+  network_name = "sNN.pca",
+  objective_function = c("modularity", "CPM"),
+  weights = NULL,
+  resolution = 1,
+  beta = 0.01,
+  initial_membership = NULL,
+  n_iterations = 1000,
+  return_gobject = TRUE,
+  set_seed = TRUE,
+  seed_number = 1234,
+  ...
+)
+
 doLeidenCluster(
   gobject,
   spat_unit = NULL,
@@ -11,15 +31,16 @@ doLeidenCluster(
   name = "leiden_clus",
   nn_network_to_use = "sNN",
   network_name = "sNN.pca",
-  python_path = NULL,
+  objective_function = c("modularity", "CPM"),
+  weights = NULL,
   resolution = 1,
-  weight_col = "weight",
-  partition_type = c("RBConfigurationVertexPartition", "ModularityVertexPartition"),
-  init_membership = NULL,
+  beta = 0.01,
+  initial_membership = NULL,
   n_iterations = 1000,
   return_gobject = TRUE,
   set_seed = TRUE,
-  seed_number = 1234
+  seed_number = 1234,
+  ...
 )
 }
 \arguments{
@@ -36,55 +57,50 @@ doLeidenCluster(
 
 \item{network_name}{name of NN network to use, default to "sNN.pca"}
 
-\item{python_path}{deprecated.}
+\item{objective_function}{objective function for the leiden algo}
+
+\item{weights}{weights of edges}
 
 \item{resolution}{resolution, default = 1}
 
-\item{weight_col}{weight column to use for edges, default to "weight"}
+\item{beta}{leiden randomness}
 
-\item{partition_type}{The type of partition to use for optimization.
-(e.g. "RBConfigurationVertexPartition", "ModularityVertexPartition")}
+\item{initial_membership}{initial membership of cells for the partition}
 
-\item{init_membership}{initial membership of cells for the partition}
+\item{n_iterations}{number of interations to run the Leiden algorithm.}
 
-\item{n_iterations}{number of interactions to run the Leiden algorithm.
-If the number of iterations is negative, the Leiden algorithm is run until
-an iteration in which there was no improvement.}
-
-\item{return_gobject}{logical. return giotto object (default = TRUE)}
+\item{return_gobject}{boolean: return giotto object (default = TRUE)}
 
 \item{set_seed}{set seed}
 
 \item{seed_number}{number for seed}
+
+\item{...}{
+  Arguments passed on to \code{\link[igraph:cluster_leiden]{igraph::cluster_leiden}}
+  \describe{
+    \item{\code{resolution_parameter}}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#superseded}{\figure{lifecycle-superseded.svg}{options: alt='[Superseded]'}}}{\strong{[Superseded]}} Use \code{resolution} instead.}
+    \item{\code{vertex_weights}}{the vertex weights used in the Leiden algorithm.
+If this is not provided, it will be automatically determined on the basis
+of the \code{objective_function}. Please see the details of this function
+how to interpret the vertex weights.}
+  }}
 }
 \value{
 giotto object with new clusters appended to cell metadata
 }
 \description{
 cluster cells using a NN-network and the Leiden community
-detection algorithm
+detection algorithm as implemented in igraph
 }
 \details{
-This function is a wrapper for the Leiden algorithm implemented in python,
+This function is a wrapper for the Leiden algorithm implemented in igraph,
 which can detect communities in graphs of millions of nodes (cells),
-as long as they can fit in memory. See the
-\href{https://github.com/vtraag/leidenalg}{leidenalg}
-github page or the
-\href{https://leidenalg.readthedocs.io/en/stable/index.html}{readthedocs}
-page for more information.
+as long as they can fit in memory. See \code{\link[igraph]{cluster_leiden}}
+for more information.
 
-Partition types available and information:
-\itemize{
-\item \strong{RBConfigurationVertexPartition:} Implements Reichardt and Bornholdt’s
-Potts model with a configuration null model. This quality function is
-well-defined only for positive edge weights. This quality function uses a
-linear resolution parameter.
-\item \strong{ModularityVertexPartition:} Implements modularity. This quality
-function is well-defined only for positive edge weights. It does \emph{not}
-use the resolution parameter
-}
-
-Set \emph{weight_col = NULL} to give equal weight (=1) to each edge.
+Set \emph{weights = NULL} to use the vertices weights associated with the
+igraph network.
+Set \emph{weights = NA} if you don't want to use vertices weights
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")

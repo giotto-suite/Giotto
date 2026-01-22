@@ -24,11 +24,11 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 URL: https://drieslab.github.io/Giotto/, https://github.com/drieslab/Giotto
 BugReports: https://github.com/drieslab/Giotto/issues
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.4.7)
+    GiottoClass (>= 0.5.0)
 Imports:
     BiocParallel,
     BiocSingular,
@@ -116,12 +116,14 @@ Remotes:
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
+    'basilisk.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
+    'convenience_stereoseq.r'
     'convenience_visiumHD.R'
     'convenience_xenium.R'
     'cross_section.R'

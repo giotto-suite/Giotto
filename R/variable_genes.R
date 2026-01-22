@@ -563,7 +563,8 @@ calculateHVF <- function(
         )
     pl <- pl + ggplot2::geom_point(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(x = "mean_expr", y = "cov", color = "selected")
+        GiottoVisuals::aes_string2(
+            x = "mean_expr", y = "cov", color = "selected")
     )
     pl <- pl + ggplot2::scale_color_manual(
         values = c(no = "lightgrey", yes = "orange"),
@@ -595,20 +596,19 @@ calculateHVF <- function(
         )
     pl <- pl + ggplot2::geom_point(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(
-            x = "log(mean_expr)", y = var_col,
-            color = "selected"
-        )
+        GiottoVisuals::aes_string2(
+            x = "log(mean_expr)", y = var_col, color = "selected")
     )
     pl <- pl + ggplot2::geom_line(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(x = "log(mean_expr)", y = "pred_cov_feats"),
+        GiottoVisuals::aes_string2(x = "log(mean_expr)", y = "pred_cov_feats"),
         color = "blue"
     )
     hvg_line <- paste0("pred_cov_feats+", difference_in_cov)
     pl <- pl + ggplot2::geom_line(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(x = "log(mean_expr)", y = hvg_line), linetype = 2
+        GiottoVisuals::aes_string2(x = "log(mean_expr)", y = hvg_line), 
+        linetype = 2
     )
     pl <- pl + ggplot2::labs(x = "log(mean expression)", y = var_col)
     pl <- pl + ggplot2::scale_color_manual(
@@ -625,7 +625,8 @@ calculateHVF <- function(
 .create_calc_var_hvf_plot <- function(dt_res) {
     pl <- ggplot2::ggplot()
     pl <- pl + ggplot2::geom_point(
-        data = dt_res, aes_string(x = "rank", y = "var", color = "selected")
+        data = dt_res, 
+        GiottoVisuals::aes_string2(x = "rank", y = "var", color = "selected")
     )
     pl <- pl + ggplot2::scale_x_reverse()
     pl <- pl + ggplot2::theme_classic() + ggplot2::theme(
