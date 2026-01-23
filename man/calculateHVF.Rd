@@ -28,6 +28,7 @@ calculateHVF(
   save_param = list(),
   default_save_name = "HVFplot",
   return_gobject = TRUE,
+  calc_gini = FALSE,
   verbose = TRUE
 )
 }
@@ -85,6 +86,9 @@ Passing \code{NULL} runs HVF on all cells.}
 save_name in save_param}
 
 \item{return_gobject}{boolean: return giotto object (default = TRUE)}
+
+\item{calc_gini}{logical. Whether to calculate Gini index for each feature.
+Set to FALSE for performance with large datasets or dbMatrix objects.}
 
 \item{verbose}{be verbose}
 }
