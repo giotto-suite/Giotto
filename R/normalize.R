@@ -1835,9 +1835,19 @@ normalizeGiotto <- function(gobject,
     # TODO: update with dbData generic
     con <- dbMatrix:::get_con(dbMatrix)
 
+    # Use unique table name to avoid collisions when multiple gobjects
+    tbl_base <- gsub("[^A-Za-z0-9_]", "_", name)
+    tbl_base <- gsub("_+", "_", tbl_base)
+    tbl_base <- gsub("^_+|_+$", "", tbl_base)
+    if (!nzchar(tbl_base)) tbl_base <- "tbl"
+    tbl_name <- basename(tempfile(pattern = paste0(tbl_base, "_")))
+    while (DBI::dbExistsTable(con, tbl_name)) {
+        tbl_name <- basename(tempfile(pattern = paste0(tbl_base, "_")))
+    }
+
     # overwrite table by default
-    if (name %in% DBI::dbListTables(con)) {
-        DBI::dbRemoveTable(con, name)
+    if (tbl_name %in% DBI::dbListTables(con)) {
+        DBI::dbRemoveTable(con, tbl_name)
     }
 
     if (verbose) {
@@ -1846,11 +1856,11 @@ normalizeGiotto <- function(gobject,
     }
 
     dbMatrix[] |>
-        dplyr::compute(temporary = FALSE, name = name)
+        dplyr::compute(temporary = FALSE, name = tbl_name)
 
     # TODO: update below with proper setters from dbMatrix
-    dbMatrix[] <- dplyr::tbl(con, name) # reassign to computed mat
-    dbMatrix@name <- name
+    dbMatrix[] <- dplyr::tbl(con, tbl_name) # reassign to computed mat
+    dbMatrix@name <- tbl_name
 
     if (verbose) cat("done \n")
 
