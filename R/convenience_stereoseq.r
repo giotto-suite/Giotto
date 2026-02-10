@@ -317,7 +317,7 @@ createGiottoStereoSeqObject <- function(
 
     image_dir <- file.path(stereoseq_dir, "outs", "image")
     he_image_path <- list.files(
-        path = image_dir, pattern = "HE_regist", full.names = TRUE)
+        path = image_dir, pattern = "_regist", full.names = TRUE)
     gimg <- createGiottoLargeImage(he_image_path, 
                                    name = "image",
                                    negative_y = negative_y)
