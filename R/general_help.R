@@ -573,14 +573,14 @@ get10Xmatrix <- function(
         result_list <- list()
 
         for (fclass in feat_classes) {
-            result_list[[fclass]] <- MMmatrix[featuresDT$V3 == fclass, ]
+            result_list[[fclass]] <- MMmatrix[featuresDT$V3 == fclass, , drop = FALSE]
         }
 
         if (isTRUE(remove_zero_rows)) {
             result_list <- lapply(result_list, function(MMmatrix) {
                 rowsums_result <- rowSums_flex(MMmatrix)
                 rowsums_bool <- rowsums_result != 0
-                MMmatrix <- MMmatrix[rowsums_bool, ]
+                MMmatrix <- MMmatrix[rowsums_bool, , drop = FALSE]
             })
         }
 
@@ -589,7 +589,7 @@ get10Xmatrix <- function(
         if (remove_zero_rows == TRUE) {
             rowsums_result <- rowSums_flex(MMmatrix)
             rowsums_bool <- rowsums_result != 0
-            MMmatrix <- MMmatrix[rowsums_bool, ]
+            MMmatrix <- MMmatrix[rowsums_bool, , drop = FALSE]
         }
 
         return(MMmatrix)
@@ -733,6 +733,8 @@ get10Xmatrix_h5 <- function(
         for (fclass in unique(feature_types)) {
             result_list[[fclass]] <- sparsemat[
                 features_dt$feature_type == fclass,
+                ,
+                drop = FALSE
             ]
 
             # change names to gene symbols if it's expression
@@ -751,7 +753,7 @@ get10Xmatrix_h5 <- function(
             result_list <- lapply(result_list, function(sparsemat) {
                 rowsums_result <- rowSums_flex(sparsemat)
                 rowsums_bool <- rowsums_result != 0
-                sparsemat <- sparsemat[rowsums_bool, ]
+                sparsemat <- sparsemat[rowsums_bool, , drop = FALSE]
             })
         }
         # apply scaling to Protein Expression if provided by 10x
@@ -773,7 +775,7 @@ get10Xmatrix_h5 <- function(
         if (isTRUE(remove_zero_rows)) {
             rowsums_result <- rowSums_flex(sparsemat)
             rowsums_bool <- rowsums_result != 0
-            sparsemat <- sparsemat[rowsums_bool, ]
+            sparsemat <- sparsemat[rowsums_bool, , drop = FALSE]
         }
 
         return(list("Gene Expression" = sparsemat))
