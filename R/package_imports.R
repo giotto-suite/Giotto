@@ -4,7 +4,7 @@
 #' @import ggplot2
 #' @import ggraph
 #' @import GiottoUtils
-#' @import GiottoClass
+#' @rawNamespace import(GiottoClass, except = c(head, tail))
 #' @import GiottoVisuals
 #' @importClassesFrom data.table data.table
 #' @importFrom data.table setnames setorder setDT
