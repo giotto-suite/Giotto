@@ -4,9 +4,10 @@
 #' @param type character. Use "squarebin" to read expression at different bin 
 #' levels (default), "cellbin" to read expression at cell resolution, or 
 #' "subcellular" to read individual transcripts and cell boundaries.
-#' @param bin_size bin size to select from *.tissue.gef file. Choose a value 
-#' from "bin1", "bin5", "bin10", "bin20", "bin50", "bin100", "bin150", or 
-#' "bin200". Only needed when using type = "squarebin".
+#' @param bin_size bin size. Choose a value from "bin1", "bin5", "bin10", 
+#' "bin20", "bin50", "bin100", "bin150", or "bin200". List the available bins 
+#' in your sample using rhdf5::h5ls("path/to/*.tissue.gef"). 
+#' Only needed when using type = "squarebin".
 #' @param gene_column (optional) character. Which column contains the gene names
 #' within the geneExp information. Choose from "geneName" (default), or "geneID"
 #' @param verbose logical. Be verbose.
@@ -61,10 +62,12 @@ createGiottoStereoSeqObject <- function(
         # check if proper bin_size is selected. These are determined in SAW pipeline
         vmsg(.v = verbose, "Reading expression file... \n")
         
-        bin_size_options <- c("bin1", "bin10", "bin20", "bin50", "bin100", "bin200")
+        bin_size_options <- c("bin1", "bin5", "bin10", 
+                              "bin20", "bin50", "bin100",
+                              "bin150", "bin200")
         if (!(bin_size %in% bin_size_options)) {
-            stop("Please select valid bin size, see ?createGiottoSTOmicsObject for 
-            details.")
+            stop("Please select valid bin size, see 
+            ?createGiottoStereoSeqObject for details.")
         }
         
         # check valid gene_column value
