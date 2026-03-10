@@ -266,10 +266,12 @@ createGiottoStereoSeqObject <- function(
                 w_list)
             
             rownames_matrix <- paste0("bin_", expMatrix$bin_ID)
-            expMatrix <- t(as.matrix(expMatrix[, -1, with = FALSE]))
+            expMatrix <- as.matrix(expMatrix[, -1, with = FALSE])
             colnames(expMatrix) <- rownames_matrix
             expMatrix[is.na(expMatrix)] <- 0
-
+            expMatrix <- Matrix::Matrix(expMatrix, sparse = TRUE)
+            expMatrix <- t(expMatrix)
+            
             spatial_locations[, cell_ID := paste0("bin_", bin_ID)]
             spatial_locations <- spatial_locations[, c("x", "y", "cell_ID")]
         }
