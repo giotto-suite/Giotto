@@ -242,29 +242,61 @@ createGiottoStereoSeqObject <- function(
             exprDT <- exprDT[, .(bin_ID, genes, count)]
             exprDT[, bin_ID := as.integer(bin_ID)]
             
-            expMatrix <- data.table::dcast(
-                exprDT, 
-                formula = bin_ID ~ genes, 
-                value.var = 'count', 
-                fun.aggregate = sum)
+            # expMatrix <- data.table::dcast(
+            #     exprDT, 
+            #     formula = genes ~ bin_ID, 
+            #     value.var = 'count', 
+            #     fun.aggregate = sum)
             
-            rownames_matrix <- paste0("cell_", expMatrix$bin_ID)
+            w_list <- list()
+            w_list <- lapply(as.list(unique(exprDT$genes)), function(x) 
+                exprDT[genes == x])
+            w_list <- lapply(w_list , function(z)
+                data.table::dcast(
+                    z, 
+                    bin_ID ~ genes, 
+                    value.var = 'count', 
+                    fun.aggregate = sum))
+            
+            expMatrix <- Reduce(function( ... ) merge(
+                ... ,
+                by = "bin_ID",
+                all = TRUE),
+                w_list)
+            
+            rownames_matrix <- expMatrix$genes
             expMatrix <- as.matrix(expMatrix[, -1, with = FALSE])
             rownames(expMatrix) <- rownames_matrix
-            expMatrix <- t(expMatrix)
-            
-            spatial_locations[, cell_ID := paste0("cell_", bin_ID)]
+            colnames(expMatrix) <- paste0("bin_", colnames(expMatrix))
+
+            spatial_locations[, cell_ID := paste0("bin_", bin_ID)]
             spatial_locations <- spatial_locations[, c("x", "y", "cell_ID")]
         }
         
         if(type == "cellbin") {
             exprDTmat <- exprDT[, .(cellID, genes, count)]
             exprDTmat[, cellID := as.integer(cellID)]
-            expMatrix <- data.table::dcast(
-                exprDTmat, 
-                formula = cellID ~ genes, 
-                value.var = 'count', 
-                fun.aggregate = sum)
+            # expMatrix <- data.table::dcast(
+            #     exprDTmat, 
+            #     formula = cellID ~ genes, 
+            #     value.var = 'count', 
+            #     fun.aggregate = sum)
+            
+            w_list <- list()
+            w_list <- lapply(as.list(unique(exprDT$genes)), function(x) 
+                exprDT[genes == x])
+            w_list <- lapply(w_list , function(z)
+                data.table::dcast(
+                    z, 
+                    bin_ID ~ genes, 
+                    value.var = 'count', 
+                    fun.aggregate = sum))
+            
+            expMatrix <- Reduce(function( ... ) merge(
+                ... ,
+                by = "bin_ID",
+                all = TRUE),
+                w_list)
             
             rownames_matrix <- paste0("cell_", expMatrix$cellID)
             expMatrix <- as.matrix(expMatrix[, -1, with = FALSE])
