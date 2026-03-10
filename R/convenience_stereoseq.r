@@ -267,7 +267,7 @@ createGiottoStereoSeqObject <- function(
             
             rownames_matrix <- paste0("bin_", expMatrix$bin_ID)
             expMatrix <- as.matrix(expMatrix[, -1, with = FALSE])
-            colnames(expMatrix) <- rownames_matrix
+            rownames_matrix(expMatrix) <- rownames_matrix
             expMatrix[is.na(expMatrix)] <- 0
             expMatrix <- Matrix::Matrix(expMatrix, sparse = TRUE)
             expMatrix <- t(expMatrix)
