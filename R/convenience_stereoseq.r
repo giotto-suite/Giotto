@@ -279,15 +279,14 @@ createGiottoStereoSeqObject <- function(
         if(type == "cellbin") {
             exprDT <- exprDT[, .(cellID, genes, count)]
             exprDT[, cellID := as.integer(cellID)]
-            # expMatrix <- data.table::dcast(
-            #     exprDTmat, 
-            #     formula = cellID ~ genes, 
-            #     value.var = 'count', 
-            #     fun.aggregate = sum)
+            exprDT[, count := as.integer(count)]
+            
+            genes_in_exprDT <- sort(unique(exprDT$genes))
+            genes_in_exprDT_chunks <- split(genes_in_exprDT, ceiling(seq_along(genes_in_exprDT)/1000))
             
             w_list <- list()
-            w_list <- lapply(as.list(unique(exprDT$genes)), function(x) 
-                exprDT[genes == x])
+            w_list <- lapply(genes_in_exprDT_chunks, function(x) 
+                exprDT[genes %in% x])
             w_list <- lapply(w_list , function(z)
                 data.table::dcast(
                     z, 
@@ -304,6 +303,8 @@ createGiottoStereoSeqObject <- function(
             rownames_matrix <- paste0("cell_", expMatrix$cellID)
             expMatrix <- as.matrix(expMatrix[, -1, with = FALSE])
             rownames(expMatrix) <- rownames_matrix
+            expMatrix[is.na(expMatrix)] <- 0
+            expMatrix <- Matrix::Matrix(expMatrix, sparse = TRUE)
             expMatrix <- t(expMatrix)
         }
         
