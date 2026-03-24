@@ -533,8 +533,8 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
 
     ## 1. check expression
     expr_counts_path <- switch(expr_data,
-        "raw" = paste0(visium_dir, "/", "raw_feature_bc_matrix/"),
-        "filter" = paste0(visium_dir, "/", "filtered_feature_bc_matrix/")
+        "raw" = file.path(visium_dir, "raw_feature_bc_matrix"),
+        "filter" = file.path(visium_dir, "filtered_feature_bc_matrix")
     )
     if (!file.exists(expr_counts_path)) {
         .gstop(expr_counts_path, "does not exist!")
@@ -542,23 +542,28 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
 
 
     ## 2. check spatial locations
-    spatial_dir <- paste0(visium_dir, "/", "spatial/")
-    tissue_positions_path <- Sys.glob(
-        paths = file.path(spatial_dir, "tissue_positions*")
-    )
-
+    spatial_dir <- file.path(visium_dir, "spatial")
+    
+    spatial_files <- list.files(spatial_dir)
+    
+    tissue_positions_path <- file.path(
+        spatial_dir,
+        spatial_files[grep("tissue_positions*", spatial_files)])
 
     ## 3. check spatial image
     if (is.null(png_name)) {
         png_list <- list.files(spatial_dir, pattern = "*.png")
         png_name <- png_list[1]
     }
-    png_path <- paste0(spatial_dir, "/", png_name)
+    png_path <- file.path(spatial_dir, png_name)
     if (!file.exists(png_path)) .gstop(png_path, " does not exist!")
 
 
     ## 4. check scalefactors
-    scalefactors_path <- paste0(spatial_dir, "/", "scalefactors_json.json")
+    scalefactors_path <- file.path(
+        spatial_dir,
+        spatial_files[grep("scalefactors_json.json", spatial_files)])
+    
     if (!file.exists(scalefactors_path)) {
         .gstop(scalefactors_path, "does not exist!")
     }
