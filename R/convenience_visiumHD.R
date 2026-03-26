@@ -2243,7 +2243,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
 # wrapper ####
 
-#' @title Create 10x VisiumHD Giotto Object
+#' @title deprecated
 #' @name createGiottoVisiumHDObject
 #' @description Given the path to a VisiumHD output folder, creates a
 #' Giotto object. For lower-level and independent loading of specific pieces
@@ -2331,7 +2331,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 #'     filter = sv
 #' )
 #' }
-#' @seealso [importVisiumHD()]
+#' @seealso [importVisiumHD()] [createGiottoVisiumHDObjectBin()]
+#' [createGiottoVisiumHDObjectCell()]
 #' @export
 createGiottoVisiumHDObject <- function(visiumhd_dir,
     bin = 8,
@@ -2368,7 +2369,15 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
     untar_params = list(),
     instructions = NULL,
     verbose = NULL) {
-    
+
+    .Deprecated(
+        msg = paste0(
+            "'createGiottoVisiumHDObject' is deprecated.\n",
+            "Use 'createGiottoVisiumHDObjectBin()' for binned outputs or\n",
+            "'createGiottoVisiumHDObjectCell()' for segmented outputs."
+        )
+    )
+
     reader <- importVisiumHD(
         visiumhd_dir = visiumhd_dir,
         bin = bin,
@@ -2419,4 +2428,325 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
     }
     
     do.call(reader$create_gobject, read_args)
+}
+
+
+# -------------------------------------------------------------------------
+# createGiottoVisiumHDObjectBin
+# -------------------------------------------------------------------------
+
+#' @title Create 10x VisiumHD Giotto Object from Binned Outputs
+#' @name createGiottoVisiumHDObjectBin
+#' @description Convenience function to create a Giotto object from a VisiumHD
+#' `binned_outputs` folder. Point `binned_outputs_dir` directly at the
+#' `binned_outputs` directory that contains the `square_???um` subdirectories
+#' (or tar files). For lower-level loading of individual pieces of data, see
+#' [importVisiumHD()].
+#' @param binned_outputs_dir filepath to the VisiumHD `binned_outputs` directory
+#' @param bin numeric. One of 2, 8, 16. Which binning resolution to load
+#' expression and spatial locations from.
+#' @param micron logical. Set `TRUE` to load in micron scale instead of fullres
+#' image mapping.
+#' @param load_expression logical. Whether to load in expression matrix.
+#' @param load_spatlocs logical. Whether to load in spatial locations.
+#' @param load_metadata logical. Whether to include array row/col and in_tissue
+#' metadata information.
+#' @param load_image logical. Whether to load in paired image information.
+#' @param load_transcripts logical. Whether to load in bin 2 micron data as
+#' transcripts information. Very memory expensive. Using `filter` or subsets
+#' on array or pixel row/col is recommended.
+#' @param create_tessellated_polys logical. Whether to generate tessellated
+#' polys across the dataset.
+#' @param tissue_only logical. Whether to only load information tagged as
+#' `in_tissue` (in `tissue_positions.parquet`). This is ignored by transcript
+#' loading.
+#' @param barcodes character. Specific pixel barcodes to keep.
+#' @param array_subset_row numeric vector, length = 2. Min/max of array rows to
+#' keep.
+#' @param array_subset_col numeric vector, length = 2. Min/max of array cols to
+#' keep.
+#' @param pxl_subset_row numeric vector, length = 2. Min/max of fullres image
+#' mapped rows to keep. Note that values are inverted into the negatives.
+#' @param pxl_subset_col numeric vector, length = 2. Min/max of fullres image
+#' mapped cols to keep.
+#' @param filter a `SpatVector`, `sf`, or `giottoPolygon` to spatially filter
+#' the data by.
+#' @param filter_coverage_cutoff numeric between 0 and 1. Minimal fraction of
+#' pixel coverage by `filter` in order to be selected.
+#' @param expression_source character. One of `"raw"` or `"filtered"`.
+#' Designates whether to pull expression values from raw or filtered matrix
+#' outputs.
+#' @param feature_id_type character. One of `"symbol"` or `"ensembl"`.
+#' Determines which to use as the feature identifiers.
+#' @param expression_remove_zero_rows logical (default = `TRUE`). Whether to
+#' remove features with no detections.
+#' @param expression_split_by_type logical (default = `TRUE`). Whether to
+#' split expression information by feature types in the dataset.
+#' @param image_type character. One of `"hires"` (default) or `"lowres"`.
+#' Determines which image output to load. Ignored if `image_path` is provided.
+#' @param tessellate_shape character. One of `"hexagon"` or `"square"`. Shape
+#' of poly to tessellate if `create_tessellated_polys = TRUE`.
+#' @param tessellate_shape_size numeric. Size of shape to tessellate
+#' (see [GiottoClass::tessellate()]).
+#' @param tessellate_name name of tessellated polygons to create.
+#' @param tissue_positions_path (optional) filepath to `tissue_positions.parquet`.
+#' @param scalefactors_path (optional) filepath to `scalefactors_json.json`.
+#' @param expression_path (optional) filepath to .h5 or matrix market directory.
+#' @param image_path (optional) filepath to image to use.
+#' @param outdir (optional) directory to unpack bin output tar contents into.
+#' (Default is the same directory as the tarfile.)
+#' @param force_untar logical. Whether to force a untarring operation.
+#' @param untar_params list. Additional named params to pass to [untar()].
+#' @param instructions giotto instructions to apply.
+#' @param verbose verbosity
+#' @returns giotto object
+#' @examples
+#' if (FALSE) {
+#' binned_dir <- "path/to/visiumhd/binned_outputs"
+#' g <- createGiottoVisiumHDObjectBin(binned_dir, tissue_only = TRUE, bin = 16)
+#' }
+#' @seealso [importVisiumHD()] [createGiottoVisiumHDObjectCell()]
+#' @export
+createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
+    bin = 8,
+    micron = FALSE,
+    load_expression = TRUE,
+    load_spatlocs = TRUE,
+    load_metadata = TRUE,
+    load_image = TRUE,
+    load_transcripts = FALSE,
+    create_tessellated_polys = FALSE,
+    tissue_only = FALSE,
+    barcodes = NULL,
+    array_subset_row = NULL,
+    array_subset_col = NULL,
+    pxl_subset_row = NULL,
+    pxl_subset_col = NULL,
+    filter = NULL,
+    filter_coverage_cutoff = 0.5,
+    expression_source = "raw",
+    feature_id_type = c("symbol", "ensembl"),
+    expression_remove_zero_rows = TRUE,
+    expression_split_by_type = TRUE,
+    image_type = "hires",
+    tessellate_shape = "hexagon",
+    tessellate_shape_size = 400,
+    tessellate_name = sprintf("%s%d",
+        tessellate_shape, as.integer(tessellate_shape_size)),
+    tissue_positions_path = NULL,
+    scalefactors_path = NULL,
+    expression_path = NULL,
+    image_path = NULL,
+    outdir = NULL,
+    force_untar = FALSE,
+    untar_params = list(),
+    instructions = NULL,
+    verbose = NULL) {
+
+    reader <- importVisiumHD(
+        visiumhd_dir = binned_outputs_dir,
+        bin = bin,
+        micron = micron,
+        outdir = outdir,
+        expression_source = expression_source,
+        feature_id_type = feature_id_type,
+        tissue_only = tissue_only,
+        barcodes = barcodes,
+        array_subset_row = array_subset_row,
+        array_subset_col = array_subset_col,
+        pxl_subset_row = pxl_subset_row,
+        pxl_subset_col = pxl_subset_col,
+        filter = filter,
+        filter_coverage_cutoff = filter_coverage_cutoff
+    )
+
+    read_args <- list(
+        load_expression = load_expression,
+        load_spatlocs = load_spatlocs,
+        load_metadata = load_metadata,
+        load_transcripts = load_transcripts,
+        load_image = load_image,
+        create_tessellated_polys = create_tessellated_polys,
+        expression_remove_zero_rows = expression_remove_zero_rows,
+        expression_split_by_type = expression_split_by_type,
+        image_type = image_type,
+        tessellate_shape = tessellate_shape,
+        tessellate_shape_size = tessellate_shape_size,
+        tessellate_name = tessellate_name,
+        force_untar = force_untar,
+        untar_params = untar_params,
+        instructions = instructions,
+        verbose = verbose
+    )
+
+    if (!is.null(tissue_positions_path)) {
+        read_args$tissue_positions_path <- tissue_positions_path
+    }
+    if (!is.null(scalefactors_path)) {
+        read_args$scalefactors_path <- scalefactors_path
+    }
+    if (!is.null(expression_path)) {
+        read_args$expression_path <- expression_path
+    }
+    if (!is.null(image_path)) {
+        read_args$image_path <- image_path
+    }
+
+    do.call(reader$create_gobject, read_args)
+}
+
+
+# -------------------------------------------------------------------------
+# createGiottoVisiumHDObjectCell
+# -------------------------------------------------------------------------
+
+#' @title Create 10x VisiumHD Giotto Object from Segmented Outputs
+#' @name createGiottoVisiumHDObjectCell
+#' @description Convenience function to create a Giotto object from a VisiumHD
+#' `segmented_outputs` folder (Space Ranger v4+). Point `segmented_outputs_dir`
+#' directly at the `segmented_outputs` directory. For lower-level loading of
+#' individual pieces of data, see [importVisiumHD()].
+#'
+#' Transcript loading (2 µm bin data) requires access to the `binned_outputs`
+#' directory. When `load_transcripts = TRUE` the function first tries to
+#' auto-detect `binned_outputs` as a sibling directory next to
+#' `segmented_outputs`. If it cannot be found, an error is thrown and the user
+#' should supply `binned_outputs_dir` explicitly.
+#' @param segmented_outputs_dir filepath to the VisiumHD `segmented_outputs`
+#' directory.
+#' @param load_expression logical. Whether to load expression matrix.
+#' @param load_polygons character. Which polygon types to load. One or both of
+#' `"cell"` and `"nucleus"`. Set to `NULL` or `character(0)` to skip.
+#' @param graphclust_annotated logical. Whether to load graphclust-annotated
+#' polygon variants.
+#' @param load_image logical. Whether to load the paired image.
+#' @param load_transcripts logical. Whether to load 2 µm bin data as
+#' transcripts. Very memory expensive. Requires access to the `binned_outputs`
+#' directory (auto-detected or supplied via `binned_outputs_dir`).
+#' @param binned_outputs_dir (optional) filepath to the VisiumHD
+#' `binned_outputs` directory. Only needed when `load_transcripts = TRUE` and
+#' auto-detection of the sibling `binned_outputs` folder fails.
+#' @param micron logical. Set `TRUE` to load in micron scale.
+#' @param barcodes character. Specific cell barcodes to keep.
+#' @param expression_source character. One of `"raw"` or `"filtered"`.
+#' @param feature_id_type character. One of `"symbol"` or `"ensembl"`.
+#' @param expression_remove_zero_rows logical (default `TRUE`). Whether to
+#' remove features with no detections.
+#' @param expression_split_by_type logical (default `TRUE`). Whether to split
+#' expression by feature type.
+#' @param image_type character. One of `"hires"` (default) or `"lowres"`.
+#' @param scalefactors_path (optional) filepath to `scalefactors_json.json`.
+#' @param expression_path (optional) filepath to .h5 or matrix market directory.
+#' @param image_path (optional) filepath to image to use.
+#' @param geojson_path (optional) filepath or directory for polygon `.geojson`
+#' files.
+#' @param instructions giotto instructions to apply.
+#' @param verbose verbosity
+#' @returns giotto object
+#' @examples
+#' if (FALSE) {
+#' seg_dir <- "path/to/visiumhd/segmented_outputs"
+#' g <- createGiottoVisiumHDObjectCell(seg_dir)
+#'
+#' # with transcript loading (auto-detects ../binned_outputs/)
+#' g <- createGiottoVisiumHDObjectCell(seg_dir, load_transcripts = TRUE)
+#'
+#' # with explicit binned_outputs path
+#' g <- createGiottoVisiumHDObjectCell(seg_dir,
+#'     load_transcripts = TRUE,
+#'     binned_outputs_dir = "path/to/visiumhd/binned_outputs"
+#' )
+#' }
+#' @seealso [importVisiumHD()] [createGiottoVisiumHDObjectBin()]
+#' @export
+createGiottoVisiumHDObjectCell <- function(segmented_outputs_dir,
+    load_expression = TRUE,
+    load_polygons = c("cell", "nucleus"),
+    graphclust_annotated = FALSE,
+    load_image = TRUE,
+    load_transcripts = FALSE,
+    binned_outputs_dir = NULL,
+    micron = FALSE,
+    barcodes = NULL,
+    expression_source = "raw",
+    feature_id_type = c("symbol", "ensembl"),
+    expression_remove_zero_rows = TRUE,
+    expression_split_by_type = TRUE,
+    image_type = "hires",
+    scalefactors_path = NULL,
+    expression_path = NULL,
+    image_path = NULL,
+    geojson_path = NULL,
+    instructions = NULL,
+    verbose = NULL) {
+
+    # resolve binned_outputs_dir for transcript loading
+    if (load_transcripts) {
+        if (is.null(binned_outputs_dir)) {
+            candidate <- file.path(
+                dirname(normalizePath(segmented_outputs_dir, mustWork = FALSE)),
+                "binned_outputs"
+            )
+            if (dir.exists(candidate)) {
+                binned_outputs_dir <- candidate
+                vmsg(.v = verbose,
+                    "[VisiumHD] auto-detected binned_outputs at:", candidate)
+            } else {
+                stop(wrap_txt(
+                    "[VisiumHD] load_transcripts = TRUE but no binned_outputs",
+                    "directory was found next to segmented_outputs_dir.",
+                    "Please supply the path via the `binned_outputs_dir` argument."
+                ), call. = FALSE)
+            }
+        }
+    }
+
+    seg_reader <- importVisiumHD(
+        visiumhd_dir = segmented_outputs_dir,
+        micron = micron,
+        expression_source = expression_source,
+        feature_id_type = feature_id_type,
+        barcodes = barcodes
+    )
+
+    read_args <- list(
+        load_expression = load_expression,
+        load_polygons = load_polygons,
+        graphclust_annotated = graphclust_annotated,
+        load_image = load_image,
+        expression_remove_zero_rows = expression_remove_zero_rows,
+        expression_split_by_type = expression_split_by_type,
+        image_type = image_type,
+        instructions = instructions,
+        verbose = verbose
+    )
+
+    if (!is.null(scalefactors_path)) {
+        read_args$scalefactors_path <- scalefactors_path
+    }
+    if (!is.null(expression_path)) {
+        read_args$expression_path <- expression_path
+    }
+    if (!is.null(image_path)) {
+        read_args$image_path <- image_path
+    }
+    if (!is.null(geojson_path)) {
+        read_args$geojson_path <- geojson_path
+    }
+
+    g <- do.call(seg_reader$create_gobject, read_args)
+
+    if (load_transcripts) {
+        bin_reader <- importVisiumHD(
+            visiumhd_dir = binned_outputs_dir,
+            bin = 2L,
+            micron = micron,
+            expression_source = expression_source,
+            feature_id_type = feature_id_type
+        )
+        tx_list <- bin_reader$load_transcripts()
+        g <- setGiotto(g, tx_list, verbose = verbose)
+    }
+
+    g
 }
