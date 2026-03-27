@@ -542,70 +542,33 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 }
 
 # Build a giottoBinPoints from already-read gef data.
-# This is the most memory-efficient path: data stays as integer triplets and a
-# SpatVector — no dense or wide matrix is ever created.
+# Builds a transient sparse matrix via Matrix::sparseMatrix() and a spatLocsObj,
+# then delegates all internal slot construction to createGiottoBinPoints().
 .stereoseq_build_binpoints <- function(gef_data, type, negative_y, spat_unit,
                                        verbose = NULL) {
-    bin_ID <- x <- y <- NULL  # data.table vars
-
     vmsg(.v = verbose, "Building giottoBinPoints...")
 
-    if (type == "bin") {
-        exprDT <- gef_data$exprDT
+    # Reuse the expression and spatlocs builders — the transient sparse matrix
+    # is small (only non-zero entries) and createGiottoBinPoints() owns the
+    # internal slot construction, keeping this function maintainable.
+    expr_list <- .stereoseq_build_expression(
+        gef_data  = gef_data,
+        type      = type,
+        spat_unit = spat_unit,
+        verbose   = NULL
+    )
+    sl <- .stereoseq_build_spatlocs(
+        gef_data   = gef_data,
+        type       = type,
+        negative_y = negative_y,
+        spat_unit  = spat_unit,
+        verbose    = verbose
+    )
 
-        # unique bin positions → assign integer index
-        bins <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
-        bins[, bin_ID := .I]
-        dt <- merge(exprDT, bins, by = c("x", "y"))
-
-        fid_vec <- sort(unique(dt$genes))
-        bid_vec <- paste0("bin_", bins$bin_ID)
-
-        counts_dt <- data.table::data.table(
-            i = as.integer(match(dt$genes, fid_vec)),
-            j = as.integer(dt$bin_ID),
-            x = as.integer(dt$count)
-        )
-
-        bins[, x_coord := as.integer(x)]
-        bins[, y_coord := if (isTRUE(negative_y)) 0L - as.integer(y) else as.integer(y)]
-        sv <- terra::vect(as.data.frame(bins[, .(x_coord, y_coord)]),
-                          geom = c("x_coord", "y_coord"))
-
-        vmsg(.v = verbose, nrow(bins), " bins in total")
-    } else {
-        exprDT <- gef_data$exprDT
-        cellDT <- data.table::copy(gef_data$cellDT)
-        cellDT[, cell_ID := paste0("cell_", id)]
-
-        fid_vec <- sort(unique(exprDT$genes))
-        bid_vec <- cellDT$cell_ID
-        cell_idx_map <- data.table::setattr(
-            seq_len(nrow(cellDT)), "names", as.character(cellDT$id)
-        )
-
-        counts_dt <- data.table::data.table(
-            i = as.integer(match(exprDT$genes, fid_vec)),
-            j = as.integer(cell_idx_map[as.character(exprDT$cellID)]),
-            x = as.integer(exprDT$count)
-        )
-
-        cellDT[, x_coord := as.integer(x)]
-        cellDT[, y_coord := if (isTRUE(negative_y)) 0L - as.integer(y) else as.integer(y)]
-        sv <- terra::vect(as.data.frame(cellDT[, .(x_coord, y_coord)]),
-                          geom = c("x_coord", "y_coord"))
-
-        vmsg(.v = verbose, nrow(cellDT), " cells in total")
-    }
-
-    gbp <- new("giottoBinPoints",
-        spatial   = sv,
-        counts    = counts_dt,
-        bid       = bid_vec,
-        pmap      = seq_len(length(bid_vec)),
-        fid       = fid_vec,
-        feat_type = "rna",
-        compact   = TRUE
+    gbp <- createGiottoBinPoints(
+        expr_values  = expr_list[[1L]],
+        spatial_locs = sl,
+        feat_type    = "rna"
     )
     spatUnit(gbp) <- spat_unit
 
