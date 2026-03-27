@@ -790,7 +790,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         calc_centroids  = TRUE
     )
     if (isTRUE(negative_y)) {
-        poly <- terra::flip(poly)
+        # GiottoClass::flip with y0 = 0 (default) performs y -> -y,
+        # matching the 0L - y negation applied to gef spatial locations.
+        # terra::flip is NOT used here: it reflects around ymin (not y=0),
+        # which leaves the polygon mirrored around the x-axis.
+        poly <- flip(poly, direction = "vertical", y0 = 0)
     }
     vmsg(.v = verbose, "Finished creating polygons from mask")
     poly
