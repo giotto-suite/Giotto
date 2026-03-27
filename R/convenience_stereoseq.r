@@ -254,8 +254,11 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
 
     ## mask load call
     .default_mask_path <- .stereoseq_find_mask(p)
-    load_mask_fun <- function(path = .default_mask_path, verbose = NULL) {
-        .stereoseq_mask(path = path, verbose = verbose)
+    load_mask_fun <- function(
+        path       = .default_mask_path,
+        negative_y = .Object@negative_y,
+        verbose    = NULL) {
+        .stereoseq_mask(path = path, negative_y = negative_y, verbose = verbose)
     }
     .Object@calls$load_mask <- load_mask_fun
 
@@ -378,7 +381,11 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
                 warning("[StereoSeq] No mask file found. Skipping mask polygons.",
                     call. = FALSE)
             } else {
-                gpoly <- .stereoseq_mask(path = mask_path, verbose = verbose)
+                gpoly <- .stereoseq_mask(
+                    path       = mask_path,
+                    negative_y = negative_y,
+                    verbose    = verbose
+                )
             }
         }
 
@@ -769,7 +776,9 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 # Load the mask image and create cell polygons.
 # `path` must be the full filepath to a *_HE_mask.tif file.
 # Returns a giottoPolygon or NULL if path is NULL / file not found.
-.stereoseq_mask <- function(path, verbose = NULL) {
+# When negative_y = TRUE the polygon y-coordinates are flipped (terra::flip)
+# to match the negated-y convention used for spatial locations from the gef file.
+.stereoseq_mask <- function(path, negative_y = TRUE, verbose = NULL) {
     if (is.null(path) || !file.exists(path)) {
         warning("[StereoSeq] No *_HE_mask.tif file found. Skipping mask polygons.",
             call. = FALSE)
@@ -780,6 +789,9 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         maskfile        = path,
         calc_centroids  = TRUE
     )
+    if (isTRUE(negative_y)) {
+        poly <- terra::flip(poly)
+    }
     vmsg(.v = verbose, "Finished creating polygons from mask")
     poly
 }
