@@ -308,12 +308,18 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
         expr_obj <- sl <- gbp <- NULL
 
         if (load_expression || load_spatlocs || load_binpoints) {
-            # read gef once, then build all requested representations
+            # read gef once, then build all requested representations.
+            # Only request the sub-datasets each output actually needs.
+            what_needed <- character(0)
+            if (load_expression || load_binpoints) what_needed <- c(what_needed, "expression")
+            if (load_spatlocs   || load_binpoints) what_needed <- c(what_needed, "spatlocs")
+
             gef_data <- .stereoseq_read_gef(
                 path        = gef_path,
                 type        = type,
                 bin_size    = bin_size,
                 gene_column = gene_column,
+                what        = what_needed,
                 verbose     = verbose
             )
 
@@ -452,32 +458,61 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
     file.path(feat_dir, hit[[1L]])
 }
 
-# Read a .gef file and return raw data as a named list
-.stereoseq_read_gef <- function(path, type, bin_size, gene_column, verbose = NULL) {
+# Read a .gef file and return raw data as a named list.
+# `what` controls which sub-datasets are loaded:
+#   "expression" — expression counts + gene names (needed for matrix / binpoints)
+#   "spatlocs"   — spatial coordinates only:
+#                    bin type : reads the expression compound dataset (x,y live there)
+#                               but skips the gene table
+#                    cell type: reads only the small `cell` table (id, x, y);
+#                               skips the large geneExp table entirely
+# Pass both values (default) when multiple outputs will be built from one read.
+.stereoseq_read_gef <- function(path, type, bin_size, gene_column = NULL,
+                                 what = c("expression", "spatlocs"),
+                                 verbose = NULL) {
     package_check(pkg_name = "rhdf5", repository = "Bioc")
     genes <- NULL  # data.table var
 
+    need_expr <- "expression" %in% what
+    need_spat <- "spatlocs"   %in% what
+
     if (type == "bin") {
         vmsg(.v = verbose, "Reading tissue.gef file...")
-        geneExpData <- rhdf5::h5read(
+        # bin spatial coordinates live inside the expression compound dataset,
+        # so it must be read for either purpose
+        exprDT <- data.table::setDT(rhdf5::h5read(
             file = path,
-            name = paste0("geneExp/", bin_size)
-        )
-        exprDT <- data.table::setDT(geneExpData[["expression"]])
-        geneDT <- data.table::setDT(geneExpData[["gene"]])
-        exprDT[, genes := rep(x = geneDT[[gene_column]], geneDT$count)]
+            name = paste0("geneExp/", bin_size, "/expression")
+        ))
+        geneDT <- NULL
+        if (need_expr) {
+            geneDT <- data.table::setDT(rhdf5::h5read(
+                file = path,
+                name = paste0("geneExp/", bin_size, "/gene")
+            ))
+            exprDT[, genes := rep(x = geneDT[[gene_column]], geneDT$count)]
+        }
         vmsg(.v = verbose, "Finished reading tissue.gef")
         list(type = "bin", exprDT = exprDT, geneDT = geneDT)
     } else {
         vmsg(.v = verbose, "Reading adjusted.cellbin.gef file...")
-        geneExpData <- rhdf5::h5read(
-            file = path,
-            name = "cellBin"
-        )
-        exprDT <- data.table::setDT(geneExpData[["geneExp"]])
-        geneDT <- data.table::setDT(geneExpData[["gene"]])
-        cellDT <- data.table::setDT(geneExpData[["cell"]])
-        exprDT[, genes := rep(x = geneDT[[gene_column]], geneDT$cellCount)]
+        exprDT <- geneDT <- cellDT <- NULL
+        if (need_expr) {
+            exprDT <- data.table::setDT(rhdf5::h5read(
+                file = path, name = "cellBin/geneExp"
+            ))
+            geneDT <- data.table::setDT(rhdf5::h5read(
+                file = path, name = "cellBin/gene"
+            ))
+            exprDT[, genes := rep(x = geneDT[[gene_column]], geneDT$cellCount)]
+        }
+        # cell table is small and needed both for spatlocs and for expression
+        # matrix column ordering, so read it whenever either is requested
+        if (need_expr || need_spat) {
+            cellDT <- data.table::setDT(rhdf5::h5read(
+                file = path, name = "cellBin/cell"
+            ))
+        }
         vmsg(.v = verbose, "Finished reading adjusted.cellbin.gef")
         list(type = "cell", exprDT = exprDT, geneDT = geneDT, cellDT = cellDT)
     }
@@ -622,6 +657,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         type        = type,
         bin_size    = bin_size,
         gene_column = gene_column,
+        what        = "expression",
         verbose     = verbose
     )
     .stereoseq_build_expression(
@@ -640,6 +676,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         type        = type,
         bin_size    = bin_size,
         gene_column = gene_column,
+        what        = "spatlocs",
         verbose     = verbose
     )
     .stereoseq_build_spatlocs(
@@ -660,6 +697,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         type        = type,
         bin_size    = bin_size,
         gene_column = gene_column,
+        what        = c("expression", "spatlocs"),
         verbose     = verbose
     )
     .stereoseq_build_binpoints(
