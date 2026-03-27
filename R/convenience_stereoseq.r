@@ -252,6 +252,13 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
     }
     .Object@calls$load_image <- load_image_fun
 
+    ## mask load call
+    .default_mask_path <- .stereoseq_find_mask(p)
+    load_mask_fun <- function(path = .default_mask_path, verbose = NULL) {
+        .stereoseq_mask(path = path, verbose = verbose)
+    }
+    .Object@calls$load_mask <- load_mask_fun
+
     ## binpoints load call
     binpoints_fun <- function(
         path        = gef_path,
@@ -278,18 +285,21 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
     # (parameter name == captured variable name causes circular reference in R)
     .default_gef_path  <- gef_path
     .default_image_dir <- image_dir
+    .default_mask_path2 <- .stereoseq_find_mask(p)
 
     gobject_fun <- function(
         load_expression = TRUE,
         load_spatlocs   = TRUE,
         load_binpoints  = FALSE,
         load_image      = TRUE,
+        load_mask       = TRUE,
         type            = .Object@type,
         bin_size        = .Object@bin_size,
         gene_column     = .Object@gene_column,
         negative_y      = .Object@negative_y,
         gef_path        = .default_gef_path,
         image_path      = .default_image_dir,
+        mask_path       = .default_mask_path2,
         instructions    = NULL,
         verbose         = NULL) {
 
@@ -362,6 +372,16 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
             )
         }
 
+        gpoly <- NULL
+        if (load_mask) {
+            if (is.null(mask_path)) {
+                warning("[StereoSeq] No mask file found. Skipping mask polygons.",
+                    call. = FALSE)
+            } else {
+                gpoly <- .stereoseq_mask(path = mask_path, verbose = verbose)
+            }
+        }
+
         # assemble giotto
         vmsg(.v = verbose, "assembling object ...")
         g <- giotto(instructions = instructions)
@@ -376,6 +396,9 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
         }
         if (!is.null(gimg)) {
             g <- setGiotto(g, gimg, verbose = verbose)
+        }
+        if (!is.null(gpoly)) {
+            g <- setGiotto(g, gpoly, verbose = verbose)
         }
         gc(verbose = FALSE)
         g
@@ -456,6 +479,17 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
             call. = FALSE)
     }
     file.path(feat_dir, hit[[1L]])
+}
+
+# Find *_HE_mask.tif (exact, not the _edm_dis_ variant) under path/image/
+.stereoseq_find_mask <- function(path) {
+    img_dir <- file.path(path, "image")
+    if (!dir.exists(img_dir)) return(NULL)
+    files <- list.files(img_dir)
+    # match *_HE_mask.tif but NOT *_HE_mask_edm_dis_*.tif
+    hit <- files[grep("_HE_mask\\.tif$", files)]
+    if (length(hit) == 0L) return(NULL)
+    file.path(img_dir, hit[[1L]])
 }
 
 # Read a .gef file and return raw data as a named list.
@@ -732,6 +766,24 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 }
 
 
+# Load the mask image and create cell polygons.
+# `path` must be the full filepath to a *_HE_mask.tif file.
+# Returns a giottoPolygon or NULL if path is NULL / file not found.
+.stereoseq_mask <- function(path, verbose = NULL) {
+    if (is.null(path) || !file.exists(path)) {
+        warning("[StereoSeq] No *_HE_mask.tif file found. Skipping mask polygons.",
+            call. = FALSE)
+        return(NULL)
+    }
+    vmsg(.v = verbose, "Creating polygons from mask...")
+    poly <- createGiottoPolygonsFromMask(
+        maskfile        = path,
+        calc_centroids  = TRUE
+    )
+    vmsg(.v = verbose, "Finished creating polygons from mask")
+    poly
+}
+
 
 # -------------------------------------------------------------------------
 # createGiottoStereoSeqObjectBin
@@ -763,9 +815,14 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #'   Useful for very large/fine bin datasets or as input to
 #'   [calculateOverlap()] with custom polygons.
 #' @param load_image logical. Whether to load the H&E registered image.
+#' @param load_mask logical (default `TRUE`). Whether to create cell polygons
+#'   from the `*_HE_mask.tif` file in `stereoseq_dir/image/`. Uses
+#'   [createGiottoPolygonsFromMask()] with `calc_centroids = TRUE`.
 #' @param gef_path (optional) direct filepath to the `*.tissue.gef` file.
 #'   Auto-detected from `stereoseq_dir` when not provided.
 #' @param image_path (optional) filepath or directory for the image.
+#'   Auto-detected from `stereoseq_dir/image/` when not provided.
+#' @param mask_path (optional) direct filepath to the `*_HE_mask.tif` file.
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
@@ -788,8 +845,10 @@ createGiottoStereoSeqObjectBin <- function(
     load_spatlocs   = TRUE,
     load_binpoints  = FALSE,
     load_image      = TRUE,
+    load_mask       = TRUE,
     gef_path        = NULL,
     image_path      = NULL,
+    mask_path       = NULL,
     instructions    = NULL,
     verbose         = NULL) {
 
@@ -806,12 +865,14 @@ createGiottoStereoSeqObjectBin <- function(
         load_spatlocs   = load_spatlocs,
         load_binpoints  = load_binpoints,
         load_image      = load_image,
+        load_mask       = load_mask,
         instructions    = instructions,
         verbose         = verbose
     )
 
     if (!is.null(gef_path))   read_args$gef_path   <- gef_path
     if (!is.null(image_path)) read_args$image_path <- image_path
+    if (!is.null(mask_path))  read_args$mask_path  <- mask_path
 
     do.call(reader$create_gobject, read_args)
 }
@@ -841,9 +902,14 @@ createGiottoStereoSeqObjectBin <- function(
 #'   [giottoBinPoints-class] object — the most memory-efficient representation.
 #'   Data stays as integer triplets + `SpatVector`; no matrix is created.
 #' @param load_image logical. Whether to load the H&E registered image.
+#' @param load_mask logical (default `TRUE`). Whether to create cell polygons
+#'   from the `*_HE_mask.tif` file in `stereoseq_dir/image/`. Uses
+#'   [createGiottoPolygonsFromMask()] with `calc_centroids = TRUE`.
 #' @param gef_path (optional) direct filepath to the `*.adjusted.cellbin.gef`
 #'   file. Auto-detected from `stereoseq_dir` when not provided.
 #' @param image_path (optional) filepath or directory for the image.
+#'   Auto-detected from `stereoseq_dir/image/` when not provided.
+#' @param mask_path (optional) direct filepath to the `*_HE_mask.tif` file.
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
@@ -864,8 +930,10 @@ createGiottoStereoSeqObjectCell <- function(
     load_spatlocs   = TRUE,
     load_binpoints  = FALSE,
     load_image      = TRUE,
+    load_mask       = TRUE,
     gef_path        = NULL,
     image_path      = NULL,
+    mask_path       = NULL,
     instructions    = NULL,
     verbose         = NULL) {
 
@@ -881,12 +949,14 @@ createGiottoStereoSeqObjectCell <- function(
         load_spatlocs   = load_spatlocs,
         load_binpoints  = load_binpoints,
         load_image      = load_image,
+        load_mask       = load_mask,
         instructions    = instructions,
         verbose         = verbose
     )
 
     if (!is.null(gef_path))   read_args$gef_path   <- gef_path
     if (!is.null(image_path)) read_args$image_path <- image_path
+    if (!is.null(mask_path))  read_args$mask_path  <- mask_path
 
     do.call(reader$create_gobject, read_args)
 }
