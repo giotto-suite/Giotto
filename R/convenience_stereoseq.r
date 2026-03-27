@@ -790,11 +790,16 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         calc_centroids  = TRUE
     )
     if (isTRUE(negative_y)) {
-        # GiottoClass::flip with y0 = 0 (default) performs y -> -y,
-        # matching the 0L - y negation applied to gef spatial locations.
-        # terra::flip is NOT used here: it reflects around ymin (not y=0),
-        # which leaves the polygon mirrored around the x-axis.
-        poly <- flip(poly, direction = "vertical", y0 = 0)
+        # The mask polygon comes out of terra::as.polygons in raster convention:
+        # y = 0 at the BOTTOM of the image, y = nrows at the TOP.
+        # The gef spatial locations use image convention (y = 0 at top) and
+        # are negated (0 - y), placing them at y ∈ [-nrows, 0] with 0 at top.
+        # Shifting the polygon down by ymax (= nrows) converts it to the same
+        # convention without flipping orientation.
+        # Concretely: a polygon vertex at terra-y T corresponds to image-row
+        # (nrows - T), whose negated gef value is -(nrows - T) = T - nrows.
+        ymax <- as.numeric(terra::ext(poly@spatVector)[4])
+        poly  <- spatShift(poly, dy = -ymax)
     }
     vmsg(.v = verbose, "Finished creating polygons from mask")
     poly
