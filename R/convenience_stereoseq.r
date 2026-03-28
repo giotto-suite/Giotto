@@ -794,12 +794,17 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         # y = 0 at the BOTTOM of the image, y = nrows at the TOP.
         # The gef spatial locations use image convention (y = 0 at top) and
         # are negated (0 - y), placing them at y ∈ [-nrows, 0] with 0 at top.
-        # Shifting the polygon down by ymax (= nrows) converts it to the same
-        # convention without flipping orientation.
+        # Shifting the polygon down by nrows converts it to the same convention
+        # without flipping orientation.
         # Concretely: a polygon vertex at terra-y T corresponds to image-row
         # (nrows - T), whose negated gef value is -(nrows - T) = T - nrows.
-        ymax <- as.numeric(terra::ext(poly@spatVector)[4])
-        poly  <- spatShift(poly, dy = -ymax)
+        #
+        # IMPORTANT: must use the full image height (nrows of the source raster),
+        # NOT the polygon bbox ymax. The tissue typically covers only a sub-region
+        # of the full slide image, so the polygon ymax < nrows. Using the polygon
+        # ymax would apply the wrong shift and misalign polygons with spatlocs.
+        nrows <- nrow(terra::rast(path))
+        poly  <- spatShift(poly, dy = -nrows)
     }
     vmsg(.v = verbose, "Finished creating polygons from mask")
     poly
