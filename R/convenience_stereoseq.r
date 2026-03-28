@@ -336,12 +336,22 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
                 verbose     = verbose
             )
 
+            # For bin type, pre-compute unique (x,y) bin positions once so that
+            # build_expression and build_spatlocs can reuse them without each
+            # running their own unique() pass.
+            if (type == "bin" && !is.null(gef_data$exprDT)) {
+                b <- unique(gef_data$exprDT[, c("x", "y")], by = c("x", "y"))
+                b[, bin_ID := .I]
+                gef_data$bins <- b
+            }
+
             if (load_expression) {
                 expr_obj <- .stereoseq_build_expression(
-                    gef_data  = gef_data,
-                    type      = type,
-                    spat_unit = spat_unit,
-                    verbose   = verbose
+                    gef_data    = gef_data,
+                    type        = type,
+                    gene_column = gene_column,
+                    spat_unit   = spat_unit,
+                    verbose     = verbose
                 )
             }
 
@@ -356,13 +366,27 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
             }
 
             if (load_binpoints) {
-                gbp <- .stereoseq_build_binpoints(
-                    gef_data   = gef_data,
-                    type       = type,
-                    negative_y = negative_y,
-                    spat_unit  = spat_unit,
-                    verbose    = verbose
-                )
+                if (!is.null(expr_obj) && !is.null(sl)) {
+                    # Both already built above — avoid redundant matrix + unique() work.
+                    # Keep in sync with .stereoseq_build_binpoints() if that function changes.
+                    vmsg(.v = verbose, "Building giottoBinPoints from pre-built objects...")
+                    gbp <- createGiottoBinPoints(
+                        expr_values  = expr_obj[[1L]],
+                        spatial_locs = sl,
+                        feat_type    = "rna"
+                    )
+                    spatUnit(gbp) <- spat_unit
+                    vmsg(.v = verbose, "Finished giottoBinPoints")
+                } else {
+                    gbp <- .stereoseq_build_binpoints(
+                        gef_data    = gef_data,
+                        type        = type,
+                        gene_column = gene_column,
+                        negative_y  = negative_y,
+                        spat_unit   = spat_unit,
+                        verbose     = verbose
+                    )
+                }
             }
         }
 
@@ -512,7 +536,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
                                  what = c("expression", "spatlocs"),
                                  verbose = NULL) {
     package_check(pkg_name = "rhdf5", repository = "Bioc")
-    genes <- NULL  # data.table var
+    gene_idx <- NULL  # data.table var
 
     need_expr <- "expression" %in% what
     need_spat <- "spatlocs"   %in% what
@@ -531,7 +555,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
                 file = path,
                 name = paste0("geneExp/", bin_size, "/gene")
             ))
-            exprDT[, genes := rep(x = geneDT[[gene_column]], geneDT$count)]
+            exprDT[, gene_idx := rep(seq_len(nrow(geneDT)), geneDT$count)]
         }
         vmsg(.v = verbose, "Finished reading tissue.gef")
         list(type = "bin", exprDT = exprDT, geneDT = geneDT)
@@ -545,7 +569,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
             geneDT <- data.table::setDT(rhdf5::h5read(
                 file = path, name = "cellBin/gene"
             ))
-            exprDT[, genes := rep(x = geneDT[[gene_column]], geneDT$cellCount)]
+            exprDT[, gene_idx := rep(seq_len(nrow(geneDT)), geneDT$cellCount)]
         }
         # cell table is small and needed both for spatlocs and for expression
         # matrix column ordering, so read it whenever either is requested
@@ -562,8 +586,8 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 # Build a giottoExprObj (wrapped in a list) from already-read gef data.
 # Uses Matrix::sparseMatrix() directly from triplet data — avoids the
 # memory-hungry dcast + Reduce(merge) approach entirely.
-.stereoseq_build_expression <- function(gef_data, type, spat_unit, verbose = NULL) {
-    bin_ID <- genes <- count <- x <- y <- cellID <- NULL  # data.table vars
+.stereoseq_build_expression <- function(gef_data, type, gene_column, spat_unit, verbose = NULL) {
+    bin_ID <- gene_idx <- count <- x <- y <- cellID <- NULL  # data.table vars
 
     vmsg(.v = verbose, "Building expression matrix...")
 
@@ -571,15 +595,23 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         exprDT <- gef_data$exprDT
 
         # assign integer bin IDs from unique (x, y) positions
-        bins <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
-        bins[, bin_ID := .I]
+        # use pre-computed bins from gef_data when available (set by gobject_fun)
+        bins <- if (!is.null(gef_data$bins)) gef_data$bins else {
+            b <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
+            b[, bin_ID := .I]
+            b
+        }
         dt <- merge(exprDT, bins, by = c("x", "y"))
 
-        gene_ids <- sort(unique(dt$genes))
+        geneDT   <- gef_data$geneDT
+        all_names <- as.character(geneDT[[gene_column]])  # O(n_genes) string conversion
+        gene_ids  <- sort(unique(all_names))              # unique sorted names (merges same-name genes)
+        # map each integer gene index -> row in matrix (two genes with same name share a row)
+        name_to_row <- match(all_names, gene_ids)
         n_bins   <- nrow(bins)
 
         expMatrix <- Matrix::sparseMatrix(
-            i        = match(dt$genes, gene_ids),
+            i        = name_to_row[dt$gene_idx],
             j        = dt$bin_ID,
             x        = as.integer(dt$count),
             dims     = c(length(gene_ids), n_bins),
@@ -589,7 +621,12 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         exprDT <- gef_data$exprDT
         cellDT <- gef_data$cellDT
 
-        gene_ids <- sort(unique(exprDT$genes))
+        geneDT      <- gef_data$geneDT
+        all_names   <- as.character(geneDT[[gene_column]])  # O(n_genes) string conversion
+        gene_ids    <- sort(unique(all_names))              # unique sorted names (merges same-name genes)
+        # map each integer gene index -> row in matrix (two genes with same name share a row)
+        name_to_row <- match(all_names, gene_ids)
+
         cell_ids <- paste0("cell_", cellDT$id)
         # map raw cellID to 1-based column index
         cell_idx_map <- data.table::setattr(
@@ -597,7 +634,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         )
 
         expMatrix <- Matrix::sparseMatrix(
-            i        = match(exprDT$genes, gene_ids),
+            i        = name_to_row[exprDT$gene_idx],
             j        = cell_idx_map[as.character(exprDT$cellID)],
             x        = as.integer(exprDT$count),
             dims     = c(length(gene_ids), length(cell_ids)),
@@ -620,7 +657,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 # Build a giottoBinPoints from already-read gef data.
 # Builds a transient sparse matrix via Matrix::sparseMatrix() and a spatLocsObj,
 # then delegates all internal slot construction to createGiottoBinPoints().
-.stereoseq_build_binpoints <- function(gef_data, type, negative_y, spat_unit,
+.stereoseq_build_binpoints <- function(gef_data, type, gene_column, negative_y, spat_unit,
                                        verbose = NULL) {
     vmsg(.v = verbose, "Building giottoBinPoints...")
 
@@ -628,10 +665,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
     # is small (only non-zero entries) and createGiottoBinPoints() owns the
     # internal slot construction, keeping this function maintainable.
     expr_list <- .stereoseq_build_expression(
-        gef_data  = gef_data,
-        type      = type,
-        spat_unit = spat_unit,
-        verbose   = NULL
+        gef_data    = gef_data,
+        type        = type,
+        gene_column = gene_column,
+        spat_unit   = spat_unit,
+        verbose     = NULL
     )
     sl <- .stereoseq_build_spatlocs(
         gef_data   = gef_data,
@@ -660,8 +698,15 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 
     if (type == "bin") {
         exprDT    <- gef_data$exprDT
-        spat_locs <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
-        spat_locs[, bin_ID  := seq_len(nrow(spat_locs))]
+        # use pre-computed bins from gef_data when available (set by gobject_fun);
+        # copy() is required because `:=` below mutates in place (data.table semantics)
+        spat_locs <- if (!is.null(gef_data$bins)) {
+            data.table::copy(gef_data$bins)
+        } else {
+            b <- unique(exprDT[, c("x", "y")], by = c("x", "y"))
+            b[, bin_ID := seq_len(nrow(b))]
+            b
+        }
         spat_locs[, cell_ID := paste0("bin_", bin_ID)]
         spat_locs <- spat_locs[, .(cell_ID, x, y)]
         vmsg(.v = verbose, nrow(spat_locs), " bins in total")
@@ -702,10 +747,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         verbose     = verbose
     )
     .stereoseq_build_expression(
-        gef_data  = gef_data,
-        type      = type,
-        spat_unit = spat_unit,
-        verbose   = verbose
+        gef_data    = gef_data,
+        type        = type,
+        gene_column = gene_column,
+        spat_unit   = spat_unit,
+        verbose     = verbose
     )
 }
 
@@ -742,11 +788,12 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         verbose     = verbose
     )
     .stereoseq_build_binpoints(
-        gef_data   = gef_data,
-        type       = type,
-        negative_y = negative_y,
-        spat_unit  = spat_unit,
-        verbose    = verbose
+        gef_data    = gef_data,
+        type        = type,
+        gene_column = gene_column,
+        negative_y  = negative_y,
+        spat_unit   = spat_unit,
+        verbose     = verbose
     )
 }
 
