@@ -603,10 +603,14 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         }
         dt <- merge(exprDT, bins, by = c("x", "y"))
 
-        geneDT   <- gef_data$geneDT
-        all_names <- as.character(geneDT[[gene_column]])  # O(n_genes) string conversion
-        gene_ids  <- sort(unique(all_names))              # unique sorted names (merges same-name genes)
-        # map each integer gene index -> row in matrix (two genes with same name share a row)
+        geneDT    <- gef_data$geneDT
+        all_names <- as.character(geneDT[[gene_column]])   # O(n_genes) string conversion
+        # derive gene_ids only from expressed genes (same behaviour as the old
+        # sort(unique(exprDT$genes)) — zero-count genes are not included)
+        expressed_names <- all_names[sort(unique(dt$gene_idx))]
+        gene_ids    <- sort(unique(expressed_names))
+        # map each geneDT index -> matrix row (two genes sharing a name share a row;
+        # non-expressed genes map to NA but their indices never appear in dt$gene_idx)
         name_to_row <- match(all_names, gene_ids)
         n_bins   <- nrow(bins)
 
@@ -621,10 +625,14 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         exprDT <- gef_data$exprDT
         cellDT <- gef_data$cellDT
 
-        geneDT      <- gef_data$geneDT
-        all_names   <- as.character(geneDT[[gene_column]])  # O(n_genes) string conversion
-        gene_ids    <- sort(unique(all_names))              # unique sorted names (merges same-name genes)
-        # map each integer gene index -> row in matrix (two genes with same name share a row)
+        geneDT    <- gef_data$geneDT
+        all_names <- as.character(geneDT[[gene_column]])   # O(n_genes) string conversion
+        # derive gene_ids only from expressed genes (same behaviour as the old
+        # sort(unique(exprDT$genes)) — zero-count genes are not included)
+        expressed_names <- all_names[sort(unique(exprDT$gene_idx))]
+        gene_ids    <- sort(unique(expressed_names))
+        # map each geneDT index -> matrix row (non-expressed genes map to NA but
+        # their indices never appear in exprDT$gene_idx)
         name_to_row <- match(all_names, gene_ids)
 
         cell_ids <- paste0("cell_", cellDT$id)
