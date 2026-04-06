@@ -19,20 +19,20 @@ createGiottoStereoSeqObject(
 \arguments{
 \item{stereoseq_dir}{filepath to the exported Stereo-seq directory.}
 
-\item{type}{character. Use "squarebin" to read expression at different bin 
-levels (default), "cellbin" to read expression at cell resolution, or 
+\item{type}{character. Use "squarebin" to read expression at different bin
+levels (default), "cellbin" to read expression at cell resolution, or
 "subcellular" to read individual transcripts and cell boundaries.}
 
-\item{bin_size}{bin size. Choose a value from "bin1", "bin5", "bin10", 
-"bin20", "bin50", "bin100", "bin150", or "bin200". List the available bins 
-in your sample using rhdf5::h5ls("path/to/*.tissue.gef"). 
+\item{bin_size}{bin size. Choose a value from "bin1", "bin5", "bin10",
+"bin20", "bin50", "bin100", "bin150", or "bin200". List the available bins
+in your sample using rhdf5::h5ls("path/to/*.tissue.gef").
 Only needed when using type = "squarebin".}
 
 \item{gene_column}{(optional) character. Which column contains the gene names
 within the geneExp information. Choose from "geneName" (default), or "geneID"}
 
-\item{negative_y}{logical. Map data to negative y spatial values during 
-automatic alignment (Default = TRUE). Meaning that origin is in upper left 
+\item{negative_y}{logical. Map data to negative y spatial values during
+automatic alignment (Default = TRUE). Meaning that origin is in upper left
 instead of lower left.
 from \code{\link{createGiottoInstructions}}}
 
@@ -47,4 +47,13 @@ Giotto Stereo-seq object
 }
 \description{
 Create Stereo-seq Giotto Object
+}
+\details{
+This function is deprecated. Use [createGiottoStereoSeqObjectBin()]
+for square bin data or [createGiottoStereoSeqObjectCell()] for cell bin data.
+The `"subcellular"` type is still only available through this function.
+}
+\seealso{
+[importStereoSeq()] [createGiottoStereoSeqObjectBin()]
+[createGiottoStereoSeqObjectCell()]
 }
