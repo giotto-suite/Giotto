@@ -899,60 +899,58 @@ addVisiumPolygons <- function(gobject,
 #' @returns giottoLargeImage
 #' @export
 createMerscopeLargeImage <- function(image_file,
-    transforms_file,
-    name = "image") {
-    checkmate::assert_character(transforms_file)
-    tfsDT <- data.table::fread(transforms_file)
-    if (inherits(image_file, "character")) {
-        image_file <- as.list(image_file)
-    }
-    checkmate::assert_list(image_file)
-
-    scalef <- c(1 / tfsDT[[1, 1]], 1 / tfsDT[[2, 2]])
-    x_shift <- -tfsDT[[1, 3]] / tfsDT[[1, 1]]
-    y_shift <- -tfsDT[[2, 3]] / tfsDT[[2, 2]]
-
-    out <- lapply(seq_along(image_file), function(i) {
-        gimg <- createGiottoLargeImage(
-            raster_object = image_file[[i]],
-            name = name[[i]],
-            scale_factor = scalef,
-            negative_y = FALSE
-        )
-
-        gimg <- spatShift(gimg, dx = x_shift, dy = y_shift)
-
-        gimg@extent <- terra::ext(gimg@raster_object)
-        return(gimg)
-    })
-
-    if (length(out) == 1L) {
-        out <- unlist(out)
-    }
-
-    return(out)
+                                     transforms_file,
+                                     name = "image") {
+  checkmate::assert_character(transforms_file)
+  tfsDT <- data.table::fread(transforms_file)
+  if (inherits(image_file, "character")) {
+    image_file <- as.list(image_file)
+  }
+  checkmate::assert_list(image_file)
+  
+  scalef <- c(1 / tfsDT[[1, 1]], 1 / tfsDT[[2, 2]])
+  x_shift <- -tfsDT[[1, 3]] / tfsDT[[1, 1]]
+  y_shift <- -tfsDT[[2, 3]] / tfsDT[[2, 2]]
+  
+  out <- lapply(seq_along(image_file), function(i) {
+    gimg <- createGiottoLargeImage(
+      raster_object = image_file[[i]],
+      name = name[[i]],
+      scale_factor = scalef,
+      negative_y = FALSE
+    )
+    
+    gimg <- spatShift(gimg, dx = x_shift, dy = y_shift)
+    
+    gimg@extent <- terra::ext(gimg@raster_object)
+    return(gimg)
+  })
+  
+  if (length(out) == 1L) {
+    out <- out[[1L]]
+  }
+  
+  return(out)
 }
-
-
-
-
-
-
 
 #' @title Create Vizgen MERSCOPE Giotto Object
 #' @name createGiottoMerscopeObject
 #' @description Given the path to a MERSCOPE experiment directory, creates a
-#' Giotto object.
+#' Giotto object. Supports both Parquet and HDF5 cell boundary formats.
+#' Features automatic 2D vs 3D architecture detection with vertex validation.
 #' @param merscope_dir full path to the exported merscope directory
 #' @param data_to_use which of either the 'subcellular' or 'aggregate'
 #' information to use for object creation
 #' @param FOVs which FOVs to use when building the subcellular object.
 #' (default is NULL)
 #' NULL loads all FOVs (very slow)
+#' @param polygon_format format of the boundary files, either 'parquet' or 'hdf5' (default is 'parquet')
+#' @param poly_z_indices which z-indices to use for the polygons (default 0 to 6)
 #' @param calculate_overlap whether to run \code{\link{calculateOverlapRaster}}
 #' @param overlap_to_matrix whether to run \code{\link{overlapToMatrix}}
 #' @param aggregate_stack whether to run \code{\link{aggregateStacks}}
 #' @param aggregate_stack_param params to pass to \code{\link{aggregateStacks}}
+#' @param split_keyword character vector of keywords to separate feature detections (e.g. "Blank")
 #' @inheritParams GiottoClass::createGiottoObjectSubcellular
 #' @returns a giotto object
 #' @details
@@ -961,7 +959,7 @@ createMerscopeLargeImage <- function(image_file,
 #' within the directory where the \strong{bolded} portions are what this
 #' function matches against:
 #' \itemize{
-#'   \item{\strong{cell_boundaries} (folder .hdf5 files)}
+#'   \item{\strong{cell_boundaries} (folder .hdf5 or .parquet files)}
 #'   \item{\strong{images} (folder of .tif images and a
 #'   scalefactor/transfrom table)}
 #'   \item{\strong{cell_by_gene}.csv (file)}
@@ -970,154 +968,207 @@ createMerscopeLargeImage <- function(image_file,
 #' }
 #' @export
 createGiottoMerscopeObject <- function(merscope_dir,
-    data_to_use = c("subcellular", "aggregate"),
-    FOVs = NULL,
-    poly_z_indices = seq(from = 1, to = 7),
-    calculate_overlap = TRUE,
-    overlap_to_matrix = TRUE,
-    aggregate_stack = TRUE,
-    aggregate_stack_param = list(
-        summarize_expression = "sum",
-        summarize_locations = "mean",
-        new_spat_unit = "cell"
-    ),
-    instructions = NULL,
-    cores = NA,
-    verbose = TRUE) {
-    fovs <- NULL
-
-    # 0. setup
-    merscope_dir <- path.expand(merscope_dir)
-
-    poly_z_indices <- as.integer(poly_z_indices)
-    if (any(poly_z_indices < 1)) {
-        stop(wrap_txt(
-            "poly_z_indices is a vector of one or more integers starting
-            from 1.",
-            errWidth = TRUE
-        ))
+                                       data_to_use = c("subcellular", "aggregate"),
+                                       FOVs = NULL,
+                                       polygon_format = c("parquet", "hdf5"),
+                                       poly_z_indices = 0:6,
+                                       calculate_overlap = TRUE,
+                                       overlap_to_matrix = TRUE,
+                                       aggregate_stack = TRUE,
+                                       aggregate_stack_param = list(
+                                         summarize_expression = "sum",
+                                         summarize_locations = "mean",
+                                         new_spat_unit = "cell"
+                                       ),
+                                       split_keyword = c("Blank"),
+                                       instructions = NULL,
+                                       cores = NA,
+                                       verbose = TRUE) {
+  
+  fovs <- FOVs
+  merscope_dir <- path.expand(merscope_dir)
+  
+  poly_z_indices <- as.integer(poly_z_indices)
+  if (any(poly_z_indices < 0)) {
+    stop(GiottoUtils::wrap_txt(
+      "poly_z_indices is a vector of one or more integers starting from 0.",
+      errWidth = TRUE
+    ))
+  }
+  
+  data_to_use <- match.arg(arg = data_to_use, choices = c("subcellular", "aggregate"))
+  polygon_format <- match.arg(arg = polygon_format, choices = c("parquet", "hdf5"))
+  
+  dir_items <- .read_merscope_folder(
+    merscope_dir = merscope_dir,
+    data_to_use = data_to_use,
+    polygon_format = polygon_format,
+    cores = cores,
+    verbose = verbose
+  )
+  
+  data_list <- .load_merscope_folder(
+    dir_items = dir_items,
+    data_to_use = data_to_use,
+    polygon_format = polygon_format,
+    poly_z_indices = poly_z_indices,
+    fovs = fovs,
+    cores = cores,
+    verbose = verbose
+  )
+  
+  if (data_to_use == "subcellular" && !is.null(data_list$poly_info)) {
+    if (length(data_list$poly_info) == 1 && isTRUE(aggregate_stack)) {
+      if (isTRUE(verbose)) {
+        message("--> [Auto-Correction] Only 1 Z-plane loaded. Setting 'aggregate_stack = FALSE'.")
+      }
+      aggregate_stack <- FALSE
     }
-
-    # determine data to use
-    data_to_use <- match.arg(
-        arg = data_to_use, choices = c("subcellular", "aggregate")
-    )
-
-    # 1. test if folder structure exists and is as expected
-    dir_items <- .read_merscope_folder(
-        merscope_dir = merscope_dir,
-        data_to_use = data_to_use,
-        cores = cores,
-        verbose = verbose
-    )
-
-    # 2. load in directory items
-    data_list <- .load_merscope_folder(
-        dir_items = dir_items,
-        data_to_use = data_to_use,
-        poly_z_indices = poly_z_indices,
-        fovs = fovs,
-        cores = cores,
-        verbose = verbose
-    )
-
-    # 3. Create giotto object
-    if (data_to_use == "subcellular") {
-        merscope_gobject <- .createGiottoMerscopeObject_subcellular(
-            data_list = data_list,
-            calculate_overlap = calculate_overlap,
-            overlap_to_matrix = overlap_to_matrix,
-            aggregate_stack = aggregate_stack,
-            aggregate_stack_param = aggregate_stack_param,
-            cores = cores,
-            verbose = verbose
-        )
-    } else if (data_to_use == "aggregate") {
-        merscope_gobject <- .createGiottoMerscopeObject_aggregate(
-            data_list = data_list,
-            cores = cores,
-            verbose = verbose
-        )
-    } else {
-        stop(wrap_txt('data_to_use "', data_to_use,
-            '" not implemented',
-            sep = ""
-        ))
+    
+    if (length(data_list$poly_info) > 1) {
+      ids_zA <- data_list$poly_info[[1]]@unique_ID_cache
+      ids_zB <- data_list$poly_info[[2]]@unique_ID_cache
+      
+      if (isTRUE(setequal(ids_zA, ids_zB))) {
+        sv_A <- slot(data_list$poly_info[[1]], "spatVector")
+        sv_B <- slot(data_list$poly_info[[2]], "spatVector")
+        
+        area_A <- sum(terra::expanse(sv_A))
+        area_B <- sum(terra::expanse(sv_B))
+        
+        if (isTRUE(all.equal(area_A, area_B))) {
+          crds_A <- head(terra::crds(sv_A), 100)
+          crds_B <- head(terra::crds(sv_B), 100)
+          
+          if (isTRUE(all.equal(crds_A, crds_B))) {
+            if (isTRUE(verbose)) {
+              message("--> [Auto-Detection] Identical IDs, areas, AND vertices detected (Replicated 2D Data).")
+              message("--> [Auto-Correction] Dropping redundant Z-planes. Setting 'aggregate_stack = FALSE'.")
+            }
+            data_list$poly_info <- data_list$poly_info[1]
+            poly_z_indices <- poly_z_indices[1]
+            aggregate_stack <- FALSE
+          } else {
+            if (isTRUE(verbose)) message("--> [Auto-Detection] Cell IDs and areas match, but vertices differ. Proceeding with 3D aggregation.")
+          }
+        } else {
+          if (isTRUE(verbose)) message("--> [Auto-Detection] Cell IDs match, but 3D geometries (areas) differ. Proceeding with 3D aggregation.")
+        }
+      } else {
+        if (isTRUE(verbose)) message("--> [Auto-Detection] Unique Cell IDs found across Z-planes. Proceeding with 3D aggregation.")
+      }
     }
-
-    return(merscope_gobject)
+  }
+  
+  if (data_to_use == "subcellular") {
+    merscope_gobject <- .createGiottoMerscopeObject_subcellular(
+      data_list = data_list,
+      calculate_overlap = calculate_overlap,
+      overlap_to_matrix = overlap_to_matrix,
+      aggregate_stack = aggregate_stack,
+      aggregate_stack_param = aggregate_stack_param,
+      split_keyword = split_keyword,
+      instructions = instructions,
+      cores = cores,
+      verbose = verbose
+    )
+  } else if (data_to_use == "aggregate") {
+    merscope_gobject <- .createGiottoMerscopeObject_aggregate(
+      data_list = data_list,
+      cores = cores,
+      verbose = verbose
+    )
+  } else {
+    stop(GiottoUtils::wrap_txt('data_to_use "', data_to_use, '" not implemented', sep = ""))
+  }
+  
+  return(merscope_gobject)
 }
 
-
-
-
-#' @describeIn createGiottoMerscopeObject Create giotto object with
-#' 'subcellular' workflow
+#' @describeIn createGiottoMerscopeObject Create giotto object with 'subcellular' workflow
 #' @param data_list list of loaded data from \code{\link{load_merscope_folder}}
 #' @keywords internal
 .createGiottoMerscopeObject_subcellular <- function(data_list,
-    calculate_overlap = TRUE,
-    overlap_to_matrix = TRUE,
-    aggregate_stack = TRUE,
-    aggregate_stack_param = list(
-        summarize_expression = "sum",
-        summarize_locations = "mean",
-        new_spat_unit = "cell"
-    ),
-    cores = NA,
-    verbose = TRUE) {
-    feat_coord <- neg_coord <- cellLabel_dir <- instructions <- NULL
-
-    # unpack data_list
-    poly_info <- data_list$poly_info
-    tx_dt <- data_list$tx_dt
-    micronToPixelScale <- data_list$micronToPixelScale
-    image_list <- data_list$images
-
-    # data.table vars
-    gene <- NULL
-
-    # split tx_dt by expression and blank
-    vmsg("Splitting detections by feature vs blank", .v = verbose)
-    feat_id_all <- tx_dt[, unique(gene)]
-    blank_id <- feat_id_all[grepl(pattern = "Blank", feat_id_all)]
-    feat_id <- feat_id_all[!feat_id_all %in% blank_id]
-
-    feat_dt <- tx_dt[gene %in% feat_id, ]
-    blank_dt <- tx_dt[gene %in% blank_id, ]
-
-    # extract transcript_id col and store as feature meta
-    feat_meta <- unique(feat_dt[, c("gene", "transcript_id", "barcode_id"),
-        with = FALSE
-    ])
-    blank_meta <- unique(blank_dt[, c("gene", "transcript_id", "barcode_id"),
-        with = FALSE
-    ])
-    feat_dt[, c("transcript_id", "barcode_id") := NULL]
-    blank_dt[, c("transcript_id", "barcode_id") := NULL]
-
-    if (isTRUE(verbose)) {
-        message("  > Features: ", feat_dt[, .N])
-        message("  > Blanks: ", blank_dt[, .N])
+                                                    calculate_overlap = TRUE,
+                                                    overlap_to_matrix = TRUE,
+                                                    aggregate_stack = TRUE,
+                                                    aggregate_stack_param = list(
+                                                      summarize_expression = "sum",
+                                                      summarize_locations = "mean",
+                                                      new_spat_unit = "cell"
+                                                    ),
+                                                    split_keyword = c("Blank"),
+                                                    cores = NA,
+                                                    verbose = TRUE,
+                                                    instructions = NULL) {
+  
+  if (isTRUE(verbose)) message("Initializing Subcellular Object Points...")
+  
+  tx_dt <- data_list$tx_dt
+  
+  if (!is.null(split_keyword)) {
+    split_list <- as.list(split_keyword)
+  } else {
+    split_list <- NULL
+  }
+  
+  gpoints <- GiottoClass::createGiottoPoints(
+    tx_dt,
+    x_colname = 'global_x',
+    y_colname = 'global_y',
+    feat_ID_colname = 'gene',
+    split_keyword = split_list
+  )
+  
+  gpoints_list <- list('rna' = gpoints[["rna"]])
+  
+  if (!is.null(split_list)) {
+    for (kw in unlist(split_list)) {
+      if (kw %in% names(gpoints)) {
+        list_name <- ifelse(kw == "Blank", "neg_probe", kw)
+        gpoints_list[[list_name]] <- gpoints[[kw]]
+      }
     }
-
-    # build giotto object
-    vmsg("Building subcellular giotto object...", .v = verbose)
-    z_sub <- createGiottoObjectSubcellular(
-        gpoints = list(
-            "rna" = feat_coord,
-            "neg_probe" = neg_coord
-        ),
-        gpolygons = list("cell" = cellLabel_dir),
-        polygon_mask_list_params = list(
-            mask_method = "guess",
-            flip_vertical = TRUE,
-            flip_horizontal = FALSE,
-            shift_horizontal_step = FALSE
-        ),
-        instructions = instructions,
-        cores = cores
-    )
+  }
+  
+  poly_info <- data_list$poly_info
+  
+  if (length(poly_info) == 1) {
+    gpolygons <- list('cell' = poly_info[[1]])
+  } else {
+    gpolygons <- poly_info
+  }
+  
+  if (isTRUE(verbose)) message("Creating Giotto Object...")
+  z_sub <- GiottoClass::createGiottoObjectSubcellular(
+    gpoints = gpoints_list,
+    gpolygons = gpolygons,
+    instructions = instructions,
+    cores = cores,
+    verbose = verbose
+  )
+  
+  if (isTRUE(calculate_overlap)) {
+    if (isTRUE(verbose)) message("Processing Overlap...")
+    for (poly_name in names(gpolygons)) {
+      z_sub <- GiottoClass::calculateOverlap(z_sub, spatial_info = poly_name, feat_info = 'rna')
+      if (isTRUE(overlap_to_matrix)) {
+        z_sub <- GiottoClass::overlapToMatrix(z_sub, poly_info = poly_name, feat_info = 'rna', name = 'raw')
+      }
+    }
+  }
+  
+  if (isTRUE(aggregate_stack)) {
+    if (isTRUE(verbose)) message("Aggregating 3D stacks...")
+    agg_params <- aggregate_stack_param
+    agg_params$gobject <- z_sub
+    if(is.null(agg_params$poly_info)) agg_params$poly_info <- names(gpolygons)
+    if(is.null(agg_params$feat_info)) agg_params$feat_info <- 'rna'
+    
+    z_sub <- do.call(GiottoClass::aggregateStacks, agg_params)
+  }
+  
+  return(z_sub)
 }
 
 
@@ -1205,56 +1256,64 @@ createSpatialGenomicsObject <- function(sg_dir = NULL,
 #' @describeIn read_data_folder Read a structured MERSCOPE folder
 #' @keywords internal
 .read_merscope_folder <- function(merscope_dir,
-    data_to_use,
-    cores = NA,
-    verbose = NULL) {
-    # prepare dir_items list
-    dir_items <- list(
-        `boundary info` = "*cell_boundaries*",
-        `image info` = "*images*",
-        `cell feature matrix` = "*cell_by_gene*",
-        `cell metadata` = "*cell_metadata*",
-        `raw transcript info` = "*transcripts*"
-    )
-
-    # prepare require_data_DT
-    sub_reqs <- data.table::data.table(
-        workflow = c("subcellular"),
-        item = c(
-            "boundary info",
-            "raw transcript info",
-            "image info",
-            "cell by gene matrix",
-            "cell metadata"
-        ),
-        needed = c(TRUE, TRUE, FALSE, FALSE, FALSE)
-    )
-
-    agg_reqs <- data.table::data.table(
-        workflow = c("aggregate"),
-        item = c(
-            "boundary info",
-            "raw transcript info",
-            "image info",
-            "cell by gene matrix",
-            "cell metadata"
-        ),
-        needed = c(FALSE, FALSE, FALSE, TRUE, TRUE)
-    )
-
-    require_data_DT <- rbind(sub_reqs, agg_reqs)
-
-    dir_items <- .read_data_folder(
-        spat_method = "MERSCOPE",
-        data_dir = merscope_dir,
-        dir_items = dir_items,
-        data_to_use = data_to_use,
-        require_data_DT = require_data_DT,
-        cores = cores,
-        verbose = verbose
-    )
-
-    return(dir_items)
+                                  data_to_use,
+                                  polygon_format = c("parquet", "hdf5"),
+                                  cores = NA,
+                                  verbose = NULL) {
+  
+  polygon_format <- match.arg(polygon_format, choices = c("parquet", "hdf5"))
+  
+  boundary_pattern <- if (polygon_format == "parquet") {
+    "*cell_boundaries.parquet*"
+  } else {
+    "*cell_boundaries*"
+  }
+  
+  dir_items <- list(
+    `boundary info` = boundary_pattern,
+    `image info` = "*images*",
+    `cell feature matrix` = "*cell_by_gene*",
+    `cell metadata` = "*cell_metadata*",
+    `raw transcript info` = "*transcripts*"
+  )
+  
+  sub_reqs <- data.table::data.table(
+    workflow = c("subcellular"),
+    item = c(
+      "boundary info",
+      "raw transcript info",
+      "image info",
+      "cell by gene matrix",
+      "cell metadata"
+    ),
+    needed = c(TRUE, TRUE, FALSE, FALSE, FALSE)
+  )
+  
+  agg_reqs <- data.table::data.table(
+    workflow = c("aggregate"),
+    item = c(
+      "boundary info",
+      "raw transcript info",
+      "image info",
+      "cell by gene matrix",
+      "cell metadata"
+    ),
+    needed = c(FALSE, FALSE, FALSE, TRUE, TRUE)
+  )
+  
+  require_data_DT <- rbind(sub_reqs, agg_reqs)
+  
+  dir_items <- .read_data_folder(
+    spat_method = "MERSCOPE",
+    data_dir = merscope_dir,
+    dir_items = dir_items,
+    data_to_use = data_to_use,
+    require_data_DT = require_data_DT,
+    cores = cores,
+    verbose = verbose
+  )
+  
+  return(dir_items)
 }
 
 
@@ -1283,124 +1342,135 @@ NULL
 #' @rdname load_merscope_folder
 #' @keywords internal
 .load_merscope_folder <- function(dir_items,
-    data_to_use,
-    fovs = NULL,
-    poly_z_indices = seq(from = 1, to = 7),
-    cores = NA,
-    verbose = TRUE) {
-    # 1. load data_to_use-specific
-    if (data_to_use == "subcellular") {
-        data_list <- .load_merscope_folder_subcellular(
-            dir_items = dir_items,
-            data_to_use = data_to_use,
-            fovs = fovs,
-            poly_z_indices = poly_z_indices,
-            cores = cores,
-            verbose = verbose
-        )
-    } else if (data_to_use == "aggregate") {
-        data_list <- .load_merscope_folder_aggregate(
-            dir_items = dir_items,
-            data_to_use = data_to_use,
-            cores = cores,
-            verbose = verbose
-        )
-    } else {
-        stop(wrap_txt('data_to_use "', data_to_use,
-            '" not implemented',
-            sep = ""
-        ))
-    }
-
-    # 2. Load images if available
-    if (!is.null(dir_items$`image info`)) {
-        ## micron to px scaling factor
-        micronToPixelScale <- Sys.glob(paths = file.path(
-            dir_items$`image info`, "*micron_to_mosaic_pixel_transform*"
-        ))[[1]]
-        micronToPixelScale <- data.table::fread(
-            micronToPixelScale,
-            nThread = cores
-        )
-        # add to data_list
-        data_list$micronToPixelScale <- micronToPixelScale
-
-        ## staining images
-        ## determine types of stains
-        images_filenames <- list.files(dir_items$`image info`)
-        bound_stains_filenames <- images_filenames[
-            grep(pattern = ".tif", images_filenames)
-        ]
-        bound_stains_types <- sapply(strsplit(
-            bound_stains_filenames, "_"
-        ), `[`, 2)
-        bound_stains_types <- unique(bound_stains_types)
-
-        img_list <- lapply_flex(bound_stains_types, function(stype) {
-            img_paths <- Sys.glob(paths = file.path(
-                dir_items$`image info`, paste0("*", stype, "*")
-            ))
-
-            lapply_flex(img_paths, function(img) {
-                createGiottoLargeImage(raster_object = img)
-            }, cores = cores)
-        }, cores = cores)
-        # add to data_list
-        data_list$images <- img_list
-    }
-
-
-
-    return(data_list)
+                                  data_to_use,
+                                  polygon_format = c("parquet", "hdf5"),
+                                  fovs = NULL,
+                                  poly_z_indices = 0:6,
+                                  cores = NA,
+                                  verbose = TRUE) {
+  
+  polygon_format <- match.arg(polygon_format, choices = c("parquet", "hdf5"))
+  
+  if (data_to_use == "subcellular") {
+    data_list <- .load_merscope_folder_subcellular(
+      dir_items = dir_items,
+      data_to_use = data_to_use,
+      polygon_format = polygon_format,
+      fovs = fovs,
+      poly_z_indices = poly_z_indices,
+      cores = cores,
+      verbose = verbose
+    )
+  } else if (data_to_use == "aggregate") {
+    data_list <- .load_merscope_folder_aggregate(
+      dir_items = dir_items,
+      data_to_use = data_to_use,
+      cores = cores,
+      verbose = verbose
+    )
+  } else {
+    stop(wrap_txt('data_to_use "', data_to_use,
+                  '" not implemented',
+                  sep = ""
+    ))
+  }
+  
+  if (!is.null(dir_items$`image info`)) {
+    micronToPixelScale <- Sys.glob(paths = file.path(
+      dir_items$`image info`, "*micron_to_mosaic_pixel_transform*"
+    ))[[1]]
+    micronToPixelScale <- data.table::fread(
+      micronToPixelScale,
+      nThread = cores
+    )
+    data_list$micronToPixelScale <- micronToPixelScale
+    
+    images_filenames <- list.files(dir_items$`image info`)
+    bound_stains_filenames <- images_filenames[
+      grep(pattern = ".tif", images_filenames)
+    ]
+    bound_stains_types <- sapply(strsplit(
+      bound_stains_filenames, "_"
+    ), `[`, 2)
+    bound_stains_types <- unique(bound_stains_types)
+    
+    img_list <- GiottoUtils:::lapply_flex(bound_stains_types, function(stype) {
+      img_paths <- Sys.glob(paths = file.path(
+        dir_items$`image info`, paste0("*", stype, "*")
+      ))
+      
+      GiottoUtils:::lapply_flex(img_paths, function(img) {
+        createGiottoLargeImage(raster_object = img)
+      }, cores = cores)
+    }, cores = cores)
+    
+    data_list$images <- img_list
+  }
+  
+  return(data_list)
 }
-
-
 
 #' @describeIn load_merscope_folder Load items for 'subcellular' workflow
 #' @keywords internal
 .load_merscope_folder_subcellular <- function(dir_items,
-    data_to_use,
-    cores = NA,
-    poly_z_indices = 1L:7L,
-    verbose = TRUE,
-    fovs = NULL) {
-    if (isTRUE(verbose)) message("Loading transcript level info...")
-    if (is.null(fovs)) {
-        tx_dt <- data.table::fread(
-            dir_items$`raw transcript info`,
-            nThread = cores
-        )
-    } else {
-        message("Selecting FOV subset transcripts")
-        tx_dt <- fread_colmatch(
-            file = dir_items$`raw transcript info`,
-            col = "fov",
-            values_to_match = fovs,
-            verbose = FALSE,
-            nThread = cores
-        )
-    }
-    tx_dt[, c("x", "y") := NULL] # remove unneeded cols
-    data.table::setcolorder(
-        tx_dt, c("gene", "global_x", "global_y", "global_z")
+                                              data_to_use,
+                                              polygon_format = c("parquet", "hdf5"),
+                                              cores = NA,
+                                              poly_z_indices = 0L:6L,
+                                              verbose = TRUE,
+                                              fovs = NULL) {
+  
+  polygon_format <- match.arg(polygon_format, choices = c("parquet", "hdf5"))
+  
+  if (isTRUE(verbose)) message("Loading transcript level info...")
+  if (is.null(fovs)) {
+    tx_dt <- data.table::fread(
+      dir_items$`raw transcript info`,
+      nThread = cores
     )
-
-    if (isTRUE(verbose)) message("Loading polygon info...")
+  } else {
+    message("Selecting FOV subset transcripts")
+    tx_dt <- GiottoUtils::read_colmatch(
+      file = dir_items$`raw transcript info`,
+      col = "fov",
+      values_to_match = fovs,
+      verbose = FALSE,
+      nThread = cores
+    )
+  }
+  tx_dt[, c("x", "y") := NULL] 
+  data.table::setcolorder(
+    tx_dt, c("gene", "global_x", "global_y", "global_z")
+  )
+  
+  if (isTRUE(verbose)) message("Loading polygon info...")
+  boundary_path <- dir_items$`boundary info`
+  
+  if (polygon_format == "parquet") {
+    poly_info <- readPolygonVizgenParquet(
+      file = boundary_path,
+      z_index = poly_z_indices,
+      calc_centroids = TRUE,
+      verbose = verbose
+    )
+  } else {
     poly_info <- readPolygonFilesVizgenHDF5(
-        boundaries_path = dir_items$`boundary info`,
-        z_indices = poly_z_indices,
-        flip_y_axis = TRUE,
-        fovs = fovs
+      boundaries_path = boundary_path,
+      z_indices = poly_z_indices,
+      fovs = fovs
     )
-
-    data_list <- list(
-        "poly_info" = poly_info,
-        "tx_dt" = tx_dt,
-        "micronToPixelScale" = NULL,
-        "expr_dt" = NULL,
-        "cell_meta" = NULL,
-        "images" = NULL
-    )
+  }
+  
+  data_list <- list(
+    "poly_info" = poly_info,
+    "tx_dt" = tx_dt,
+    "micronToPixelScale" = NULL,
+    "expr_dt" = NULL,
+    "cell_meta" = NULL,
+    "images" = NULL
+  )
+  
+  return(data_list)
 }
 
 
