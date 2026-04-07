@@ -394,12 +394,11 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
             if (load_spatlocs)   what_needed <- c(what_needed, "spatlocs")
 
             gef_data <- .stereoseq_read_gef(
-                path        = gef_path,
-                type        = type,
-                bin_size    = bin_size,
-                gene_column = gene_column,
-                what        = what_needed,
-                verbose     = verbose
+                path     = gef_path,
+                type     = type,
+                bin_size = bin_size,
+                what     = what_needed,
+                verbose  = verbose
             )
 
             # For bin type, pre-compute unique (x,y) bin positions once so that
@@ -869,12 +868,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 .stereoseq_expression <- function(path, type, bin_size, gene_column,
                                   spat_unit, verbose = NULL) {
     gef_data <- .stereoseq_read_gef(
-        path        = path,
-        type        = type,
-        bin_size    = bin_size,
-        gene_column = gene_column,
-        what        = "expression",
-        verbose     = verbose
+        path     = path,
+        type     = type,
+        bin_size = bin_size,
+        what     = "expression",
+        verbose  = verbose
     )
     .stereoseq_build_expression(
         gef_data    = gef_data,
@@ -889,12 +887,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 .stereoseq_spatlocs <- function(path, type, bin_size, gene_column,
                                 negative_y, spat_unit, verbose = NULL) {
     gef_data <- .stereoseq_read_gef(
-        path        = path,
-        type        = type,
-        bin_size    = bin_size,
-        gene_column = gene_column,
-        what        = "spatlocs",
-        verbose     = verbose
+        path     = path,
+        type     = type,
+        bin_size = bin_size,
+        what     = "spatlocs",
+        verbose  = verbose
     )
     .stereoseq_build_spatlocs(
         gef_data   = gef_data,
@@ -910,12 +907,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 .stereoseq_binpoints <- function(path, gene_column, negative_y,
                                  spat_unit, verbose = NULL) {
     gef_data <- .stereoseq_read_gef(
-        path        = path,
-        type        = "bin",  # bin1 lives in the bin gef, not cellbin
-        bin_size    = "bin1", # unused for binpoints read path, but required arg
-        gene_column = gene_column,
-        what        = "binpoints",
-        verbose     = verbose
+        path     = path,
+        type     = "bin",  # bin1 lives in the bin gef, not cellbin
+        bin_size = "bin1", # unused for binpoints read path, but required arg
+        what     = "binpoints",
+        verbose  = verbose
     )
     .stereoseq_build_binpoints(
         gef_data    = gef_data,

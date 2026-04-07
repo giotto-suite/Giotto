@@ -9,6 +9,7 @@ createGiottoStereoSeqObjectBin(
   bin_size = "bin100",
   gene_column = c("geneName", "geneID"),
   negative_y = TRUE,
+  gef_type = c("tissue", "full", "raw"),
   load_expression = TRUE,
   load_spatlocs = TRUE,
   load_binpoints = FALSE,
