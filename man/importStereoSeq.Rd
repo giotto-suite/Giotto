@@ -10,7 +10,8 @@ importStereoSeq(
   type = c("bin", "cell"),
   bin_size = "bin100",
   gene_column = c("geneName", "geneID"),
-  negative_y = TRUE
+  negative_y = TRUE,
+  gef_type = NULL
 )
 
 \S4method{plot}{StereoSeqReader,missing}(x, y, ...)
@@ -62,9 +63,9 @@ reader <- importStereoSeq(
 )
 
 # Load expression or spatial locations individually
-expr <- reader$load_expression()
-sl <- reader$load_spatlocs()
-img <- reader$load_image()
+expr   <- reader$load_expression()
+sl     <- reader$load_spatlocs()
+img    <- reader$load_image()
 
 # Create a full giotto object
 g <- reader$create_gobject()
