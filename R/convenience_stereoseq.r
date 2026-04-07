@@ -979,7 +979,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         # NOT the polygon bbox ymax. The tissue typically covers only a sub-region
         # of the full slide image, so the polygon ymax < nrows. Using the polygon
         # ymax would apply the wrong shift and misalign polygons with spatlocs.
-        nrows <- nrow(terra::rast(path))
+        nrows <- nrow(terra::rast(path, noflip = TRUE))
         poly  <- spatShift(poly, dy = -nrows)
     }
     vmsg(.v = verbose, "Finished creating polygons from mask")
