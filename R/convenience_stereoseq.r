@@ -606,7 +606,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #                    cell type: reads only the small `cell` table (id, x, y)
 #   "binpoints"  — bin1 expression + coordinates (bin type only); always reads
 #                  geneExp/bin1 regardless of bin_size
-.stereoseq_read_gef <- function(path, type, bin_size, gene_column = NULL,
+.stereoseq_read_gef <- function(path, type, bin_size,
                                  what = c("expression", "spatlocs"),
                                  verbose = NULL) {
     package_check(pkg_name = "rhdf5", repository = "Bioc")
