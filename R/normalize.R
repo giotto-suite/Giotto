@@ -1793,7 +1793,7 @@ normalizeGiotto <- function(gobject,
 #' @noRd
 # Cannot create class union because DelayedArray does not have sparse class
 .is_sparse_like <- function(x) {
-    inherits(x, c("sparseMatrix", "dbSparseMatrix")) ||
+    inherits(x, c("sparseMatrix", "dbSparseMatrix", "IterableMatrix")) ||
         (inherits(x, "DelayedArray") && DelayedArray::is_sparse(x))
 }
 
