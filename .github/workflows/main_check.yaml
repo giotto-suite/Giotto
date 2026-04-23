@@ -64,7 +64,7 @@ jobs:
             any::remotes
             any::spdep
             any::future.apply
-            github::drieslab/GiottoData
+            github::giotto-suite/GiottoData
 
       - name: Test python env install
         run: |

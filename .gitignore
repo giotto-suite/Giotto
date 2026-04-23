@@ -13,3 +13,4 @@ testdata
 merfish_preoptic/
 
 *.DS_Store
+.positai

@@ -19,3 +19,5 @@
 ^_pkgdown\.yml$
 ^pkgdown
 
+^\.positai$
+^\.claude$
