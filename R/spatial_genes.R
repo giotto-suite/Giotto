@@ -2634,7 +2634,7 @@ detectSpatialPatterns <- function(
         "This function has not been updated for use with the current version
     of Giotto.
     See details:
-    https://github.com/drieslab/Giotto/issues/666#issuecomment-1540447537",
+    https://github.com/giotto-suite/Giotto/issues/666#issuecomment-1540447537",
         errWidth = TRUE
     ))
     ############################################################################

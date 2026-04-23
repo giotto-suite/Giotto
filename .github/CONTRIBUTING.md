@@ -1,7 +1,7 @@
 # How to Contribute?
 
 We welcome contributions or suggestions from other developers. Please contact us if you have questions or would like to discuss an addition or major modifications to the Giotto main code.
-The source code for Giotto Suite may be found on our [GitHub repository](https://github.com/drieslab/Giotto/).
+The source code for Giotto Suite may be found on our [GitHub repository](https://github.com/giotto-suite/Giotto/).
 
 $~$
 
@@ -63,7 +63,7 @@ Giotto tracks packages and functions to import in a centralized manner. When add
 $~$
 
 ### Getters and Setters
-Giotto stores information in different [slots](articles/structure.html#giotto-object-structure), which can be accessed through these getters and setters functions. They can be found in the [accessors.R](https://github.com/drieslab/Giotto/blob/suite/R/accessors.R) file. 
+Giotto stores information in different [slots](articles/structure.html#giotto-object-structure), which can be accessed through these getters and setters functions. They can be found in the [accessors.R](https://github.com/giotto-suite/Giotto/blob/suite/R/accessors.R) file. 
 
 - **getCellMetadata()**: Gets cell metadata  
 - **setCellMetadata()**: Sets cell metadata  
