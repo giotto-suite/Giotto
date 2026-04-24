@@ -1160,18 +1160,14 @@ setMethod("processData",
     signature(x = "allMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
         threshold <- param$threshold %null% 0
-        (x > threshold) * 1L # coerce to numeric
+        (x > threshold) * 1L # coerce to integer
     }
 )
 setMethod("processData",
     signature(x = "dgCMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
-        threshold <- param$threshold %null% 0
-        bool <- x@x > threshold
+        x <- callNextMethod(x, param, ...)
         drop0 <- param$drop0 %null% FALSE
-        # integers not supported for dgCMatrix @x slot
-        x@x <- rep.int(0, length(x@x))
-        x@x[bool] <- 1
         if (drop0) x <- Matrix::drop0(x)
         x
     }
