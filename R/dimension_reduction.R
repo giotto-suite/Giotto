@@ -525,13 +525,13 @@ runPCA <- function(gobject,
             my_row_names <- rownames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "pca",
+            method = "pca",
             coordinates = pca_object$coords,
             misc = list(
                 eigenvalues = pca_object$eigenvalues,
@@ -918,13 +918,13 @@ runPCAprojection <- function(gobject,
             my_row_names <- rownames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "pca",
+            method = "pca",
             coordinates = pca_object$coords,
             misc = list(
                 eigenvalues = pca_object$eigenvalues,
@@ -1314,13 +1314,13 @@ runPCAprojectionBatch <- function(gobject,
             my_row_names <- rownames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "pca",
+            method = "pca",
             coordinates = pca_object$coords,
             misc = list(
                 eigenvalues = pca_object$eigenvalues,
@@ -1523,13 +1523,13 @@ screePlot <- function(gobject,
                     have been implemented")
             }
 
-            dimObject <- create_dim_obj(
+            dimObject <- createDimObj(
                 name = name,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
                 provenance = provenance,
                 reduction = reduction,
-                reduction_method = "pca",
+                method = "pca",
                 coordinates = pca_object$coords,
                 misc = list(
                     eigenvalues = pca_object$eigenvalues,
@@ -2303,13 +2303,13 @@ runNMF <- function(gobject,
             my_row_names <- colnames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "nmf",
+            method = "nmf",
             coordinates = nmf_res$coords,
             misc = list(
                 diag = nmf_res$d,
@@ -2647,13 +2647,13 @@ runUMAP <- function(gobject,
             coordinates <- uwot_clus
             rownames(coordinates) <- rownames(matrix_to_use)
 
-            dimObject <- create_dim_obj(
+            dimObject <- createDimObj(
                 name = name,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
                 reduction = reduction,
                 provenance = provenance,
-                reduction_method = "umap",
+                method = "umap",
                 coordinates = coordinates,
                 misc = NULL
             )
@@ -2916,13 +2916,13 @@ runUMAPprojection <- function(gobject,
     if (isTRUE(return_gobject)) {
         coordinates <- coords_umap
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             reduction = reduction,
             provenance = provenance,
-            reduction_method = "umap",
+            method = "umap",
             coordinates = coordinates,
             misc = NULL
         )
@@ -3137,13 +3137,13 @@ runtSNE <- function(gobject,
             coordinates <- tsne_clus$Y
             rownames(coordinates) <- rownames(matrix_to_use)
 
-            dimObject <- create_dim_obj(
+            dimObject <- createDimObj(
                 name = name,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
                 provenance = provenance,
                 reduction = reduction,
-                reduction_method = "tsne",
+                method = "tsne",
                 coordinates = coordinates,
                 misc = tsne_clus
             )

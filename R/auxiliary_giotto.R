@@ -134,9 +134,9 @@ adjustGiottoMatrix <- function(gobject,
     adjusted_matrix <- Matrix::Matrix(adjusted_matrix)
 
     if (return_gobject == TRUE) {
-        adjusted_matrix <- create_expr_obj(
+        adjusted_matrix <- createExprObj(
+            expression_data = adjusted_matrix,
             name = name,
-            exprMat = adjusted_matrix,
             spat_unit = spat_unit,
             feat_type = feat_type,
             provenance = expr_data@provenance
