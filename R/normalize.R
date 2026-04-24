@@ -774,11 +774,14 @@ setClass("defaultScaleParam", contains = "scaleParam")
 setClass("zscoreScaleParam", contains = "scaleParam")
 
 #' @rdname process_param
+#' @exportClass limmaAdjustParam
 setClass("limmaAdjustParam", contains = "adjustParam")
 
 #' @rdname process_param
+#' @exportClass binarizeThreshParam
 setClass("binarizeThreshParam", contains = "threshParam")
 #' @rdname process_param
+#' @exportClass minmaxThreshParam
 setClass("minmaxThreshParam", contains = "threshParam")
 
 # allMatrix signature ####
