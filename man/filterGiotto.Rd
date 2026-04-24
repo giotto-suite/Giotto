@@ -82,7 +82,7 @@ After filtering in this order, certain features may be left over in the
 metadata with a corresponding number of cells which is less than that of
 the threshold value of cells,
 feat_det_in_min_cells. This behavior is explained in detail here:
-\url{https://github.com/drieslab/Giotto/issues/500#issuecomment-1396083446}
+\url{https://github.com/giotto-suite/Giotto/issues/500#issuecomment-1396083446}
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
