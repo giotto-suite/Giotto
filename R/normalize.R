@@ -1160,10 +1160,7 @@ setMethod("processData",
     signature(x = "allMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
         threshold <- param$threshold %null% 0
-        bool_mat <- x > threshold
-        x[TRUE] <- 0L
-        x[bool_mat] <- 1L
-        x
+        (x > threshold) * 1L # coerce to numeric
     }
 )
 setMethod("processData",
