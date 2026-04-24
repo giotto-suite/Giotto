@@ -1793,7 +1793,7 @@ normalizeGiotto <- function(gobject,
 #' @noRd
 # Cannot create class union because DelayedArray does not have sparse class
 .is_sparse_like <- function(x) {
-    inherits(x, c("sparseMatrix", "dbSparseMatrix")) ||
+    inherits(x, c("sparseMatrix", "dbSparseMatrix", "IterableMatrix")) ||
         (inherits(x, "DelayedArray") && DelayedArray::is_sparse(x))
 }
 
@@ -1986,9 +1986,9 @@ normalizeGiotto <- function(gobject,
         )
     }
 
-    norm_expr <- create_expr_obj(
+    norm_expr <- createExprObj(
+        expression_data = norm_expr,
         name = "normalized",
-        exprMat = norm_expr,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = provenance,
@@ -2005,9 +2005,9 @@ normalizeGiotto <- function(gobject,
         )
     }
 
-    norm_scaled_expr <- create_expr_obj(
+    norm_scaled_expr <- createExprObj(
+        expression_data = norm_scaled_expr,
         name = "scaled",
-        exprMat = norm_scaled_expr,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = provenance,
@@ -2106,9 +2106,9 @@ normalizeGiotto <- function(gobject,
     }
 
     z <- .prnorm(x = raw_expr[], theta, .csums = .csums, .rsums = .rsums)
-    z <- create_expr_obj(
+    z <- createExprObj(
+        expression_data = z,
         name = name,
-        exprMat = z,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = prov(raw_expr)
@@ -2128,9 +2128,9 @@ normalizeGiotto <- function(gobject,
     name = "quantile",
     verbose = TRUE) {
     z <- .qnorm(x = raw_expr[])
-    z <- create_expr_obj(
+    z <- createExprObj(
+        expression_data = z,
         name = name,
-        exprMat = z,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = prov(raw_expr)
