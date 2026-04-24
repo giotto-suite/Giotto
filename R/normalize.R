@@ -1166,8 +1166,12 @@ setMethod("processData",
 setMethod("processData",
     signature(x = "dgCMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
-        x <- callNextMethod(x, param, ...)
+        threshold <- param$threshold %null% 0
+        # direct @x manipulation is ~2x faster than callNextMethod (allMatrix path)
+        bool <- x@x > threshold
         drop0 <- param$drop0 %null% FALSE
+        x@x <- rep.int(0, length(x@x))
+        x@x[bool] <- 1
         if (drop0) x <- Matrix::drop0(x)
         x
     }
