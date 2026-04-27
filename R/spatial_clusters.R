@@ -205,9 +205,9 @@ identifyTMAcores <- function(
 
         areas <- vapply(
             FUN.VALUE = numeric(1L), con_init_idx_uniq, function(core_id) {
-                sl[con[init_idx == core_id, cell_ID]] |>
-                    convHull() |>
-                    area()
+                hull_sv <- sl[con[init_idx == core_id, cell_ID]] |> convHull()
+                terra::crs(hull_sv) <- "local"
+                terra::expanse(hull_sv, transform = FALSE)
             }
         )
         max_area <- max(areas)
