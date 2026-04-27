@@ -195,58 +195,78 @@ reduceDims <- function(gobject,
     min_ncp <- min(dim(x))
 
     if (ncp >= min_ncp) {
-        warning("ncp >= minimum dimension of x, will be set to
-                minimum dimension of x - 1")
-        ncp <- min_ncp - 1
+        warning("[runPCA] ncp (", ncp, ") >= minimum dimension of input (",
+            min_ncp, "), setting ncp = ", min_ncp - 1L, call. = FALSE)
+        ncp <- min_ncp - 1L
     }
 
     if (isTRUE(rev)) x <- t_flex(x)
 
-    pca_param <- list(
-        x = x,
-        rank = ncp,
-        center = center,
-        scale = scale,
-        BPPARAM = BPPARAM,
-        ...
-    )
-
-    pca_param$BSPARAM <- switch(BSPARAM,
-        "irlba" = BiocSingular::IrlbaParam(),
-        "exact" = BiocSingular::ExactParam(),
-        "random" = BiocSingular::RandomParam()
-    )
-
-    if (set_seed) {
-        gwith_seed(
-            seed = seed_number,
-            {
-                pca_res <- do.call(BiocSingular::runPCA, pca_param)
-            },
-        )
+    if (inherits(x, "IterableMatrix")) {
+        x <- standardise_flex(x, center = center, scale = scale)
+        if (set_seed) {
+            gwith_seed(
+                seed = seed_number,
+                {
+                    pca_res <- BPCells::svds(x, k = ncp)
+                }
+            )
+        } else {
+            pca_res <- BPCells::svds(x, k = ncp)
+        }
+        eigenvalues <- pca_res$d^2 / (nrow(x) - 1L)
+        if (isTRUE(rev)) {
+            loadings <- sweep(pca_res$u, 2, pca_res$d, "*")
+            coords   <- pca_res$v
+        } else {
+            loadings <- pca_res$v
+            coords   <- sweep(pca_res$u, 2, pca_res$d, "*")
+        }
     } else {
-        pca_res <- do.call(BiocSingular::runPCA, pca_param)
+        pca_param <- list(
+            x = x,
+            rank = ncp,
+            center = center,
+            scale = scale,
+            BPPARAM = BPPARAM,
+            ...
+        )
+        pca_param$BSPARAM <- switch(BSPARAM,
+            "irlba" = BiocSingular::IrlbaParam(),
+            "exact" = BiocSingular::ExactParam(),
+            "random" = BiocSingular::RandomParam()
+        )
+        if (set_seed) {
+            gwith_seed(
+                seed = seed_number,
+                {
+                    pca_res <- do.call(BiocSingular::runPCA, pca_param)
+                },
+            )
+        } else {
+            pca_res <- do.call(BiocSingular::runPCA, pca_param)
+        }
+        eigenvalues <- pca_res$sdev^2
+        if (isTRUE(rev)) {
+            loadings <- pca_res$x
+            coords   <- pca_res$rotation
+        } else {
+            loadings <- pca_res$rotation
+            coords   <- pca_res$x
+        }
     }
 
-
-    # eigenvalues
-    eigenvalues <- pca_res$sdev^2
-
-    # loadings and coords
+    # loadings and coords rownames
     if (isTRUE(rev)) {
-        loadings <- pca_res$x
-        coords <- pca_res$rotation
         rownames(loadings) <- rownames(x)
-        rownames(coords) <- colnames(x)
+        rownames(coords)   <- colnames(x)
     } else {
-        loadings <- pca_res$rotation
-        coords <- pca_res$x
         rownames(loadings) <- colnames(x)
-        rownames(coords) <- rownames(x)
+        rownames(coords)   <- rownames(x)
     }
 
     colnames(loadings) <- paste0("Dim.", seq_len(ncol(loadings)))
-    colnames(coords) <- paste0("Dim.", seq_len(ncol(coords)))
+    colnames(coords)   <- paste0("Dim.", seq_len(ncol(coords)))
 
     result <- list(
         eigenvalues = eigenvalues, loadings = loadings, coords = coords
