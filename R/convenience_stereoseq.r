@@ -1008,10 +1008,11 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
     dt[, y := cell$y[cell_idx] + by]
 
     if (isTRUE(negative_y)) {
-        # shift y down by the full image height so polygons align with the
-        # negated gef spatial locations (same transform as .stereoseq_mask)
-        ymax <- max(dt$y)
-        dt[, y := y - ymax]
+        # Negate y to match the spatloc convention (0 - y_gef), identical to
+        # how .stereoseq_build_spatlocs() transforms GEF cell coordinates.
+        # y_gef increases downward from 0 at top; negation places origin at
+        # top-left with y in (-max_y, 0].
+        dt[, y := 0L - y]
     }
 
     # close each polygon by appending its first point
