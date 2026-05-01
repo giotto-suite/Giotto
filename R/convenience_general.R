@@ -1188,13 +1188,12 @@ createGiottoMerscopeObject <- function(merscope_dir,
     aggregate_stack       = TRUE,
     aggregate_stack_param = list(
         summarize_expression = "sum",
-        summarize_locations  = "mean",
-        new_spat_unit        = "cell"
+        summarize_locations  = "mean"
     ),
-    split_keyword = c("Blank"),
-    instructions  = NULL,
-    cores         = NA,
-    verbose       = TRUE) {
+    split_keyword         = c("Blank"),
+    instructions          = NULL,
+    cores                 = NA,
+    verbose               = TRUE) {
 
     tx_dt     <- data_list$tx_dt
     poly_info <- data_list$poly_info
@@ -1264,10 +1263,31 @@ createGiottoMerscopeObject <- function(merscope_dir,
         )
     }
 
+    # STEP 1: Aggregate stacks FIRST (before overlap)
+    if (isTRUE(aggregate_stack)) {
+        if (isTRUE(verbose)) message("Aggregating 3D stacks...")
+        agg_params         <- aggregate_stack_param
+        agg_params$gobject <- z_sub
+        if (is.null(agg_params$spat_units))    agg_params$spat_units    <- names(gpolygons)
+        if (is.null(agg_params$feat_type))     agg_params$feat_type     <- "rna"
+        if (is.null(agg_params$new_spat_unit)) agg_params$new_spat_unit <- spat_unit
+        z_sub <- do.call(GiottoClass::aggregateStacks, agg_params)
+    }
+
+    # STEP 2: Calculate overlap on final polygon layer(s)
+    # If aggregate_stack ran, overlap is computed on the new aggregated unit.
+    # If not, it falls back to the original gpolygons names.
     if (isTRUE(calculate_overlap)) {
         use_new_api <- utils::packageVersion("GiottoClass") >= "0.5.0"
 
-        for (poly_name in names(gpolygons)) {
+        final_poly_names <- if (isTRUE(aggregate_stack)) {
+            agg_params$new_spat_unit
+        } else {
+            names(gpolygons)
+        }
+
+        for (poly_name in final_poly_names) {
+            if (isTRUE(verbose)) message("Calculating overlap for polygon layer: ", poly_name)
             if (use_new_api) {
                 z_sub <- GiottoClass::calculateOverlap(
                     z_sub, spat_info = poly_name, feat_info = "rna"
@@ -1289,16 +1309,6 @@ createGiottoMerscopeObject <- function(merscope_dir,
                 }
             }
         }
-    }
-
-    if (isTRUE(aggregate_stack)) {
-        vmsg("Aggregating 3D stacks...", .v = verbose)
-        agg_params         <- aggregate_stack_param
-        agg_params$gobject <- z_sub
-        if (is.null(agg_params$spat_units))    agg_params$spat_units    <- names(gpolygons)
-        if (is.null(agg_params$feat_type))     agg_params$feat_type     <- "rna"
-        if (is.null(agg_params$new_spat_unit)) agg_params$new_spat_unit <- spat_unit
-        z_sub <- do.call(GiottoClass::aggregateStacks, agg_params)
     }
 
     return(z_sub)
