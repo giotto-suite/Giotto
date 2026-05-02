@@ -67,6 +67,7 @@ Suggests:
     FNN,
     future,
     future.apply,
+    GiottoConnect,
     GiottoData,
     ggalluvial,
     ggdendro,
@@ -113,6 +114,7 @@ Suggests:
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
+    giotto-suite/GiottoConnect,
     giotto-suite/GiottoVisuals
 Collate:
     'ONTraC_wrapper.R'
