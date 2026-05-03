@@ -157,6 +157,7 @@ Collate:
     'spatial_interaction_visuals.R'
     'spdep.R'
     'variable_genes.R'
+    'hvg-param.R'
     'wnn.R'
     'zzz.R'
 biocViews: Software, Technology, Spatial, SingleCell, Transcriptomics

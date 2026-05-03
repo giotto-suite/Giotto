@@ -421,44 +421,37 @@ calculateHVF <- function(
         .calc_expr_cov_stats
     )
 
-    results <- switch(method,
-        "var_p_resid" = {
-            .calc_var_hvf(
-                scaled_matrix = expr_values,
-                var_threshold = var_threshold,
-                var_number = var_number,
-                show_plot = show_plot,
-                return_plot = return_plot,
-                save_plot = save_plot,
-                use_parallel = use_parallel
-            )
-        },
-        "cov_groups" = {
-            calc_cov_fun(expr_values, expression_threshold, 
-                         calc_gini = calc_gini) %>%
-                .calc_cov_group_hvf(
-                    nr_expression_groups = nr_expression_groups,
-                    zscore_threshold = zscore_threshold,
-                    show_plot = show_plot,
-                    return_plot = return_plot,
-                    save_plot = save_plot
-                )
-        },
-        "cov_loess" = {
-            calc_cov_fun(expr_values, expression_threshold,
-                         calc_gini = calc_gini) %>%
-                .calc_cov_loess_hvf(
-                    difference_in_cov = difference_in_cov,
-                    show_plot = show_plot,
-                    return_plot = return_plot,
-                    save_plot = save_plot
-                )
-        }
+    ## Mathematical computation is dispatched on the expression backend
+    ## via processData(x, hvgParam). Default methods on allMatrix /
+    ## IterableMatrix run Giotto's existing helpers (.calc_expr_cov_stats,
+    ## .calc_cov_loess_hvf, etc.). Streaming backends (parquetExprStore
+    ## in GiottoDisk) provide their own setMethod for the same generic.
+    feat_in_cells_detected <- processData(
+        expr_values,
+        hvgParam(
+            method               = method,
+            expression_threshold = expression_threshold,
+            nr_expression_groups = nr_expression_groups,
+            zscore_threshold     = zscore_threshold,
+            difference_in_cov    = difference_in_cov,
+            var_threshold        = var_threshold,
+            var_number           = var_number,
+            calc_gini            = calc_gini
+        )
     )
-
-    ## unpack results
-    feat_in_cells_detected <- results[["dt"]]
-    pl <- results[["pl"]]
+    ## Plot generation stays in the wrapper (orchestration concern).
+    pl <- NULL
+    if (any(isTRUE(show_plot), isTRUE(return_plot), isTRUE(save_plot))) {
+        pl <- switch(method,
+            "var_p_resid" = .create_calc_var_hvf_plot(
+                data.table::copy(feat_in_cells_detected)[
+                    , rank := seq_len(.N)]),
+            "cov_groups"  = .create_cov_group_hvf_plot(
+                feat_in_cells_detected, nr_expression_groups),
+            "cov_loess"   = .create_cov_loess_hvf_plot(
+                feat_in_cells_detected, difference_in_cov, "cov")
+        )
+    }
 
 
 
