@@ -320,24 +320,11 @@ addFeatStatistics <- function(gobject,
         set_defaults = FALSE
     )
 
-    # calculate stats
-    feat_stats <- data.table::data.table(
-        feats = rownames(expr_data[]),
-        nr_cells = rowSums_flex(expr_data[] > detection_threshold),
-        perc_cells = (rowSums_flex(expr_data[] > detection_threshold) /
-            ncol(expr_data[])) * 100,
-        total_expr = rowSums_flex(expr_data[]),
-        mean_expr = rowMeans_flex(expr_data[])
-    )
-
-    # data.table variables
-    mean_expr_det <- NULL
-
-    mean_expr_detected <- .mean_expr_det_test(
+    # calculate stats — dispatched on backend via processData(x, featQcParam)
+    feat_stats <- processData(
         expr_data[],
-        detection_threshold = detection_threshold
+        qcParam(level = "feat", detection_threshold = detection_threshold)
     )
-    feat_stats[, mean_expr_det := mean_expr_detected]
 
 
     if (return_gobject == TRUE) {
@@ -491,14 +478,10 @@ addCellStatistics <- function(gobject,
         set_defaults = FALSE
     )
 
-    # calculate stats
-
-    cell_stats <- data.table::data.table(
-        cells = colnames(expr_data[]),
-        nr_feats = colSums_flex(expr_data[] > detection_threshold),
-        perc_feats = (colSums_flex(expr_data[] > detection_threshold) /
-            nrow(expr_data[])) * 100,
-        total_expr = colSums_flex(expr_data[])
+    # calculate stats — dispatched on backend via processData(x, cellQcParam)
+    cell_stats <- processData(
+        expr_data[],
+        qcParam(level = "cell", detection_threshold = detection_threshold)
     )
 
     if (return_gobject == TRUE) {

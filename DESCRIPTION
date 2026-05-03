@@ -123,6 +123,7 @@ Collate:
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
+    'qc-param.R'
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
