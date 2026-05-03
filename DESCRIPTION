@@ -136,6 +136,7 @@ Collate:
     'dimension_reduction.R'
     'feature_set_enrichment.R'
     'filter.R'
+    'filter-param.R'
     'general_help.R'
     'giotto_viewer.R'
     'globals.R'
