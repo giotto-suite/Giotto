@@ -134,6 +134,7 @@ Collate:
     'dd.R'
     'differential_expression.R'
     'dimension_reduction.R'
+    'pca-param.R'
     'feature_set_enrichment.R'
     'filter.R'
     'filter-param.R'
