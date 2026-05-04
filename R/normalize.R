@@ -2016,7 +2016,7 @@ normalizeGiotto <- function(gobject,
 
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
     gobject <- setGiotto(
-        gobject, norm_expr, verbose = verbose, initialize = FALSE)
+        gobject, norm_expr, verbose = verbose, initialize = FALSE, write = TRUE)
     gobject <- setGiotto(
         gobject, norm_scaled_expr, verbose = verbose, initialize = FALSE)
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
