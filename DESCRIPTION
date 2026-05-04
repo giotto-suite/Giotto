@@ -67,7 +67,6 @@ Suggests:
     FNN,
     future,
     future.apply,
-    GiottoConnect,
     GiottoData,
     GiottoDisk,
     ggalluvial,
@@ -115,7 +114,6 @@ Suggests:
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
-    giotto-suite/GiottoConnect,
     giotto-suite/GiottoDisk,
     giotto-suite/GiottoVisuals
 Collate:
