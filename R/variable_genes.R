@@ -859,6 +859,10 @@ setMethod("analyzeData",
 setMethod("analyzeData",
     signature(x = "allMatrix", param = "varParam"),
     function(x, param, ...) {
+        if (inherits(x, "IterableMatrix")) {
+            scores <- sort(BPCells::rowVars(x), decreasing = TRUE)
+            return(data.table::data.table(feats = names(scores), var = scores))
+        }
         if (isTRUE(param$use_parallel)) {
             scores <- future.apply::future_apply(
                 X = x, MARGIN = 1, FUN = var, future.seed = TRUE
@@ -870,3 +874,4 @@ setMethod("analyzeData",
         data.table::data.table(feats = names(scores), var = scores)
     }
 )
+
