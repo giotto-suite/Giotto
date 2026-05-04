@@ -104,6 +104,53 @@ test_that(
 )
 
 
+test_that("parquet backend handles all 3 Xenium expression formats", {
+    skip_if_no_fixture()
+    skip_if_no_giottodisk()
+
+    mtx_dir <- file.path(XENIUM_DIR, "cell_feature_matrix")
+    tar_gz  <- file.path(XENIUM_DIR, "cell_feature_matrix.tar.gz")
+    h5_file <- file.path(XENIUM_DIR, "cell_feature_matrix.h5")
+
+    if (!file.exists(tar_gz) && !file.exists(h5_file)) {
+        skip("only the unpacked mtx fixture is available; need tar.gz and/or h5")
+    }
+    if (!requireNamespace("hdf5r", quietly = TRUE) && file.exists(h5_file)) {
+        # treat as if h5 not present
+        h5_file <- ""
+    }
+
+    build <- function(label, ep) {
+        op <- options(giotto.xenium_parquet_dir =
+                        file.path(tempdir(), paste0("xenium_pq_", label)))
+        on.exit(options(op), add = TRUE)
+        args <- base_args("parquet")
+        args$expression_path <- ep
+        g <- suppressWarnings(do.call(createGiottoXeniumObject, args))
+        slot(GiottoClass::getExpression(g, output = "exprObj"), "exprMat")
+    }
+
+    pe_dir <- build("dir", mtx_dir)
+    expect_s4_class(pe_dir, "parquetExprStore")
+
+    if (file.exists(tar_gz)) {
+        pe_tar <- build("tar", tar_gz)
+        expect_s4_class(pe_tar, "parquetExprStore")
+        expect_equal(dim(pe_tar), dim(pe_dir))
+        expect_setequal(pe_tar@feat_ids, pe_dir@feat_ids)
+        expect_setequal(pe_tar@cell_ids, pe_dir@cell_ids)
+    }
+
+    if (file.exists(h5_file) && nzchar(h5_file)) {
+        pe_h5 <- build("h5", h5_file)
+        expect_s4_class(pe_h5, "parquetExprStore")
+        expect_equal(dim(pe_h5), dim(pe_dir))
+        expect_setequal(pe_h5@feat_ids, pe_dir@feat_ids)
+        expect_setequal(pe_h5@cell_ids, pe_dir@cell_ids)
+    }
+})
+
+
 test_that("global option giotto.expression_backend toggles the default", {
     skip_if_no_fixture()
     skip_if_no_giottodisk()

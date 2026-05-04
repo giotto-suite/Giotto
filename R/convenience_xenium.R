@@ -39,7 +39,7 @@ setClass(
         filetype = list(
             transcripts = "parquet",
             boundaries = "parquet",
-            expression = c("h5", "mtx"),
+            expression = c("h5", "mtx", "tar.gz"),
             cell_meta = "parquet"
         ),
         qv = 20,
@@ -117,7 +117,7 @@ setMethod(
 
         ftype <- obj@filetype
         ft_tab <- c("csv", "parquet")
-        ft_exp <- c("h5", "mtx") # zarr not yet supported
+        ft_exp <- c("h5", "mtx", "tar.gz") # zarr not yet supported
         if (!ftype$transcripts %in% ft_tab) {
             stop(
                 wrap_txt(
@@ -218,15 +218,25 @@ setMethod(
                 expr_candidates,
                 expr_path[is_dir])
         }
+        if ("tar.gz" %in% ftype$expression) {
+            tar_hits <- expr_path[grepl("\\.tar\\.gz$", expr_path,
+                                         ignore.case = TRUE)]
+            expr_candidates <- c(expr_candidates, tar_hits)
+        }
         expr_candidates <- unique(expr_candidates)
         if (length(expr_candidates) == 0L) {
             stop("No expression path matching allowed types (",
                  paste(ftype$expression, collapse = ", "),
                  ") found in: ", p)
         }
+        # Priority pick: unpacked dir → tarball → h5 (cheapest first).
         mtx_dirs <- expr_candidates[vapply(expr_candidates,
                                            checkmate::test_directory,
                                            FUN.VALUE = logical(1L))]
+        tar_files <- grep("\\.tar\\.gz$",
+                           expr_candidates,
+                           ignore.case = TRUE,
+                           value = TRUE)
         h5_files <- grep("\\.h5$",
                          expr_candidates,
                          ignore.case = TRUE,
@@ -234,6 +244,8 @@ setMethod(
 
         if (length(mtx_dirs)) {
             expr_path <- mtx_dirs[[1]]
+        } else if (length(tar_files)) {
+            expr_path <- tar_files[[1]]
         } else if (length(h5_files)) {
             expr_path <- h5_files[[1]]
         } else {
@@ -1223,6 +1235,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         e <- "mtx" # assume mtx dir
         # zarr can also be unzipped into a dir, but zarr implementation with
         # 32bit UINT support is not available in R yet (needed for cell_IDs).
+    } else if (grepl("\\.tar\\.gz$", path, ignore.case = TRUE)) {
+        e <- "tar.gz"
     } else {
         e <- file_extension(path) %>%
             head(1L) %>%
@@ -1236,11 +1250,11 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     verbose <- verbose %null% TRUE
 
     if (backend == "parquet") {
-        if (e != "mtx") {
-            stop("[.xenium_expression] expression_backend = 'parquet' currently ",
-                 "requires the 10x MatrixMarket triple format (",
-                 "matrix.mtx.gz + barcodes.tsv.gz + features.tsv.gz). ",
-                 "Detected format: ", e, ".", call. = FALSE)
+        if (!e %in% c("mtx", "tar.gz", "h5")) {
+            stop("[.xenium_expression] expression_backend = 'parquet' supports ",
+                 "the 10x mtx triple (folder), cell_feature_matrix.tar.gz, ",
+                 "or cell_feature_matrix.h5. Detected format: ", e, ".",
+                 call. = FALSE)
         }
         if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
             stop("[.xenium_expression] expression_backend = 'parquet' requires ",
@@ -1248,6 +1262,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
                  "remotes::install_github('giotto-suite/GiottoDisk').",
                  call. = FALSE)
         }
+        a$fmt <- e
         ex_list <- do.call(.xenium_expression_parquet, args = a)
     } else {
         ex_list <- switch(e,
@@ -1351,13 +1366,15 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         path,
         gene_ids = "symbols",
         remove_zero_rows = TRUE,
-        split_by_type = TRUE) {
+        split_by_type = TRUE,
+        fmt = c("mtx", "tar.gz", "h5")) {
     if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
         stop("[.xenium_expression_parquet] GiottoDisk is required for ",
              "expression_backend = 'parquet'. Install with: ",
              "remotes::install_github('giotto-suite/GiottoDisk').",
              call. = FALSE)
     }
+    fmt <- match.arg(fmt, c("mtx", "tar.gz", "h5"))
     feature_id_col <- switch(gene_ids,
         "ensembl" = 1L,
         "symbols" = 2L,
@@ -1365,7 +1382,28 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
              call. = FALSE)
     )
 
-    # Output directory: deterministic per source dir under tempdir() so
+    # Auto-unpack a tarball into tempdir() (basename-keyed for in-session
+    # idempotency). After unpack, fall through to the mtx-folder path.
+    if (fmt == "tar.gz") {
+        unpack_root <- file.path(
+            tempdir(),
+            paste0("xenium_expr_unpacked_",
+                   tools::file_path_sans_ext(
+                       tools::file_path_sans_ext(basename(path))))
+        )
+        dir.create(unpack_root, recursive = TRUE, showWarnings = FALSE)
+        utils::untar(path, exdir = unpack_root)
+        # The 10x tarball contains a top-level cell_feature_matrix/ directory.
+        candidates <- list.dirs(unpack_root, recursive = FALSE)
+        path <- candidates[grepl("cell_feature_matrix$", candidates)][1L]
+        if (is.na(path) || !dir.exists(path)) {
+            stop("[.xenium_expression_parquet] tarball did not contain a ",
+                 "cell_feature_matrix/ directory.", call. = FALSE)
+        }
+        fmt <- "mtx"
+    }
+
+    # Output directory: deterministic per source path under tempdir() so
     # repeated calls in a session reuse the same path; user can override
     # globally with options(giotto.xenium_parquet_dir = ...).
     out_dir <- getOption("giotto.xenium_parquet_dir", NULL)
@@ -1377,26 +1415,44 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         )
     }
 
-    pe <- GiottoDisk::xenium_to_parquetExprStore(
-        xenium_dir     = path,
-        output_path    = out_dir,
-        feature_id_col = feature_id_col,
-        overwrite      = TRUE
-    )
-
-    # Read features.tsv to get feat_class assignments (column 3, same as
-    # get10Xmatrix). Aligns 1:1 with pe@feat_ids in original order.
-    files_10X <- list.files(path)
-    features_file <- grep(files_10X, pattern = "features|genes",
-                          value = TRUE)[1L]
-    featuresDT <- data.table::fread(
-        input  = file.path(path, features_file),
-        header = FALSE
-    )
-    feat_classes_vec <- if (ncol(featuresDT) >= 3L) {
-        as.character(featuresDT$V3)
+    if (fmt == "h5") {
+        pe <- GiottoDisk::h5_to_parquetExprStore(
+            h5_path        = path,
+            output_path    = out_dir,
+            feature_id_col = feature_id_col,
+            overwrite      = TRUE
+        )
+        # feat_class assignments live at /<root>/features/feature_type
+        if (!requireNamespace("hdf5r", quietly = TRUE)) {
+            stop("[.xenium_expression_parquet] hdf5r is required to read ",
+                 "feature_type from a 10x h5 file.", call. = FALSE)
+        }
+        h5 <- hdf5r::H5File$new(path, mode = "r")
+        on.exit(h5$close_all(), add = TRUE)
+        root <- names(h5)[1L]
+        feat_classes_vec <- as.character(
+            h5[[paste0(root, "/features/feature_type")]][])
     } else {
-        rep("Gene Expression", nrow(featuresDT))
+        pe <- GiottoDisk::xenium_to_parquetExprStore(
+            xenium_dir     = path,
+            output_path    = out_dir,
+            feature_id_col = feature_id_col,
+            overwrite      = TRUE
+        )
+        # Read features.tsv to get feat_class assignments (column 3, same as
+        # get10Xmatrix). Aligns 1:1 with pe@feat_ids in original order.
+        files_10X <- list.files(path)
+        features_file <- grep(files_10X, pattern = "features|genes",
+                              value = TRUE)[1L]
+        featuresDT <- data.table::fread(
+            input  = file.path(path, features_file),
+            header = FALSE
+        )
+        feat_classes_vec <- if (ncol(featuresDT) >= 3L) {
+            as.character(featuresDT$V3)
+        } else {
+            rep("Gene Expression", nrow(featuresDT))
+        }
     }
 
     # remove_zero_rows: drop genes that never appear in the parquet (i.e.
