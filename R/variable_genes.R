@@ -1,3 +1,92 @@
+# analyzeParam classes ####
+
+#' @title Parameter Classes for Data Analysis Operations
+#' @name analyze_param
+#' @description
+#' Parameter classes for use with [analyzeData()]. Each class encodes a
+#' specific analysis method and its settings. Pass these to [analyzeData()]
+#' directly or via the [analyzeParam()] factory function.
+#'
+#' These params produce computed values (scores, statistics). Any downstream
+#' thresholding or selection is a separate step.
+#'
+#' **Stat params** (per-feature or per-cell summaries):
+#' - `featStatsParam` — per-feature: nr_cells, perc_cells, mean_expr,
+#'   mean_expr_det, total_expr
+#' - `cellStatsParam` — per-cell: nr_feats, perc_feats, total_expr
+#'
+#' **COV-based score params** (coefficient of variation scores):
+#' - `covGroupsParam` — COV z-score within expression-level bins
+#' - `covLoessParam` — residual COV above a LOESS fit of COV ~ log(mean_expr)
+#'
+#' **Variance param**:
+#' - `varParam` — per-feature variance on a scaled matrix
+#'
+#' @param method character. One of `"feat_stats"`, `"cell_stats"`,
+#'   `"cov_groups"`, `"cov_loess"`, `"var"`.
+#' @param ... additional parameters passed to the specific param constructor.
+#'   Use `$` on the returned object to inspect or modify individual params.
+#' @returns an `analyzeParam`-inheriting object
+#' @export
+analyzeParam <- function(method, ...) {
+    method <- match.arg(tolower(method),
+        c("feat_stats", "cell_stats", "cov_groups", "cov_loess", "var")
+    )
+    switch(method,
+        "feat_stats"  = .analyze_param_feat_stats(...),
+        "cell_stats"  = .analyze_param_cell_stats(...),
+        "cov_groups"  = .analyze_param_cov_groups(...),
+        "cov_loess"   = .analyze_param_cov_loess(...),
+        "var"         = .analyze_param_var(...)
+    )
+}
+
+# VIRTUAL classes ####
+#' @rdname analyze_param
+#' @exportClass featStatsParam
+setClass("featStatsParam", contains = "analyzeParam")
+#' @rdname analyze_param
+#' @exportClass cellStatsParam
+setClass("cellStatsParam", contains = "analyzeParam")
+#' @rdname analyze_param
+#' @exportClass covGroupsParam
+setClass("covGroupsParam", contains = "analyzeParam")
+#' @rdname analyze_param
+#' @exportClass covLoessParam
+setClass("covLoessParam", contains = "analyzeParam")
+#' @rdname analyze_param
+#' @exportClass varParam
+setClass("varParam", contains = "analyzeParam")
+
+# constructors ####
+.analyze_param_feat_stats <- function(...) {
+    p <- new("featStatsParam", param = list(...))
+    p$detection_threshold <- p$detection_threshold %null% 0
+    p
+}
+.analyze_param_cell_stats <- function(...) {
+    p <- new("cellStatsParam", param = list(...))
+    p$detection_threshold <- p$detection_threshold %null% 0
+    p
+}
+.analyze_param_cov_groups <- function(...) {
+    p <- new("covGroupsParam", param = list(...))
+    p$nr_expression_groups <- p$nr_expression_groups %null% 20
+    p$detection_threshold <- p$detection_threshold %null% 0
+    p
+}
+.analyze_param_cov_loess <- function(...) {
+    p <- new("covLoessParam", param = list(...))
+    p$detection_threshold <- p$detection_threshold %null% 0
+    p
+}
+.analyze_param_var <- function(...) {
+    p <- new("varParam", param = list(...))
+    p$use_parallel <- p$use_parallel %null% FALSE
+    p
+}
+
+
 .calc_cov_group_hvf <- function(
         feat_in_cells_detected,
         nr_expression_groups = 20,
@@ -643,3 +732,139 @@ calculateHVF <- function(
     pl <- pl + ggplot2::labs(x = "feature rank", y = "variance")
     pl
 }
+
+
+# analyzeData methods ####
+
+#' @name analyzeData
+#' @title Data Analysis via Parameter Dispatch
+#' @description
+#' Compute statistics or scores from matrix-type data. `analyzeData()` is a
+#' generic that dispatches on both `x` (the data) and `param` (the analysis
+#' operation). Methods return a `data.table` of computed values; any downstream
+#' thresholding or selection is a separate step.
+#' @param x data to analyze
+#' @param param an [analyzeParam-class] inheriting object defining the analysis
+#' operation and its settings
+#' @param \dots additional params passed to specific methods
+#' @returns a `data.table` of computed values
+NULL
+
+# exprObj base dispatch
+#' @rdname analyzeData
+setMethod("analyzeData",
+    signature(x = "exprObj", param = "analyzeParam"),
+    function(x, param, ...) {
+        analyzeData(x[], param, ...)
+    }
+)
+
+# * featStatsParam ####
+#' @rdname analyzeData
+setMethod("analyzeData",
+    signature(x = "allMatrix", param = "featStatsParam"),
+    function(x, param, ...) {
+        mean_expr_det <- NULL
+        det_thresh <- param$detection_threshold
+        n_detected <- rowSums_flex(x > det_thresh)
+        feat_stats <- data.table::data.table(
+            feats      = rownames(x),
+            nr_cells   = n_detected,
+            perc_cells = (n_detected / ncol(x)) * 100,
+            total_expr = rowSums_flex(x),
+            mean_expr  = rowMeans_flex(x)
+        )
+        feat_stats[, mean_expr_det := .mean_expr_det_test(
+            x, detection_threshold = det_thresh
+        )]
+        feat_stats
+    }
+)
+
+# * cellStatsParam ####
+#' @rdname analyzeData
+setMethod("analyzeData",
+    signature(x = "allMatrix", param = "cellStatsParam"),
+    function(x, param, ...) {
+        det_thresh <- param$detection_threshold
+        n_detected <- colSums_flex(x > det_thresh)
+        data.table::data.table(
+            cells      = colnames(x),
+            nr_feats   = n_detected,
+            perc_feats = (n_detected / nrow(x)) * 100,
+            total_expr = colSums_flex(x)
+        )
+    }
+)
+
+# * covGroupsParam ####
+#' @rdname analyzeData
+setMethod("analyzeData",
+    signature(x = "allMatrix", param = "covGroupsParam"),
+    function(x, param, ...) {
+        cov_group_zscore <- cov <- expr_groups <- NULL
+        nr_groups <- param$nr_expression_groups
+        det_thresh <- param$detection_threshold
+
+        dt <- .calc_expr_cov_stats(x,
+            expression_threshold = det_thresh, calc_gini = FALSE
+        )
+        dt <- dt[nr_cells > 0]
+
+        prob_sequence <- seq(0, 1, 1 / nr_groups)
+        prob_sequence[length(prob_sequence)] <- 1
+        breaks <- stats::quantile(dt$mean_expr, probs = prob_sequence)
+        if (any(duplicated(breaks))) {
+            v <- dt$mean_expr
+            breaks <- stats::quantile(v[v > 0], probs = prob_sequence)
+            breaks[[1]] <- 0
+        }
+        dt[, expr_groups := cut(
+            mean_expr, breaks = breaks,
+            labels = paste0("group_", seq_len(nr_groups)),
+            include.lowest = TRUE
+        )]
+        dt[, cov_group_zscore := scale(cov), by = expr_groups]
+        dt[, expr_groups := NULL]
+        dt
+    }
+)
+
+# * covLoessParam ####
+#' @rdname analyzeData
+setMethod("analyzeData",
+    signature(x = "allMatrix", param = "covLoessParam"),
+    function(x, param, ...) {
+        pred_cov <- cov_diff <- NULL
+        det_thresh <- param$detection_threshold
+
+        dt <- .calc_expr_cov_stats(x,
+            expression_threshold = det_thresh, calc_gini = FALSE
+        )
+        dt <- dt[nr_cells > 0]
+
+        loess_fit <- stats::loess(cov ~ log(mean_expr), data = dt)
+        dt[, pred_cov  := stats::predict(loess_fit, newdata = dt)]
+        dt[, cov_diff  := cov - pred_cov]
+        dt[, pred_cov  := NULL]
+        data.table::setorder(dt, -cov_diff)
+        dt
+    }
+)
+
+# * varParam ####
+#' @rdname analyzeData
+setMethod("analyzeData",
+    signature(x = "allMatrix", param = "varParam"),
+    function(x, param, ...) {
+        if (isTRUE(param$use_parallel)) {
+            scores <- future.apply::future_apply(
+                X = x, MARGIN = 1, FUN = var, future.seed = TRUE
+            )
+        } else {
+            scores <- apply(X = x, MARGIN = 1, FUN = var)
+        }
+        scores <- sort(scores, decreasing = TRUE)
+        data.table::data.table(feats = names(scores), var = scores)
+    }
+)
