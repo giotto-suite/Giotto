@@ -2009,14 +2009,28 @@ normalizeGiotto <- function(gobject,
         )
     }
 
-    norm_expr <- createExprObj(
-        expression_data = norm_expr,
-        name = "normalized",
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = provenance,
-        misc = NULL
-    )
+    # Streaming backends (parquetExprStore) bypass .evaluate_expr_matrix
+    # because that gate only knows about in-memory matrix-like classes.
+    # The exprObj@exprMat slot is "ANY", so direct construction is safe.
+    if (.is_streaming_backend(norm_expr)) {
+        norm_expr <- methods::new("exprObj",
+            name      = "normalized",
+            exprMat   = norm_expr,
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            provenance = provenance,
+            misc      = NULL
+        )
+    } else {
+        norm_expr <- createExprObj(
+            expression_data = norm_expr,
+            name = "normalized",
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            provenance = provenance,
+            misc = NULL
+        )
+    }
 
     # Save dbMatrix to db
     if (compute_mat && !is.null(norm_scaled_expr) && 

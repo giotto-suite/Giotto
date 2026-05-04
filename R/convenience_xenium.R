@@ -366,12 +366,14 @@ setMethod(
         gene_ids = "symbols",
         remove_zero_rows = TRUE,
         split_by_type = TRUE,
+        backend = "matrix",
         verbose = NULL) {
             .xenium_expression(
                 path = path,
                 gene_ids = gene_ids,
                 remove_zero_rows = remove_zero_rows,
                 split_by_type = split_by_type,
+                backend = backend,
                 verbose = verbose
             )
         }
@@ -448,11 +450,16 @@ setMethod(
         load_transcripts = TRUE,
         load_expression = TRUE,
         load_cellmeta = FALSE,
+        expression_backend = "matrix",
         instructions = NULL,
         verbose = NULL) {
             load_transcripts <- as.logical(load_transcripts)
             load_expression <- as.logical(load_expression)
             load_cellmeta <- as.logical(load_cellmeta)
+            expression_backend <- match.arg(
+                tolower(expression_backend),
+                c("matrix", "parquet")
+            )
 
             if (!load_transcripts && !load_expression) {
                 warning(wrap_txt(
@@ -548,6 +555,7 @@ setMethod(
                     gene_ids = "symbols",
                     remove_zero_rows = TRUE,
                     split_by_type = TRUE,
+                    backend = expression_backend,
                     verbose = verbose
                 )
                 g <- setGiotto(g, ex)
@@ -1194,6 +1202,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         gene_ids = "symbols",
         remove_zero_rows = TRUE,
         split_by_type = TRUE,
+        backend = "matrix",
         verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
@@ -1202,6 +1211,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         ), call. = FALSE)
     }
     if (!file.exists(path)) stop("filepath or directory does not exist.\n")
+    backend <- match.arg(tolower(backend), c("matrix", "parquet"))
     a <- list(
         path = path,
         gene_ids = gene_ids,
@@ -1220,14 +1230,32 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
     }
 
     vmsg("Loading 10x pre-aggregated expression...", .v = verbose)
-    vmsg(.v = verbose, .is_debug = TRUE, "[EXPR_READ] FMT =", e)
+    vmsg(.v = verbose, .is_debug = TRUE, "[EXPR_READ] FMT =", e,
+         "BACKEND =", backend)
     vmsg(.v = verbose, .is_debug = TRUE, path)
     verbose <- verbose %null% TRUE
-    ex_list <- switch(e,
-        "mtx" = do.call(.xenium_expression_mtx, args = a),
-        "h5" = do.call(.xenium_expression_h5, args = a),
-        "zarr" = stop("zarr reading not yet implemented")
-    )
+
+    if (backend == "parquet") {
+        if (e != "mtx") {
+            stop("[.xenium_expression] expression_backend = 'parquet' currently ",
+                 "requires the 10x MatrixMarket triple format (",
+                 "matrix.mtx.gz + barcodes.tsv.gz + features.tsv.gz). ",
+                 "Detected format: ", e, ".", call. = FALSE)
+        }
+        if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
+            stop("[.xenium_expression] expression_backend = 'parquet' requires ",
+                 "the GiottoDisk package. Install with: ",
+                 "remotes::install_github('giotto-suite/GiottoDisk').",
+                 call. = FALSE)
+        }
+        ex_list <- do.call(.xenium_expression_parquet, args = a)
+    } else {
+        ex_list <- switch(e,
+            "mtx" = do.call(.xenium_expression_mtx, args = a),
+            "h5" = do.call(.xenium_expression_h5, args = a),
+            "zarr" = stop("zarr reading not yet implemented")
+        )
+    }
 
     # ensure list
     if (!inherits(ex_list, "list")) ex_list <- list(ex_list)
@@ -1251,15 +1279,28 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
+        item <- ex_list[[ex_i]]
 
-        if(!inherits(ex_list[[ex_i]], "Matrix")) {
-            i_vector <- ex_list[[ex_i]]
-            ex_list[[ex_i]] <- t(Matrix::Matrix(ex_list[[ex_i]], sparse = TRUE))
-            colnames(ex_list[[ex_i]]) <- names(i_vector)
+        # parquet backend: build exprObj directly to bypass
+        # .evaluate_expr_matrix (which doesn't recognize parquetExprStore)
+        if (inherits(item, "parquetExprStore")) {
+            return(methods::new("exprObj",
+                name = "raw",
+                exprMat = item,
+                spat_unit = "cell",
+                feat_type = fname[[ex_i]],
+                provenance = "cell"
+            ))
+        }
+
+        if (!inherits(item, "Matrix")) {
+            i_vector <- item
+            item <- t(Matrix::Matrix(item, sparse = TRUE))
+            colnames(item) <- names(i_vector)
         }
 
         createExprObj(
-            expression_data = ex_list[[ex_i]],
+            expression_data = item,
             name = "raw",
             spat_unit = "cell",
             feat_type = fname[[ex_i]],
@@ -1298,6 +1339,89 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         remove_zero_rows = remove_zero_rows,
         split_by_type = split_by_type
     )
+}
+
+# Streaming variant of `.xenium_expression_mtx`. Converts the 10x mtx triple
+# in `path` into a `parquetExprStore` via `GiottoDisk::xenium_to_parquetExprStore`
+# and applies `split_by_type` / `remove_zero_rows` lazily by composing index
+# slots on the store (no parquet rewrite). Returns a list of parquetExprStores
+# keyed by features.tsv column 3 (feature type) — same shape as the dgCMatrix
+# branch returns when `split_by_type = TRUE`.
+.xenium_expression_parquet <- function(
+        path,
+        gene_ids = "symbols",
+        remove_zero_rows = TRUE,
+        split_by_type = TRUE) {
+    if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
+        stop("[.xenium_expression_parquet] GiottoDisk is required for ",
+             "expression_backend = 'parquet'. Install with: ",
+             "remotes::install_github('giotto-suite/GiottoDisk').",
+             call. = FALSE)
+    }
+    feature_id_col <- switch(gene_ids,
+        "ensembl" = 1L,
+        "symbols" = 2L,
+        stop("[.xenium_expression_parquet] unknown gene_ids: ", gene_ids,
+             call. = FALSE)
+    )
+
+    # Output directory: deterministic per source dir under tempdir() so
+    # repeated calls in a session reuse the same path; user can override
+    # globally with options(giotto.xenium_parquet_dir = ...).
+    out_dir <- getOption("giotto.xenium_parquet_dir", NULL)
+    if (is.null(out_dir)) {
+        out_dir <- file.path(
+            tempdir(),
+            paste0("xenium_expr_parquet_",
+                   tools::file_path_sans_ext(basename(normalizePath(path))))
+        )
+    }
+
+    pe <- GiottoDisk::xenium_to_parquetExprStore(
+        xenium_dir     = path,
+        output_path    = out_dir,
+        feature_id_col = feature_id_col,
+        overwrite      = TRUE
+    )
+
+    # Read features.tsv to get feat_class assignments (column 3, same as
+    # get10Xmatrix). Aligns 1:1 with pe@feat_ids in original order.
+    files_10X <- list.files(path)
+    features_file <- grep(files_10X, pattern = "features|genes",
+                          value = TRUE)[1L]
+    featuresDT <- data.table::fread(
+        input  = file.path(path, features_file),
+        header = FALSE
+    )
+    feat_classes_vec <- if (ncol(featuresDT) >= 3L) {
+        as.character(featuresDT$V3)
+    } else {
+        rep("Gene Expression", nrow(featuresDT))
+    }
+
+    # remove_zero_rows: drop genes that never appear in the parquet (i.e.
+    # have no nonzero count). Streaming aggregation via Arrow distinct().
+    if (isTRUE(remove_zero_rows)) {
+        ds <- GiottoDisk::storeRead(pe)
+        present <- ds %>%
+            dplyr::distinct(col_id) %>%
+            dplyr::collect()
+        keep_idx <- sort(as.integer(present$col_id))
+        if (length(keep_idx) < length(feat_classes_vec)) {
+            pe <- pe[keep_idx, , drop = FALSE]
+            feat_classes_vec <- feat_classes_vec[keep_idx]
+        }
+    }
+
+    if (length(unique(feat_classes_vec)) > 1L && isTRUE(split_by_type)) {
+        result_list <- list()
+        for (fclass in unique(feat_classes_vec)) {
+            idx <- which(feat_classes_vec == fclass)
+            result_list[[fclass]] <- pe[idx, , drop = FALSE]
+        }
+        return(result_list)
+    }
+    pe
 }
 
 
@@ -1621,6 +1745,18 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 #' provided expression matrix.
 #' @param load_cellmeta logical. Default = FALSE. Whether to load in 10X
 #' provided cell metadata information
+#' @param expression_backend character. One of `"matrix"` (default,
+#' in-memory `dgCMatrix` — current behavior) or `"parquet"` (streaming,
+#' disk-backed `parquetExprStore` from \pkg{GiottoDisk}). When set to
+#' `"parquet"`, the 10x MatrixMarket triple is converted to long-format
+#' Parquet via `GiottoDisk::xenium_to_parquetExprStore()` without ever
+#' materializing a dense matrix, and the resulting store is slotted into
+#' `exprObj@exprMat`. Streaming pipeline steps (addStatistics, filterGiotto,
+#' normalizeGiotto, calculateHVF, runPCA) then dispatch to the
+#' parquet-aware methods in GiottoDisk. The default can be changed
+#' globally via `options(giotto.expression_backend = "parquet")`.
+#' Only the mtx input format is currently supported for the parquet
+#' backend.
 #' @param instructions list of instructions or output result from
 #' [createGiottoInstructions()]
 #' @param verbose logical or NULL. NULL uses the `giotto.verbose` option
@@ -1691,6 +1827,7 @@ createGiottoXeniumObject <- function(
         load_transcripts = TRUE,
         load_expression = TRUE,
         load_cellmeta = FALSE,
+        expression_backend = getOption("giotto.expression_backend", "matrix"),
         instructions = NULL,
         verbose = NULL) {
     x <- importXenium(xenium_dir)
@@ -1707,6 +1844,7 @@ createGiottoXeniumObject <- function(
         load_transcripts = load_transcripts,
         load_expression = load_expression,
         load_cellmeta = load_cellmeta,
+        expression_backend = expression_backend,
         instructions = instructions,
         verbose = verbose
     )

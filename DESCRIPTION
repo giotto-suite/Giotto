@@ -69,6 +69,7 @@ Suggests:
     future.apply,
     GiottoConnect,
     GiottoData,
+    GiottoDisk,
     ggalluvial,
     ggdendro,
     ggforce,
@@ -115,6 +116,7 @@ Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
     giotto-suite/GiottoConnect,
+    giotto-suite/GiottoDisk,
     giotto-suite/GiottoVisuals
 Collate:
     'ONTraC_wrapper.R'
@@ -123,7 +125,6 @@ Collate:
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
-    'qc-param.R'
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
@@ -134,7 +135,6 @@ Collate:
     'dd.R'
     'differential_expression.R'
     'dimension_reduction.R'
-    'pca-param.R'
     'feature_set_enrichment.R'
     'filter.R'
     'filter-param.R'
@@ -142,13 +142,17 @@ Collate:
     'giotto_viewer.R'
     'globals.R'
     'gstop.R'
+    'variable_genes.R'
+    'hvg-param.R'
     'suite_reexports.R'
     'image_registration.R'
     'interactivity.R'
     'kriging.R'
+    'pca-param.R'
     'poly_influence.R'
     'python_hmrf.R'
     'python_scrublet.R'
+    'qc-param.R'
     'spatial_clusters.R'
     'spatial_enrichment.R'
     'spatial_enrichment_visuals.R'
@@ -157,8 +161,6 @@ Collate:
     'spatial_interaction_spot.R'
     'spatial_interaction_visuals.R'
     'spdep.R'
-    'variable_genes.R'
-    'hvg-param.R'
     'wnn.R'
     'zzz.R'
 biocViews: Software, Technology, Spatial, SingleCell, Transcriptomics
