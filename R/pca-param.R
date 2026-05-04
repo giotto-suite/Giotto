@@ -112,15 +112,18 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
         set_seed = param$set_seed,
         seed_number = param$seed_number
     )
-    # .run_pca_biocsingular returns eigenvalues, loadings, coords.
-    # eigenvalues are sdev^2 (or d^2/(n-1)). Convert to canonical singular
-    # values d so streaming-backend output can match.
+    # .run_pca_biocsingular returns eigenvalues = sdev^2 = d^2/(n-1)
+    # where n is the number of observations (rows of the transposed
+    # matrix passed to runPCA, i.e. n_cells). Recover the canonical
+    # singular values d so streaming-backend output is directly comparable.
+    n_obs <- ncol(x)   # x is gene x cell, so ncol = n_cells (observations)
     sdev <- sqrt(res$eigenvalues)
+    d    <- sdev * sqrt(max(n_obs - 1L, 1L))
     list(
-        u    = res$coords,    # cells × k embeddings (u * d)
-        d    = sdev,           # singular values up to scaling
-        v    = res$loadings,  # genes × k loadings
-        sdev = sdev,
+        u           = res$coords,    # cells × k embeddings (u * d)
+        d           = d,              # singular values (matches streaming)
+        v           = res$loadings,  # genes × k loadings
+        sdev        = sdev,
         eigenvalues = res$eigenvalues
     )
 }
