@@ -200,8 +200,6 @@ reduceDims <- function(gobject,
         ncp <- min_ncp - 1L
     }
 
-    if (isTRUE(rev)) x <- t_flex(x)
-
     if (inherits(x, "IterableMatrix")) {
         x <- standardise_flex(x, center = center, scale = scale)
         if (set_seed) {
@@ -214,15 +212,17 @@ reduceDims <- function(gobject,
         } else {
             pca_res <- BPCells::svds(x, k = ncp)
         }
-        eigenvalues <- pca_res$d^2 / (nrow(x) - 1L)
         if (isTRUE(rev)) {
-            loadings <- sweep(pca_res$u, 2, pca_res$d, "*")
-            coords   <- pca_res$v
-        } else {
-            loadings <- pca_res$v
+            eigenvalues <- pca_res$d^2 / (nrow(x) - 1L)
             coords   <- sweep(pca_res$u, 2, pca_res$d, "*")
+            loadings <- pca_res$v
+        } else {
+            eigenvalues <- pca_res$d^2 / (ncol(x) - 1L)
+            loadings <- pca_res$u
+            coords   <- sweep(pca_res$v, 2, pca_res$d, "*")
         }
     } else {
+        if (isTRUE(rev)) x <- t_flex(x)
         pca_param <- list(
             x = x,
             rank = ncp,
@@ -257,7 +257,15 @@ reduceDims <- function(gobject,
     }
 
     # loadings and coords rownames
-    if (isTRUE(rev)) {
+    if (inherits(x, "IterableMatrix")) {
+        if (isTRUE(rev)) {
+            rownames(loadings) <- colnames(x)
+            rownames(coords)   <- rownames(x)
+        } else {
+            rownames(loadings) <- rownames(x)
+            rownames(coords)   <- colnames(x)
+        }
+    } else if (isTRUE(rev)) {
         rownames(loadings) <- rownames(x)
         rownames(coords)   <- colnames(x)
     } else {
@@ -484,7 +492,7 @@ runPCA <- function(gobject,
         # PCA on cells
         if (method %in% c("irlba", "exact", "random")) {
             pca_object <- .run_pca_biocsingular(
-                x = t_flex(expr_values),
+                x = if (inherits(expr_values, "IterableMatrix")) expr_values else t_flex(expr_values),
                 center = center,
                 scale = scale_unit,
                 ncp = ncp,
