@@ -237,7 +237,9 @@ setClass("varParam", contains = "analyzeParam")
 
 # Vectorized rowSds helper following flex function convention from GiottoClass
 .rowSds_flex <- function(mymatrix, ...) {
-    if (inherits(mymatrix, "DelayedArray")) {
+    if (inherits(mymatrix, "IterableMatrix")) {
+        return(sqrt(BPCells::rowVars(mymatrix)))
+    } else if (inherits(mymatrix, "DelayedArray")) {
         return(DelayedMatrixStats::rowSds(mymatrix, ...))
     } else if (inherits(mymatrix, "dgCMatrix")) {
         return(sparseMatrixStats::rowSds(mymatrix, ...))
