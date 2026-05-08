@@ -36,6 +36,10 @@ createGiottoStereoSeqObjectBin(
 \item{negative_y}{logical. Map data to negative y spatial values
 (default `TRUE`). Origin is placed at the upper-left.}
 
+\item{gef_type}{character. Which .gef to use, "tissue" (default), "full", 
+or "raw". The default `"tissue"` includes only bins that overlap the 
+detected tissue. If you need the full capture array, use `"full"`.}
+
 \item{load_expression}{logical. Whether to load the expression matrix.
 Uses `Matrix::sparseMatrix()` directly from the gef triplet data for
 memory efficiency. Set to `FALSE` to skip.}
