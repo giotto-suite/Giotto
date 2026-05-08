@@ -31,6 +31,9 @@ createGiottoStereoSeqObjectCell(
 \item{negative_y}{logical. Map data to negative y spatial values
 (default `TRUE`). Origin is placed at the upper-left.}
 
+\item{gef_type}{character. Which .gef to use, "adjusted_cellbin" (default) 
+or "cellbin".}
+
 \item{load_expression}{logical. Whether to load the expression matrix.
 Uses `Matrix::sparseMatrix()` directly from the gef triplet data for
 memory efficiency. Set to `FALSE` to skip.}
@@ -42,6 +45,8 @@ memory efficiency. Set to `FALSE` to skip.}
 Data stays as integer triplets + `SpatVector`; no matrix is created.}
 
 \item{load_image}{logical. Whether to load the H&E registered image.}
+
+\item{load_polygons}{logical. Whether to load the cell boundaries polygons.}
 
 \item{load_mask}{logical (default `TRUE`). Whether to create cell polygons
 from the `*_HE_mask.tif` file in `stereoseq_dir/image/`. Uses
