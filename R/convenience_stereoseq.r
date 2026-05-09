@@ -369,8 +369,13 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
         bin1_path       = .default_bin1_path2,
         image_path      = .default_image_dir,
         mask_path       = .default_mask_path2,
+        expression_backend = "matrix",
         instructions    = NULL,
         verbose         = NULL) {
+
+        expression_backend <- match.arg(
+            tolower(expression_backend), c("matrix", "parquet")
+        )
 
         spat_unit <- if (type == "bin") bin_size else "cell"
 
@@ -386,8 +391,55 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
 
         expr_obj <- sl <- gbp <- NULL
 
-        if (load_expression || load_spatlocs) {
-            # read gef once for the requested bin/cell resolution data.
+        if (expression_backend == "parquet" &&
+            (load_expression || load_spatlocs)) {
+            # Streaming path — never load the full triplet table into RAM.
+            # Expression is gef -> parquetExprStore directly (chunked
+            # rhdf5 hyperslab reads). Spatlocs reuses the bin_coords
+            # returned by the streaming helper for bin mode, or reads
+            # only the small cellBin/cell table for cell mode.
+            bin_coords <- NULL
+            if (load_expression) {
+                res <- .stereoseq_build_expression_parquet(
+                    gef_path    = gef_path,
+                    type        = type,
+                    bin_size    = bin_size,
+                    gene_column = gene_column,
+                    spat_unit   = spat_unit,
+                    verbose     = verbose
+                )
+                expr_obj   <- res$expr_obj_list
+                bin_coords <- res$bin_coords
+            }
+            if (load_spatlocs) {
+                if (type == "cell") {
+                    cellDT <- data.table::setDT(rhdf5::h5read(
+                        gef_path, "cellBin/cell"
+                    ))
+                    gef_data_min <- list(type = "cell", cellDT = cellDT)
+                } else {
+                    if (is.null(bin_coords)) {
+                        stop("[StereoSeq] expression_backend = 'parquet' ",
+                             "requires load_expression = TRUE when ",
+                             "load_spatlocs = TRUE for bin readers — bin ",
+                             "coordinates come from the streaming ",
+                             "expression pass.", call. = FALSE)
+                    }
+                    bins <- data.table::copy(bin_coords)
+                    data.table::setorder(bins, bin_ID)
+                    gef_data_min <- list(type = "bin", bins = bins)
+                }
+                sl <- .stereoseq_build_spatlocs(
+                    gef_data   = gef_data_min,
+                    type       = type,
+                    negative_y = negative_y,
+                    spat_unit  = spat_unit,
+                    verbose    = verbose
+                )
+            }
+        } else if (load_expression || load_spatlocs) {
+            # In-memory matrix path — full gef triplet read into RAM
+            # via rhdf5::h5read, then sparseMatrix construction.
             # "binpoints" is handled separately below (always bin1).
             what_needed <- character(0)
             if (load_expression) what_needed <- c(what_needed, "expression")
@@ -751,6 +803,85 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
     list(expr_obj)
 }
 
+
+# Streaming variant of .stereoseq_build_expression. Routes around the
+# in-RAM .stereoseq_read_gef call and instead invokes the chunked GEF
+# helpers from GiottoDisk (cellbin_gef_to_parquetExprStore /
+# bin_gef_to_parquetExprStore), which read the GEF in gene-chunks via
+# rhdf5 hyperslabs and write Parquet shards as they go — no full
+# triplet table is ever materialized in memory.
+#
+# Returns a list with two named components:
+#   $expr_obj_list : list(exprObj) — single-element list to match the
+#                    matrix-path return shape (gobject_fun feeds it
+#                    directly to setGiotto, which accepts a list).
+#   $bin_coords    : data.table(bin_ID, x, y) for type = "bin", or NULL
+#                    for type = "cell". Returned so spatlocs can be
+#                    constructed without a second pass through the GEF.
+.stereoseq_build_expression_parquet <- function(gef_path, type, bin_size,
+                                                  gene_column, spat_unit,
+                                                  verbose = NULL) {
+    if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
+        stop("[.stereoseq_build_expression_parquet] GiottoDisk is required ",
+             "for expression_backend = 'parquet'. Install with: ",
+             "remotes::install_github('giotto-suite/GiottoDisk').",
+             call. = FALSE)
+    }
+    if (!requireNamespace("rhdf5", quietly = TRUE)) {
+        stop("[.stereoseq_build_expression_parquet] rhdf5 is required to ",
+             "stream Stereo-seq .gef files. Install with: ",
+             "BiocManager::install(\"rhdf5\").",
+             call. = FALSE)
+    }
+
+    vmsg(.v = verbose, "Streaming gef -> parquetExprStore...")
+
+    # Output path (deterministic per spat_unit; overridable via option)
+    out_dir <- getOption("giotto.stereoseq_parquet_dir", NULL)
+    if (is.null(out_dir)) {
+        out_dir <- file.path(
+            tempdir(),
+            paste0("stereoseq_expr_parquet_", spat_unit)
+        )
+    }
+
+    if (type == "bin") {
+        res <- GiottoDisk::bin_gef_to_parquetExprStore(
+            gef_path    = gef_path,
+            bin_size    = bin_size,
+            output_path = out_dir,
+            gene_column = gene_column,
+            overwrite   = TRUE
+        )
+        pe         <- res$pe
+        bin_coords <- res$bin_coords
+    } else {
+        pe <- GiottoDisk::cellbin_gef_to_parquetExprStore(
+            gef_path    = gef_path,
+            output_path = out_dir,
+            gene_column = gene_column,
+            overwrite   = TRUE
+        )
+        bin_coords <- NULL
+    }
+
+    expr_obj <- methods::new("exprObj",
+        name       = "raw",
+        exprMat    = pe,
+        spat_unit  = spat_unit,
+        feat_type  = "rna",
+        provenance = spat_unit
+    )
+
+    vmsg(.v = verbose, sprintf(
+        "Finished parquetExprStore: %s genes x %s %s",
+        format(pe@n_genes, big.mark = ","),
+        format(pe@n_cells, big.mark = ","),
+        if (type == "bin") "bins" else "cells"))
+    list(expr_obj_list = list(expr_obj), bin_coords = bin_coords)
+}
+
+
 # Build a giottoBinPoints from already-read bin1 gef data.
 # bin1 (0.5 µm DNB resolution) is always used as the source — this is the
 # highest-resolution data the platform produces and the correct input for
@@ -1090,6 +1221,15 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #' @param load_mask logical (default `TRUE`). Whether to create cell polygons
 #'   from the `*_HE_mask.tif` file in `stereoseq_dir/image/`. Uses
 #'   [createGiottoPolygonsFromMask()] with `calc_centroids = TRUE`.
+#' @param expression_backend character. One of `"matrix"` (default,
+#'   in-memory `dgCMatrix` — current behavior) or `"parquet"` (streaming,
+#'   disk-backed `parquetExprStore` from \pkg{GiottoDisk}). When set to
+#'   `"parquet"`, the GEF triplets are written to long-format Parquet
+#'   and the resulting store is slotted into `exprObj@exprMat`. The
+#'   downstream streaming pipeline (addStatistics → filterGiotto →
+#'   normalizeGiotto → calculateHVF → PCA) then dispatches to the
+#'   parquet-aware methods in GiottoDisk. Default can be set globally
+#'   via `options(giotto.expression_backend = "parquet")`.
 #' @param gef_path (optional) direct filepath to the `*.tissue.gef` file.
 #'   Auto-detected from `stereoseq_dir` when not provided.
 #' @param image_path (optional) filepath or directory for the image.
@@ -1120,6 +1260,7 @@ createGiottoStereoSeqObjectBin <- function(
     load_binpoints  = FALSE,
     load_image      = TRUE,
     load_mask       = TRUE,
+    expression_backend = getOption("giotto.expression_backend", "matrix"),
     gef_path        = NULL,
     image_path      = NULL,
     mask_path       = NULL,
@@ -1142,6 +1283,7 @@ createGiottoStereoSeqObjectBin <- function(
         load_image      = load_image,
         load_mask       = load_mask,
         load_polygons   = FALSE,   # bin type has no cellBorder
+        expression_backend = expression_backend,
         instructions    = instructions,
         verbose         = verbose
     )
@@ -1185,6 +1327,15 @@ createGiottoStereoSeqObjectBin <- function(
 #' @param load_mask logical (default `TRUE`). Whether to create cell polygons
 #'   from the `*_HE_mask.tif` file in `stereoseq_dir/image/`. Uses
 #'   [createGiottoPolygonsFromMask()] with `calc_centroids = TRUE`.
+#' @param expression_backend character. One of `"matrix"` (default,
+#'   in-memory `dgCMatrix` — current behavior) or `"parquet"` (streaming,
+#'   disk-backed `parquetExprStore` from \pkg{GiottoDisk}). When set to
+#'   `"parquet"`, the GEF triplets are written to long-format Parquet
+#'   and the resulting store is slotted into `exprObj@exprMat`. The
+#'   downstream streaming pipeline (addStatistics → filterGiotto →
+#'   normalizeGiotto → calculateHVF → PCA) then dispatches to the
+#'   parquet-aware methods in GiottoDisk. Default can be set globally
+#'   via `options(giotto.expression_backend = "parquet")`.
 #' @param gef_path (optional) direct filepath to the `*.adjusted.cellbin.gef`
 #'   file. Auto-detected from `stereoseq_dir` when not provided.
 #' @param image_path (optional) filepath or directory for the image.
@@ -1214,6 +1365,7 @@ createGiottoStereoSeqObjectCell <- function(
     load_image      = TRUE,
     load_polygons   = TRUE,
     load_mask       = FALSE,
+    expression_backend = getOption("giotto.expression_backend", "matrix"),
     gef_path        = NULL,
     image_path      = NULL,
     mask_path       = NULL,
@@ -1237,6 +1389,7 @@ createGiottoStereoSeqObjectCell <- function(
         load_image      = load_image,
         load_polygons   = load_polygons,
         load_mask       = load_mask,
+        expression_backend = expression_backend,
         instructions    = instructions,
         verbose         = verbose
     )
