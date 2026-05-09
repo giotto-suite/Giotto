@@ -617,6 +617,7 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
             feature_id_type = .Object@feature_id_type,
             expression_remove_zero_rows = TRUE,
             expression_split_by_type = TRUE,
+            expression_backend = "matrix",
             # [image]
             image_type = NULL, # not actually used if full image_path is provided.
             # [tessellate]
@@ -676,14 +677,15 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
                 feature_id_type = feature_id_type,
                 remove_zero_rows = expression_remove_zero_rows,
                 split_by_type = expression_split_by_type,
-                expression_source = expression_source
+                expression_source = expression_source,
+                expression_backend = expression_backend
             )
-            
+
             scalef_params <- list(
                 micron = micron,
                 scalefactors_path = scalefactors_path
             )
-            
+
             # directly attempt untar if `force_untar` = TRUE
             if (force_untar) {
                 force_params <- basic_params
@@ -826,6 +828,7 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
             feature_id_type = .Object@feature_id_type,
             expression_remove_zero_rows = TRUE,
             expression_split_by_type = TRUE,
+            expression_backend = "matrix",
             # [image]
             image_type = NULL, # not actually used if full image_path is provided.
             # filepaths to data
@@ -859,17 +862,18 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
                 feature_id_type = feature_id_type,
                 remove_zero_rows = expression_remove_zero_rows,
                 split_by_type = expression_split_by_type,
-                expression_source = expression_source
+                expression_source = expression_source,
+                expression_backend = expression_backend
             )
-            
+
             scalef_params <- list(
                 micron = micron,
                 scalefactors_path = scalefactors_path
             )
-            
+
             # data loading
             funs <- .Object@calls
-            
+
             poly_list <- NULL
             if (length(load_polygons) > 0L) {
                 load_polygons <- match.arg(load_polygons, 
@@ -1117,6 +1121,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     barcodes = NULL,
     force_untar = FALSE,
     untar_params = list(),
+    expression_backend = "matrix",
     verbose = NULL,
     verbose2 = TRUE) {
     checkmate::assert_list(untar_params)
@@ -1128,6 +1133,9 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     checkmate::assert_logical(remove_zero_rows)
     checkmate::assert_logical(force_untar)
     feature_id_type <- match.arg(feature_id_type, c("symbols", "ensembl"))
+    expression_backend <- match.arg(
+        tolower(expression_backend), c("matrix", "parquet")
+    )
 
     # check if path is provided
     if (missing(path)) {
@@ -1183,7 +1191,14 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         remove_zero_rows = remove_zero_rows,
         split_by_type = split_by_type
     )
-    if (.visiumhd_is_mm_dir(path)) { # if fullpath to matrix market dir
+    if (expression_backend == "parquet") {
+        if (!.visiumhd_is_mm_dir(path) && !.visiumhd_is_h5(path)) {
+            stop("[VisiumHD] expression_backend = 'parquet' requires the ",
+                 "10x mtx triple folder or .h5 file. Detected: ", path,
+                 call. = FALSE)
+        }
+        m <- do.call(.visiumhd_expression_parquet, expr_params)
+    } else if (.visiumhd_is_mm_dir(path)) { # if fullpath to matrix market dir
         m <- do.call(.visiumhd_expression_mm, expr_params)
     } else if (.visiumhd_is_h5(path)) {
         m <- do.call(.visiumhd_expression_h5, expr_params)
@@ -1191,19 +1206,32 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         stop("[VisiumHD] unrecognized expression matrix format", call. = FALSE)
     }
     if (!is.list(m)) m <- list(rna = m)
-    
+
     # `m` may be a list depending on split_by_type and the data contained.
     lapply(names(m), function(feat_type) {
         x <- m[[feat_type]]
         if (!is.null(barcodes)) {
-            bool <- unname(colnames(x)) %in% barcodes
+            cn <- if (inherits(x, "parquetExprStore")) x@cell_ids else colnames(x)
+            bool <- unname(cn) %in% barcodes
             x <- x[, bool, drop = FALSE]
         }
-        
+
         if (agg_type == "bin") {
             su <- sprintf("bin%03d", as.integer(bin))
         } else {
             su <- "cell"
+        }
+
+        # parquet backend: build exprObj directly to bypass
+        # .evaluate_expr_matrix (which doesn't recognize parquetExprStore)
+        if (inherits(x, "parquetExprStore")) {
+            return(methods::new("exprObj",
+                name       = "raw",
+                exprMat    = x,
+                spat_unit  = su,
+                feat_type  = feat_type,
+                provenance = su
+            ))
         }
         createExprObj(x,
             name = "raw",
@@ -1234,13 +1262,123 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     remove_zero_rows = TRUE,
     split_by_type = TRUE) {
     feature_id_type <- match.arg(feature_id_type, c("symbols", "ensembl"))
-    
+
     get10Xmatrix_h5(path,
         gene_ids = feature_id_type,
         remove_zero_rows = remove_zero_rows,
         split_by_type = split_by_type
     )
 }
+
+
+# Streaming variant of .visiumhd_expression_mm / _h5. Streams the 10x
+# input directly into a parquetExprStore via GiottoDisk's existing
+# mtx_to_parquetExprStore (mtx-dir input) or h5_to_parquetExprStore
+# (.h5 input) — no full triplet table is ever materialized.
+#
+# Returns a NAMED LIST of parquetExprStore objects keyed by feat_type
+# (matches the dgCMatrix path's named-list shape so the caller's
+# downstream wrap-as-exprObj loop is unchanged).
+#
+# split_by_type: 10x features.tsv column 3 (or H5 /features/feature_type)
+# carries the feat_type. The streaming converter writes a single parquet,
+# then we slice it lazily via pe[i, ] to produce one store per feat_type
+# without rewriting parquet shards.
+.visiumhd_expression_parquet <- function(path,
+    feature_id_type = c("symbols", "ensembl"),
+    remove_zero_rows = TRUE,
+    split_by_type = TRUE) {
+    feature_id_type <- match.arg(feature_id_type, c("symbols", "ensembl"))
+
+    if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
+        stop("[.visiumhd_expression_parquet] GiottoDisk is required for ",
+             "expression_backend = 'parquet'. Install with: ",
+             "remotes::install_github('giotto-suite/GiottoDisk').",
+             call. = FALSE)
+    }
+    feature_id_col <- switch(feature_id_type,
+        "ensembl" = 1L,
+        "symbols" = 2L
+    )
+
+    # Output path keyed on the source path's basename (deterministic per
+    # call within a session; overridable via option).
+    out_dir <- getOption("giotto.visiumhd_parquet_dir", NULL)
+    if (is.null(out_dir)) {
+        out_dir <- file.path(
+            tempdir(),
+            paste0("visiumhd_expr_parquet_",
+                   tools::file_path_sans_ext(basename(normalizePath(path))))
+        )
+    }
+
+    is_h5 <- .visiumhd_is_h5(path)
+
+    if (is_h5) {
+        pe <- GiottoDisk::h5_to_parquetExprStore(
+            h5_path        = path,
+            output_path    = out_dir,
+            feature_id_col = feature_id_col,
+            overwrite      = TRUE
+        )
+        # feat_type per gene from /<root>/features/feature_type
+        if (!requireNamespace("hdf5r", quietly = TRUE)) {
+            stop("[.visiumhd_expression_parquet] hdf5r is required to read ",
+                 "feature_type from a 10x .h5 file.", call. = FALSE)
+        }
+        h5 <- hdf5r::H5File$new(path, mode = "r")
+        on.exit(h5$close_all(), add = TRUE)
+        root <- names(h5)[1L]
+        feat_classes_vec <- as.character(
+            h5[[paste0(root, "/features/feature_type")]][])
+    } else {
+        # mtx-dir input — find the canonical 10x triple files
+        files <- list.files(path)
+        mtx_path      <- file.path(path, grep("matrix",   files, value = TRUE)[1L])
+        bcd_path      <- file.path(path, grep("barcodes", files, value = TRUE)[1L])
+        features_path <- file.path(path, grep("features|genes", files, value = TRUE)[1L])
+        pe <- GiottoDisk::mtx_to_parquetExprStore(
+            mtx_path       = mtx_path,
+            barcodes_path  = bcd_path,
+            features_path  = features_path,
+            output_path    = out_dir,
+            feature_id_col = feature_id_col,
+            overwrite      = TRUE
+        )
+        # feat_type per gene from features.tsv column 3
+        featuresDT <- data.table::fread(features_path, header = FALSE)
+        feat_classes_vec <- if (ncol(featuresDT) >= 3L) {
+            as.character(featuresDT$V3)
+        } else {
+            rep("Gene Expression", nrow(featuresDT))
+        }
+    }
+
+    # remove_zero_rows: streaming aggregation via Arrow distinct(col_id)
+    if (isTRUE(remove_zero_rows)) {
+        ds <- GiottoDisk::storeRead(pe)
+        present <- ds %>%
+            dplyr::distinct(col_id) %>%
+            dplyr::collect()
+        keep_idx <- sort(as.integer(present$col_id))
+        if (length(keep_idx) < length(feat_classes_vec)) {
+            pe <- pe[keep_idx, , drop = FALSE]
+            feat_classes_vec <- feat_classes_vec[keep_idx]
+        }
+    }
+
+    # split_by_type via lazy [i, ] slicing (no parquet rewrite)
+    if (length(unique(feat_classes_vec)) > 1L && isTRUE(split_by_type)) {
+        result_list <- list()
+        for (fclass in unique(feat_classes_vec)) {
+            idx <- which(feat_classes_vec == fclass)
+            result_list[[fclass]] <- pe[idx, , drop = FALSE]
+        }
+        return(result_list)
+    }
+    list(rna = pe)
+}
+
 
 .visiumhd_is_mm_dir <- function(path) {
     if (!file.exists(path)) { # works for files and dirs
@@ -2294,6 +2432,17 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 #' @param expression_split_by_type logical (default = `TRUE`). Whether to
 #' split expression information (and generated transcripts) by feature types
 #' in the dataset (if multi modalities present).
+#' @param expression_backend character. One of `"matrix"` (default,
+#' in-memory `dgCMatrix` — current behavior) or `"parquet"` (streaming,
+#' disk-backed `parquetExprStore` from \pkg{GiottoDisk}). When set to
+#' `"parquet"`, the 10x mtx triple or .h5 file is stream-converted to
+#' long-format Parquet via `mtx_to_parquetExprStore()` /
+#' `h5_to_parquetExprStore()` and the resulting store is slotted into
+#' `exprObj@exprMat`. Streaming pipeline steps (addStatistics,
+#' filterGiotto, normalizeGiotto, calculateHVF, runPCA) then dispatch
+#' to the parquet-aware methods in GiottoDisk. The default can be
+#' changed globally via
+#' `options(giotto.expression_backend = "parquet")`.
 #' @param image_type character. One of `"hires"` (default) or `"lowres"`.
 #' Determines which image output to load. Ignored if `image_path` is provided.
 #' Fullres image should be created separately with `createGiottoLargeImage()`
@@ -2337,28 +2486,29 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 createGiottoVisiumHDObject <- function(visiumhd_dir,
     bin = 8,
     micron = FALSE,
-    load_expression = TRUE, 
-    load_spatlocs = TRUE, 
-    load_metadata = TRUE, 
+    load_expression = TRUE,
+    load_spatlocs = TRUE,
+    load_metadata = TRUE,
     load_image = TRUE,
-    load_transcripts = FALSE, 
+    load_transcripts = FALSE,
     create_tessellated_polys = FALSE,
     tissue_only = FALSE, # ignored by tx
     barcodes = NULL, # ignored by tx
-    array_subset_row = NULL, 
-    array_subset_col = NULL, 
-    pxl_subset_row = NULL, 
+    array_subset_row = NULL,
+    array_subset_col = NULL,
+    pxl_subset_row = NULL,
     pxl_subset_col = NULL,
-    filter = NULL, 
+    filter = NULL,
     filter_coverage_cutoff = 0.5,
-    expression_source = "raw", 
+    expression_source = "raw",
     feature_id_type = c("symbol", "ensembl"),
-    expression_remove_zero_rows = TRUE, 
-    expression_split_by_type = TRUE, 
-    image_type = "hires", 
-    tessellate_shape = "hexagon", 
+    expression_remove_zero_rows = TRUE,
+    expression_split_by_type = TRUE,
+    expression_backend = getOption("giotto.expression_backend", "matrix"),
+    image_type = "hires",
+    tessellate_shape = "hexagon",
     tessellate_shape_size = 400,
-    tessellate_name = sprintf("%s%d", 
+    tessellate_name = sprintf("%s%d",
         tessellate_shape, as.integer(tessellate_shape_size)),
     tissue_positions_path = NULL,
     scalefactors_path = NULL,
@@ -2404,6 +2554,7 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
         create_tessellated_polys = create_tessellated_polys,
         expression_remove_zero_rows = expression_remove_zero_rows,
         expression_split_by_type = expression_split_by_type,
+        expression_backend = expression_backend,
         image_type = image_type,
         tessellate_shape = tessellate_shape,
         tessellate_shape_size = tessellate_shape_size,
@@ -2413,7 +2564,7 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
         instructions = instructions,
         verbose = verbose
     )
-    
+
     if (!is.null(tissue_positions_path)) {
         read_args$tissue_positions_path <- tissue_positions_path
     }
@@ -2426,7 +2577,7 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
     if (!is.null(image_path)) {
         read_args$image_path <- image_path
     }
-    
+
     do.call(reader$create_gobject, read_args)
 }
 
@@ -2482,6 +2633,17 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
 #' remove features with no detections.
 #' @param expression_split_by_type logical (default = `TRUE`). Whether to
 #' split expression information by feature types in the dataset.
+#' @param expression_backend character. One of `"matrix"` (default,
+#' in-memory `dgCMatrix` — current behavior) or `"parquet"` (streaming,
+#' disk-backed `parquetExprStore` from \pkg{GiottoDisk}). When set to
+#' `"parquet"`, the 10x mtx triple or .h5 file is stream-converted to
+#' long-format Parquet via `mtx_to_parquetExprStore()` /
+#' `h5_to_parquetExprStore()` and the resulting store is slotted into
+#' `exprObj@exprMat`. Streaming pipeline steps (addStatistics,
+#' filterGiotto, normalizeGiotto, calculateHVF, runPCA) then dispatch
+#' to the parquet-aware methods in GiottoDisk. The default can be
+#' changed globally via
+#' `options(giotto.expression_backend = "parquet")`.
 #' @param image_type character. One of `"hires"` (default) or `"lowres"`.
 #' Determines which image output to load. Ignored if `image_path` is provided.
 #' @param tessellate_shape character. One of `"hexagon"` or `"square"`. Shape
@@ -2528,6 +2690,7 @@ createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
     feature_id_type = c("symbol", "ensembl"),
     expression_remove_zero_rows = TRUE,
     expression_split_by_type = TRUE,
+    expression_backend = getOption("giotto.expression_backend", "matrix"),
     image_type = "hires",
     tessellate_shape = "hexagon",
     tessellate_shape_size = 400,
@@ -2569,6 +2732,7 @@ createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
         create_tessellated_polys = create_tessellated_polys,
         expression_remove_zero_rows = expression_remove_zero_rows,
         expression_split_by_type = expression_split_by_type,
+        expression_backend = expression_backend,
         image_type = image_type,
         tessellate_shape = tessellate_shape,
         tessellate_shape_size = tessellate_shape_size,
@@ -2634,6 +2798,13 @@ createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
 #' remove features with no detections.
 #' @param expression_split_by_type logical (default `TRUE`). Whether to split
 #' expression by feature type.
+#' @param expression_backend character. One of `"matrix"` (default,
+#' in-memory `dgCMatrix`) or `"parquet"` (streaming, disk-backed
+#' `parquetExprStore` from \pkg{GiottoDisk}). When `"parquet"`, the
+#' segmented 10x mtx triple or .h5 file is stream-converted to
+#' long-format Parquet via `mtx_to_parquetExprStore()` /
+#' `h5_to_parquetExprStore()`. The default can be changed globally via
+#' `options(giotto.expression_backend = "parquet")`.
 #' @param image_type character. One of `"hires"` (default) or `"lowres"`.
 #' @param scalefactors_path (optional) filepath to `scalefactors_json.json`.
 #' @param expression_path (optional) filepath to .h5 or matrix market directory.
@@ -2672,6 +2843,7 @@ createGiottoVisiumHDObjectCell <- function(segmented_outputs_dir,
     feature_id_type = c("symbol", "ensembl"),
     expression_remove_zero_rows = TRUE,
     expression_split_by_type = TRUE,
+    expression_backend = getOption("giotto.expression_backend", "matrix"),
     image_type = "hires",
     scalefactors_path = NULL,
     expression_path = NULL,
@@ -2716,6 +2888,7 @@ createGiottoVisiumHDObjectCell <- function(segmented_outputs_dir,
         load_image = load_image,
         expression_remove_zero_rows = expression_remove_zero_rows,
         expression_split_by_type = expression_split_by_type,
+        expression_backend = expression_backend,
         image_type = image_type,
         instructions = instructions,
         verbose = verbose
