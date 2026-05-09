@@ -1064,6 +1064,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #' Point `stereoseq_dir` directly at the `outs` directory produced by the SAW
 #' pipeline. For lower-level loading of individual pieces of data, see
 #' [importStereoSeq()].
+#'
 #' @param stereoseq_dir filepath to the Stereo-seq `outs` directory.
 #' @param bin_size character. Bin size level to load. One of `"bin1"`,
 #'   `"bin5"`, `"bin10"`, `"bin20"`, `"bin50"`, `"bin100"` (default),
@@ -1073,6 +1074,9 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #'   `"geneName"` (default) or `"geneID"`.
 #' @param negative_y logical. Map data to negative y spatial values
 #'   (default `TRUE`). Origin is placed at the upper-left.
+#' @param gef_type character. Which .gef to use, "tissue" (default), "full", 
+#' or "raw". The default `"tissue"` includes only bins that overlap the 
+#' detected tissue. If you need the full capture array, use `"full"`.
 #' @param load_expression logical. Whether to load the expression matrix.
 #'   Uses `Matrix::sparseMatrix()` directly from the gef triplet data for
 #'   memory efficiency. Set to `FALSE` to skip.
@@ -1094,6 +1098,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
+#'
 #' @returns giotto object
 #' @examples
 #' if (FALSE) {
@@ -1160,11 +1165,14 @@ createGiottoStereoSeqObjectBin <- function(
 #' Point `stereoseq_dir` directly at the `outs` directory produced by the SAW
 #' pipeline. For lower-level loading of individual pieces of data, see
 #' [importStereoSeq()].
+#'
 #' @param stereoseq_dir filepath to the Stereo-seq `outs` directory.
 #' @param gene_column character. Feature identifier column. One of
 #'   `"geneName"` (default) or `"geneID"`.
 #' @param negative_y logical. Map data to negative y spatial values
 #'   (default `TRUE`). Origin is placed at the upper-left.
+#' @param gef_type character. Which .gef to use, "adjusted_cellbin" (default) 
+#' or "cellbin". 
 #' @param load_expression logical. Whether to load the expression matrix.
 #'   Uses `Matrix::sparseMatrix()` directly from the gef triplet data for
 #'   memory efficiency. Set to `FALSE` to skip.
@@ -1173,6 +1181,7 @@ createGiottoStereoSeqObjectBin <- function(
 #'   [giottoBinPoints-class] object — the most memory-efficient representation.
 #'   Data stays as integer triplets + `SpatVector`; no matrix is created.
 #' @param load_image logical. Whether to load the H&E registered image.
+#' @param load_polygons logical. Whether to load the cell boundaries polygons.
 #' @param load_mask logical (default `TRUE`). Whether to create cell polygons
 #'   from the `*_HE_mask.tif` file in `stereoseq_dir/image/`. Uses
 #'   [createGiottoPolygonsFromMask()] with `calc_centroids = TRUE`.
@@ -1184,6 +1193,7 @@ createGiottoStereoSeqObjectBin <- function(
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
+#'
 #' @returns giotto object
 #' @examples
 #' if (FALSE) {
