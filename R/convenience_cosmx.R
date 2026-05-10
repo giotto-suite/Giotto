@@ -400,13 +400,15 @@ setMethod(
         expr_fun <- function(
         path = expr_path,
         feat_type = c("rna", "negprobes"),
-        split_keyword = list("NegPrb")) {
+        split_keyword = list("NegPrb"),
+        expression_backend = "matrix") {
             .cosmx_expression(
                 path = path,
                 fovs = .Object@fovs %none% NULL,
                 feat_type = feat_type,
                 split_keyword = split_keyword,
-                slide = .Object@slide
+                slide = .Object@slide,
+                expression_backend = expression_backend
             )
         }
         .Object@calls$load_expression <- expr_fun
@@ -487,12 +489,16 @@ setMethod(
         load_expression = FALSE,
         load_cellmeta = TRUE,
         load_transcripts = TRUE,
+        expression_backend = "matrix",
         instructions = NULL,
         cores = determine_cores(),
         verbose = NULL) {
             load_expression <- as.logical(load_expression)
             load_cellmeta <- as.logical(load_cellmeta)
             load_transcripts <- as.logical(load_transcripts)
+            expression_backend <- match.arg(
+                tolower(expression_backend), c("matrix", "parquet")
+            )
 
             if (!is.null(load_images)) {
                 checkmate::assert_list(load_images)
@@ -575,7 +581,8 @@ setMethod(
                 exlist <- funs$load_expression(
                     path = expression_path,
                     feat_type = feat_type,
-                    split_keyword = split_keyword
+                    split_keyword = split_keyword,
+                    expression_backend = expression_backend
                 )
 
                 # only keep allowed cells and set into gobject
@@ -1128,15 +1135,27 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
         cores = determine_cores(),
+        expression_backend = "matrix",
         verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
             "No path to exprMat file provided or auto-detected"
         ), call. = FALSE)
     }
+    expression_backend <- match.arg(
+        tolower(expression_backend), c("matrix", "parquet")
+    )
 
     GiottoUtils::vmsg(.v = verbose, "loading expression matrix...")
     vmsg(.v = verbose, .is_debug = TRUE, path)
+
+    if (expression_backend == "parquet") {
+        return(.cosmx_expression_parquet(
+            path = path, slide = slide, fovs = fovs,
+            feat_type = feat_type, split_keyword = split_keyword,
+            verbose = verbose
+        ))
+    }
 
     expr_dt <- data.table::fread(input = path, nThread = cores)
 
@@ -1192,6 +1211,121 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     return(expr_list)
 }
+
+
+# Streaming variant of .cosmx_expression. Routes the wide-format
+# exprMat_file CSV through GiottoDisk::csv_to_parquetExprStore,
+# applies the same CosMx-specific filters (drop cell_ID == 0, FOV
+# subset) via a row-filter callback, then per-feat_type slices via
+# lazy [i, ] on the resulting parquetExprStore — no full dense
+# matrix is materialized.
+.cosmx_expression_parquet <- function(path,
+                                        slide = 1,
+                                        fovs = NULL,
+                                        feat_type = c("rna", "negprobes"),
+                                        split_keyword = list("NegPrb"),
+                                        verbose = NULL) {
+    if (!requireNamespace("GiottoDisk", quietly = TRUE)) {
+        stop("[.cosmx_expression_parquet] GiottoDisk is required for ",
+             "expression_backend = 'parquet'. Install with: ",
+             "remotes::install_github('giotto-suite/GiottoDisk').",
+             call. = FALSE)
+    }
+
+    # Output dir keyed on basename (deterministic per call within session)
+    out_dir <- getOption("giotto.cosmx_parquet_dir", NULL)
+    if (is.null(out_dir)) {
+        out_dir <- file.path(
+            tempdir(),
+            paste0("cosmx_expr_parquet_",
+                   tools::file_path_sans_ext(
+                       tools::file_path_sans_ext(basename(path))))
+        )
+    }
+
+    # NSE: row_filter_fun runs on a chunk's data.table; return logical
+    # vector keeping rows that match the FOV subset (if any) and have
+    # cell_ID != 0 (background). Keep this an explicit closure so the
+    # callback captures `fovs` cleanly.
+    .fovs <- if (!is.null(fovs)) as.integer(fovs) else NULL
+    row_filter <- function(chunk) {
+        keep <- chunk[["cell_ID"]] != 0L
+        if (!is.null(.fovs)) {
+            keep <- keep & chunk[["fov"]] %in% .fovs
+        }
+        keep
+    }
+
+    pe <- GiottoDisk::csv_to_parquetExprStore(
+        csv_path        = path,
+        output_path     = out_dir,
+        cell_id_col     = "cell_ID",
+        skip_cols       = "fov",
+        row_filter_fun  = row_filter,
+        overwrite       = TRUE
+    )
+
+    # Reconstruct globally-unique cell IDs `c_<slide>_<fov>_<cell_ID>`.
+    # Need fov + cell_ID per kept cell — re-read those two columns
+    # cheaply from the original CSV (no expression payload).
+    id_dt <- data.table::fread(path, select = c("fov", "cell_ID"))
+    id_dt <- id_dt[cell_ID != 0L, ]
+    if (!is.null(.fovs)) id_dt <- id_dt[fov %in% .fovs, ]
+    if (nrow(id_dt) != length(pe@cell_ids)) {
+        stop("[.cosmx_expression_parquet] cell-row mismatch: filtered ",
+             "CSV rows = ", nrow(id_dt), ", parquetExprStore cells = ",
+             length(pe@cell_ids), ". Filter logic disagrees with the ",
+             "streamed write.", call. = FALSE)
+    }
+    pe@cell_ids <- sprintf("c_%d_%d_%d", slide, id_dt$fov, id_dt$cell_ID)
+
+    # Apply split_keyword feat_type splits via lazy gene-row slicing.
+    # Output shape mirrors the matrix path: a list of exprObjs with
+    # names matching `feat_type`, in the same order.
+    if (length(split_keyword) == 0L) {
+        # Single combined matrix
+        return(list(.cosmx_make_exprObj(pe, feat_type[[1L]])))
+    }
+
+    feat_ids   <- pe@feat_ids
+    expr_list  <- vector("list", length(feat_type))
+    names(expr_list) <- feat_type
+    remaining  <- rep(TRUE, length(feat_ids))
+    for (key_i in seq_along(split_keyword)) {
+        bool <- grepl(pattern = split_keyword[[key_i]], x = feat_ids) & remaining
+        if (!any(bool)) {
+            # this split keyword matched no genes — produce empty
+            expr_list[[key_i + 1L]] <- NULL
+            next
+        }
+        sub_pe <- pe[which(bool), , drop = FALSE]
+        expr_list[[key_i + 1L]] <- .cosmx_make_exprObj(
+            sub_pe, feat_type[[key_i + 1L]]
+        )
+        remaining <- remaining & !bool
+    }
+    # Main path: everything still flagged remaining
+    main_pe <- pe[which(remaining), , drop = FALSE]
+    expr_list[[1L]] <- .cosmx_make_exprObj(main_pe, feat_type[[1L]])
+
+    # Drop NULLs (split keywords that matched nothing)
+    expr_list <- Filter(Negate(is.null), expr_list)
+    expr_list
+}
+
+
+# Wrap a parquetExprStore as an exprObj via new() (bypasses
+# .evaluate_expr_matrix which doesn't recognize parquetExprStore).
+.cosmx_make_exprObj <- function(pe, feat_type) {
+    methods::new("exprObj",
+        name       = "raw",
+        exprMat    = pe,
+        spat_unit  = "cell",
+        feat_type  = feat_type,
+        provenance = "cell"
+    )
+}
+
 
 .cosmx_image <- function(path,
     fovs = NULL,
@@ -1324,6 +1458,18 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' to positive or negative y values before fov shifts are applied. Affects
 #' images (and polygons generated from masks). This overrides any settings from
 #' selecting `version`.
+#' @param expression_backend character. One of `"matrix"` (default,
+#' in-memory `dgCMatrix` — current behavior) or `"parquet"` (streaming,
+#' disk-backed `parquetExprStore` from \pkg{GiottoDisk}). When set to
+#' `"parquet"`, the wide-format `*_exprMat_file.csv` is stream-converted
+#' to long-format Parquet via `csv_to_parquetExprStore()` and the
+#' resulting store is slotted into `exprObj@exprMat`. CosMx-specific
+#' filters (drop `cell_ID == 0`, FOV subset) are applied during the
+#' streaming pass; cell IDs are reconstructed as
+#' `c_<slide>_<fov>_<cell_ID>` post-write. Streaming pipeline steps
+#' (addStatistics → ... → PCA) then dispatch to the parquet-aware
+#' methods in GiottoDisk. Default can be set globally via
+#' `options(giotto.expression_backend = "parquet")`.
 #' @param fov_shifts_path Optional. Filepath to fov_positions_file
 #' @param transcript_path Optional. Filepath to desired transcripts file to
 #' load.
@@ -1426,7 +1572,8 @@ createGiottoCosMxObject <- function(
         load_transcripts = TRUE,
         poly_pref = "mask",
         image_negative_y = NULL,
-        
+        expression_backend = getOption("giotto.expression_backend", "matrix"),
+
         # optional filepaths
         fov_shifts_path = NULL,
         transcript_path = NULL,
@@ -1483,6 +1630,7 @@ createGiottoCosMxObject <- function(
         load_cellmeta = load_cellmeta,
         load_transcripts = load_transcripts,
         image_negative_y = image_negative_y,
+        expression_backend = expression_backend,
         instructions = instructions,
         cores = cores,
         verbose = verbose
