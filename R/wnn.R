@@ -64,9 +64,7 @@ runWNN <- function(
 
 
     ## get cell names
-    cell_names <- GiottoClass:::get_cell_id(gobject,
-        spat_unit = spat_unit
-    )
+    cell_names <- spatIDs(gobject, spat_unit = spat_unit)
 
     ######################## distances calculation ############################
 
@@ -514,10 +512,10 @@ runIntegratedUMAP <- function(
         )
 
         ## store igraph
-        nnNetObj <- create_nn_net_obj(
+        nnNetObj <- createNearestNetObj(
             name = "integrated_kNN",
             nn_type = "kNN",
-            igraph = nn_network_igraph,
+            network = nn_network_igraph,
             spat_unit = spat_unit,
             feat_type = feat_type1
         )

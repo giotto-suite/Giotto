@@ -193,7 +193,7 @@ on active spatial unit.}
 on active feature type.}
 
 \item{.n}{integer. Used in recording object history
-(see \code{\link[=update_giotto_params]{update_giotto_params()}}). Number of stack frames back to record call
+(see \code{\link[GiottoClass:update_giotto_params]{GiottoClass::update_giotto_params()}}). Number of stack frames back to record call
 of interest. Set to a large negative number (e.g. -1000) to avoid recording
 altogether (useful when there is another record call elsewhere in the stack
 you want to use.)}

@@ -1,3 +1,31 @@
+# Giotto 4.2.3 (2026/05/14)
+
+## Changes
+* `createGiottoVisiumHDObject()` deprecated, split into:
+  * `createGiottoVisiumHDObjectBin()` - binned outputs
+  * `createGiottoVisiumHDObjectCell()` - segmented outputs - support optional transcript loading from the 2 micron bin
+* breaking changes to `importVisiumHD()`
+* `doLeidenCluster()` now uses the {igraph} method by default. Original python implementation still accessible as `doLeidenClusterPython()`
+* Log normalization restricted to `log1p` for sparse-like matrices (`dgCMatrix`, `dbSparseMatrix`, `IterableMatrix`) to prevent OOM sparse->dense conversion
+
+## New
+* New StereoSeq reader functions:
+  * `createGiottoStereoSeqObjectBin()` - binned outputs
+  * `createGiottoStereoSeqObjectCell()` - segmented outputs
+* StereoSeq importers: now uses `importStereoSeq()` and `StereoSeqReader` object
+  * `gef_type` param for unified GEF type selection replacing the old auto-detection logic
+
+## Bug fixes
+* Update `giottoToAnndataZarr` to use basilisk environments required by basilisk v1.22. 
+* Replace outdated ggplot aes_string with local aes_string2 function.
+* Fix usage of outdated parameter in `giottoToSeuratV5`.
+* `binarize()` via `processData()` now correctly preserves sparsity for `allMatrix` and `dgCMatrix` inputs
+
+## Enhancements
+* VisiumHD and StereoSeq memory efficiency improved
+* `calculateHVF()` speedup via vectorized implementation
+* `calculateHVF()` `calc_gini` now defaults to `FALSE` to avoid forced dense conversion for disk-backed workflows
+
 # Giotto 4.2.2 (2025/06/17)
 
 ## Changes

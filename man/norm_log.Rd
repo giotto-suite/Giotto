@@ -29,6 +29,8 @@ Where:
 the above equation. \cr
 \code{offset} \tab numeric (default = 1). Offset to add to expression values to
 avoid \eqn{\log(0)}. Expressed as \eqn{b} in the above equation.
+For sparse-like matrices and \code{dbMatrix}, only \code{offset = 1} is supported;
+other values would change implicit zeros and require densification.
 }
 }
 

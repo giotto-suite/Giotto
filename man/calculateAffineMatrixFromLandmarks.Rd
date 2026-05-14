@@ -40,5 +40,5 @@ m2 <- matrix(c(
 calculateAffineMatrixFromLandmarks(m1, m2)
 }
 \seealso{
-\code{\link[=interactiveLandmarkSelection]{interactiveLandmarkSelection()}} \code{\link[=affine]{affine()}}
+\code{\link[=interactiveLandmarkSelection]{interactiveLandmarkSelection()}} \code{\link[GiottoClass:affine]{GiottoClass::affine()}}
 }

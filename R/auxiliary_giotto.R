@@ -134,9 +134,9 @@ adjustGiottoMatrix <- function(gobject,
     adjusted_matrix <- Matrix::Matrix(adjusted_matrix)
 
     if (return_gobject == TRUE) {
-        adjusted_matrix <- create_expr_obj(
+        adjusted_matrix <- createExprObj(
+            expression_data = adjusted_matrix,
             name = name,
-            exprMat = adjusted_matrix,
             spat_unit = spat_unit,
             feat_type = feat_type,
             provenance = expr_data@provenance
@@ -812,19 +812,11 @@ addFeatsPerc <- function(gobject,
         if (isTRUE(return_gobject)) return(gobject)
         else return(data.table::data.table(cell_ID = spatIDs(gobject)))
     }
-    sv <- gpoly[]
-    
-    # accumulate results values
-    # results order must be identical to the order of sv
-    all_res <- list(cell_ID = sv$poly_ID)
-    
-    if ("area" %in% stats) {
-        terra::crs(sv) <- "local"
-        a <- terra::expanse(sv, transform = FALSE)
-        all_res$area <- a
+    res_dt <- if ("area" %in% stats) {
+        expanse(gpoly, output = "data.table")
+    } else {
+        data.table::data.table(cell_ID = spatIDs(gobject))
     }
-    
-    res_dt <- do.call(data.table::data.table, all_res)
     
     if (isTRUE(return_gobject)) {
         # append results if there are any
@@ -938,9 +930,27 @@ findNetworkNeighbors <- function(gobject,
 #' @keywords internal
 #' @noRd
 .mean_expr_det_test <- function(mymatrix, detection_threshold = 1) {
-  mask <- mymatrix > detection_threshold
-  sum_detected   <- rowSums_flex(mymatrix * mask)
-  count_detected <- rowSums_flex(mask)
+  if (inherits(mymatrix, "IterableMatrix")) {
+      count_detected <- rowSums_flex(mymatrix > detection_threshold)
+      if (detection_threshold > 0) {
+          # BPCells does not support IterableMatrix * IterableMatrix. Use identity:
+          # sum(x[x>t]) = rowSums(x) - rowSums(min_scalar(x,t)) + count_detected * t
+          # min_scalar requires upper > 0
+          sum_detected <- rowSums_flex(mymatrix) -
+              rowSums_flex(
+                  processData(mymatrix,
+                      thresholdParam("minmax", upper = detection_threshold)
+                  )
+              ) + count_detected * detection_threshold
+      } else {
+          # expression values are non-negative; all stored values pass threshold
+          sum_detected <- rowSums_flex(mymatrix)
+      }
+  } else {
+      mask <- mymatrix > detection_threshold
+      sum_detected   <- rowSums_flex(mymatrix * mask)
+      count_detected <- rowSums_flex(mask)
+  }
 
   out <- sum_detected / count_detected
   out[count_detected == 0] <- NaN
