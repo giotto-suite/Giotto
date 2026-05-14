@@ -9,6 +9,9 @@ giottoToAnndataZarr(
   spat_unit = NULL,
   feat_type = NULL,
   expression = "raw",
+  pca_name = NULL,
+  umap_name = NULL,
+  tsne_name = NULL,
   output_path
 )
 }
@@ -21,6 +24,18 @@ giottoToAnndataZarr(
 
 \item{expression}{expression values to extract (e.g. "raw", "normalized",
 "scaled")}
+
+\item{pca_name}{optional. Default = NULL. Provide the pca name in your 
+Giotto object. If a pca exists and a name is not provided, the function will 
+use "pca" or the first available pca name.}
+
+\item{umap_name}{optional. Default = NULL. Provide the umap name in your 
+Giotto object. If a umap exists and a name is not provided, the function 
+will use "umap" or the first available umap name.}
+
+\item{tsne_name}{optional. Default = NULL. Provide the tsne name in your 
+Giotto object. If a tsne exists and a name is not provided, the function 
+will use "tsne" or the first available tsne name.}
 
 \item{output_path}{path to create and save the anndata zarr folder}
 }

@@ -778,10 +778,10 @@ runPAGEEnrich <- function(
     )
 
     # create spatial enrichment object
-    enrObj <- create_spat_enr_obj(
+    enrObj <- createSpatEnrObj(
         name = name,
         method = "PAGE",
-        enrichDT = PAGE_results[["matrix"]],
+        enrichment_data =PAGE_results[["matrix"]],
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = expr_values@provenance,
@@ -1082,10 +1082,10 @@ runRankEnrich <- function(
     }
 
     # create spatial enrichment object
-    enrObj <- create_spat_enr_obj(
+    enrObj <- createSpatEnrObj(
         name = name,
         method = "rank",
-        enrichDT = enrichmentDT,
+        enrichment_data =enrichmentDT,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = expr_values@provenance,
@@ -1299,10 +1299,10 @@ runHyperGeometricEnrich <- function(
     }
 
     # create spatial enrichment object
-    enrObj <- create_spat_enr_obj(
+    enrObj <- createSpatEnrObj(
         name = name,
         method = "hypergeometric",
-        enrichDT = enrichmentDT,
+        enrichment_data =enrichmentDT,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = expr_values@provenance,
@@ -1875,10 +1875,10 @@ spatialAutoCorLocal <- function(
     )
 
     # create spatial enrichment object
-    enr <- create_spat_enr_obj(
+    enr <- createSpatEnrObj(
         name = enrich_name,
         method = method_select,
-        enrichDT = res_dt,
+        enrichment_data =res_dt,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = provenance,
@@ -2875,10 +2875,10 @@ runDWLSDeconv <- function(
     )
 
     # create spatial enrichment object
-    enrObj <- create_spat_enr_obj(
+    enrObj <- createSpatEnrObj(
         name = name,
         method = "DWLS",
-        enrichDT = deconvolutionDT,
+        enrichment_data =deconvolutionDT,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = expr_values@provenance,

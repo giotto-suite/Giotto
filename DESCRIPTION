@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.2.2
+Version: 4.2.3
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -22,16 +22,17 @@ Authors@R: c(
 Description: Toolbox to process, analyze and visualize spatial single-cell expression data.
 License: MIT + file LICENSE
 Encoding: UTF-8
-URL: https://drieslab.github.io/Giotto/, https://github.com/drieslab/Giotto
-BugReports: https://github.com/drieslab/Giotto/issues
-RoxygenNote: 7.3.2
+URL: https://giotto-suite.github.io/Giotto/, https://github.com/giotto-suite/Giotto
+BugReports: https://github.com/giotto-suite/Giotto/issues
+RoxygenNote: 7.3.3
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.4.7)
+    GiottoClass (>= 0.5.0)
 Imports:
     BiocParallel,
     BiocSingular,
+    basilisk,
     bluster,
     checkmate,
     data.table (>= 1.12.2),
@@ -110,18 +111,20 @@ Suggests:
     testthat (>= 3.0.0),
     rmarkdown
 Remotes:
-    drieslab/GiottoUtils,
-    drieslab/GiottoClass,
-    drieslab/GiottoVisuals
+    giotto-suite/GiottoUtils,
+    giotto-suite/GiottoClass,
+    giotto-suite/GiottoVisuals
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
+    'basilisk.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
     'clustering.R'
     'convenience_cosmx.R'
     'convenience_general.R'
+    'convenience_stereoseq.r'
     'convenience_visiumHD.R'
     'convenience_xenium.R'
     'cross_section.R'

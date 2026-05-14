@@ -176,7 +176,9 @@ NULL
 #'   `log_norm` \tab logical (default = `TRUE`). Whether to transform values to
 #'   log-scale. \cr
 #'   `log_offset` \tab numeric (default = 1). If `log_norm = TRUE`, offset
-#'   value to add to expression values to avoid `log(0)` \cr
+#'   value to add to expression values to avoid `log(0)`. Note: for sparse-like
+#'   matrices (e.g. `dgCMatrix`, 'dbSparseMatrix'), only `log_offset = 1` is
+#'   supported (log1p) \cr
 #'   `logbase` \tab numeric (default = 2). If `log_norm = TRUE`, log base to
 #'   use to log normalize expression values
 #' }
@@ -240,6 +242,8 @@ NULL
 #'   the above equation. \cr
 #'   `offset` \tab numeric (default = 1). Offset to add to expression values to
 #'   avoid \eqn{\log(0)}. Expressed as \eqn{b} in the above equation.
+#'   For sparse-like matrices and `dbMatrix`, only `offset = 1` is supported;
+#'   other values would change implicit zeros and require densification.
 #' }
 #' @md
 #' @family normalization parameters
@@ -735,35 +739,49 @@ setClass("threshParam", contains = c("VIRTUAL", "processParam"))
 # extending method classes ####
 
 #' @rdname process_param
+#' @exportClass defaultNormParam
 setClass("defaultNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass libraryNormParam
 setClass("libraryNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass logNormParam
 setClass("logNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass osmFISHNormParam
 setClass("osmFISHNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass pearsonResidNormParam
 setClass("pearsonResidNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass quantileNormParam
 setClass("quantileNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass tfidfNormParam
 setClass("tfidfNormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass l2NormParam
 setClass("l2NormParam", contains = "normParam")
 #' @rdname process_param
+#' @exportClass arcsinhNormParam
 setClass("arcsinhNormParam", contains = "normParam")
 
 #' @rdname process_param
+#' @exportClass defaultScaleParam
 setClass("defaultScaleParam", contains = "scaleParam")
 #' @rdname process_param
+#' @exportClass zscoreScaleParam
 setClass("zscoreScaleParam", contains = "scaleParam")
 
 #' @rdname process_param
+#' @exportClass limmaAdjustParam
 setClass("limmaAdjustParam", contains = "adjustParam")
 
 #' @rdname process_param
+#' @exportClass binarizeThreshParam
 setClass("binarizeThreshParam", contains = "threshParam")
 #' @rdname process_param
+#' @exportClass minmaxThreshParam
 setClass("minmaxThreshParam", contains = "threshParam")
 
 # allMatrix signature ####
@@ -1004,14 +1022,15 @@ setMethod("processData",
 setMethod("processData",
     signature(x = "allMatrix", param = "logNormParam"),
     function(x, param, ...) {
-        log(x + param$offset) / log(param$base)
-    }
-)
-setMethod("processData",
-    signature(x = "Matrix", param = "logNormParam"),
-    function(x, param, ...) {
-        x@x <- log(x@x + param$offset) / log(param$base)
-        x
+        # offset != 1 is invalid for sparse: log(0 + offset) != 0
+        if (.is_sparse_like(x) && !isTRUE(param$offset == 1)) {
+            stop("`offset != 1` is not supported for sparse matrices. ",
+                 "Use offset = 1 (log1p) to preserve sparsity.")
+        }
+        if (.is_sparse_like(x)) {
+            return(log1p(x) / log(param$base)) # sparsity preserved
+        }
+        return(log(x + param$offset) / log(param$base))
     }
 )
 # *** osmFISH norm ####
@@ -1144,19 +1163,16 @@ setMethod("processData",
     signature(x = "allMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
         threshold <- param$threshold %null% 0
-        bool_mat <- x > threshold
-        x[TRUE] <- 0L
-        x[bool_mat] <- 1L
-        x
+        (x > threshold) * 1L # coerce to integer
     }
 )
 setMethod("processData",
     signature(x = "dgCMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
         threshold <- param$threshold %null% 0
+        # direct @x manipulation is ~2x faster than callNextMethod (allMatrix path)
         bool <- x@x > threshold
         drop0 <- param$drop0 %null% FALSE
-        # integers not supported for dgCMatrix @x slot
         x@x <- rep.int(0, length(x@x))
         x@x[bool] <- 1
         if (drop0) x <- Matrix::drop0(x)
@@ -1729,10 +1745,10 @@ normalizeGiotto <- function(gobject,
 }
 
 .libzero_warn <- function(libsizes) {
-    if (0 %in% libsizes) {
+    if (any(0 == libsizes)) {
         warning(wrap_txt("Total library size or counts for individual spat
             units are 0.
-            This will likely result in normalization problems.
+            These units will remain all-zero after library normalization.
             filter (filterGiotto) or impute (imputeGiotto) spatial
             units.")
         )
@@ -1756,6 +1772,8 @@ normalizeGiotto <- function(gobject,
     libsizes <- colSums_flex(mymatrix)
     .libzero_warn(libsizes = libsizes)
 
+    libsizes[libsizes == 0] <- 1 # Prevent matrix densification via div by 0
+
     if (inherits(mymatrix, "dgCMatrix")) {
         norm_expr <- mymatrix
         norm_expr@x <- .dgc_div_csum_sparse_vector(norm_expr, 
@@ -1768,28 +1786,31 @@ normalizeGiotto <- function(gobject,
     return(norm_expr)
 }
 
+#' @title Check if matrix is sparse-like
+#' @param x matrix object
+#' @returns logical
+#' @keywords internal
+#' @noRd
+# Cannot create class union because DelayedArray does not have sparse class
+.is_sparse_like <- function(x) {
+    inherits(x, c("sparseMatrix", "dbSparseMatrix", "IterableMatrix")) ||
+        (inherits(x, "DelayedArray") && DelayedArray::is_sparse(x))
+}
+
 #' @title Log normalize expression matrix
 #' @returns matrix
 #' @keywords internal
 #' @noRd
 .log_norm_giotto <- function(mymatrix, base, offset) {
-    if (methods::is(mymatrix, "DelayedArray")) {
-        mymatrix <- log(mymatrix + offset) / log(base)
-        # } else if(methods::is(mymatrix, 'DelayedMatrix')) {
-        #   mymatrix = log(mymatrix + offset)/log(base)
-    } else if (methods::is(mymatrix, "dgCMatrix")) {
-        mymatrix@x <- log(mymatrix@x + offset) / log(base)
-        # replace with sparseMatrixStats
-    } else if (methods::is(mymatrix, "Matrix")) {
-        mymatrix@x <- log(mymatrix@x + offset) / log(base)
-    } else if (methods::is(mymatrix, "dbMatrix")) {
-        mymatrix[] <- dplyr::mutate(mymatrix[], x = x + offset)
-        # workaround for lack of @x slot
-        mymatrix <- log(mymatrix) / log(base)
+    if (.is_sparse_like(mymatrix) && !isTRUE(offset == 1)) {
+        stop("`offset != 1` is not supported for sparse matrices ")
+    }
+
+    if (.is_sparse_like(mymatrix)) {
+        mymatrix <- log1p(mymatrix) / log(base) # sparsity preserved
     } else {
         mymatrix <- log(as.matrix(mymatrix) + offset) / log(base)
     }
-
     return(mymatrix)
 }
 
@@ -1814,9 +1835,19 @@ normalizeGiotto <- function(gobject,
     # TODO: update with dbData generic
     con <- dbMatrix:::get_con(dbMatrix)
 
+    # Use unique table name to avoid collisions when multiple gobjects
+    tbl_base <- gsub("[^A-Za-z0-9_]", "_", name)
+    tbl_base <- gsub("_+", "_", tbl_base)
+    tbl_base <- gsub("^_+|_+$", "", tbl_base)
+    if (!nzchar(tbl_base)) tbl_base <- "tbl"
+    tbl_name <- basename(tempfile(pattern = paste0(tbl_base, "_")))
+    while (DBI::dbExistsTable(con, tbl_name)) {
+        tbl_name <- basename(tempfile(pattern = paste0(tbl_base, "_")))
+    }
+
     # overwrite table by default
-    if (name %in% DBI::dbListTables(con)) {
-        DBI::dbRemoveTable(con, name)
+    if (tbl_name %in% DBI::dbListTables(con)) {
+        DBI::dbRemoveTable(con, tbl_name)
     }
 
     if (verbose) {
@@ -1825,11 +1856,11 @@ normalizeGiotto <- function(gobject,
     }
 
     dbMatrix[] |>
-        dplyr::compute(temporary = FALSE, name = name)
+        dplyr::compute(temporary = FALSE, name = tbl_name)
 
     # TODO: update below with proper setters from dbMatrix
-    dbMatrix[] <- dplyr::tbl(con, name) # reassign to computed mat
-    dbMatrix@name <- name
+    dbMatrix[] <- dplyr::tbl(con, tbl_name) # reassign to computed mat
+    dbMatrix@name <- tbl_name
 
     if (verbose) cat("done \n")
 
@@ -1947,7 +1978,7 @@ normalizeGiotto <- function(gobject,
     ## 5. create and set exprObj
     # Save dbMatrix to db
     compute_mat <- getOption("giotto.dbmatrix_compute", default = FALSE)
-    if (compute_mat && !is.null(norm_expr)) {
+    if (compute_mat && !is.null(norm_expr) && inherits(norm_expr, "dbMatrix")) {
         norm_expr <- .compute_dbMatrix(
             dbMatrix = norm_expr,
             name = "normalized",
@@ -1955,9 +1986,9 @@ normalizeGiotto <- function(gobject,
         )
     }
 
-    norm_expr <- create_expr_obj(
+    norm_expr <- createExprObj(
+        expression_data = norm_expr,
         name = "normalized",
-        exprMat = norm_expr,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = provenance,
@@ -1965,7 +1996,8 @@ normalizeGiotto <- function(gobject,
     )
 
     # Save dbMatrix to db
-    if (compute_mat && !is.null(norm_scaled_expr)) {
+    if (compute_mat && !is.null(norm_scaled_expr) && 
+            inherits(norm_scaled_expr, "dbMatrix")) {
         norm_scaled_expr <- .compute_dbMatrix(
             dbMatrix = norm_scaled_expr,
             name = "scaled",
@@ -1973,9 +2005,9 @@ normalizeGiotto <- function(gobject,
         )
     }
 
-    norm_scaled_expr <- create_expr_obj(
+    norm_scaled_expr <- createExprObj(
+        expression_data = norm_scaled_expr,
         name = "scaled",
-        exprMat = norm_scaled_expr,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = provenance,
@@ -2074,9 +2106,9 @@ normalizeGiotto <- function(gobject,
     }
 
     z <- .prnorm(x = raw_expr[], theta, .csums = .csums, .rsums = .rsums)
-    z <- create_expr_obj(
+    z <- createExprObj(
+        expression_data = z,
         name = name,
-        exprMat = z,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = prov(raw_expr)
@@ -2096,9 +2128,9 @@ normalizeGiotto <- function(gobject,
     name = "quantile",
     verbose = TRUE) {
     z <- .qnorm(x = raw_expr[])
-    z <- create_expr_obj(
+    z <- createExprObj(
+        expression_data = z,
         name = name,
-        exprMat = z,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = prov(raw_expr)

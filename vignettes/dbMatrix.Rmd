@@ -15,19 +15,19 @@ knitr::opts_chunk$set(
 ```
 
 # Introduction
-This vignette demonstrates how to use a [`dbMatrix`](https://github.com/drieslab/dbMatrix) within a Giotto Object. The `dbMatrix` is a database-backed matrix that can be used to store large matrices in a database. This allows for efficient storage and retrieval of large matrices and enables efficiently working with larger-than-memory cell count matrices.
+This vignette demonstrates how to use a [`dbMatrix`](https://github.com/giotto-suite/dbMatrix) within a Giotto Object. The `dbMatrix` is a database-backed matrix that can be used to store large matrices in a database. This allows for efficient storage and retrieval of large matrices and enables efficiently working with larger-than-memory cell count matrices.
 
 # 1. Set up Giotto
 
 ```{r, eval=FALSE}
 # Ensure Giotto Suite is installed.
 if (!"Giotto" %in% installed.packages()) {
-    devtools::install_github("drieslab/Giotto@suite")
+    devtools::install_github("giotto-suite/Giotto@suite")
 }
 
 # Ensure GiottoData, a small, helper module for tutorials, is installed.
 if (!"GiottoData" %in% installed.packages()) {
-    devtools::install_github("drieslab/GiottoData")
+    devtools::install_github("giotto-suite/GiottoData")
 }
 
 library(Giotto)

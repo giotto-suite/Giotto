@@ -146,7 +146,27 @@
 }
 
 
-.calc_expr_general_stats <- function(expr_values, expression_threshold) {
+# Vectorized rowSds helper following flex function convention from GiottoClass
+.rowSds_flex <- function(mymatrix, ...) {
+    if (inherits(mymatrix, "DelayedArray")) {
+        return(DelayedMatrixStats::rowSds(mymatrix, ...))
+    } else if (inherits(mymatrix, "dgCMatrix")) {
+        return(sparseMatrixStats::rowSds(mymatrix, ...))
+    } else if (inherits(mymatrix, "Matrix")) {
+        # For other Matrix types, use sparseMatrixStats
+        return(sparseMatrixStats::rowSds(as(mymatrix, "dgCMatrix"), ...))
+    } else if (inherits(mymatrix, "dbMatrix")) {
+        # dbMatrix exports rowSds via MatrixGenerics
+        return(dbMatrix::rowSds(mymatrix))
+    } else {
+        # Standard matrix - use matrixStats
+        return(matrixStats::rowSds(as.matrix(mymatrix), ...))
+    }
+}
+
+
+.calc_expr_general_stats <- function(expr_values, expression_threshold,
+                                     calc_gini = TRUE) {
     # NSE vars
     gini <- NULL
 
@@ -156,24 +176,27 @@
         nr_cells = rowSums_flex(expr_values > expression_threshold),
         total_expr = rowSums_flex(expr_values),
         mean_expr = rowMeans_flex(expr_values),
-        sd = unlist(apply(expr_values, 1, sd))
+        sd = .rowSds_flex(expr_values)
     )
 
-    # calculate gini rowwise
-    gini_level <- unlist(apply(expr_values, MARGIN = 1, mygini_fun))
-    feat_in_cells_detected[, gini := gini_level]
+    # calculate gini rowwise  (optional)
+    if (isTRUE(calc_gini)) {
+        gini_level <- unlist(apply(expr_values, MARGIN = 1, mygini_fun))
+        feat_in_cells_detected[, gini := gini_level]
+    }
 
     return(feat_in_cells_detected)
 }
 
 
-.calc_expr_cov_stats <- function(expr_values, expression_threshold) {
+.calc_expr_cov_stats <- function(expr_values, expression_threshold,
+                                  calc_gini = TRUE) {
     # NSE vars
     cov <- sd <- mean_expr <- NULL
 
     # get general expression statistics and gini data.table
     feat_in_cells_detected <- .calc_expr_general_stats(
-        expr_values, expression_threshold
+        expr_values, expression_threshold, calc_gini = calc_gini
     )
 
     # calculate cov using sd and mean_expr from general stats DT
@@ -185,6 +208,7 @@
 
 .calc_expr_cov_stats_parallel <- function(expr_values,
     expression_threshold,
+    calc_gini = TRUE,
     cores = GiottoUtils::determine_cores()) {
     # NSE vars
     cov <- sd <- mean_expr <- NULL
@@ -196,7 +220,8 @@
     # params to pass into the future_lapply
     fparams <- list(
         calc_fun = .calc_expr_general_stats,
-        expression_threshold = expression_threshold
+        expression_threshold = expression_threshold,
+        calc_gini = calc_gini
     )
 
     # parallelized calculation of general stats
@@ -205,7 +230,8 @@
         function(r_idx, fparams) {
             fparams$calc_fun(
                 expr_values = expr_values[r_idx, ],
-                expression_threshold = fparams$expression_threshold
+                expression_threshold = fparams$expression_threshold,
+                calc_gini = fparams$calc_gini
             )
         },
         fparams = fparams,
@@ -260,6 +286,8 @@
 #' @param default_save_name default save name for saving, don't change, change
 #' save_name in save_param
 #' @param return_gobject boolean: return giotto object (default = TRUE)
+#' @param calc_gini logical. Whether to calculate Gini index for each feature.
+#' Set to FALSE for performance with large datasets or dbMatrix objects.
 #' @param verbose be verbose
 #' @returns giotto object highly variable features appended to feature metadata
 #' (`fDataDT()`)
@@ -308,6 +336,7 @@ calculateHVF <- function(
         save_param = list(),
         default_save_name = "HVFplot",
         return_gobject = TRUE,
+        calc_gini = FALSE,
         verbose = TRUE) {
     # NSE vars
     selected <- feats <- var <- NULL
@@ -405,7 +434,8 @@ calculateHVF <- function(
             )
         },
         "cov_groups" = {
-            calc_cov_fun(expr_values, expression_threshold) %>%
+            calc_cov_fun(expr_values, expression_threshold, 
+                         calc_gini = calc_gini) %>%
                 .calc_cov_group_hvf(
                     nr_expression_groups = nr_expression_groups,
                     zscore_threshold = zscore_threshold,
@@ -415,7 +445,8 @@ calculateHVF <- function(
                 )
         },
         "cov_loess" = {
-            calc_cov_fun(expr_values, expression_threshold) %>%
+            calc_cov_fun(expr_values, expression_threshold,
+                         calc_gini = calc_gini) %>%
                 .calc_cov_loess_hvf(
                     difference_in_cov = difference_in_cov,
                     show_plot = show_plot,
@@ -532,7 +563,8 @@ calculateHVF <- function(
         )
     pl <- pl + ggplot2::geom_point(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(x = "mean_expr", y = "cov", color = "selected")
+        GiottoVisuals::aes_string2(
+            x = "mean_expr", y = "cov", color = "selected")
     )
     pl <- pl + ggplot2::scale_color_manual(
         values = c(no = "lightgrey", yes = "orange"),
@@ -564,20 +596,19 @@ calculateHVF <- function(
         )
     pl <- pl + ggplot2::geom_point(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(
-            x = "log(mean_expr)", y = var_col,
-            color = "selected"
-        )
+        GiottoVisuals::aes_string2(
+            x = "log(mean_expr)", y = var_col, color = "selected")
     )
     pl <- pl + ggplot2::geom_line(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(x = "log(mean_expr)", y = "pred_cov_feats"),
+        GiottoVisuals::aes_string2(x = "log(mean_expr)", y = "pred_cov_feats"),
         color = "blue"
     )
     hvg_line <- paste0("pred_cov_feats+", difference_in_cov)
     pl <- pl + ggplot2::geom_line(
         data = feat_in_cells_detected,
-        ggplot2::aes_string(x = "log(mean_expr)", y = hvg_line), linetype = 2
+        GiottoVisuals::aes_string2(x = "log(mean_expr)", y = hvg_line), 
+        linetype = 2
     )
     pl <- pl + ggplot2::labs(x = "log(mean expression)", y = var_col)
     pl <- pl + ggplot2::scale_color_manual(
@@ -594,7 +625,8 @@ calculateHVF <- function(
 .create_calc_var_hvf_plot <- function(dt_res) {
     pl <- ggplot2::ggplot()
     pl <- pl + ggplot2::geom_point(
-        data = dt_res, aes_string(x = "rank", y = "var", color = "selected")
+        data = dt_res, 
+        GiottoVisuals::aes_string2(x = "rank", y = "var", color = "selected")
     )
     pl <- pl + ggplot2::scale_x_reverse()
     pl <- pl + ggplot2::theme_classic() + ggplot2::theme(
