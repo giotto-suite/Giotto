@@ -8,10 +8,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://tlo.mit.edu/understand-ip/exploring-mit-open-source-license-comprehensive-guide)
 ![Last
-Commit](https://badgen.net/github/last-commit/drieslab/Giotto/suite)
+Commit](https://badgen.net/github/last-commit/giotto-suite/Giotto/suite)
 ![Commits Since
-Latest](https://img.shields.io/github/commits-since/drieslab/Giotto/latest/suite)
-[![R-CMD-check](https://github.com/drieslab/Giotto/actions/workflows/main_check.yaml/badge.svg?branch=suite)](https://github.com/drieslab/Giotto/actions/workflows/main_check.yaml)
+Latest](https://img.shields.io/github/commits-since/giotto-suite/Giotto/latest/suite)
+[![R-CMD-check](https://github.com/giotto-suite/Giotto/actions/workflows/main_check.yaml/badge.svg?branch=suite)](https://github.com/giotto-suite/Giotto/actions/workflows/main_check.yaml)
 <!-- badges: end -->
 
 Giotto Suite is a major upgrade to the Giotto package that provides tools to process, analyze and visualize **spatial multi-omics data at all scales and multiple resolutions**. The underlying framework is generalizable to virtually all current and emerging spatial technologies. Our Giotto Suite prototype pipeline is generally applicable on various different datasets, such as those created by state-of-the-art spatial technologies, including *in situ* hybridization (seqFISH+, merFISH, osmFISH, CosMx), sequencing (Slide-seq, Visium, STARmap, Seq-Scope, Stereo-Seq) and imaging-based multiplexing/proteomics (CyCIF, MIBI, CODEX). These technologies differ in terms of resolution (subcellular, single cell or multiple cells), spatial dimension (2D vs 3D), molecular modality (protein, RNA, DNA, …), and throughput (number of cells and analytes).
@@ -20,9 +20,9 @@ Giotto Suite is a major upgrade to the Giotto package that provides tools to pro
 ## Installation
 
 To install Giotto suite use
-`pak::pkg_install("drieslab/Giotto")`. 
+`pak::pkg_install("giotto-suite/Giotto")`. 
 
-Visit the Giotto [Discussions](https://github.com/drieslab/Giotto/discussions) page for more information.
+Visit the Giotto [Discussions](https://github.com/giotto-suite/Giotto/discussions) page for more information.
 
 ## Website Update!
 

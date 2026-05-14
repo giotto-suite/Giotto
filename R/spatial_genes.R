@@ -2274,18 +2274,27 @@ FSV_show <- function(
     pl <- pl + ggplot2::theme_bw()
     pl <- pl + ggplot2::geom_point(
         data = results[results$qval < 0.05, ],
-        ggplot2::aes_string(
+        GiottoVisuals::aes_string2(
             x = "FSV", y = "log_pval", fill = "model_bic", size = "intervals"
         ),
-        show.legend = TRUE, shape = 21, alpha = sig_alpha,
-        stroke = 0.1, color = "black"
+        show.legend = TRUE, 
+        shape = 21, 
+        alpha = sig_alpha,
+        stroke = 0.1, 
+        color = "black"
     ) +
         ggplot2::geom_point(
             data = results[results$qval > 0.05, ],
-            ggplot2::aes_string(x = "FSV", y = "log_pval", size = "intervals"),
-            show.legend = TRUE, shape = 21, alpha = unsig_alpha,
+            GiottoVisuals::aes_string2(
+                x = "FSV", 
+                y = "log_pval", 
+                size = "intervals"),
+            show.legend = TRUE, 
+            shape = 21, 
+            alpha = unsig_alpha,
             fill = "black", # size = size[results_cp_ns$inftervals],
-            stroke = 0.1, color = "black"
+            stroke = 0.1, 
+            color = "black"
         ) +
         ggplot2::scale_size_manual(values = size, guide = FALSE) +
         ggplot2::scale_color_manual(values = color) +
@@ -2625,7 +2634,7 @@ detectSpatialPatterns <- function(
         "This function has not been updated for use with the current version
     of Giotto.
     See details:
-    https://github.com/drieslab/Giotto/issues/666#issuecomment-1540447537",
+    https://github.com/giotto-suite/Giotto/issues/666#issuecomment-1540447537",
         errWidth = TRUE
     ))
     ############################################################################
@@ -2840,8 +2849,10 @@ showPattern2D <- function(
     dpl <- dpl + ggplot2::theme_bw()
     dpl <- dpl + ggplot2::geom_tile(
         data = annotated_grid,
-        aes_string(x = "x_start", y = "y_start", fill = selected_PC),
-        color = grid_border_color, show.legend = show_legend
+        GiottoVisuals::aes_string2(
+            x = "x_start", y = "y_start", fill = selected_PC),
+        color = grid_border_color, 
+        show.legend = show_legend
     )
     dpl <- dpl + ggplot2::scale_fill_gradient2(
         "low" = "darkblue", mid = "white", high = "darkred", midpoint = 0,
@@ -3086,7 +3097,8 @@ showPatternGenes <- function(
     pl <- pl + ggplot2::theme_classic()
     pl <- pl + ggplot2::geom_point(
         data = subset,
-        aes_string(x = selected_PC, y = "gene_ID"), size = point_size
+        GiottoVisuals::aes_string2(x = selected_PC, y = "gene_ID"), 
+        size = point_size
     )
     pl <- pl + ggplot2::geom_vline(xintercept = 0, linetype = 2)
     pl <- pl + ggplot2::labs(x = "correlation", y = "", title = selected_PC)

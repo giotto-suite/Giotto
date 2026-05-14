@@ -16,7 +16,7 @@ describe("Integrative testing with visium dataset", {
     )
     
     data_dir <- file.path(tempdir(), "testdata", "vis_1_3_0")
-    if (!dir.exists(data_dir)) dir.create(data_dir)
+    if (!dir.exists(data_dir)) dir.create(data_dir, recursive = TRUE)
     
     # download files
     lapply(urls,

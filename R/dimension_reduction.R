@@ -195,58 +195,86 @@ reduceDims <- function(gobject,
     min_ncp <- min(dim(x))
 
     if (ncp >= min_ncp) {
-        warning("ncp >= minimum dimension of x, will be set to
-                minimum dimension of x - 1")
-        ncp <- min_ncp - 1
+        warning("[runPCA] ncp (", ncp, ") >= minimum dimension of input (",
+            min_ncp, "), setting ncp = ", min_ncp - 1L, call. = FALSE)
+        ncp <- min_ncp - 1L
     }
 
-    if (isTRUE(rev)) x <- t_flex(x)
-
-    pca_param <- list(
-        x = x,
-        rank = ncp,
-        center = center,
-        scale = scale,
-        BPPARAM = BPPARAM,
-        ...
-    )
-
-    pca_param$BSPARAM <- switch(BSPARAM,
-        "irlba" = BiocSingular::IrlbaParam(),
-        "exact" = BiocSingular::ExactParam(),
-        "random" = BiocSingular::RandomParam()
-    )
-
-    if (set_seed) {
-        gwith_seed(
-            seed = seed_number,
-            {
-                pca_res <- do.call(BiocSingular::runPCA, pca_param)
-            },
+    if (inherits(x, "IterableMatrix")) {
+        x <- standardise_flex(x, center = center, scale = scale)
+        if (set_seed) {
+            gwith_seed(
+                seed = seed_number,
+                {
+                    pca_res <- BPCells::svds(x, k = ncp)
+                }
+            )
+        } else {
+            pca_res <- BPCells::svds(x, k = ncp)
+        }
+        if (isTRUE(rev)) {
+            eigenvalues <- pca_res$d^2 / (nrow(x) - 1L)
+            coords   <- sweep(pca_res$u, 2, pca_res$d, "*")
+            loadings <- pca_res$v
+        } else {
+            eigenvalues <- pca_res$d^2 / (ncol(x) - 1L)
+            loadings <- pca_res$u
+            coords   <- sweep(pca_res$v, 2, pca_res$d, "*")
+        }
+    } else {
+        if (isTRUE(rev)) x <- t_flex(x)
+        pca_param <- list(
+            x = x,
+            rank = ncp,
+            center = center,
+            scale = scale,
+            BPPARAM = BPPARAM,
+            ...
         )
-    } else {
-        pca_res <- do.call(BiocSingular::runPCA, pca_param)
+        pca_param$BSPARAM <- switch(BSPARAM,
+            "irlba" = BiocSingular::IrlbaParam(),
+            "exact" = BiocSingular::ExactParam(),
+            "random" = BiocSingular::RandomParam()
+        )
+        if (set_seed) {
+            gwith_seed(
+                seed = seed_number,
+                {
+                    pca_res <- do.call(BiocSingular::runPCA, pca_param)
+                },
+            )
+        } else {
+            pca_res <- do.call(BiocSingular::runPCA, pca_param)
+        }
+        eigenvalues <- pca_res$sdev^2
+        if (isTRUE(rev)) {
+            loadings <- pca_res$x
+            coords   <- pca_res$rotation
+        } else {
+            loadings <- pca_res$rotation
+            coords   <- pca_res$x
+        }
     }
 
-
-    # eigenvalues
-    eigenvalues <- pca_res$sdev^2
-
-    # loadings and coords
-    if (isTRUE(rev)) {
-        loadings <- pca_res$x
-        coords <- pca_res$rotation
+    # loadings and coords rownames
+    if (inherits(x, "IterableMatrix")) {
+        if (isTRUE(rev)) {
+            rownames(loadings) <- colnames(x)
+            rownames(coords)   <- rownames(x)
+        } else {
+            rownames(loadings) <- rownames(x)
+            rownames(coords)   <- colnames(x)
+        }
+    } else if (isTRUE(rev)) {
         rownames(loadings) <- rownames(x)
-        rownames(coords) <- colnames(x)
+        rownames(coords)   <- colnames(x)
     } else {
-        loadings <- pca_res$rotation
-        coords <- pca_res$x
         rownames(loadings) <- colnames(x)
-        rownames(coords) <- rownames(x)
+        rownames(coords)   <- rownames(x)
     }
 
     colnames(loadings) <- paste0("Dim.", seq_len(ncol(loadings)))
-    colnames(coords) <- paste0("Dim.", seq_len(ncol(coords)))
+    colnames(coords)   <- paste0("Dim.", seq_len(ncol(coords)))
 
     result <- list(
         eigenvalues = eigenvalues, loadings = loadings, coords = coords
@@ -464,7 +492,7 @@ runPCA <- function(gobject,
         # PCA on cells
         if (method %in% c("irlba", "exact", "random")) {
             pca_object <- .run_pca_biocsingular(
-                x = t_flex(expr_values),
+                x = if (inherits(expr_values, "IterableMatrix")) expr_values else t_flex(expr_values),
                 center = center,
                 scale = scale_unit,
                 ncp = ncp,
@@ -525,13 +553,13 @@ runPCA <- function(gobject,
             my_row_names <- rownames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "pca",
+            method = "pca",
             coordinates = pca_object$coords,
             misc = list(
                 eigenvalues = pca_object$eigenvalues,
@@ -918,13 +946,13 @@ runPCAprojection <- function(gobject,
             my_row_names <- rownames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "pca",
+            method = "pca",
             coordinates = pca_object$coords,
             misc = list(
                 eigenvalues = pca_object$eigenvalues,
@@ -1314,13 +1342,13 @@ runPCAprojectionBatch <- function(gobject,
             my_row_names <- rownames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "pca",
+            method = "pca",
             coordinates = pca_object$coords,
             misc = list(
                 eigenvalues = pca_object$eigenvalues,
@@ -1523,13 +1551,13 @@ screePlot <- function(gobject,
                     have been implemented")
             }
 
-            dimObject <- create_dim_obj(
+            dimObject <- createDimObj(
                 name = name,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
                 provenance = provenance,
                 reduction = reduction,
-                reduction_method = "pca",
+                method = "pca",
                 coordinates = pca_object$coords,
                 misc = list(
                     eigenvalues = pca_object$eigenvalues,
@@ -2303,13 +2331,13 @@ runNMF <- function(gobject,
             my_row_names <- colnames(expr_values)
         }
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             provenance = provenance,
             reduction = reduction,
-            reduction_method = "nmf",
+            method = "nmf",
             coordinates = nmf_res$coords,
             misc = list(
                 diag = nmf_res$d,
@@ -2647,13 +2675,13 @@ runUMAP <- function(gobject,
             coordinates <- uwot_clus
             rownames(coordinates) <- rownames(matrix_to_use)
 
-            dimObject <- create_dim_obj(
+            dimObject <- createDimObj(
                 name = name,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
                 reduction = reduction,
                 provenance = provenance,
-                reduction_method = "umap",
+                method = "umap",
                 coordinates = coordinates,
                 misc = NULL
             )
@@ -2916,13 +2944,13 @@ runUMAPprojection <- function(gobject,
     if (isTRUE(return_gobject)) {
         coordinates <- coords_umap
 
-        dimObject <- create_dim_obj(
+        dimObject <- createDimObj(
             name = name,
             feat_type = feat_type,
             spat_unit = spat_unit,
             reduction = reduction,
             provenance = provenance,
-            reduction_method = "umap",
+            method = "umap",
             coordinates = coordinates,
             misc = NULL
         )
@@ -3137,13 +3165,13 @@ runtSNE <- function(gobject,
             coordinates <- tsne_clus$Y
             rownames(coordinates) <- rownames(matrix_to_use)
 
-            dimObject <- create_dim_obj(
+            dimObject <- createDimObj(
                 name = name,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
                 provenance = provenance,
                 reduction = reduction,
-                reduction_method = "tsne",
+                method = "tsne",
                 coordinates = coordinates,
                 misc = tsne_clus
             )

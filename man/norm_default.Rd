@@ -27,7 +27,9 @@ library size normalization. (skipped if \code{library_size_norm = FALSE}) \cr
 \code{log_norm} \tab logical (default = \code{TRUE}). Whether to transform values to
 log-scale. \cr
 \code{log_offset} \tab numeric (default = 1). If \code{log_norm = TRUE}, offset
-value to add to expression values to avoid \code{log(0)} \cr
+value to add to expression values to avoid \code{log(0)}. Note: for sparse-like
+matrices (e.g. \code{dgCMatrix}, 'dbSparseMatrix'), only \code{log_offset = 1} is
+supported (log1p) \cr
 \code{logbase} \tab numeric (default = 2). If \code{log_norm = TRUE}, log base to
 use to log normalize expression values
 }

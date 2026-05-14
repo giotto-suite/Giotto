@@ -46,7 +46,7 @@ jobs:
             any::covr
             any::remotes
             any::hdf5r
-            github::drieslab/GiottoData
+            github::giotto-suite/GiottoData
           needs: coverage
 
       - name: Generate coverage report

@@ -302,7 +302,7 @@ cellProximityNetwork <- function(
         )
     }
 
-    edges_sizes <- igraph::get.edge.attribute(igd, "enrichm")
+    edges_sizes <- igraph::edge_attr(igd, "enrichm")
     post_edges_sizes <- edges_sizes[edges_sizes > 0]
     neg_edges_sizes <- edges_sizes[edges_sizes <= 0]
 
@@ -349,7 +349,7 @@ cellProximityNetwork <- function(
 
     ## only show attractive edges
     if (only_show_enrichment_edges == TRUE) {
-        colors <- igraph::get.edge.attribute(igd, name = "color")
+        colors <- igraph::edge_attr(igd, name = "color")
         subvertices_ids <- which(colors == "enriched")
         igd <- igraph::subgraph.edges(graph = igd, eids = subvertices_ids)
 
@@ -579,21 +579,27 @@ NULL
         cell_color <- "lightblue"
         pl <- pl + ggplot2::geom_point(
             data = cell_locations[!cell_ID %in% cell_IDs_to_keep],
-            aes_string(x = sdimx, y = sdimy),
-            show.legend = show_legend, shape = 21, fill = "lightgrey",
+            GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+            show.legend = show_legend, 
+            shape = 21, 
+            fill = "lightgrey",
             size = point_size_other
         )
         pl <- pl + ggplot2::geom_point(
             data = cell_locations[cell_ID %in% cell_IDs_to_keep],
-            aes_string(x = sdimx, y = sdimy),
-            show.legend = show_legend, shape = 21, fill = cell_color,
+            GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+            show.legend = show_legend,
+            shape = 21, 
+            fill = cell_color,
             size = point_size_select
         )
         if (show_other_cells) {
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations[cell_ID %in% other_cell_IDs],
-                aes_string(x = sdimx, y = sdimy),
-                show.legend = show_legend, shape = 21, fill = cell_color,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                show.legend = show_legend, 
+                shape = 21, 
+                fill = cell_color,
                 alpha = point_alpha_other,
                 size = point_size_select * 0.5
             )
@@ -607,23 +613,30 @@ NULL
 
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[!cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy),
-                fill = "lightgrey", shape = 21, size = point_size_other,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                fill = "lightgrey", 
+                shape = 21, 
+                size = point_size_other,
                 color = point_other_border_col,
                 stroke = point_other_border_stroke
             )
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy, fill = cell_color),
-                show.legend = show_legend, shape = 21, size = point_size_select,
+                GiottoVisuals::aes_string2(
+                    x = sdimx, y = sdimy, fill = cell_color),
+                show.legend = show_legend, 
+                shape = 21, 
+                size = point_size_select,
                 color = point_select_border_col,
                 stroke = point_select_border_stroke
             )
             if (show_other_cells) {
                 pl <- pl + ggplot2::geom_point(
                     data = cell_locations_metadata[cell_ID %in% other_cell_IDs],
-                    aes_string(x = sdimx, y = sdimy, fill = cell_color),
-                    show.legend = show_legend, shape = 21,
+                    GiottoVisuals::aes_string2(
+                        x = sdimx, y = sdimy, fill = cell_color),
+                    show.legend = show_legend, 
+                    shape = 21,
                     alpha = point_alpha_other,
                     size = point_size_select * 0.5
                 )
@@ -656,16 +669,20 @@ NULL
                 data = cell_locations_metadata[
                     !cell_ID %in% cell_IDs_to_keep
                 ],
-                aes_string(x = sdimx, y = sdimy),
-                show.legend = show_legend, shape = 21,
-                fill = "lightgrey", size = point_size_other,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                show.legend = show_legend, 
+                shape = 21,
+                fill = "lightgrey", 
+                size = point_size_other,
                 color = point_other_border_col,
                 stroke = point_other_border_stroke
             )
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy),
-                show.legend = show_legend, shape = 21, fill = cell_color,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                show.legend = show_legend, 
+                shape = 21, 
+                fill = cell_color,
                 size = point_size_select,
                 color = point_select_border_col,
                 stroke = point_select_border_stroke
@@ -2754,10 +2771,10 @@ plotCCcomHeatmap <- function(
 
 
     pl <- ggplot2::ggplot()
-    pl <- pl + ggplot2::geom_raster(data = selDT, aes_string(
-        x = "LR_cell_comb",
-        y = "LR_comb", fill = show
-    ))
+    pl <- pl + ggplot2::geom_raster(
+        data = selDT, 
+        GiottoVisuals::aes_string2(
+            x = "LR_cell_comb", y = "LR_comb", fill = show))
 
     pl <- pl + ggplot2::theme_classic() + ggplot2::theme(
         axis.text.x = element_blank(),
@@ -2929,10 +2946,13 @@ plotCCcomDotplot <- function(
 
 
     pl <- ggplot2::ggplot()
-    pl <- pl + ggplot2::geom_point(data = selDT, aes_string(
-        x = "LR_cell_comb",
-        y = "LR_comb", size = "pvalue", color = "log2fc"
-    ))
+    pl <- pl + ggplot2::geom_point(
+        data = selDT, 
+        aes_string(
+            x = "LR_cell_comb",
+            y = "LR_comb", 
+            size = "pvalue", 
+            color = "log2fc"))
     pl <- pl + ggplot2::theme_classic()
     if (show_LR_names == TRUE) {
         pl <- pl + ggplot2::theme(
@@ -3480,21 +3500,27 @@ cellProximitySpatPlot2D <- function(
         cell_color <- "lightblue"
         pl <- pl + ggplot2::geom_point(
             data = cell_locations[!cell_ID %in% cell_IDs_to_keep],
-            aes_string(x = sdimx, y = sdimy),
-            show.legend = show_legend, shape = 21, fill = "lightgrey",
+            GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+            show.legend = show_legend, 
+            shape = 21, 
+            fill = "lightgrey",
             size = point_size_other
         )
         pl <- pl + ggplot2::geom_point(
             data = cell_locations[cell_ID %in% cell_IDs_to_keep],
-            aes_string(x = sdimx, y = sdimy),
-            show.legend = show_legend, shape = 21, fill = cell_color,
+            GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+            show.legend = show_legend, 
+            shape = 21, 
+            fill = cell_color,
             size = point_size_select
         )
         if (show_other_cells) {
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations[cell_ID %in% other_cell_IDs],
-                aes_string(x = sdimx, y = sdimy),
-                show.legend = show_legend, shape = 21, fill = cell_color,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                show.legend = show_legend, 
+                shape = 21, 
+                fill = cell_color,
                 alpha = point_alpha_other,
                 size = point_size_select * 0.5
             )
@@ -3508,23 +3534,30 @@ cellProximitySpatPlot2D <- function(
 
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[!cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy),
-                fill = "lightgrey", shape = 21, size = point_size_other,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                fill = "lightgrey", 
+                shape = 21, 
+                size = point_size_other,
                 color = point_other_border_col,
                 stroke = point_other_border_stroke
             )
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy, fill = cell_color),
-                show.legend = show_legend, shape = 21, size = point_size_select,
+                GiottoVisuals::aes_string2(
+                    x = sdimx, y = sdimy, fill = cell_color),
+                show.legend = show_legend, 
+                shape = 21, 
+                size = point_size_select,
                 color = point_select_border_col,
                 stroke = point_select_border_stroke
             )
             if (show_other_cells) {
                 pl <- pl + ggplot2::geom_point(
                     data = cell_locations_metadata[cell_ID %in% other_cell_IDs],
-                    aes_string(x = sdimx, y = sdimy, fill = cell_color),
-                    show.legend = show_legend, shape = 21,
+                    GiottoVisuals::aes_string2(
+                        x = sdimx, y = sdimy, fill = cell_color),
+                    show.legend = show_legend, 
+                    shape = 21,
                     alpha = point_alpha_other,
                     size = point_size_select * 0.5
                 )
@@ -3555,16 +3588,20 @@ cellProximitySpatPlot2D <- function(
         } else {
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[!cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy),
-                show.legend = show_legend, shape = 21, fill = "lightgrey",
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                show.legend = show_legend, 
+                shape = 21, 
+                fill = "lightgrey",
                 size = point_size_other,
                 color = point_other_border_col,
                 stroke = point_other_border_stroke
             )
             pl <- pl + ggplot2::geom_point(
                 data = cell_locations_metadata[cell_ID %in% cell_IDs_to_keep],
-                aes_string(x = sdimx, y = sdimy),
-                show.legend = show_legend, shape = 21, fill = cell_color,
+                GiottoVisuals::aes_string2(x = sdimx, y = sdimy),
+                show.legend = show_legend, 
+                shape = 21, 
+                fill = cell_color,
                 size = point_size_select,
                 color = point_select_border_col,
                 stroke = point_select_border_stroke
