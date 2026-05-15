@@ -942,19 +942,14 @@ createMerscopeLargeImage <- function(image_file,
             negative_y    = FALSE
         )
         gimg <- spatShift(gimg, dx = x_shift, dy = y_shift)
-        gimg@extent <- terra::ext(gimg@raster_object)
 
         if (flip_axis != "none") {
-            ext <- terra::ext(gimg@raster_object)
             if (flip_axis %in% c("y", "both")) {
-                y_mid <- mean(c(ext[3], ext[4]))
-                gimg  <- flip(gimg, y0 = y_mid)
+                gimg  <- flip(gimg, direction = "vertical")
             }
             if (flip_axis %in% c("x", "both")) {
-                x_mid <- mean(c(ext[1], ext[2]))
-                gimg  <- flip(gimg, x0 = x_mid)
+                gimg  <- flip(gimg, direction = "horizontal")
             }
-            gimg@extent <- terra::ext(gimg@raster_object)
         }
 
         return(gimg)
@@ -1278,7 +1273,6 @@ createGiottoMerscopeObject <- function(merscope_dir,
     # If aggregate_stack ran, overlap is computed on the new aggregated unit.
     # If not, it falls back to the original gpolygons names.
     if (isTRUE(calculate_overlap)) {
-        use_new_api <- utils::packageVersion("GiottoClass") >= "0.5.0"
 
         final_poly_names <- if (isTRUE(aggregate_stack)) {
             agg_params$new_spat_unit
@@ -1288,25 +1282,15 @@ createGiottoMerscopeObject <- function(merscope_dir,
 
         for (poly_name in final_poly_names) {
             if (isTRUE(verbose)) message("Calculating overlap for polygon layer: ", poly_name)
-            if (use_new_api) {
-                z_sub <- GiottoClass::calculateOverlap(
-                    z_sub, spat_info = poly_name, feat_info = "rna"
-                )
-            } else {
-                z_sub <- GiottoClass::calculateOverlap(
-                    gobject = z_sub, spatial_info = poly_name, feat_info = "rna"
-                )
-            }
+
+            z_sub <- GiottoClass::calculateOverlap(
+                gobject = z_sub, spat_info = poly_name, feat_info = "rna"
+            )
             if (isTRUE(overlap_to_matrix)) {
-                if (use_new_api) {
-                    z_sub <- GiottoClass::overlapToMatrix(
-                        z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
-                    )
-                } else {
-                    z_sub <- GiottoClass::overlapToMatrix(
-                        gobject = z_sub, poly_info = poly_name, feat_info = "rna", name = "raw"
-                    )
-                }
+
+                z_sub <- GiottoClass::overlapToMatrix(
+                    gobject = z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
+                )
             }
         }
     }
