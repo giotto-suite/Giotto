@@ -148,7 +148,12 @@
 
 # Vectorized rowSds helper following flex function convention from GiottoClass
 .rowSds_flex <- function(mymatrix, ...) {
-    if (inherits(mymatrix, "DelayedArray")) {
+    if (inherits(mymatrix, "IterableMatrix")) {
+        v <- BPCells::matrix_stats(
+            mymatrix, row_stats = "variance"
+        )$row_stats["variance", ]
+        return(sqrt(v))
+    } else if (inherits(mymatrix, "DelayedArray")) {
         return(DelayedMatrixStats::rowSds(mymatrix, ...))
     } else if (inherits(mymatrix, "dgCMatrix")) {
         return(sparseMatrixStats::rowSds(mymatrix, ...))
