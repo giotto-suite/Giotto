@@ -4,7 +4,12 @@
 \alias{createMerscopeLargeImage}
 \title{Create Vizgen MERSCOPE largeImage}
 \usage{
-createMerscopeLargeImage(image_file, transforms_file, name = "image")
+createMerscopeLargeImage(
+  image_file,
+  transforms_file,
+  name = "image",
+  flip_axis = c("none", "y", "x", "both")
+)
 }
 \arguments{
 \item{image_file}{character. Path to one or more MERSCOPE images to load}
@@ -15,6 +20,11 @@ in the same folder as the images and named
 
 \item{name}{character. name to assign the image. Multiple should be provided
 if image_file is a list.}
+
+\item{flip_axis}{character. Axis along which to reflect the image after the
+spatial shift: \code{"none"} (default), \code{"y"}, \code{"x"}, or
+\code{"both"}. The reflection origin is the midpoint of the image extent in
+micron space.}
 }
 \value{
 giottoLargeImage
