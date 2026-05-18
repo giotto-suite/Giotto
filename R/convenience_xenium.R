@@ -1546,32 +1546,49 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         }
 
         bn <- basename(path)
-        bn <- gsub("(?i)\\.ome\\.tif{1,2}$", ".tif", bn, perl = TRUE)
-        tiff_path <- file.path(output_dir, bn)
+        # Primary expected path matches `GiottoClass::to_simple_tif`'s
+        # current convention (commit de206ed4, GiottoClass 0.5.x+) which
+        # appends `_page<NNNN>` to every output (default page = 1).
+        # Legacy un-suffixed path is kept as a fallback for older
+        # GiottoClass installs
+        tiff_path_new <- file.path(output_dir,
+            sub("(?i)\\.ome\\.tif{1,2}$", "_page0001.tif", bn, perl = TRUE))
+        tiff_path_legacy <- file.path(output_dir,
+            sub("(?i)\\.ome\\.tif{1,2}$", ".tif", bn, perl = TRUE))
+        .resolve_tiff <- function() {
+            if (checkmate::test_file_exists(tiff_path_new)) tiff_path_new
+            else if (checkmate::test_file_exists(tiff_path_legacy)) tiff_path_legacy
+            else NA_character_
+        }
+        tiff_path <- .resolve_tiff()
 
-        if (checkmate::test_file_exists(tiff_path)) {
+        if (!is.na(tiff_path)) {
             vmsg(.is_debug = TRUE, sprintf(
                 "converted tiff already present\n%s", tiff_path
             ))
             if (isTRUE(overwrite)) {
                 unlink(tiff_path, force = TRUE)
+                tiff_path <- NA_character_
             }
             # the convenience fun can be run multiple times on the dataset
             # So, we allow directly using already converted imgs
         }
 
-        # check the fullpath again
-        if (!checkmate::test_file_exists(tiff_path)) {
+        if (is.na(tiff_path)) {
             vmsg(.is_debug = TRUE, sprintf(
-                "converting ome to tif\n%s", tiff_path
+                "converting ome to tif\n%s", tiff_path_new
             ))
-            # if missing, do conversion
-            # output is expected at `tiff_path`
-            ometif_to_tif(
+            to_simple_tif(
                 input_file = path,
                 output_dir = output_dir,
                 overwrite = overwrite
             )
+            tiff_path <- .resolve_tiff()
+            if (is.na(tiff_path)) {
+                stop("to_simple_tif produced no output at expected paths:\n  ",
+                    tiff_path_new, "\n  ", tiff_path_legacy,
+                    call. = FALSE)
+            }
         }
 
         path <- tiff_path
@@ -1638,7 +1655,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' @param load_images Named list of filepaths to `.tif` images, usually the
 #' ones in the `morphology_focus` directory. These `ome.tif` images are not
 #' compatible and must be converted to `tif` using
-#' `[GiottoClass::ometif_to_tif()]`.
+#' `[GiottoClass::to_simple_tif()]`.
 #' @param load_aligned_images Named list of filepaths. The list names are used
 #' as the image names when loaded. Two filepaths are expected per entry. The
 #' first one should be to the `.tif` image. The second path is to the `.csv`
