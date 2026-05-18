@@ -31,7 +31,8 @@ setClass(
         filetype = "list",
         qv = "ANY",
         micron = "numeric",
-        calls = "list"
+        calls = "list",
+        paths = "list"
     ),
     prototype = list(
         filetype = list(
@@ -41,7 +42,8 @@ setClass(
             cell_meta = "parquet"
         ),
         qv = 20,
-        calls = list()
+        calls = list(),
+        paths = list()
     )
 )
 
@@ -155,97 +157,11 @@ setMethod(
 
 
         # detect paths and subdirs
-        p <- obj@xenium_dir
-        .xenium_detect <- function(pattern, ...) {
-            .detect_in_dir(
-                pattern = pattern, ...,
-                path = p, platform = "Xenium",
-            )
-        }
-
-        cell_meta_path <- .xenium_detect("cells", first = FALSE)
-        panel_meta_path <- .xenium_detect("panel") # json
-        experiment_info_path <- .xenium_detect(".xenium") # json
-
-        # 3D stack - DAPI
-        img_path <- .xenium_detect("morphology.", warn = FALSE)
-        # 2D fusion images
-        # - DAPI
-        # - stainings for multimodal segmentation
-        img_focus_path <- .xenium_detect("morphology_focus", warn = FALSE)
-        # Maximum intensity projection (MIP) of the morphology image.
-        # (Xenium Outputs v1.0 - 1.9. only)
-        img_mip_path <- .xenium_detect("morphology_mip", warn = FALSE)
-
-        tx_path <- .xenium_detect("transcripts", first = FALSE)
-        cell_bound_path <- .xenium_detect("cell_bound", first = FALSE)
-        nuc_bound_path <- .xenium_detect("nucleus_bound", first = FALSE)
-
-        expr_path <- .xenium_detect("cell_feature_matrix", first = FALSE)
-
-        .xenium_ftype <- function(paths, ftype) {
-            paths[grepl(pattern = paste0("\\.", ftype, "$"),
-                        x = paths,
-                        ignore.case = TRUE)]
-        }
-
-
-
-        # select file formats based on reader settings
-        tx_path <- .xenium_ftype(tx_path, ftype$transcripts)
-        cell_bound_path <- .xenium_ftype(cell_bound_path, ftype$boundaries)
-        nuc_bound_path <- .xenium_ftype(nuc_bound_path, ftype$boundaries)
-        cell_meta_path <- .xenium_ftype(cell_meta_path, ftype$cell_meta)
-
-        expr_candidates <- character(0)
-        if ("h5" %in% ftype$expression) {
-            expr_candidates <- c(
-                expr_candidates,
-                .xenium_ftype(expr_path, "h5"))
-        }
-        # for mtx, check if directory instead
-        if ("mtx" %in% ftype$expression) {
-            is_dir <- vapply(
-                expr_path,
-                checkmate::test_directory,
-                FUN.VALUE = logical(1L))
-            expr_candidates <- c(
-                expr_candidates,
-                expr_path[is_dir])
-        }
-        expr_candidates <- unique(expr_candidates)
-        if (length(expr_candidates) == 0L) {
-            stop("No expression path matching allowed types (",
-                 paste(ftype$expression, collapse = ", "),
-                 ") found in: ", p)
-        }
-        mtx_dirs <- expr_candidates[vapply(expr_candidates,
-                                           checkmate::test_directory,
-                                           FUN.VALUE = logical(1L))]
-        h5_files <- grep("\\.h5$",
-                         expr_candidates,
-                         ignore.case = TRUE,
-                         value = TRUE)
-
-        if (length(mtx_dirs)) {
-            expr_path <- mtx_dirs[[1]]
-        } else if (length(h5_files)) {
-            expr_path <- h5_files[[1]]
-        } else {
-            stop("No usable expression path among candidates: ",
-                 paste(expr_candidates,
-                       collapse = ", "))
-        }
-
-        # if (ftype$expression == "mtx") {
-        #     is_dir <- vapply(
-        #         expr_path, checkmate::test_directory,
-        #         FUN.VALUE = logical(1L)
-        #     )
-        #     expr_path <- expr_path[is_dir]
-        # } else {
-        #     expr_path <- .xenium_ftype(expr_path, ftype$expression)
-        # }
+        obj@paths <- .xenium_detect_paths(obj@xenium_dir, ftype)
+        # mirror into the init frame so closures can reference the path
+        # names directly via default-arg expressions (each default
+        # evaluates to a bare character string at call time)
+        list2env(obj@paths, envir = environment())
 
         # decide micron scaling
         if (length(obj@micron) == 0) { # if no value already set
@@ -743,9 +659,24 @@ setMethod("$<-", signature("XeniumReader"), function(x, name, value) {
 #' @param xenium_dir Xenium output directory
 #' @param qv_threshold Minimum Phred-scaled quality score cutoff to be included
 #' as a subcellular transcript detection (default = 20)
-#' @returns `XeniumReader` object
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
+#' @returns `XeniumReader` object, or `XeniumDiskReader` when `backend` is set
 #' @export
-importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
+importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
+    if (!is.null(backend)) {
+        package_check(
+            "GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk"
+        )
+        return(GiottoDisk::importXeniumDisk(
+            xenium_dir = xenium_dir,
+            backend = backend,
+            qv_threshold = qv_threshold
+        ))
+    }
+
     a <- list(Class = "XeniumReader")
     if (!is.null(xenium_dir)) {
         a$xenium_dir <- xenium_dir
@@ -760,6 +691,106 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 
 
 # MODULAR ####
+
+
+## paths ####
+
+# Detect Xenium output file paths within a directory based on filetype
+# preferences. Returns a named list of resolved paths. Callers typically
+# `list2env(paths, envir = environment())` into the frame whose closures
+# reference these names via default-arg expressions, so each call
+# re-resolves to a bare character string.
+.xenium_detect_paths <- function(xenium_dir, filetype) {
+    .xenium_detect <- function(pattern, ...) {
+        .detect_in_dir(
+            pattern = pattern, ...,
+            path = xenium_dir, platform = "Xenium"
+        )
+    }
+    .xenium_ftype <- function(paths, ftype) {
+        paths[grepl(pattern = paste0("\\.", ftype, "$"),
+                    x = paths,
+                    ignore.case = TRUE)]
+    }
+
+    cell_meta_path <- .xenium_detect("cells", first = FALSE)
+    panel_meta_path <- .xenium_detect("panel") # json
+    experiment_info_path <- .xenium_detect(".xenium") # json
+
+    # 3D stack - DAPI
+    img_path <- .xenium_detect("morphology.", warn = FALSE)
+    # 2D fusion images
+    # - DAPI
+    # - stainings for multimodal segmentation
+    img_focus_path <- .xenium_detect("morphology_focus", warn = FALSE)
+    # Maximum intensity projection (MIP) of the morphology image.
+    # (Xenium Outputs v1.0 - 1.9. only)
+    img_mip_path <- .xenium_detect("morphology_mip", warn = FALSE)
+
+    tx_path <- .xenium_detect("transcripts", first = FALSE)
+    cell_bound_path <- .xenium_detect("cell_bound", first = FALSE)
+    nuc_bound_path <- .xenium_detect("nucleus_bound", first = FALSE)
+    expr_path <- .xenium_detect("cell_feature_matrix", first = FALSE)
+
+    # select file formats based on reader settings
+    tx_path <- .xenium_ftype(tx_path, filetype$transcripts)
+    cell_bound_path <- .xenium_ftype(cell_bound_path, filetype$boundaries)
+    nuc_bound_path <- .xenium_ftype(nuc_bound_path, filetype$boundaries)
+    cell_meta_path <- .xenium_ftype(cell_meta_path, filetype$cell_meta)
+
+    # resolve expression path
+    expr_candidates <- character(0)
+    if ("h5" %in% filetype$expression) {
+        expr_candidates <- c(
+            expr_candidates,
+            .xenium_ftype(expr_path, "h5"))
+    }
+    # for mtx, check if directory instead
+    if ("mtx" %in% filetype$expression) {
+        is_dir <- vapply(
+            expr_path,
+            checkmate::test_directory,
+            FUN.VALUE = logical(1L))
+        expr_candidates <- c(
+            expr_candidates,
+            expr_path[is_dir])
+    }
+    expr_candidates <- unique(expr_candidates)
+    if (length(expr_candidates) == 0L) {
+        stop("No expression path matching allowed types (",
+             paste(filetype$expression, collapse = ", "),
+             ") found in: ", xenium_dir)
+    }
+    mtx_dirs <- expr_candidates[vapply(expr_candidates,
+                                       checkmate::test_directory,
+                                       FUN.VALUE = logical(1L))]
+    h5_files <- grep("\\.h5$",
+                     expr_candidates,
+                     ignore.case = TRUE,
+                     value = TRUE)
+
+    if (length(mtx_dirs)) {
+        expr_path <- mtx_dirs[[1]]
+    } else if (length(h5_files)) {
+        expr_path <- h5_files[[1]]
+    } else {
+        stop("No usable expression path among candidates: ",
+             paste(expr_candidates, collapse = ", "))
+    }
+
+    list(
+        cell_meta_path = cell_meta_path,
+        panel_meta_path = panel_meta_path,
+        experiment_info_path = experiment_info_path,
+        img_path = img_path,
+        img_focus_path = img_focus_path,
+        img_mip_path = img_mip_path,
+        tx_path = tx_path,
+        cell_bound_path = cell_bound_path,
+        nuc_bound_path = nuc_bound_path,
+        expr_path = expr_path
+    )
+}
 
 
 ## transcript ####
@@ -784,6 +815,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
         qv_threshold = 20,
         cores = determine_cores(),
         output = c("giottoPoints", "data.table", "arrow"),
+        backend = NULL,
         verbose = NULL) {
     if (missing(path)) {
         stop(wrap_txt(
@@ -1616,6 +1648,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20) {
 #' provided expression matrix.
 #' @param load_cellmeta logical. Default = FALSE. Whether to load in 10X
 #' provided cell metadata information
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project (See {GiottoDisk}).
 #' @param instructions list of instructions or output result from
 #' [createGiottoInstructions()]
 #' @param verbose logical or NULL. NULL uses the `giotto.verbose` option
@@ -1686,9 +1721,10 @@ createGiottoXeniumObject <- function(
         load_transcripts = TRUE,
         load_expression = TRUE,
         load_cellmeta = FALSE,
+        backend = NULL,
         instructions = NULL,
         verbose = NULL) {
-    x <- importXenium(xenium_dir)
+    x <- importXenium(xenium_dir, backend = backend)
     # apply reader params
     x$qv <- qv_threshold
 

@@ -21,6 +21,7 @@ createGiottoXeniumObject(
   load_transcripts = TRUE,
   load_expression = TRUE,
   load_cellmeta = FALSE,
+  backend = NULL,
   instructions = NULL,
   verbose = NULL
 )
@@ -74,6 +75,10 @@ provided expression matrix.}
 
 \item{load_cellmeta}{logical. Default = FALSE. Whether to load in 10X
 provided cell metadata information}
+
+\item{backend}{(optional) a \code{gsource}-inheriting project backend (typically
+produced by \code{GiottoDisk::sourceCreate()}). When provided, creates the
+\code{giotto} object as a managed on-disk project (See {GiottoDisk}).}
 
 \item{instructions}{list of instructions or output result from
 \code{\link[=createGiottoInstructions]{createGiottoInstructions()}}}
