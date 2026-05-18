@@ -18,7 +18,14 @@
   toplevel = 2L
 )
 
-.read_merscope_folder(merscope_dir, data_to_use, cores = NA, verbose = NULL)
+.read_merscope_folder(
+  merscope_dir,
+  data_to_use,
+  polygon_format = "hdf5",
+  version = 1,
+  cores = NA,
+  verbose = NULL
+)
 }
 \arguments{
 \item{spat_method}{spatial method for which the data is being read}
