@@ -21,4 +21,5 @@
 #' @importFrom igraph simplify
 #' @importClassesFrom Matrix Matrix
 #' @importClassesFrom bluster BlusterParam
+#' @importClassesFrom BiocSingular BiocSingularParam
 NULL
