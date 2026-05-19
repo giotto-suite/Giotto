@@ -10,8 +10,10 @@
 .load_merscope_folder(
   dir_items,
   data_to_use,
+  polygon_format,
   fovs = NULL,
-  poly_z_indices = seq(from = 1, to = 7),
+  poly_z_indices = 0:6,
+  version = 1,
   cores = NA,
   verbose = TRUE
 )
@@ -19,8 +21,10 @@
 .load_merscope_folder_subcellular(
   dir_items,
   data_to_use,
+  polygon_format,
   cores = NA,
-  poly_z_indices = 1L:7L,
+  poly_z_indices = 0L:6L,
+  version = 1,
   verbose = TRUE,
   fovs = NULL
 )
@@ -38,6 +42,15 @@
 
 \item{data_to_use}{which of either the 'subcellular' or 'aggregate'
 information to use for object creation}
+
+\item{polygon_format}{format of the boundary files, either 'parquet' or
+'hdf5' (v2 only)}
+
+\item{poly_z_indices}{which z-indices to use for the polygons (Default 0:6
+for v2, 1:7 for v1)}
+
+\item{version}{integer. Version of logic to use (1 = Legacy/Original,
+2 = New/Optimized)}
 
 \item{cores}{how many cores or threads to use to read data if paths are
 provided}

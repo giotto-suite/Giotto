@@ -238,7 +238,10 @@ setClass("varParam", contains = "analyzeParam")
 # Vectorized rowSds helper following flex function convention from GiottoClass
 .rowSds_flex <- function(mymatrix, ...) {
     if (inherits(mymatrix, "IterableMatrix")) {
-        return(sqrt(BPCells::rowVars(mymatrix)))
+        v <- BPCells::matrix_stats(
+            mymatrix, row_stats = "variance"
+        )$row_stats["variance", ]
+        return(sqrt(v))
     } else if (inherits(mymatrix, "DelayedArray")) {
         return(DelayedMatrixStats::rowSds(mymatrix, ...))
     } else if (inherits(mymatrix, "dgCMatrix")) {
@@ -262,13 +265,30 @@ setClass("varParam", contains = "analyzeParam")
     gini <- NULL
 
     ## create data.table with relevant statistics ##
-    feat_in_cells_detected <- data.table::data.table(
-        feats = rownames(expr_values),
-        nr_cells = rowSums_flex(expr_values > expression_threshold),
-        total_expr = rowSums_flex(expr_values),
-        mean_expr = rowMeans_flex(expr_values),
-        sd = .rowSds_flex(expr_values)
-    )
+    # IterableMatrix fast path: a single BPCells::matrix_stats pass yields
+    # mean, variance and nonzero — covering all four stats below when the
+    # threshold is 0 (BPCells row_stats has no arbitrary-threshold count).
+    if (inherits(expr_values, "IterableMatrix") &&
+        expression_threshold == 0) {
+        rs <- BPCells::matrix_stats(
+            expr_values, row_stats = "variance"
+        )$row_stats
+        feat_in_cells_detected <- data.table::data.table(
+            feats      = rownames(expr_values),
+            nr_cells   = rs["nonzero", ],
+            total_expr = rs["mean", ] * ncol(expr_values),
+            mean_expr  = rs["mean", ],
+            sd         = sqrt(rs["variance", ])
+        )
+    } else {
+        feat_in_cells_detected <- data.table::data.table(
+            feats = rownames(expr_values),
+            nr_cells = rowSums_flex(expr_values > expression_threshold),
+            total_expr = rowSums_flex(expr_values),
+            mean_expr = rowMeans_flex(expr_values),
+            sd = .rowSds_flex(expr_values)
+        )
+    }
 
     # calculate gini rowwise  (optional)
     if (isTRUE(calc_gini)) {

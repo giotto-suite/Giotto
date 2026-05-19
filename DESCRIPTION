@@ -68,6 +68,7 @@ Suggests:
     future,
     future.apply,
     GiottoData,
+    GiottoDisk,
     ggalluvial,
     ggdendro,
     ggforce,

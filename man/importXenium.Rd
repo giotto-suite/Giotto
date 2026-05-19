@@ -4,16 +4,20 @@
 \alias{importXenium}
 \title{Import a 10X Xenium Assay}
 \usage{
-importXenium(xenium_dir = NULL, qv_threshold = 20)
+importXenium(xenium_dir = NULL, qv_threshold = 20, backend = NULL)
 }
 \arguments{
 \item{xenium_dir}{Xenium output directory}
 
 \item{qv_threshold}{Minimum Phred-scaled quality score cutoff to be included
 as a subcellular transcript detection (default = 20)}
+
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+`giotto` object as a managed on-disk project.}
 }
 \value{
-`XeniumReader` object
+`XeniumReader` object, or `XeniumDiskReader` when `backend` is set
 }
 \description{
 Giotto import functionalities for Xenium datasets. This function creates a
