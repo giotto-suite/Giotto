@@ -119,12 +119,12 @@ use is only needed when computing masks on a standalone matrix.
 Returns a `list(feats_keep, cells_keep)` of character ID vectors when
 passed to [filterData()].
 
-Construct a `pcaParam` for use with [processData()]. `runPCA()` builds
+Construct a `pcaParam` for use with [reduceData()]. `runPCA()` builds
 these internally; direct use is only needed when computing PCA on a
 standalone matrix.
 
 Returns a list with `u`, `d`, `v`, and `sdev` when passed to
-`processData()`.
+`reduceData()`.
 }
 \details{
 Generated params are S4 objects inheriting from \code{processParam} and one of

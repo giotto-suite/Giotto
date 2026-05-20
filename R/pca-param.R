@@ -2,18 +2,21 @@
 NULL
 
 # ============================================================================
-# PCA parameter classes — extend processParam family. Same dispatch pattern
-# as norm/scale/qc/filter/hvg. Default methods call the existing
-# .run_pca_biocsingular helper. Streaming backends (parquetExprStore in
-# GiottoDisk) provide their own setMethod for randomPcaParam — Halko-style
-# randomized SVD with streaming Cholesky-QR.
+# PCA parameter classes — extend GiottoClass::reduceParam so the
+# decomposition is dispatched via reduceData(x, param). Distinct from
+# processData (transforms data, same shape) and analyzeData (summary
+# stats): reduceData returns a list(u, d, v, sdev, eigenvalues). Default
+# methods call the existing .run_pca_biocsingular helper. Streaming
+# backends (parquetExprStore in GiottoDisk) provide their own setMethod
+# for randomPcaParam — Halko-style randomized SVD with streaming
+# Cholesky-QR.
 # ============================================================================
 
 # ---- VIRTUAL + concrete ----------------------------------------------------
 
 #' @rdname process_param
 #' @exportClass pcaParam
-setClass("pcaParam", contains = c("VIRTUAL", "processParam"))
+setClass("pcaParam", contains = c("VIRTUAL", "reduceParam"))
 
 #' @rdname process_param
 #' @exportClass irlbaPcaParam
@@ -33,12 +36,12 @@ setClass("randomPcaParam", contains = "pcaParam")
 #' @rdname process_param
 #' @title PCA parameter factory
 #' @description
-#' Construct a `pcaParam` for use with [processData()]. `runPCA()` builds
+#' Construct a `pcaParam` for use with [reduceData()]. `runPCA()` builds
 #' these internally; direct use is only needed when computing PCA on a
 #' standalone matrix.
 #'
 #' Returns a list with `u`, `d`, `v`, and `sdev` when passed to
-#' `processData()`.
+#' `reduceData()`.
 #'
 #' @param method one of `"random"`, `"irlba"`, `"exact"`.
 #' @param ncp number of components. Default `50`.
@@ -98,7 +101,7 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
     if (!is.null(param$feats_to_use)) {
         keep <- intersect(rownames(x), param$feats_to_use)
         if (length(keep) == 0L) {
-            stop("[processData(allMatrix, pcaParam)] feats_to_use ",
+            stop("[reduceData(allMatrix, pcaParam)] feats_to_use ",
                  "had zero overlap with rownames(x).", call. = FALSE)
         }
         x <- x[keep, , drop = FALSE]
@@ -120,28 +123,28 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
     sdev <- sqrt(res$eigenvalues)
     d    <- sdev * sqrt(max(n_obs - 1L, 1L))
     list(
-        u           = res$coords,    # cells × k embeddings (u * d)
+        u           = res$coords,    # cells x k embeddings (u * d)
         d           = d,              # singular values (matches streaming)
-        v           = res$loadings,  # genes × k loadings
+        v           = res$loadings,  # genes x k loadings
         sdev        = sdev,
         eigenvalues = res$eigenvalues
     )
 }
 
-#' @rdname processData
-setMethod("processData",
+#' @rdname reduceData
+setMethod("reduceData",
     signature(x = "allMatrix", param = "irlbaPcaParam"),
     function(x, param, ...) .pca_default_method(x, param, BSPARAM = "irlba")
 )
 
-#' @rdname processData
-setMethod("processData",
+#' @rdname reduceData
+setMethod("reduceData",
     signature(x = "allMatrix", param = "exactPcaParam"),
     function(x, param, ...) .pca_default_method(x, param, BSPARAM = "exact")
 )
 
-#' @rdname processData
-setMethod("processData",
+#' @rdname reduceData
+setMethod("reduceData",
     signature(x = "allMatrix", param = "randomPcaParam"),
     function(x, param, ...) .pca_default_method(x, param, BSPARAM = "random")
 )
@@ -155,8 +158,8 @@ setMethod("processData",
 # IterableMatrix and other non-dense Giotto-native backends still need
 # their own setMethod or the pcaParam factory.
 
-#' @rdname processData
-setMethod("processData",
+#' @rdname reduceData
+setMethod("reduceData",
     signature(x = "allMatrix", param = "BiocSingularParam"),
     function(x, param,
              ncp           = 50L,
@@ -169,7 +172,7 @@ setMethod("processData",
         if (!is.null(feats_to_use)) {
             keep <- intersect(rownames(x), feats_to_use)
             if (length(keep) == 0L) {
-                stop("[processData(allMatrix, BiocSingularParam)] feats_to_use ",
+                stop("[reduceData(allMatrix, BiocSingularParam)] feats_to_use ",
                      "had zero overlap with rownames(x).", call. = FALSE)
             }
             x <- x[keep, , drop = FALSE]
