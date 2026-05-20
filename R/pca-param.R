@@ -106,8 +106,13 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
         }
         x <- x[keep, , drop = FALSE]
     }
+    # Input convention: x is gene x cell (Bioconductor / Giotto).
+    # .run_pca_biocsingular's dense path expects cell x gene -> transpose.
+    # Its IterableMatrix path (BPCells::svds) expects gene x cell -> no
+    # transpose. Pick correctly so eigenvalues = d^2/(n_cells-1) for both.
+    x_for_pca <- if (inherits(x, "IterableMatrix")) x else t_flex(x)
     res <- .run_pca_biocsingular(
-        x = t_flex(x),
+        x = x_for_pca,
         ncp = param$ncp,
         center = param$center,
         scale = param$scale,
@@ -116,8 +121,7 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
         seed_number = param$seed_number
     )
     # .run_pca_biocsingular returns eigenvalues = sdev^2 = d^2/(n-1)
-    # where n is the number of observations (rows of the transposed
-    # matrix passed to runPCA, i.e. n_cells). Recover the canonical
+    # where n is the number of observations (cells). Recover canonical
     # singular values d so streaming-backend output is directly comparable.
     n_obs <- ncol(x)   # x is gene x cell, so ncol = n_cells (observations)
     sdev <- sqrt(res$eigenvalues)
@@ -177,8 +181,9 @@ setMethod("reduceData",
             }
             x <- x[keep, , drop = FALSE]
         }
+        x_for_pca <- if (inherits(x, "IterableMatrix")) x else t_flex(x)
         res <- .run_pca_biocsingular(
-            x           = t_flex(x),
+            x           = x_for_pca,
             ncp         = ncp,
             center      = center,
             scale       = scale,
