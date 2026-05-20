@@ -329,22 +329,21 @@ filterCombinations <- function(gobject,
             min_feats_per_cell <- min_det_feats_per_cell[combn_i]
 
 
-            # first remove feats
-            filter_index_feats <- rowSums_flex(
-                expr_values >= threshold
-            ) >= min_cells_for_feat
-            removed_feats <- length(filter_index_feats[
-                filter_index_feats == FALSE
-            ])
+            # Two-stage filter via the same dispatch as filterGiotto:
+            #   filterData(x, filterParam(...))
+            # streams on parquetExprStore, inlines on dgCMatrix / Matrix /
+            # IterableMatrix. Output is list(feats_keep, cells_keep).
+            masks <- filterData(
+                expr_values,
+                filterParam(
+                    expression_threshold   = threshold,
+                    feat_det_in_min_cells  = min_cells_for_feat,
+                    min_det_feats_per_cell = min_feats_per_cell
+                )
+            )
+            removed_feats <- nrow(expr_values) - length(masks$feats_keep)
+            removed_cells <- ncol(expr_values) - length(masks$cells_keep)
             det_cells_res[[combn_i]] <- removed_feats
-
-            # then remove cells
-            filter_index_cells <- colSums_flex(expr_values[
-                filter_index_feats,
-            ] >= threshold) >= min_feats_per_cell
-            removed_cells <- length(filter_index_cells[
-                filter_index_cells == FALSE
-            ])
             det_feats_res[[combn_i]] <- removed_cells
         }
 
