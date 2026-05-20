@@ -286,7 +286,7 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
     .Object@calls$load_image <- load_image_fun
 
     ## mask load call
-    .default_mask_path <- .stereoseq_find_mask(p)
+    .default_mask_path <- mask_path
     load_mask_fun <- function(
         path       = .default_mask_path,
         negative_y = .Object@negative_y,
@@ -343,7 +343,7 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
     .default_gef_path   <- gef_path
     .default_bin1_path2 <- bin1_gef_path
     .default_image_dir  <- image_dir
-    .default_mask_path2 <- .stereoseq_find_mask(p)
+    .default_mask_path2 <- mask_path
 
     gobject_fun <- function(
         load_expression = TRUE,
@@ -570,7 +570,8 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
     list(
         image_dir     = image_dir,
         gef_path      = gef_path,
-        bin1_gef_path = bin1_gef_path
+        bin1_gef_path = bin1_gef_path,
+        mask_path     = .stereoseq_find_mask(stereoseq_dir)
     )
 }
 
