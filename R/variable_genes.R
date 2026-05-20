@@ -73,11 +73,13 @@ setClass("varParam", contains = "analyzeParam")
     p <- new("covGroupsParam", param = list(...))
     p$nr_expression_groups <- p$nr_expression_groups %null% 20
     p$detection_threshold <- p$detection_threshold %null% 0
+    p$use_parallel <- p$use_parallel %null% FALSE
     p
 }
 .analyze_param_cov_loess <- function(...) {
     p <- new("covLoessParam", param = list(...))
     p$detection_threshold <- p$detection_threshold %null% 0
+    p$use_parallel <- p$use_parallel %null% FALSE
     p
 }
 .analyze_param_var <- function(...) {
@@ -86,153 +88,6 @@ setClass("varParam", contains = "analyzeParam")
     p
 }
 
-
-.calc_cov_group_hvf <- function(
-        feat_in_cells_detected,
-        nr_expression_groups = 20,
-        zscore_threshold = 1,
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL) {
-    # NSE vars
-    cov_group_zscore <- cov <- selected <- mean_expr <- NULL
-
-    steps <- 1 / nr_expression_groups
-    prob_sequence <- seq(0, 1, steps)
-    prob_sequence[length(prob_sequence)] <- 1
-    expr_group_breaks <- stats::quantile(
-        feat_in_cells_detected$mean_expr,
-        probs = prob_sequence
-    )
-
-    ## remove zero's from cuts if there are too many and make first group zero
-    if (any(duplicated(expr_group_breaks))) {
-        m_expr_vector <- feat_in_cells_detected$mean_expr
-        expr_group_breaks <- stats::quantile(
-            m_expr_vector[m_expr_vector > 0],
-            probs = prob_sequence
-        )
-        expr_group_breaks[[1]] <- 0
-    }
-
-    expr_groups <- cut(
-        x = feat_in_cells_detected$mean_expr,
-        breaks = expr_group_breaks,
-        labels = paste0("group_", seq_len(nr_expression_groups)),
-        include.lowest = TRUE
-    )
-    feat_in_cells_detected[, expr_groups := expr_groups]
-    feat_in_cells_detected[, cov_group_zscore := scale(cov), by = expr_groups]
-    feat_in_cells_detected[, selected := ifelse(
-        cov_group_zscore > zscore_threshold, "yes", "no"
-    )]
-
-    if (any(isTRUE(show_plot), isTRUE(return_plot), isTRUE(save_plot))) {
-        pl <- .create_cov_group_hvf_plot(
-            feat_in_cells_detected, nr_expression_groups
-        )
-
-        return(list(dt = feat_in_cells_detected, pl = pl))
-    } else {
-        return(list(dt = feat_in_cells_detected))
-    }
-}
-
-
-
-
-
-
-
-.calc_cov_loess_hvf <- function(
-        feat_in_cells_detected,
-        difference_in_cov = 0.1,
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL) {
-    # NSE vars
-    cov_diff <- pred_cov_feats <- selected <- NULL
-
-    # create loess regression
-    loess_formula <- paste0("cov~log(mean_expr)")
-    var_col <- "cov"
-
-    loess_model_sample <- stats::loess(
-        loess_formula,
-        data = feat_in_cells_detected
-    )
-    feat_in_cells_detected$pred_cov_feats <- stats::predict(
-        loess_model_sample,
-        newdata = feat_in_cells_detected
-    )
-    feat_in_cells_detected[, cov_diff := get(var_col) - pred_cov_feats,
-        by = seq_len(nrow(feat_in_cells_detected))
-    ]
-    data.table::setorder(feat_in_cells_detected, -cov_diff)
-    feat_in_cells_detected[, selected := ifelse(
-        cov_diff > difference_in_cov, "yes", "no"
-    )]
-
-    if (any(isTRUE(show_plot), isTRUE(return_plot), isTRUE(save_plot))) {
-        pl <- .create_cov_loess_hvf_plot(
-            feat_in_cells_detected, difference_in_cov, var_col
-        )
-
-        return(list(dt = feat_in_cells_detected, pl = pl))
-    } else {
-        return(list(dt = feat_in_cells_detected))
-    }
-}
-
-
-
-.calc_var_hvf <- function(
-        scaled_matrix,
-        var_threshold = 1.5,
-        var_number = NULL,
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL,
-        use_parallel = FALSE) {
-    # NSE vars
-    var <- selected <- NULL
-
-    if (!isTRUE(use_parallel)) {
-        test <- apply(X = scaled_matrix, MARGIN = 1, FUN = function(x) var(x))
-    } else {
-        test <- future.apply::future_apply(
-            X = scaled_matrix, MARGIN = 1, FUN = function(x) var(x),
-            future.seed = TRUE
-        )
-    }
-
-    test <- sort(test, decreasing = TRUE)
-
-    dt_res <- data.table::data.table(feats = names(test), var = test)
-
-    if (!is.null(var_number) & is.numeric(var_number)) {
-        dt_res[, selected := seq_len(.N)]
-        dt_res[, selected := ifelse(selected <= var_number, "yes", "no")]
-    } else {
-        dt_res[, selected := ifelse(var >= var_threshold, "yes", "no")]
-    }
-
-
-    if (isTRUE(show_plot) ||
-        isTRUE(return_plot) ||
-        isTRUE(save_plot)) {
-        dt_res[, rank := seq_len(.N)]
-        pl <- .create_calc_var_hvf_plot(dt_res)
-
-
-        dt_res_final <- data.table::copy(dt_res)
-        dt_res_final[, rank := NULL]
-
-        return(list(dt = dt_res_final, pl = pl))
-    } else {
-        return(list(dt = dt_res))
-    }
-}
 
 
 # Vectorized rowSds helper following flex function convention from GiottoClass
@@ -525,51 +380,93 @@ calculateHVF <- function(
         method,
         choices = c("cov_groups", "cov_loess", "var_p_resid")
     )
-    # select function to use based on whether future parallelization is planned
-    calc_cov_fun <- ifelse(
-        use_parallel,
-        .calc_expr_cov_stats_parallel,
-        .calc_expr_cov_stats
-    )
 
-    results <- switch(method,
+    # Stats compute is dispatched on the expression backend via
+    # analyzeData(x, analyzeParam(method, ...)). Streaming backends
+    # (parquetExprStore in GiottoDisk) provide their own setMethod for the
+    # same generic and inherit this user-facing API.
+    want_plot <- any(isTRUE(show_plot), isTRUE(return_plot), isTRUE(save_plot))
+    cov_diff <- cov_group_zscore <- expr_groups <- mean_expr <- pred_cov_feats <-
+        rank <- selected <- var <- cov <- NULL  # NSE bindings
+
+    feat_in_cells_detected <- switch(method,
         "var_p_resid" = {
-            .calc_var_hvf(
-                scaled_matrix = expr_values,
-                var_threshold = var_threshold,
-                var_number = var_number,
-                show_plot = show_plot,
-                return_plot = return_plot,
-                save_plot = save_plot,
-                use_parallel = use_parallel
+            dt <- analyzeData(
+                expr_values,
+                analyzeParam("var", use_parallel = use_parallel)
             )
+            if (!is.null(var_number) && is.numeric(var_number)) {
+                dt[, selected := seq_len(.N)]
+                dt[, selected := ifelse(selected <= var_number, "yes", "no")]
+            } else {
+                dt[, selected := ifelse(var >= var_threshold, "yes", "no")]
+            }
+            dt
         },
         "cov_groups" = {
-            calc_cov_fun(expr_values, expression_threshold, 
-                         calc_gini = calc_gini) %>%
-                .calc_cov_group_hvf(
+            dt <- analyzeData(
+                expr_values,
+                analyzeParam("cov_groups",
                     nr_expression_groups = nr_expression_groups,
-                    zscore_threshold = zscore_threshold,
-                    show_plot = show_plot,
-                    return_plot = return_plot,
-                    save_plot = save_plot
-                )
+                    detection_threshold = expression_threshold,
+                    use_parallel = use_parallel)
+            )
+            dt[, selected := ifelse(cov_group_zscore > zscore_threshold,
+                                     "yes", "no")]
+            dt
         },
         "cov_loess" = {
-            calc_cov_fun(expr_values, expression_threshold,
-                         calc_gini = calc_gini) %>%
-                .calc_cov_loess_hvf(
-                    difference_in_cov = difference_in_cov,
-                    show_plot = show_plot,
-                    return_plot = return_plot,
-                    save_plot = save_plot
-                )
+            dt <- analyzeData(
+                expr_values,
+                analyzeParam("cov_loess",
+                    detection_threshold = expression_threshold,
+                    use_parallel = use_parallel)
+            )
+            dt[, selected := ifelse(cov_diff > difference_in_cov, "yes", "no")]
+            dt
         }
     )
 
-    ## unpack results
-    feat_in_cells_detected <- results[["dt"]]
-    pl <- results[["pl"]]
+    # Plot generation. The analyzeData methods drop intermediate columns
+    # (expr_groups, pred_cov_feats, rank) used only for plotting; re-add
+    # them locally so the existing plot helpers can be used unchanged.
+    pl <- NULL
+    if (want_plot) {
+        if (method == "var_p_resid") {
+            feat_in_cells_detected[, rank := seq_len(.N)]
+            pl <- .create_calc_var_hvf_plot(feat_in_cells_detected)
+            feat_in_cells_detected[, rank := NULL]
+        } else if (method == "cov_groups") {
+            prob_seq <- seq(0, 1, 1 / nr_expression_groups)
+            prob_seq[length(prob_seq)] <- 1
+            breaks <- stats::quantile(feat_in_cells_detected$mean_expr,
+                                       probs = prob_seq)
+            if (any(duplicated(breaks))) {
+                v <- feat_in_cells_detected$mean_expr
+                breaks <- stats::quantile(v[v > 0], probs = prob_seq)
+                breaks[[1]] <- 0
+            }
+            feat_in_cells_detected[, expr_groups := cut(
+                mean_expr, breaks = breaks,
+                labels = paste0("group_", seq_len(nr_expression_groups)),
+                include.lowest = TRUE
+            )]
+            pl <- .create_cov_group_hvf_plot(
+                feat_in_cells_detected, nr_expression_groups
+            )
+            feat_in_cells_detected[, expr_groups := NULL]
+        } else if (method == "cov_loess") {
+            loess_model <- stats::loess(cov ~ log(mean_expr),
+                                         data = feat_in_cells_detected)
+            feat_in_cells_detected[, pred_cov_feats := stats::predict(
+                loess_model, newdata = feat_in_cells_detected
+            )]
+            pl <- .create_cov_loess_hvf_plot(
+                feat_in_cells_detected, difference_in_cov, var_col = "cov"
+            )
+            feat_in_cells_detected[, pred_cov_feats := NULL]
+        }
+    }
 
 
 
@@ -828,9 +725,12 @@ setMethod("analyzeData",
         nr_groups <- param$nr_expression_groups
         det_thresh <- param$detection_threshold
 
-        dt <- .calc_expr_cov_stats(x,
-            expression_threshold = det_thresh, calc_gini = FALSE
-        )
+        calc_fun <- if (isTRUE(param$use_parallel)) {
+            .calc_expr_cov_stats_parallel
+        } else {
+            .calc_expr_cov_stats
+        }
+        dt <- calc_fun(x, expression_threshold = det_thresh, calc_gini = FALSE)
         dt <- dt[nr_cells > 0]
 
         prob_sequence <- seq(0, 1, 1 / nr_groups)
@@ -860,9 +760,12 @@ setMethod("analyzeData",
         pred_cov <- cov_diff <- NULL
         det_thresh <- param$detection_threshold
 
-        dt <- .calc_expr_cov_stats(x,
-            expression_threshold = det_thresh, calc_gini = FALSE
-        )
+        calc_fun <- if (isTRUE(param$use_parallel)) {
+            .calc_expr_cov_stats_parallel
+        } else {
+            .calc_expr_cov_stats
+        }
+        dt <- calc_fun(x, expression_threshold = det_thresh, calc_gini = FALSE)
         dt <- dt[nr_cells > 0]
 
         loess_fit <- stats::loess(cov ~ log(mean_expr), data = dt)
