@@ -10,7 +10,8 @@ setClass(
         gene_column = "character",
         negative_y = "logical",
         gef_type = "character",  # which .gef to use (see .stereoseq_find_gef)
-        calls = "list"
+        calls = "list",
+        paths = "list"
     ),
     prototype = list(
         type = "bin",
@@ -18,7 +19,8 @@ setClass(
         gene_column = "geneName",
         negative_y = TRUE,
         gef_type = "tissue",
-        calls = list()
+        calls = list(),
+        paths = list()
     )
 )
 
@@ -222,24 +224,13 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
     }
 
     # detect paths -------------------------------------------------------- #
-    p         <- .Object@stereoseq_dir
-    image_dir <- file.path(p, "image")
-
-    gef_path <- .stereoseq_find_gef(p, gef_type)
-
-    # bin1 data for giottoBinPoints always lives in a bin GEF (not cellbin).
-    # For cell readers, find the tissue GEF separately; fall back to full GEF.
-    bin1_gef_path <- if (type == "bin") {
-        gef_path
-    } else {
-        tryCatch(
-            .stereoseq_find_gef(p, "tissue"),
-            error = function(e) tryCatch(
-                .stereoseq_find_gef(p, "full"),
-                error = function(e2) NULL
-            )
-        )
-    }
+    # Stored on @paths so subclass init frames (e.g. StereoSeqDiskReader)
+    # can list2env() them in for their own closures without re-running
+    # detection (`.stereoseq_find_gef` is not exported).
+    .Object@paths <- .stereoseq_detect_paths(
+        .Object@stereoseq_dir, type = type, gef_type = gef_type
+    )
+    list2env(.Object@paths, envir = environment())
 
     spat_unit <- if (type == "bin") bin_size else "cell"
 
@@ -550,6 +541,39 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 
 # MODULAR ####
 # ---------- #
+
+## paths ####
+
+# Detect Stereo-seq file paths within a directory. Returns a named
+# list of resolved paths (image_dir, gef_path, bin1_gef_path).
+# Callers (the reader's initialize and disk-subclass init frames)
+# typically `list2env(paths, envir = environment())` into the frame
+# whose closures reference these names via default-arg expressions.
+.stereoseq_detect_paths <- function(stereoseq_dir, type, gef_type) {
+    if (length(stereoseq_dir) == 0L) return(list())
+    image_dir <- file.path(stereoseq_dir, "image")
+    gef_path  <- .stereoseq_find_gef(stereoseq_dir, gef_type)
+    # bin1 data for giottoBinPoints always lives in a bin GEF (not
+    # cellbin). For cell readers, find the tissue GEF separately;
+    # fall back to full GEF.
+    bin1_gef_path <- if (type == "bin") {
+        gef_path
+    } else {
+        tryCatch(
+            .stereoseq_find_gef(stereoseq_dir, "tissue"),
+            error = function(e) tryCatch(
+                .stereoseq_find_gef(stereoseq_dir, "full"),
+                error = function(e2) NULL
+            )
+        )
+    }
+    list(
+        image_dir     = image_dir,
+        gef_path      = gef_path,
+        bin1_gef_path = bin1_gef_path
+    )
+}
+
 
 # Classify a .gef filename into one of five canonical types.
 # Patterns are checked most-specific first to handle nested suffixes.
