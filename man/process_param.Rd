@@ -21,7 +21,6 @@
 \alias{scaleParam}
 \alias{adjustParam}
 \alias{thresholdParam}
-\alias{filterParam-class}
 \alias{defaultFilterParam-class}
 \alias{filterParam}
 \alias{pcaParam-class}
@@ -118,7 +117,7 @@ used by [filterGiotto()]. `filterGiotto` builds this internally; direct
 use is only needed when computing masks on a standalone matrix.
 
 Returns a `list(feats_keep, cells_keep)` of character ID vectors when
-passed to [processData()].
+passed to [filterData()].
 
 Construct a `pcaParam` for use with [processData()]. `runPCA()` builds
 these internally; direct use is only needed when computing PCA on a

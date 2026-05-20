@@ -2,17 +2,16 @@
 NULL
 
 # ============================================================================
-# Filter parameter class — extends processParam so the cell + feature mask
-# computation goes through the same processData(x, param) S4 dispatch as
-# normalize / scale / threshold / qc. The mask APPLICATION step (subsetGiotto)
-# stays in filterGiotto and is unchanged for in-memory backends.
+# Filter parameter class — extends GiottoClass::filterParam so the cell +
+# feature mask computation goes through the filterData(x, param) S4
+# dispatch. Distinct from processData (transforms data) and analyzeData
+# (computes summary stats): filterData returns a selection
+# (list(feats_keep, cells_keep) of character IDs). The mask APPLICATION
+# step (subsetGiotto) stays in filterGiotto and is unchanged for in-memory
+# backends.
 # ============================================================================
 
-# ---- VIRTUAL + concrete ----------------------------------------------------
-
-#' @rdname process_param
-#' @exportClass filterParam
-setClass("filterParam", contains = c("VIRTUAL", "processParam"))
+# ---- Concrete --------------------------------------------------------------
 
 #' @rdname process_param
 #' @exportClass defaultFilterParam
@@ -29,7 +28,7 @@ setClass("defaultFilterParam", contains = "filterParam")
 #' use is only needed when computing masks on a standalone matrix.
 #'
 #' Returns a `list(feats_keep, cells_keep)` of character ID vectors when
-#' passed to [processData()].
+#' passed to [filterData()].
 #'
 #' @param method only `"default"` for now (Giotto's two-stage filter).
 #' @param expression_threshold numeric. A value `>= expression_threshold`
@@ -66,8 +65,8 @@ filterParam <- function(method = "default",
 # so dgCMatrix / Matrix / IterableMatrix backends produce bit-for-bit
 # identical mask output before vs after the refactor.
 
-#' @rdname processData
-setMethod("processData",
+#' @rdname filterData
+setMethod("filterData",
     signature(x = "allMatrix", param = "filterParam"),
     function(x, param, ...) {
         thr   <- param$expression_threshold
@@ -87,8 +86,8 @@ setMethod("processData",
     }
 )
 
-#' @rdname processData
-setMethod("processData",
+#' @rdname filterData
+setMethod("filterData",
     signature(x = "IterableMatrix", param = "filterParam"),
     function(x, param, ...) {
         thr   <- param$expression_threshold

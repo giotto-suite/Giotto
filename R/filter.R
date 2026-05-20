@@ -575,12 +575,12 @@ filterGiotto <- function(gobject,
     # 2. then remove cells that do not have sufficient detected genes
 
     ## Mask computation is dispatched on the expression backend via
-    ## processData(x, filterParam). For dgCMatrix / Matrix / IterableMatrix
+    ## filterData(x, filterParam). For dgCMatrix / Matrix / IterableMatrix
     ## the default method runs Giotto's existing two-stage filter
     ## (feature mask first, then cell mask using only kept features).
     ## Streaming backends (parquetExprStore in GiottoDisk) provide their
     ## own setMethod for the same generic.
-    .filter_masks <- processData(
+    .filter_masks <- filterData(
         expr_values,
         filterParam(
             expression_threshold   = expression_threshold,
