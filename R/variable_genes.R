@@ -108,8 +108,11 @@
     # NSE vars
     var <- selected <- NULL
 
-    if (!isTRUE(use_parallel)) {
-        test <- apply(X = scaled_matrix, MARGIN = 1, FUN = function(x) var(x))
+    if (!isTRUE(use_parallel) || inherits(
+        scaled_matrix,
+        c("DelayedArray", "Matrix", "dbMatrix")
+    )) {
+        test <- .rowVars_flex(scaled_matrix)
     } else {
         test <- future.apply::future_apply(
             X = scaled_matrix, MARGIN = 1, FUN = function(x) var(x),
@@ -161,6 +164,24 @@
     } else {
         # Standard matrix - use matrixStats
         return(matrixStats::rowSds(as.matrix(mymatrix), ...))
+    }
+}
+
+
+# Vectorized rowVars helper following flex function convention from GiottoClass
+.rowVars_flex <- function(mymatrix, ...) {
+    if (inherits(mymatrix, "DelayedArray")) {
+        return(DelayedMatrixStats::rowVars(mymatrix, ...))
+    } else if (inherits(mymatrix, "dgCMatrix")) {
+        return(sparseMatrixStats::rowVars(mymatrix, ...))
+    } else if (inherits(mymatrix, "Matrix")) {
+        # For other Matrix types, use sparseMatrixStats
+        return(sparseMatrixStats::rowVars(as(mymatrix, "dgCMatrix"), ...))
+    } else if (inherits(mymatrix, "dbMatrix")) {
+        # dbMatrix exports rowVars via MatrixGenerics
+        return(dbMatrix::rowVars(mymatrix))
+    } else {
+        return(apply(mymatrix, 1, stats::var, ...))
     }
 }
 
