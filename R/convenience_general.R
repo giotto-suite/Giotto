@@ -1284,12 +1284,12 @@ createGiottoMerscopeObject <- function(merscope_dir,
             if (isTRUE(verbose)) message("Calculating overlap for polygon layer: ", poly_name)
 
             z_sub <- GiottoClass::calculateOverlap(
-                gobject = z_sub, spat_info = poly_name, feat_info = "rna"
+                z_sub, spat_info = poly_name, feat_info = "rna"
             )
             if (isTRUE(overlap_to_matrix)) {
 
                 z_sub <- GiottoClass::overlapToMatrix(
-                    gobject = z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
+                    z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
                 )
             }
         }
