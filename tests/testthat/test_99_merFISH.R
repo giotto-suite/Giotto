@@ -209,7 +209,7 @@ describe("Integrative testing with merfish dataset", {
     
     it("sNN S3 object is created as expected", {
         # igraph s3 object
-        expect_s3_class(slot(object@nn_network[["cell"]][["rna"]][["sNN"]][["sNN.pca"]], "igraph"), "igraph")
+        expect_s3_class(slot(object@nn_network[["cell"]][["rna"]][["sNN"]][["sNN.pca"]], "network"), "igraph")
     })
     
     # LEIDEN CLUSTERING

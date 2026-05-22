@@ -880,10 +880,13 @@ findNetworkNeighbors <- function(gobject,
     }
 
 
-    full_network_DT <- convert_to_full_spatial_network(spatial_network)
+    # bidirectionalize canonical edges so any cell can appear as `from`
+    rev <- data.table::copy(spatial_network)
+    data.table::setnames(rev, c("from", "to"), c("to", "from"))
+    full_network_DT <- unique(rbind(spatial_network, rev))
     potential_target_cells <- full_network_DT[
-        source %in% source_cells
-    ][["target"]]
+        from %in% source_cells
+    ][["to"]]
     source_and_target_cells <- potential_target_cells[
         potential_target_cells %in% source_cells
     ]
