@@ -190,7 +190,13 @@ reduceDims <- function(gobject,
     BSPARAM = c("irlba", "exact", "random"),
     BPPARAM = BiocParallel::SerialParam(),
     ...) {
-    BSPARAM <- match.arg(BSPARAM, choices = c("irlba", "exact", "random"))
+    # Accept either a character key or a pre-built BiocSingularParam
+    # object (e.g. BiocSingular::IrlbaParam(deferred = TRUE, fold = 5)).
+    # Coerce the character path to a BiocSingularParam below; the dense
+    # branch consumes the object directly via pca_param$BSPARAM.
+    if (!inherits(BSPARAM, "BiocSingularParam")) {
+        BSPARAM <- match.arg(BSPARAM, choices = c("irlba", "exact", "random"))
+    }
 
     min_ncp <- min(dim(x))
 
@@ -231,11 +237,15 @@ reduceDims <- function(gobject,
             BPPARAM = BPPARAM,
             ...
         )
-        pca_param$BSPARAM <- switch(BSPARAM,
-            "irlba" = BiocSingular::IrlbaParam(),
-            "exact" = BiocSingular::ExactParam(),
-            "random" = BiocSingular::RandomParam()
-        )
+        pca_param$BSPARAM <- if (inherits(BSPARAM, "BiocSingularParam")) {
+            BSPARAM
+        } else {
+            switch(BSPARAM,
+                "irlba" = BiocSingular::IrlbaParam(),
+                "exact" = BiocSingular::ExactParam(),
+                "random" = BiocSingular::RandomParam()
+            )
+        }
         if (set_seed) {
             gwith_seed(
                 seed = seed_number,
@@ -489,19 +499,26 @@ runPCA <- function(gobject,
     method <- match.arg(method, c("irlba", "exact", "random", "factominer"))
 
     if (reduction == "cells") {
-        # PCA on cells
+        # PCA on cells dispatched via reduceData -> pcaParam. Streaming
+        # backends (parquetExprStore in GiottoDisk) define their own
+        # setMethod on signature(., randomPcaParam) and inherit runPCA.
         if (method %in% c("irlba", "exact", "random")) {
-            pca_object <- .run_pca_biocsingular(
-                x = if (inherits(expr_values, "IterableMatrix")) expr_values else t_flex(expr_values),
-                center = center,
-                scale = scale_unit,
-                ncp = ncp,
-                rev = rev,
-                set_seed = set_seed,
-                seed_number = seed_number,
-                BSPARAM = method,
-                BPPARAM = method_params,
-                ...
+            pcaP <- pcaParam(
+                method        = method,
+                ncp           = ncp,
+                center        = center,
+                scale         = scale_unit,
+                feats_to_use  = NULL,   # already subsetted above
+                set_seed      = set_seed,
+                seed_number   = seed_number
+            )
+            reduce_res <- reduceData(expr_values, pcaP)
+            # Adapt to the legacy pca_object shape expected by downstream
+            # createDimObj: coords / loadings / eigenvalues.
+            pca_object <- list(
+                coords      = reduce_res$u,
+                loadings    = reduce_res$v,
+                eigenvalues = reduce_res$eigenvalues
             )
         } else if (method == "factominer") {
             pca_object <- .run_pca_factominer(

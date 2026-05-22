@@ -1766,6 +1766,16 @@ normalizeGiotto <- function(gobject,
 #' @param mymatrix matrix object
 #' @param scalefactor scalefactor
 #' @returns matrix
+#' Test whether a matrix-like backend is streaming (cannot densify)
+#' @keywords internal
+#' @noRd
+.is_streaming_backend <- function(x) {
+    # Currently only parquetExprStore (GiottoDisk) qualifies. Other
+    # backends (dgCMatrix, IterableMatrix, DelayedArray, dbMatrix) all
+    # support densification or in-place scale operations.
+    inherits(x, "parquetExprStore")
+}
+
 #' @keywords internal
 #' @noRd
 .lib_norm_giotto <- function(mymatrix, scalefactor) {
@@ -1902,22 +1912,35 @@ normalizeGiotto <- function(gobject,
     feat_names <- rownames(raw_expr[])
     col_names <- colnames(raw_expr[])
 
-    ## 1. library size normalize
+    ## Streaming-friendly backend (e.g. parquetExprStore) cannot be scaled
+    ## without densifying — surface that early with a clear message.
+    if (.is_streaming_backend(raw_expr[]) &&
+        (isTRUE(scale_feats) || isTRUE(scale_cells))) {
+        stop("[normalizeGiotto] expression backend `",
+             class(raw_expr[])[1L], "` does not support per-cell or ",
+             "per-gene z-score scaling because it densifies the matrix ",
+             "and breaks the streaming O(N*k) memory profile. Call ",
+             "normalizeGiotto(..., scale_feats = FALSE, scale_cells = FALSE) ",
+             "or convert to dgCMatrix first.", call. = FALSE)
+    }
+
+    ## 1. library size normalize  — routed through processData dispatch
+    ##    so streaming backends store JIT scale factors instead of
+    ##    rewriting data.
     if (isTRUE(library_size_norm)) {
-        norm_expr <- .lib_norm_giotto(
-            mymatrix = raw_expr[],
-            scalefactor = scalefactor
+        norm_expr <- processData(
+            raw_expr[],
+            normParam(method = "library", scalefactor = scalefactor)
         )
     } else {
         norm_expr <- raw_expr[]
     }
 
-    ## 2. log normalize
+    ## 2. log normalize  — same dispatch
     if (isTRUE(log_norm)) {
-        norm_expr <- .log_norm_giotto(
-            mymatrix = norm_expr,
-            base = logbase,
-            offset = log_offset
+        norm_expr <- processData(
+            norm_expr,
+            normParam(method = "log", base = logbase, offset = log_offset)
         )
     }
 

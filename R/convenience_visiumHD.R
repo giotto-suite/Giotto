@@ -22,7 +22,8 @@ setClass(
         pxl_subset_col = "nullOrNumeric",
         filter = "ANY",
         filter_coverage = "numeric",
-        calls = "list"
+        calls = "list",
+        paths = "list"
     ),
     prototype = list(
         bin = 8L,
@@ -36,7 +37,8 @@ setClass(
         pxl_subset_col = NULL,
         filter = NULL,
         filter_coverage = 0.5,
-        calls = list()
+        calls = list(),
+        paths = list()
     )
 )
 
@@ -406,29 +408,16 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
     }
 
     # detect paths and subdirs -------------------------------------------- #
-    p <- .Object@visiumhd_dir
-    
-    # test if provided directory has expected output structure
-    is_output <- .visiumhd_validate_output_dir(p,
-        bin = bin, expression_source = ex_src, warn = FALSE
+    # Stored on @paths so subclass init frames (e.g. VisiumHDDiskReader)
+    # can list2env() them in for their own closures without re-running
+    # detection.
+    .Object@paths <- .visiumhd_detect_paths(
+        .Object@visiumhd_dir, bin = bin, expression_source = ex_src
     )
-    if (is_output) {
-        binpath <- p # directly use if output dir structure match
-    } else {
-        # otherwise, check expected .tar or subdir naming
-        binpath <- .visiumhd_detect_output_dir(p, 
-            bin = bin, expression_source = ex_src
-        )
-    }
-    
-    # if it is a segmentation output directory
+    list2env(.Object@paths, envir = environment())
+
+    # is_seg / binpath2 derived from the stored paths
     is_seg <- .visiumhd_is_segmentation_output(binpath)
-    
-    if (!is_seg) {
-        binpath2 <- .visiumhd_detect_output_dir(p, 
-            bin = 2L, expression_source = ex_src
-        )
-    }
 
     # setup closures ------------------------------------------------------ #
     ## expression load call
@@ -975,6 +964,44 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
 
 # MODULAR ####
+
+## paths ####
+
+# Detect VisiumHD output paths within a directory. Returns a named list
+# of resolved paths (binpath, binpath2 -- the latter only when the
+# input isn't a segmentation output). Callers (the reader's initialize
+# and disk-subclass init frames) typically `list2env(paths, envir = ...)`
+# into the frame whose closures reference these names via default-arg
+# expressions.
+.visiumhd_detect_paths <- function(visiumhd_dir, bin,
+                                    expression_source = c("raw", "filtered")) {
+    if (length(visiumhd_dir) == 0L) return(list())
+    expression_source <- match.arg(expression_source)
+
+    # test if provided directory has expected output structure
+    is_output <- .visiumhd_validate_output_dir(
+        visiumhd_dir, bin = bin,
+        expression_source = expression_source, warn = FALSE
+    )
+    binpath <- if (is_output) {
+        visiumhd_dir
+    } else {
+        .visiumhd_detect_output_dir(visiumhd_dir,
+            bin = bin, expression_source = expression_source)
+    }
+
+    is_seg <- .visiumhd_is_segmentation_output(binpath)
+
+    out <- list(binpath = binpath)
+    if (!is_seg) {
+        out$binpath2 <- .visiumhd_detect_output_dir(
+            visiumhd_dir, bin = 2L,
+            expression_source = expression_source
+        )
+    }
+    out
+}
+
 
 .visiumhd_is_segmentation_output <- function(path) {
     p <- path[[1L]]

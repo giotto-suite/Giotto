@@ -105,9 +105,10 @@ describe("Integrative testing with merfish dataset", {
         expect_s4_class(slot(object@expression[["cell"]][["rna"]][["normalized"]], "exprMat"), "dgCMatrix")
         expect_true(all(slot(object@expression[["cell"]][["rna"]][["normalized"]], "exprMat")@Dim == c(161, 73655)))
         
-        # gobject now also contains S4 object of class "dgeMatrix" containing scaled expression
-        expect_s4_class(slot(object@expression[["cell"]][["rna"]][["scaled"]], "exprMat"), "dgeMatrix")
-        expect_true(all(slot(object@expression[["cell"]][["rna"]][["scaled"]], "exprMat")@Dim == c(161, 73655)))
+        # scaled expression is a ScaledMatrix (DelayedArray-backed) as of
+        # the analyzeData/reduceData verb split
+        expect_s4_class(slot(object@expression[["cell"]][["rna"]][["scaled"]], "exprMat"), "ScaledMatrix")
+        expect_true(all(dim(slot(object@expression[["cell"]][["rna"]][["scaled"]], "exprMat")) == c(161, 73655)))
     })
     
     
@@ -209,7 +210,7 @@ describe("Integrative testing with merfish dataset", {
     
     it("sNN S3 object is created as expected", {
         # igraph s3 object
-        expect_s3_class(slot(object@nn_network[["cell"]][["rna"]][["sNN"]][["sNN.pca"]], "igraph"), "igraph")
+        expect_s3_class(slot(object@nn_network[["cell"]][["rna"]][["sNN"]][["sNN.pca"]], "network"), "igraph")
     })
     
     # LEIDEN CLUSTERING

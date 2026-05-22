@@ -1154,12 +1154,11 @@ binSpectSingle <- function(
         )
     }
 
-    # convert to full network
+    # bidirectionalize canonical edges
     if (reduce_network == FALSE) {
-        spatial_network <- convert_to_full_spatial_network(spatial_network)
-        data.table::setnames(
-            spatial_network, c("source", "target"), c("from", "to")
-        )
+        rev <- data.table::copy(spatial_network)
+        data.table::setnames(rev, c("from", "to"), c("to", "from"))
+        spatial_network <- unique(rbind(spatial_network, rev))
     }
 
 

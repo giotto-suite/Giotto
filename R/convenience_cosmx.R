@@ -12,7 +12,8 @@ setClass(
         px2um = "numeric",
         poly_pref = "character",
         offsets = "ANY",
-        calls = "list"
+        calls = "list",
+        paths = "list"
     ),
     prototype = list(
         version = "default",
@@ -21,7 +22,8 @@ setClass(
         px2um = 0.12028, # from cosmx output help files
         poly_pref = "mask",
         offsets = NULL,
-        calls = list()
+        calls = list(),
+        paths = list()
     )
 )
 
@@ -234,24 +236,14 @@ setMethod(
         }
 
 
-        # detect paths and subdirs
-        p <- .Object@cosmx_dir
-        .cosmx_detect <- function(pattern) {
-            .detect_in_dir(pattern = pattern, path = p, platform = "CosMx")
-        }
+        # detect paths and subdirs. Stored on @paths so subclass init
+        # frames (e.g. CosMxDiskReader) can list2env() them in for their
+        # own closures without re-running detection.
+        .Object@paths <- .cosmx_detect_paths(.Object@cosmx_dir)
+        list2env(.Object@paths, envir = environment())
 
         v <- .Object@version
         if (v == "default") v <- "v6"
-
-        shifts_path <- .cosmx_detect("fov_positions_file")
-        meta_path <- .cosmx_detect("metadata_file")
-        tx_path <- .cosmx_detect("tx_file")
-        mask_dir <- .cosmx_detect("CellLabels")
-        poly_path <- .cosmx_detect("polygons")
-        expr_path <- .cosmx_detect("exprMat_file")
-        composite_img_dir <- .cosmx_detect("CellComposite")
-        overlay_img_dir <- .cosmx_detect("CellOverlay")
-        compart_img_dir <- .cosmx_detect("CompartmentLabels")
 
 
         # load fov offsets through one of several methods
@@ -666,6 +658,33 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
 
 # MODULAR ####
+
+## paths ####
+
+# Detect CosMx output file paths within a directory. Returns a named
+# list of resolved paths. Callers (the reader's initialize and disk-
+# subclass init frames) typically `list2env(paths, envir = environment())`
+# into the frame whose closures reference these names via default-arg
+# expressions.
+.cosmx_detect_paths <- function(cosmx_dir) {
+    if (length(cosmx_dir) == 0L) return(list())
+    .cosmx_detect <- function(pattern) {
+        .detect_in_dir(pattern = pattern, path = cosmx_dir,
+                       platform = "CosMx")
+    }
+    list(
+        shifts_path       = .cosmx_detect("fov_positions_file"),
+        meta_path         = .cosmx_detect("metadata_file"),
+        tx_path           = .cosmx_detect("tx_file"),
+        mask_dir          = .cosmx_detect("CellLabels"),
+        poly_path         = .cosmx_detect("polygons"),
+        expr_path         = .cosmx_detect("exprMat_file"),
+        composite_img_dir = .cosmx_detect("CellComposite"),
+        overlay_img_dir   = .cosmx_detect("CellOverlay"),
+        compart_img_dir   = .cosmx_detect("CompartmentLabels")
+    )
+}
+
 
 .cosmx_fov_shift <- function(path) {
     if (is.null(path)) return(NULL) # return early (empty case)

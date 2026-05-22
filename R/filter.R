@@ -329,22 +329,21 @@ filterCombinations <- function(gobject,
             min_feats_per_cell <- min_det_feats_per_cell[combn_i]
 
 
-            # first remove feats
-            filter_index_feats <- rowSums_flex(
-                expr_values >= threshold
-            ) >= min_cells_for_feat
-            removed_feats <- length(filter_index_feats[
-                filter_index_feats == FALSE
-            ])
+            # Two-stage filter via the same dispatch as filterGiotto:
+            #   filterData(x, filterParam(...))
+            # streams on parquetExprStore, inlines on dgCMatrix / Matrix /
+            # IterableMatrix. Output is list(feats_keep, cells_keep).
+            masks <- filterData(
+                expr_values,
+                filterParam(
+                    expression_threshold   = threshold,
+                    feat_det_in_min_cells  = min_cells_for_feat,
+                    min_det_feats_per_cell = min_feats_per_cell
+                )
+            )
+            removed_feats <- nrow(expr_values) - length(masks$feats_keep)
+            removed_cells <- ncol(expr_values) - length(masks$cells_keep)
             det_cells_res[[combn_i]] <- removed_feats
-
-            # then remove cells
-            filter_index_cells <- colSums_flex(expr_values[
-                filter_index_feats,
-            ] >= threshold) >= min_feats_per_cell
-            removed_cells <- length(filter_index_cells[
-                filter_index_cells == FALSE
-            ])
             det_feats_res[[combn_i]] <- removed_cells
         }
 
@@ -574,19 +573,31 @@ filterGiotto <- function(gobject,
     # 1. first remove genes that are not frequently detected
     # 2. then remove cells that do not have sufficient detected genes
 
-    ## filter features
-    filter_index_feats <- rowSums_flex(
-        expr_values >= expression_threshold
-    ) >= feat_det_in_min_cells
-    selected_feat_ids <- names(filter_index_feats[filter_index_feats == TRUE])
-
-
-
-    ## filter cells
-    filter_index_cells <- colSums_flex(expr_values[
-        filter_index_feats,
-    ] >= expression_threshold) >= min_det_feats_per_cell
-    selected_cell_ids <- names(filter_index_cells[filter_index_cells == TRUE])
+    ## Mask computation is dispatched on the expression backend via
+    ## filterData(x, filterParam). For dgCMatrix / Matrix / IterableMatrix
+    ## the default method runs Giotto's existing two-stage filter
+    ## (feature mask first, then cell mask using only kept features).
+    ## Streaming backends (parquetExprStore in GiottoDisk) provide their
+    ## own setMethod for the same generic.
+    .filter_masks <- filterData(
+        expr_values,
+        filterParam(
+            expression_threshold   = expression_threshold,
+            feat_det_in_min_cells  = feat_det_in_min_cells,
+            min_det_feats_per_cell = min_det_feats_per_cell
+        )
+    )
+    selected_feat_ids <- .filter_masks$feats_keep
+    selected_cell_ids <- .filter_masks$cells_keep
+    ## logical-vector forms still used by the tag_cells / tag_feats branches
+    filter_index_feats <- stats::setNames(
+        rownames(expr_values) %in% selected_feat_ids,
+        rownames(expr_values)
+    )
+    filter_index_cells <- stats::setNames(
+        colnames(expr_values) %in% selected_cell_ids,
+        colnames(expr_values)
+    )
 
 
 

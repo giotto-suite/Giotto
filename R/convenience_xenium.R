@@ -49,7 +49,7 @@ setClass(
 
 # * show ####
 setMethod("show", signature("XeniumReader"), function(object) {
-    cat(sprintf("Giotto <%s>\n", "XeniumReader"))
+    cat(sprintf("Giotto <%s>\n", class(object)[1L]))
     print_slots <- c("dir", "filetype", "qv_cutoff", "funs")
     pre <- sprintf(
         "%s :", format(print_slots)

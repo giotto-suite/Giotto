@@ -320,24 +320,14 @@ addFeatStatistics <- function(gobject,
         set_defaults = FALSE
     )
 
-    # calculate stats
-    feat_stats <- data.table::data.table(
-        feats = rownames(expr_data[]),
-        nr_cells = rowSums_flex(expr_data[] > detection_threshold),
-        perc_cells = (rowSums_flex(expr_data[] > detection_threshold) /
-            ncol(expr_data[])) * 100,
-        total_expr = rowSums_flex(expr_data[]),
-        mean_expr = rowMeans_flex(expr_data[])
-    )
-
-    # data.table variables
-    mean_expr_det <- NULL
-
-    mean_expr_detected <- .mean_expr_det_test(
+    # calculate stats via analyzeData dispatch (includes mean_expr_det).
+    # Streaming backends (parquetExprStore in GiottoDisk) define their own
+    # setMethod on signature(., featStatsParam) and inherit this user-
+    # facing API for free.
+    feat_stats <- analyzeData(
         expr_data[],
-        detection_threshold = detection_threshold
+        analyzeParam("feat_stats", detection_threshold = detection_threshold)
     )
-    feat_stats[, mean_expr_det := mean_expr_detected]
 
 
     if (return_gobject == TRUE) {
@@ -491,14 +481,13 @@ addCellStatistics <- function(gobject,
         set_defaults = FALSE
     )
 
-    # calculate stats
-
-    cell_stats <- data.table::data.table(
-        cells = colnames(expr_data[]),
-        nr_feats = colSums_flex(expr_data[] > detection_threshold),
-        perc_feats = (colSums_flex(expr_data[] > detection_threshold) /
-            nrow(expr_data[])) * 100,
-        total_expr = colSums_flex(expr_data[])
+    # calculate stats via analyzeData dispatch -- streaming backends
+    # (parquetExprStore in GiottoDisk) define their own setMethod on
+    # signature(., cellStatsParam) and inherit this user-facing API for
+    # free.
+    cell_stats <- analyzeData(
+        expr_data[],
+        analyzeParam("cell_stats", detection_threshold = detection_threshold)
     )
 
     if (return_gobject == TRUE) {
@@ -891,10 +880,13 @@ findNetworkNeighbors <- function(gobject,
     }
 
 
-    full_network_DT <- convert_to_full_spatial_network(spatial_network)
+    # bidirectionalize canonical edges so any cell can appear as `from`
+    rev <- data.table::copy(spatial_network)
+    data.table::setnames(rev, c("from", "to"), c("to", "from"))
+    full_network_DT <- unique(rbind(spatial_network, rev))
     potential_target_cells <- full_network_DT[
-        source %in% source_cells
-    ][["target"]]
+        from %in% source_cells
+    ][["to"]]
     source_and_target_cells <- potential_target_cells[
         potential_target_cells %in% source_cells
     ]
