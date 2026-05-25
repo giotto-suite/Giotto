@@ -725,7 +725,11 @@ setMethod("analyzeData",
         nr_groups <- param$nr_expression_groups
         det_thresh <- param$detection_threshold
 
-        calc_fun <- if (isTRUE(param$use_parallel)) {
+        # BPCells already streams in C++ with internal threading; R-level
+        # chunking via future_lapply re-opens the file per worker and is a
+        # net loss for IterableMatrix.
+        calc_fun <- if (isTRUE(param$use_parallel) &&
+                        !inherits(x, "IterableMatrix")) {
             .calc_expr_cov_stats_parallel
         } else {
             .calc_expr_cov_stats
@@ -760,7 +764,11 @@ setMethod("analyzeData",
         pred_cov <- cov_diff <- NULL
         det_thresh <- param$detection_threshold
 
-        calc_fun <- if (isTRUE(param$use_parallel)) {
+        # BPCells already streams in C++ with internal threading; R-level
+        # chunking via future_lapply re-opens the file per worker and is a
+        # net loss for IterableMatrix.
+        calc_fun <- if (isTRUE(param$use_parallel) &&
+                        !inherits(x, "IterableMatrix")) {
             .calc_expr_cov_stats_parallel
         } else {
             .calc_expr_cov_stats
