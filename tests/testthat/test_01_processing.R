@@ -67,6 +67,33 @@ test_that("highly variable gene detections - pearson resid", {
     checkmate::expect_character(fDataDT(g)$hvf)
 })
 
+test_that("var_p_resid row variance matches base variance on Giotto matrices", {
+    rlang::local_options(lifecycle_verbosity = "quiet")
+
+    g_var <- normalizeGiotto(
+        gobject = g,
+        feat_type = "rna",
+        scalefactor = 5000,
+        verbose = FALSE,
+        norm_methods = "pearson_resid",
+        update_slot = "pearson"
+    )
+
+    pearson_mat <- getExpression(
+        g_var,
+        spat_unit = "cell",
+        feat_type = "rna",
+        values = "pearson",
+        output = "matrix"
+    )
+
+    expect_equal(
+        .rowVars_flex(pearson_mat),
+        apply(pearson_mat, 1, stats::var),
+        tolerance = 1e-12
+    )
+})
+
 
 # statistics ####
 

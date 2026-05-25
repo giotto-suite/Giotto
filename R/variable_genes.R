@@ -114,6 +114,24 @@ setClass("varParam", contains = "analyzeParam")
 }
 
 
+# Vectorized rowVars helper following flex function convention from GiottoClass
+.rowVars_flex <- function(mymatrix, ...) {
+    if (inherits(mymatrix, "DelayedArray")) {
+        return(DelayedMatrixStats::rowVars(mymatrix, ...))
+    } else if (inherits(mymatrix, "dgCMatrix")) {
+        return(sparseMatrixStats::rowVars(mymatrix, ...))
+    } else if (inherits(mymatrix, "Matrix")) {
+        # For other Matrix types, use sparseMatrixStats
+        return(sparseMatrixStats::rowVars(as(mymatrix, "dgCMatrix"), ...))
+    } else if (inherits(mymatrix, "dbMatrix")) {
+        # dbMatrix exports rowVars via MatrixGenerics
+        return(dbMatrix::rowVars(mymatrix))
+    } else {
+        return(apply(mymatrix, 1, stats::var, ...))
+    }
+}
+
+
 .calc_expr_general_stats <- function(expr_values, expression_threshold,
                                      calc_gini = TRUE) {
     # NSE vars
