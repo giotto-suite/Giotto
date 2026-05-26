@@ -284,8 +284,8 @@ NULL
 #' \code{\link[GiottoClass]{createGiottoInstructions}}
 #' @param cores how many cores or threads to use to read data if paths are
 #' provided
-#' @param expression_matrix_class class of expression matrix to use
-#' (e.g. "dgCMatrix", "DelayedArray")
+#' @param expression_matrix_class deprecated. See
+#'   [GiottoClass::createExprObj] for details
 #' @param h5_file optional path to create an on-disk h5 file
 #' @param verbose be verbose
 #'
@@ -330,7 +330,7 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
     ymax_adj = 0, # deprecated
     ymin_adj = 0, # deprecated
     instructions = NULL,
-    expression_matrix_class = c("dgCMatrix", "DelayedArray"),
+    expression_matrix_class = deprecated(),
     h5_file = NULL,
     cores = NA,
     verbose = NULL) {
@@ -347,6 +347,14 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
         ymax_adj != 0 ||
         ymin_adj != 0) {
         stop(wrap_txt(img_dep_msg))
+    }
+
+    if (!missing(expression_matrix_class)) {
+        deprecate_warn(
+            "4.2.5",
+            "createGiottoVisiumObject(expression_matrix_class)",
+            details = "See `?GiottoClass::createExprObj` for details."
+        )
     }
 
     # set number of cores automatically, but with limit of 10
@@ -376,7 +384,6 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
 
     # additional args to pass to object creation
     argslist$verbose <- verbose
-    argslist$expression_matrix_class <- expression_matrix_class
     argslist$h5_file <- h5_file
     argslist$instructions <- instructions
 
@@ -401,7 +408,6 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
         scale_json_path = NULL,
         png_name = NULL,
         instructions = NULL,
-        expression_matrix_class = c("dgCMatrix", "DelayedArray"),
         h5_file = NULL,
         verbose = NULL) {
     # NSE vars
