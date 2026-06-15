@@ -151,8 +151,6 @@ GiottoClass::calculateOverlapSerial
 #' @export
 GiottoClass::calculateSpatCellMetadataProportions
 #' @export
-GiottoClass::changeGiottoInstructions
-#' @export
 GiottoClass::changeImageBg
 #' @export
 GiottoClass::checkGiottoEnvironment
@@ -333,8 +331,6 @@ GiottoClass::readFeatData
 #' @export
 GiottoClass::readFeatMetadata
 #' @export
-GiottoClass::readGiottoInstructions
-#' @export
 GiottoClass::readNearestNetData
 #' @export
 GiottoClass::readPolygonData
@@ -354,8 +350,6 @@ GiottoClass::removeCellAnnotation
 GiottoClass::removeFeatAnnotation
 #' @export
 GiottoClass::removeGiottoEnvironment
-#' @export
-GiottoClass::replaceGiottoInstructions
 #' @export
 GiottoClass::rescalePolygons
 #' @export
@@ -404,8 +398,6 @@ GiottoClass::showGiottoFeatInfo
 GiottoClass::showGiottoFeatMetadata
 #' @export
 GiottoClass::showGiottoImageNames
-#' @export
-GiottoClass::showGiottoInstructions
 #' @export
 GiottoClass::showGiottoNearestNetworks
 #' @export

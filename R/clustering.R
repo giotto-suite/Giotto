@@ -1338,7 +1338,7 @@ doGiottoClustree <- function(
     ## check or make paths
     # python path
     if (is.null(python_path)) {
-        python_path <- readGiottoInstructions(gobject, param = "python_path")
+        python_path <- instructions(gobject, "python_path")
     }
 
     # prepare python path and louvain script

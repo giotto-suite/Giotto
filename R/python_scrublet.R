@@ -63,7 +63,7 @@ doScrubletDetect <- function(
     https://doi.org/10.1016/j.cels.2018.11.005")
 
     # prepare python path and scrublet_script
-    python_path <- readGiottoInstructions(gobject, param = "python_path")
+    python_path <- instructions(gobject, "python_path")
     reticulate::use_python(required = TRUE, python = python_path)
     python_scrublet_function <- system.file(
         "python", "python_scrublet.py",

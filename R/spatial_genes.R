@@ -1683,7 +1683,7 @@ silhouetteRank <- function(
 
     # python path
     if (is.null(python_path)) {
-        python_path <- readGiottoInstructions(gobject, param = "python_path")
+        python_path <- instructions(gobject, "python_path")
     }
 
     ## prepare python path and louvain script
@@ -1816,7 +1816,7 @@ silhouetteRankTest <- function(
 
     ## save dir and log
     if (is.null(output)) {
-        save_dir <- readGiottoInstructions(gobject, param = "save_dir")
+        save_dir <- instructions(gobject, "save_dir")
         silh_output_dir <- paste0(save_dir, "/", "silhouetteRank_output/")
         if (!file.exists(silh_output_dir)) {
             dir.create(
@@ -1883,7 +1883,7 @@ silhouetteRankTest <- function(
     expr_values_path <- paste0(silh_output_dir, "/", "expression.txt")
 
     ## prepare python path and louvain script
-    python_path <- readGiottoInstructions(gobject, param = "python_path")
+    python_path <- instructions(gobject, "python_path")
     reticulate::use_python(required = TRUE, python = python_path)
     python_silh_function <- system.file(
         "python", "silhouette_rank_wrapper.py",
@@ -2021,7 +2021,7 @@ spatialDE <- function(
 
     ## python path
     if (is.null(python_path)) {
-        python_path <- readGiottoInstructions(gobject, param = "python_path")
+        python_path <- instructions(gobject, "python_path")
     }
 
     ## source python file
@@ -2062,18 +2062,9 @@ spatialDE <- function(
 
 
     # print, return and save parameters
-    show_plot <- ifelse(is.na(show_plot), readGiottoInstructions(
-        gobject,
-        param = "show_plot"
-    ), show_plot)
-    save_plot <- ifelse(is.na(save_plot), readGiottoInstructions(
-        gobject,
-        param = "save_plot"
-    ), save_plot)
-    return_plot <- ifelse(is.na(return_plot), readGiottoInstructions(
-        gobject,
-        param = "return_plot"
-    ), return_plot)
+    show_plot <- ifelse(is.na(show_plot), instructions(gobject, "show_plot"), show_plot)
+    save_plot <- ifelse(is.na(save_plot), instructions(gobject, "save_plot"), save_plot)
+    return_plot <- ifelse(is.na(return_plot), instructions(gobject, "return_plot"), return_plot)
 
     ## create plot
     if (isTRUE(show_plot) ||
@@ -2175,7 +2166,7 @@ spatialAEH <- function(
 
     ## python path
     if (is.null(python_path)) {
-        python_path <- readGiottoInstructions(gobject, param = "python_path")
+        python_path <- instructions(gobject, "python_path")
     }
 
     ## source python file
