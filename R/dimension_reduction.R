@@ -429,7 +429,7 @@ runPCA <- function(gobject,
     center = TRUE,
     scale_unit = TRUE,
     ncp = 100,
-    method = c("irlba", "exact", "random", "factominer"),
+    method = c("auto", "irlba", "exact", "random", "factominer"),
     method_params = BiocParallel::SerialParam(),
     rev = FALSE,
     set_seed = TRUE,
@@ -496,13 +496,15 @@ runPCA <- function(gobject,
     reduction <- match.arg(reduction, c("cells", "feats"))
 
     # PCA implementation
-    method <- match.arg(method, c("irlba", "exact", "random", "factominer"))
+    method <- match.arg(method,
+        c("auto", "irlba", "exact", "random", "factominer"))
 
     if (reduction == "cells") {
-        # PCA on cells dispatched via reduceData -> pcaParam. Streaming
-        # backends (parquetExprStore in GiottoDisk) define their own
-        # setMethod on signature(., randomPcaParam) and inherit runPCA.
-        if (method %in% c("irlba", "exact", "random")) {
+        # PCA on cells dispatched via reduceData -> pcaParam. "auto"
+        # builds an autoPcaParam whose reduceData method resolves the
+        # concrete flavor via recommendPcaParam(x, param) per substrate:
+        # in-memory -> irlba, parquetExprStore -> random, etc.
+        if (method %in% c("auto", "irlba", "exact", "random")) {
             pcaP <- pcaParam(
                 method        = method,
                 ncp           = ncp,
