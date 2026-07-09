@@ -97,3 +97,26 @@ test_that("reduceData(dense_matrix, autoPcaParam) works via allMatrix inheritanc
         ignore.order = TRUE)
     expect_equal(length(res$d), 5L)
 })
+
+
+# ANY fallback ####
+# For substrates that don't register their own reduceData(x,
+# autoPcaParam) method, the ANY fallback emits a warning and routes to
+# IRLBA. Better than a cryptic S4 dispatch error, but signals that the
+# substrate should register a proper method.
+
+test_that("reduceData(ANY, autoPcaParam) warns and falls back to irlba", {
+    setClass("noAutoRouting", representation(x = "matrix"))
+    on.exit(removeClass("noAutoRouting"), add = TRUE)
+    x <- new("noAutoRouting",
+        x = as.matrix(.tiny_dgc(n_genes = 20, n_cells = 40, seed = 5)))
+
+    expect_warning(
+        res <- reduceData(x, pcaParam("auto", ncp = 5,
+            center = TRUE, scale = FALSE,
+            set_seed = TRUE, seed_number = 42L,
+            dry_run = TRUE)),
+        "no substrate-specific auto routing registered"
+    )
+    expect_s4_class(res, "irlbaPcaParam")
+})

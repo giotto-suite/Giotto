@@ -120,16 +120,44 @@ pcaParam <- function(method        = c("auto", "random", "irlba", "exact"),
 
 # ---- reduceData for autoPcaParam -----------------------------------------
 # Each substrate registers its own method here to encode the routing
-# choice. Default (allMatrix) picks IRLBA. Substrates in other packages
-# (GiottoDisk::parquetExprStore) register their own method with the
-# substrate-appropriate choice, calling `pcaParam()` directly to
-# construct the concrete flavor. Set `dry_run = TRUE` on the param to
-# return the resolved concrete pcaParam instead of running PCA.
+# choice. `allMatrix` covers the in-memory family (matrix / Matrix /
+# DelayedArray / IterableMatrix) with IRLBA. Substrates in other
+# packages (GiottoDisk::parquetExprStore) register their own method.
+# The `ANY` fallback catches unregistered substrates with a warning +
+# IRLBA -- last-resort routing that surfaces the "missing method"
+# rather than a cryptic dispatch error, while still trying something
+# sensible. Set `dry_run = TRUE` on the param to return the resolved
+# concrete pcaParam instead of running PCA.
 
 #' @rdname reduceData
 setMethod("reduceData",
     signature(x = "allMatrix", param = "autoPcaParam"),
     function(x, param, ...) {
+        resolved <- pcaParam(
+            method        = "irlba",
+            ncp           = param$ncp,
+            center        = param$center,
+            scale         = param$scale,
+            feats_to_use  = param$feats_to_use,
+            n_oversamples = param$n_oversamples,
+            n_power_iter  = param$n_power_iter,
+            set_seed      = param$set_seed,
+            seed_number   = param$seed_number
+        )
+        if (isTRUE(param$dry_run)) return(resolved)
+        reduceData(x, resolved, ...)
+    }
+)
+
+#' @rdname reduceData
+setMethod("reduceData",
+    signature(x = "ANY", param = "autoPcaParam"),
+    function(x, param, ...) {
+        warning("[reduceData(", class(x)[1L], ", autoPcaParam)] no ",
+            "substrate-specific auto routing registered for '",
+            class(x)[1L], "'; falling back to method = \"irlba\". ",
+            "Register a `reduceData(<class>, autoPcaParam)` method to ",
+            "silence this warning.", call. = FALSE)
         resolved <- pcaParam(
             method        = "irlba",
             ncp           = param$ncp,
