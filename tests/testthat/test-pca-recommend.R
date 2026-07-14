@@ -1,13 +1,6 @@
-# Tests for the pcaParam auto-selection layer:
-#   pcaParam("auto")           -> autoPcaParam sentinel
-#   reduceData(x, autoPcaParam) -> resolves per substrate, then runs PCA
-#   pcaParam("auto", dry_run = TRUE) + reduceData(x, param)
-#                              -> returns the resolved concrete pcaParam
-#                                 without running PCA (inspection / test)
-#
-# The default (in-memory) resolution is IRLBA. Substrates in other
-# packages (GiottoDisk::parquetExprStore) register their own reduceData
-# method with the substrate-appropriate choice.
+# Tests for pcaParam("auto") + autoPcaParam routing. allMatrix defaults
+# to IRLBA; substrates in other packages register their own method.
+# dry_run = TRUE returns the resolved concrete pcaParam.
 
 .tiny_dgc <- function(n_genes = 40L, n_cells = 200L, seed = 1L) {
     set.seed(seed)
@@ -99,11 +92,7 @@ test_that("reduceData(dense_matrix, autoPcaParam) works via allMatrix inheritanc
 })
 
 
-# ANY fallback ####
-# For substrates that don't register their own reduceData(x,
-# autoPcaParam) method, the ANY fallback emits a warning and routes to
-# IRLBA. Better than a cryptic S4 dispatch error, but signals that the
-# substrate should register a proper method.
+# ANY fallback: unregistered substrates warn + route to IRLBA.
 
 test_that("reduceData(ANY, autoPcaParam) warns and falls back to irlba", {
     setClass("noAutoRouting", representation(x = "matrix"))
