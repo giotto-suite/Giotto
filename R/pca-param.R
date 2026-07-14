@@ -133,17 +133,11 @@ pcaParam <- function(method        = c("auto", "random", "irlba", "exact"),
 setMethod("reduceData",
     signature(x = "allMatrix", param = "autoPcaParam"),
     function(x, param, ...) {
-        resolved <- pcaParam(
-            method        = "irlba",
-            ncp           = param$ncp,
-            center        = param$center,
-            scale         = param$scale,
-            feats_to_use  = param$feats_to_use,
-            n_oversamples = param$n_oversamples,
-            n_power_iter  = param$n_power_iter,
-            set_seed      = param$set_seed,
-            seed_number   = param$seed_number
-        )
+        knobs <- as.list(param@param)
+        knobs$method  <- NULL   # auto sentinel; concrete factory sets it
+        knobs$dry_run <- NULL   # not a concrete-flavor arg
+        resolved <- do.call(pcaParam,
+            c(list(method = "irlba"), knobs))
         if (isTRUE(param$dry_run)) return(resolved)
         reduceData(x, resolved, ...)
     }
@@ -158,17 +152,11 @@ setMethod("reduceData",
             class(x)[1L], "'; falling back to method = \"irlba\". ",
             "Register a `reduceData(<class>, autoPcaParam)` method to ",
             "silence this warning.", call. = FALSE)
-        resolved <- pcaParam(
-            method        = "irlba",
-            ncp           = param$ncp,
-            center        = param$center,
-            scale         = param$scale,
-            feats_to_use  = param$feats_to_use,
-            n_oversamples = param$n_oversamples,
-            n_power_iter  = param$n_power_iter,
-            set_seed      = param$set_seed,
-            seed_number   = param$seed_number
-        )
+        knobs <- as.list(param@param)
+        knobs$method  <- NULL
+        knobs$dry_run <- NULL
+        resolved <- do.call(pcaParam,
+            c(list(method = "irlba"), knobs))
         if (isTRUE(param$dry_run)) return(resolved)
         reduceData(x, resolved, ...)
     }
