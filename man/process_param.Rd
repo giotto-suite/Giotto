@@ -27,6 +27,7 @@
 \alias{irlbaPcaParam-class}
 \alias{exactPcaParam-class}
 \alias{randomPcaParam-class}
+\alias{autoPcaParam-class}
 \alias{pcaParam}
 \title{Data Processing Parameter Classes}
 \usage{
@@ -47,7 +48,7 @@ filterParam(
 )
 
 pcaParam(
-  method = c("random", "irlba", "exact"),
+  method = c("auto", "random", "irlba", "exact"),
   ncp = 50L,
   center = TRUE,
   scale = TRUE,
@@ -56,11 +57,16 @@ pcaParam(
   n_power_iter = 2L,
   set_seed = TRUE,
   seed_number = 1234L,
+  dry_run = FALSE,
   ...
 )
 }
 \arguments{
-\item{method}{one of `"random"`, `"irlba"`, `"exact"`.}
+\item{method}{one of `"auto"`, `"random"`, `"irlba"`, `"exact"`.
+`"auto"` defers the choice to the substrate: in-memory backends
+resolve to `"irlba"`; streaming backends (`parquetExprStore` in
+GiottoDisk) resolve to `"random"` / `"gram-eigen"` per their own
+heuristics.}
 
 \item{\dots}{(optional) Additional named parameters relevant to the param
 class.}
@@ -95,6 +101,11 @@ Default `2`.}
 \item{set_seed}{logical. Default `TRUE`.}
 
 \item{seed_number}{integer. Default `1234`.}
+
+\item{dry_run}{logical. Only meaningful when `method = "auto"`. When
+`TRUE`, `reduceData(x, param)` returns the substrate-resolved
+concrete `pcaParam` instead of running PCA. Useful for inspecting
+or testing the substrate's method selection. Default `FALSE`.}
 
 \item{...}{reserved.}
 }
@@ -180,6 +191,9 @@ p <- filterParam(expression_threshold = 1,
                   feat_det_in_min_cells = 5,
                   min_det_feats_per_cell = 3)
 p <- pcaParam("random", ncp = 30)
+p_auto <- pcaParam("auto", ncp = 30)  # substrate picks the flavor
+# Inspect the substrate's choice without running PCA:
+# reduceData(x, pcaParam("auto", dry_run = TRUE))
 }
 \seealso{
 \code{\link[=processData]{processData()}} for the generic used to apply these params

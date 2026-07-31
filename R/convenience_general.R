@@ -1504,11 +1504,11 @@ NULL
         images_filenames   <- list.files(dir_items$`image info`, pattern = ".tif")
         bound_stains_types <- unique(sapply(strsplit(images_filenames, "_"), `[`, 2))
 
-        data_list$images <- GiottoUtils:::lapply_flex(bound_stains_types, function(stype) {
+        data_list$images <- GiottoUtils::lapply_flex(bound_stains_types, function(stype) {
             img_paths <- Sys.glob(paths = file.path(
                 dir_items$`image info`, paste0("*", stype, "*")
             ))
-            GiottoUtils:::lapply_flex(img_paths, createGiottoLargeImage, cores = cores)
+            GiottoUtils::lapply_flex(img_paths, createGiottoLargeImage, cores = cores)
         }, cores = cores)
     }
 

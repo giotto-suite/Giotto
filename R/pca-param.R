@@ -30,6 +30,15 @@ setClass("exactPcaParam", contains = "pcaParam")
 #' @exportClass randomPcaParam
 setClass("randomPcaParam", contains = "pcaParam")
 
+# Auto sentinel: routes to a substrate-recommended concrete flavor at
+# reduceData dispatch. Users construct via `pcaParam("auto", ...)`; the
+# `reduceData(x, autoPcaParam)` method resolves to a concrete flavor
+# based on `class(x)` and either dispatches (default) or returns the
+# resolved param (`dry_run = TRUE`).
+#' @rdname process_param
+#' @exportClass autoPcaParam
+setClass("autoPcaParam", contains = "pcaParam")
+
 
 # ---- Factory ---------------------------------------------------------------
 
@@ -43,7 +52,11 @@ setClass("randomPcaParam", contains = "pcaParam")
 #' Returns a list with `u`, `d`, `v`, and `sdev` when passed to
 #' `reduceData()`.
 #'
-#' @param method one of `"random"`, `"irlba"`, `"exact"`.
+#' @param method one of `"auto"`, `"random"`, `"irlba"`, `"exact"`.
+#'   `"auto"` defers the choice to the substrate: in-memory backends
+#'   resolve to `"irlba"`; streaming backends (`parquetExprStore` in
+#'   GiottoDisk) resolve to `"random"` / `"gram-eigen"` per their own
+#'   heuristics.
 #' @param ncp number of components. Default `50`.
 #' @param center logical. Center columns. Default `TRUE`.
 #' @param scale logical. Scale columns by SD. Default `TRUE`. Streaming
@@ -57,12 +70,19 @@ setClass("randomPcaParam", contains = "pcaParam")
 #'   Default `2`.
 #' @param set_seed logical. Default `TRUE`.
 #' @param seed_number integer. Default `1234`.
+#' @param dry_run logical. Only meaningful when `method = "auto"`. When
+#'   `TRUE`, `reduceData(x, param)` returns the substrate-resolved
+#'   concrete `pcaParam` instead of running PCA. Useful for inspecting
+#'   or testing the substrate's method selection. Default `FALSE`.
 #' @param ... reserved.
 #' @return Concrete `pcaParam` subclass object.
 #' @examples
 #' p <- pcaParam("random", ncp = 30)
+#' p_auto <- pcaParam("auto", ncp = 30)  # substrate picks the flavor
+#' # Inspect the substrate's choice without running PCA:
+#' # reduceData(x, pcaParam("auto", dry_run = TRUE))
 #' @export
-pcaParam <- function(method        = c("random", "irlba", "exact"),
+pcaParam <- function(method        = c("auto", "random", "irlba", "exact"),
                       ncp           = 50L,
                       center        = TRUE,
                       scale         = TRUE,
@@ -71,9 +91,12 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
                       n_power_iter  = 2L,
                       set_seed      = TRUE,
                       seed_number   = 1234L,
+                      dry_run       = FALSE,
                       ...) {
-    method <- match.arg(tolower(method), c("random", "irlba", "exact"))
+    method <- match.arg(tolower(method),
+        c("auto", "random", "irlba", "exact"))
     cls <- switch(method,
+        "auto"   = "autoPcaParam",
         "random" = "randomPcaParam",
         "irlba"  = "irlbaPcaParam",
         "exact"  = "exactPcaParam")
@@ -87,8 +110,57 @@ pcaParam <- function(method        = c("random", "irlba", "exact"),
     p$n_power_iter  <- as.integer(n_power_iter)
     p$set_seed      <- isTRUE(set_seed)
     p$seed_number   <- as.integer(seed_number)
+    # dry_run is autoPcaParam-only: concrete flavors don't have this
+    # concept (they always execute). Keeping it out of concrete flavors
+    # avoids ambiguity when a resolved param is inspected downstream.
+    if (identical(method, "auto")) p$dry_run <- isTRUE(dry_run)
     p
 }
+
+
+# ---- reduceData for autoPcaParam -----------------------------------------
+# Each substrate registers its own method here to encode the routing
+# choice. `allMatrix` covers the in-memory family (matrix / Matrix /
+# DelayedArray / IterableMatrix) with IRLBA. Substrates in other
+# packages (GiottoDisk::parquetExprStore) register their own method.
+# The `ANY` fallback catches unregistered substrates with a warning +
+# IRLBA -- last-resort routing that surfaces the "missing method"
+# rather than a cryptic dispatch error, while still trying something
+# sensible. Set `dry_run = TRUE` on the param to return the resolved
+# concrete pcaParam instead of running PCA.
+
+#' @rdname reduceData
+setMethod("reduceData",
+    signature(x = "allMatrix", param = "autoPcaParam"),
+    function(x, param, ...) {
+        knobs <- as.list(param@param)
+        knobs$method  <- NULL   # auto sentinel; concrete factory sets it
+        knobs$dry_run <- NULL   # not a concrete-flavor arg
+        resolved <- do.call(pcaParam,
+            c(list(method = "irlba"), knobs))
+        if (isTRUE(param$dry_run)) return(resolved)
+        reduceData(x, resolved, ...)
+    }
+)
+
+#' @rdname reduceData
+setMethod("reduceData",
+    signature(x = "ANY", param = "autoPcaParam"),
+    function(x, param, ...) {
+        warning("[reduceData(", class(x)[1L], ", autoPcaParam)] no ",
+            "substrate-specific auto routing registered for '",
+            class(x)[1L], "'; falling back to method = \"irlba\". ",
+            "Register a `reduceData(<class>, autoPcaParam)` method to ",
+            "silence this warning.", call. = FALSE)
+        knobs <- as.list(param@param)
+        knobs$method  <- NULL
+        knobs$dry_run <- NULL
+        resolved <- do.call(pcaParam,
+            c(list(method = "irlba"), knobs))
+        if (isTRUE(param$dry_run)) return(resolved)
+        reduceData(x, resolved, ...)
+    }
+)
 
 
 # ---- Default methods on allMatrix ------------------------------------------

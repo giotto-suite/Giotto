@@ -16,7 +16,7 @@ runPCA(
   center = TRUE,
   scale_unit = TRUE,
   ncp = 100,
-  method = c("irlba", "exact", "random", "factominer"),
+  method = c("auto", "irlba", "exact", "random", "factominer"),
   method_params = BiocParallel::SerialParam(),
   rev = FALSE,
   set_seed = TRUE,
