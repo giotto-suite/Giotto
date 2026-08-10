@@ -589,6 +589,11 @@ addCellStatistics <- function(gobject,
 #' @param detection_threshold detection threshold to consider a feature detected
 #' @param return_gobject boolean: return giotto object (default = TRUE)
 #' @param verbose be verbose
+#' @param \dots additional params passed to [expanse()] when `stats` includes
+#'   `"area"`. Most useful is `engine`: on a disk-backed polygon store,
+#'   `engine = "sedona"` computes areas with a single `ST_Area` query instead
+#'   of tiling, which avoids a large fan-out cost when a parallel `future`
+#'   plan is set.
 #' @returns giotto object if return_gobject = TRUE, else a list with results
 #' @details
 #' # `stats` options
@@ -608,7 +613,8 @@ addStatistics <- function(gobject,
     expression_values = c("normalized", "scaled", "custom"),
     detection_threshold = 0,
     return_gobject = TRUE,
-    verbose = TRUE) {
+    verbose = TRUE,
+    ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -675,7 +681,8 @@ addStatistics <- function(gobject,
         poly_stats <- .add_poly_statistics(gobject,
             spat_unit = spat_unit,
             stats = stats,
-            return_gobject = return_gobject
+            return_gobject = return_gobject,
+            ...
         )
         if (isTRUE(return_gobject)) {
             gobject <- poly_stats
@@ -786,7 +793,8 @@ addFeatsPerc <- function(gobject,
 .add_poly_statistics <- function(gobject,
     spat_unit = "cell",
     stats = c("area"),
-    return_gobject = TRUE
+    return_gobject = TRUE,
+    ...
 ) {
     stat_choices <- c("area")
     stats <- match.arg(
@@ -802,7 +810,7 @@ addFeatsPerc <- function(gobject,
         else return(data.table::data.table(cell_ID = spatIDs(gobject)))
     }
     res_dt <- if ("area" %in% stats) {
-        expanse(gpoly, output = "data.table")
+        expanse(gpoly, output = "data.table", ...)
     } else {
         data.table::data.table(cell_ID = spatIDs(gobject))
     }
