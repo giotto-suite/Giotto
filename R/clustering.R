@@ -1101,6 +1101,7 @@ doLeidenClusterPython <- function(
 #' @param return_gobject boolean: return giotto object (default = TRUE)
 #' @param set_seed set seed
 #' @param seed_number number for seed
+#' @param verbose verbosity of function
 #' @inheritDotParams igraph::cluster_leiden -graph -objective_function
 #' -resolution_parameter -beta -weights -initial_membership -n_iterations
 #' -resolution
@@ -1136,10 +1137,12 @@ doLeidenClusterIgraph <- function(
         return_gobject = TRUE,
         set_seed = TRUE,
         seed_number = 1234,
+        verbose = NULL,
         ...) {
     # notify of breaking change
     if (getOption("giotto.warn_leiden_change", TRUE)) {
         vmsg(
+            .v = verbose,
             "As of Giotto 4.2.3 doLeidenCluster() works via {igraph}
             For the python implementation, use doLeidenClusterPython()
             This message appears once per session."
