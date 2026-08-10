@@ -12,7 +12,8 @@ addStatistics(
   expression_values = c("normalized", "scaled", "custom"),
   detection_threshold = 0,
   return_gobject = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  ...
 )
 }
 \arguments{
@@ -32,6 +33,12 @@ default = c("cell", "feature") See details}
 \item{return_gobject}{boolean: return giotto object (default = TRUE)}
 
 \item{verbose}{be verbose}
+
+\item{\dots}{additional params passed to \code{\link[terra:expanse]{expanse()}} when \code{stats} includes
+\code{"area"}. Most useful is \code{engine}: on a disk-backed polygon store,
+\code{engine = "sedona"} computes areas with a single \code{ST_Area} query instead
+of tiling, which avoids a large fan-out cost when a parallel \code{future}
+plan is set.}
 }
 \value{
 giotto object if return_gobject = TRUE, else a list with results

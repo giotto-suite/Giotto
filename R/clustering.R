@@ -492,7 +492,18 @@ setMethod("clusterData", signature("nnNetObj", "NNClusParam"), function(x, param
     seed_number = 1234,
     output = c("data.table", "factor"),
     ...) {
-    clusterData(x[], 
+    net <- x[]
+
+    # A disk-backed network holds a store, not an igraph. Materialize a
+    # minimal igraph for the partition -- the graph is only n x k edges, so
+    # it fits even when the expression matrix does not.
+    if (inherits(net, "dataStore")) {
+        package_check("GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk")
+        net <- GiottoDisk::storeRead(net, output = "igraph", minimal = TRUE)
+    }
+
+    clusterData(net,
         param = param,
         set_seed = set_seed,
         seed_number = seed_number,
