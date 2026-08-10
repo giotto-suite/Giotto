@@ -16,7 +16,7 @@ doLeidenClusterPython(
   weight_col = "weight",
   partition_type = c("RBConfigurationVertexPartition", "ModularityVertexPartition"),
   init_membership = NULL,
-  n_iterations = 1000,
+  n_iterations = 20,
   return_gobject = TRUE,
   set_seed = TRUE,
   seed_number = 1234

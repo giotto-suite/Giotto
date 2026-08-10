@@ -18,7 +18,7 @@ runUMAP(
   return_gobject = TRUE,
   n_neighbors = 40,
   n_components = 2,
-  n_epochs = 400,
+  n_epochs = 100,
   min_dist = 0.01,
   n_threads = NA,
   spread = 5,

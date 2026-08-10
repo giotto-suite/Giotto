@@ -23,7 +23,7 @@ page for more information.
 
 \tabular{ll}{
 \code{resolution} \tab numeric (default = 1). Clustering resolution. \cr
-\code{n_iterations} \tab numeric (default = 1000). Number of iterations to run
+\code{n_iterations} \tab numeric (default = 20). Number of iterations to run
 the Leiden algorithm. If the number of iterations is negative, the Leiden
 algorithm is run until an iteration in which there was no improvement. \cr
 \code{weight_col} \tab character. (default = \code{weight}). Weight column in

@@ -1,3 +1,9 @@
+# Giotto 4.2.4 (in development)
+
+## Breaking changes
+* All Leiden entry points now default to `n_iterations = 20`: `doLeidenCluster()`, `doLeidenClusterIgraph()`, `doLeidenClusterPython()`, `subClusterCells()` (was `1000`) and `doLeidenSubCluster()` (was `500`). Measured ARI 0.97 against the 1000-iteration partition on a 159k-cell Xenium dataset, at ~50x the speed. **Cluster IDs will differ from previous releases**; pass `n_iterations = 1000` to restore the old behaviour.
+* `runUMAP()` now defaults to `n_epochs = 100` (was `400`). Embeddings will differ from previous releases; pass `n_epochs = 400` to restore. `runUMAPprojection()` is unchanged.
+
 # Giotto 4.2.3 (2026/05/14)
 
 ## Changes
