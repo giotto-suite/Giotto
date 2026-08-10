@@ -3,6 +3,10 @@
 ## Breaking changes
 * All Leiden entry points now default to `n_iterations = 20`: `doLeidenCluster()`, `doLeidenClusterIgraph()`, `doLeidenClusterPython()`, `subClusterCells()` (was `1000`) and `doLeidenSubCluster()` (was `500`). Measured ARI 0.97 against the 1000-iteration partition on a 159k-cell Xenium dataset, at ~50x the speed. **Cluster IDs will differ from previous releases**; pass `n_iterations = 1000` to restore the old behaviour.
 * `runUMAP()` now defaults to `n_epochs = 100` (was `400`). Embeddings will differ from previous releases; pass `n_epochs = 400` to restore. `runUMAPprojection()` is unchanged.
+* `runUMAP()` now uses `uwot::umap2()` instead of `uwot::umap()`. `umap2()` is the same algorithm with a faster approximate nearest-neighbor backend selected automatically, and it threads the optimizer when `batch = TRUE`. There is no argument to select the old engine.
+
+## New
+* `RcppHNSW` and `rnndescent` added to `Suggests`. Either one accelerates the `runUMAP()` neighbor search; without them uwot falls back to Annoy. `RcppHNSW` is preferred for dense input with a euclidean, cosine or correlation metric (the usual `runUMAP()` case), while `rnndescent` covers sparse input and metrics HNSW does not support. Installing `rnndescent` is **required** to run `runUMAP(dim_reduction_to_use = NULL)` on a sparse expression matrix.
 
 # Giotto 4.2.3 (2026/05/14)
 

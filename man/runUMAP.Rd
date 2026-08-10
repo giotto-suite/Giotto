@@ -76,7 +76,7 @@ runUMAP(
 \item{toplevel}{relative stackframe where call was made from}
 
 \item{...}{
-  Arguments passed on to \code{\link[uwot:umap]{uwot::umap}}
+  Arguments passed on to \code{\link[uwot:umap2]{uwot::umap2}}
   \describe{
     \item{\code{metric}}{Type of distance metric to use to find nearest neighbors. For
  \code{nn_method = "annoy"} this can be one of:
@@ -182,8 +182,8 @@ be attained with this initialization. Increasing the value of
 \code{n_neighbors} may help.}
     \item{\code{init_sdev}}{If non-\code{NULL}, scales each dimension of the initialized
 coordinates (including any user-supplied matrix) to this standard
-deviation. By default no scaling is carried out, except when \code{init =
-"spca"}, in which case the value is \code{0.0001}. Scaling the input may
+deviation. By default, (\code{init_sdev = "range"}), each column of the
+initial coordinates are range scaled between 0-10. Scaling the input may
 help if the unscaled versions result in initial coordinates with large
 inter-point distances or outliers. This usually results in small gradients
 during optimization and very little progress being made to the layout.
@@ -192,12 +192,7 @@ circumstances. Scaling the result of \code{init = "pca"} is usually
 recommended and \code{init = "spca"} as an alias for \code{init = "pca",
 init_sdev = 1e-4} but for the spectral initializations the scaled versions
 usually aren't necessary unless you are using a large value of
-\code{n_neighbors} (e.g. \code{n_neighbors = 150} or higher). For
-compatibility with recent versions of the Python UMAP package, if you are
-using \code{init = "spectral"}, then you should also set
-\code{init_sdev = "range"}, which will range scale each of the columns
-containing the initial data between 0-10. This is not set by default to
-maintain backwards compatibility with previous versions of uwot.}
+\code{n_neighbors} (e.g. \code{n_neighbors = 150} or higher).}
     \item{\code{set_op_mix_ratio}}{Interpolate between (fuzzy) union and intersection as
 the set operation used to combine local fuzzy simplicial sets to obtain a
 global fuzzy simplicial sets. Both fuzzy set operations use the product
@@ -392,7 +387,8 @@ any combination of the following strings:
 descent. If set to > 1, then be aware that if \code{batch = FALSE}, results
 will \emph{not} be reproducible, even if \code{set.seed} is called with a
 fixed seed before running. Set to \code{"auto"} to use the same value as
-\code{n_threads}.}
+\code{n_threads}. Default is to use only one thread, unless
+\code{batch = TRUE} in which case \code{"auto"} used.}
     \item{\code{grain_size}}{The minimum amount of work to do on each thread. If this
 value is set high enough, then less than \code{n_threads} or
 \code{n_sgd_threads} will be used for processing, which might give a
@@ -545,8 +541,18 @@ giotto object with updated UMAP dimension reduction
 run UMAP
 }
 \details{
-See \code{\link[uwot]{umap}} for more information about these and
+See \code{\link[uwot]{umap2}} for more information about these and
 other parameters.
+
+The UMAP engine is \code{\link[uwot]{umap2}}, which selects a faster
+approximate nearest-neighbor backend when one is available: \pkg{RcppHNSW}
+(HNSW) is preferred for dense input with a euclidean, cosine or correlation
+metric, and \pkg{rnndescent} (nearest-neighbor descent) is used for sparse
+input and for metrics HNSW does not support. With neither installed the
+search falls back to Annoy, and only the \code{batch} optimizer speedup
+remains. Note that sparse input -- which is what \code{runUMAP()} passes
+when \code{dim_reduction_to_use = NULL} and the expression matrix is
+sparse -- \emph{requires} \pkg{rnndescent}.
 \itemize{
   \item Input for UMAP dimension reduction can be another dimension reduction
   (default = 'pca')

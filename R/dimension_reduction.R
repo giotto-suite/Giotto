@@ -2499,11 +2499,21 @@ runNMF <- function(gobject,
 #' @param verbose verbosity of function
 #' @param toplevel_params deprecated
 #' @param toplevel relative stackframe where call was made from
-#' @inheritDotParams uwot::umap -X -n_neighbors -n_components -n_epochs
+#' @inheritDotParams uwot::umap2 -X -n_neighbors -n_components -n_epochs
 #' -min_dist -n_threads -spread -seed -scale -pca -pca_center -pca_method
 #' @returns giotto object with updated UMAP dimension reduction
-#' @details See \code{\link[uwot]{umap}} for more information about these and
+#' @details See \code{\link[uwot]{umap2}} for more information about these and
 #' other parameters.
+#'
+#' The UMAP engine is \code{\link[uwot]{umap2}}, which selects a faster
+#' approximate nearest-neighbor backend when one is available: \pkg{RcppHNSW}
+#' (HNSW) is preferred for dense input with a euclidean, cosine or correlation
+#' metric, and \pkg{rnndescent} (nearest-neighbor descent) is used for sparse
+#' input and for metrics HNSW does not support. With neither installed the
+#' search falls back to Annoy, and only the \code{batch} optimizer speedup
+#' remains. Note that sparse input -- which is what \code{runUMAP()} passes
+#' when \code{dim_reduction_to_use = NULL} and the expression matrix is
+#' sparse -- \emph{requires} \pkg{rnndescent}.
 #' \itemize{
 #'   \item Input for UMAP dimension reduction can be another dimension reduction
 #'   (default = 'pca')
@@ -2669,7 +2679,12 @@ runUMAP <- function(gobject,
         }
 
         ## run umap ##
-        uwot_clus <- uwot::umap(
+        # umap2() is uwot::umap() with two pieces of wiring rather than a
+        # different algorithm: it picks RcppHNSW or rnndescent for the
+        # neighbor search when either is installed (Annoy otherwise), and it
+        # threads the SGD when batch = TRUE. Formals are identical to umap(),
+        # so nothing passed here changes meaning.
+        uwot_clus <- uwot::umap2(
             X = matrix_to_use, # as.matrix(matrix_to_use) necessary?
             n_neighbors = n_neighbors,
             n_components = n_components,
