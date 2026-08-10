@@ -8,7 +8,7 @@ combineInteractionChangedGenes(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[=combineInteractionChangedFeats]{combineInteractionChangedFeats}}
+  Arguments passed on to \code{\link{combineInteractionChangedFeats}}
   \describe{
     \item{\code{icfObject}}{ICF (interaction changed feat) score object}
     \item{\code{selected_ints}}{subset of selected cell-cell interactions (optional)}

@@ -149,7 +149,7 @@ NULL
 #' 
 #' \tabular{ll}{
 #'   `resolution` \tab numeric (default = 1). Clustering resolution. \cr
-#'   `n_iterations` \tab numeric (default = 1000). Number of iterations to run
+#'   `n_iterations` \tab numeric (default = 20). Number of iterations to run
 #'   the Leiden algorithm. If the number of iterations is negative, the Leiden
 #'   algorithm is run until an iteration in which there was no improvement. \cr
 #'   `weight_col` \tab character. (default = `weight`). Weight column in 
@@ -194,7 +194,7 @@ NULL
 #' 
 #' \tabular{ll}{
 #'   `resolution` \tab numeric (default = 1). Clustering resolution. \cr
-#'   `n_iterations` \tab numeric (default = 1000). Number of iterations to run
+#'   `n_iterations` \tab numeric (default = 20). Number of iterations to run
 #'   the Leiden algorithm. \cr
 #'   `weights` \tab (default = `NULL`) weights of edges. Set `NULL` to use
 #'   weights associated with the igraph network. Set `NA` if you don't want
@@ -964,7 +964,7 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 .clus_param_leiden_python <- function(...) {
     p <- new("LeidenPythonClusParam", ...)
     p$resolution <- p$resolution %none% 1
-    p$n_iterations <- p$n_iterations %none% 1000
+    p$n_iterations <- p$n_iterations %none% 20
     p$weight_col = p$weight_col %none% "weight"
     p$partition_type = p$partition_type %none% "RBConfigurationVertexPartition"
     p
@@ -973,7 +973,7 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 .clus_param_leiden_igraph <- function(...) {
     p <- new("LeidenIgraphClusParam", ...)
     p$resolution <- p$resolution %none% 1
-    p$n_iterations <- p$n_iterations %none% 1000
+    p$n_iterations <- p$n_iterations %none% 20
     p$beta <- p$beta %none% 0.01
     p$objective_function <- p$objective_function %none% "modularity"
     p
@@ -1048,7 +1048,7 @@ doLeidenClusterPython <- function(
             "ModularityVertexPartition"
         ),
         init_membership = NULL,
-        n_iterations = 1000,
+        n_iterations = 20,
         return_gobject = TRUE,
         set_seed = TRUE,
         seed_number = 1234) {
@@ -1101,6 +1101,7 @@ doLeidenClusterPython <- function(
 #' @param return_gobject boolean: return giotto object (default = TRUE)
 #' @param set_seed set seed
 #' @param seed_number number for seed
+#' @param verbose verbosity of function
 #' @inheritDotParams igraph::cluster_leiden -graph -objective_function
 #' -resolution_parameter -beta -weights -initial_membership -n_iterations
 #' -resolution
@@ -1132,14 +1133,16 @@ doLeidenClusterIgraph <- function(
         resolution = 1,
         beta = 0.01,
         initial_membership = NULL,
-        n_iterations = 1000,
+        n_iterations = 20,
         return_gobject = TRUE,
         set_seed = TRUE,
         seed_number = 1234,
+        verbose = NULL,
         ...) {
     # notify of breaking change
     if (getOption("giotto.warn_leiden_change", TRUE)) {
         vmsg(
+            .v = verbose,
             "As of Giotto 4.2.3 doLeidenCluster() works via {igraph}
             For the python implementation, use doLeidenClusterPython()
             This message appears once per session."
@@ -2750,7 +2753,7 @@ subClusterCells <- function(gobject,
     nn_param = list(dimensions_to_use = 1:20),
     k_neighbors = 10,
     resolution = 1,
-    n_iterations = 1000,
+    n_iterations = 20,
     gamma = 1,
     omega = 1,
     python_path = NULL,
@@ -2869,7 +2872,7 @@ doLeidenSubCluster <- function(
         nn_param = list(dimensions_to_use = 1:20),
         k_neighbors = 10,
         resolution = 0.5,
-        n_iterations = 500,
+        n_iterations = 20,
         python_path = NULL,
         nn_network_to_use = "sNN",
         network_name = "sNN.pca",

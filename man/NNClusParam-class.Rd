@@ -11,7 +11,7 @@ methods which are supported via Giotto-specific methods instead of directly
 via \pkg{bluster}.
 }
 \seealso{
-concrete class examples: \linkS4class{LeidenPythonClusParam},
-\linkS4class{LeidenIgraphClusParam}, \linkS4class{LouvainCommunityClusParam},
-\linkS4class{LouvainMultinetClusParam}
+concrete class examples: \link[=LeidenPythonClusParam-class]{LeidenPythonClusParam},
+\link[=LeidenIgraphClusParam-class]{LeidenIgraphClusParam}, \link[=LouvainCommunityClusParam-class]{LouvainCommunityClusParam},
+\link[=LouvainMultinetClusParam-class]{LouvainMultinetClusParam}
 }

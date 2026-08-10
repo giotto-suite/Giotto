@@ -8,7 +8,7 @@ filterInteractionChangedGenes(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[=filterInteractionChangedFeats]{filterInteractionChangedFeats}}
+  Arguments passed on to \code{\link{filterInteractionChangedFeats}}
   \describe{
     \item{\code{icfObject}}{ICF (interaction changed feature) score object}
     \item{\code{min_cells}}{minimum number of source cell type}

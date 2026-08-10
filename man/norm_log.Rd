@@ -37,7 +37,7 @@ other values would change implicit zeros and require densification.
 \seealso{
 \link{process_param}
 
-Other normalization parameters: 
+Other normalization parameters:
 \code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_l2}},

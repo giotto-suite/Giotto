@@ -1,3 +1,14 @@
+# Giotto 4.2.4 (in development)
+
+## Breaking changes
+* All Leiden entry points now default to `n_iterations = 20`: `doLeidenCluster()`, `doLeidenClusterIgraph()`, `doLeidenClusterPython()`, `subClusterCells()` (was `1000`) and `doLeidenSubCluster()` (was `500`). Measured ARI 0.97 against the 1000-iteration partition on a 159k-cell Xenium dataset, at ~50x the speed. **Cluster IDs will differ from previous releases**; pass `n_iterations = 1000` to restore the old behaviour.
+* `runUMAP()` gained size-adaptive `n_epochs` and `init`, both now defaulting to `NULL`. Above 50,000 observations they resolve to `100` and `"random"` (fast settings, from the benchmarked streaming pipeline); below it to uwot's own `n_epochs` default and `"spectral"`, because the fast settings cost embedding quality at small n for no useful time saving. Passing either explicitly overrides the adaptation. `n_epochs` was previously a fixed `400`. `runUMAPprojection()` is unchanged.
+* `runUMAP()` now uses `uwot::umap2()` instead of `uwot::umap()`. `umap2()` is the same algorithm with a faster approximate nearest-neighbor backend selected automatically, and it threads the optimizer when `batch = TRUE`. Pass `method = "umap"` to restore the previous engine.
+* `runUMAP()` defaults retuned to match the benchmarked streaming pipeline: `min_dist` `0.01` -> `0.05`, `spread` `5` -> `1`, and a new `batch = TRUE` argument (was `FALSE`). `min_dist` and `spread` are changed together because uwot fits the embedding's `a`/`b` curve from the pair. `batch = TRUE` is also what lets `umap2()` thread the optimizer. **Embeddings will differ from previous releases**; `min_dist = 0.01, spread = 5, init = "spectral", n_epochs = 400, batch = FALSE` restores the old shape. `n_neighbors` is unchanged at `40`.
+
+## New
+* `RcppHNSW` and `rnndescent` added to `Suggests`. Either one accelerates the `runUMAP()` neighbor search; without them uwot falls back to Annoy. `RcppHNSW` is preferred for dense input with a euclidean, cosine or correlation metric (the usual `runUMAP()` case), while `rnndescent` covers sparse input and metrics HNSW does not support. Installing `rnndescent` is **required** to run `runUMAP(dim_reduction_to_use = NULL)` on a sparse expression matrix.
+
 # Giotto 4.2.3 (2026/05/14)
 
 ## Changes

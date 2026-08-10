@@ -2490,7 +2490,9 @@ runNMF <- function(gobject,
 #' @param return_gobject logical: return giotto object (default = TRUE)
 #' @param n_neighbors UMAP param: number of neighbors
 #' @param n_components UMAP param: number of components
-#' @param n_epochs UMAP param: number of epochs
+#' @param n_epochs UMAP param: number of epochs. `NULL` (default) scales with
+#'   the number of observations embedded: `100` above 50,000, otherwise uwot's
+#'   own default (500 below 10,000 observations, 200 above).
 #' @param min_dist UMAP param: minimum distance
 #' @param n_threads UMAP param: threads/cores to use
 #' @param spread UMAP param: spread
@@ -2499,11 +2501,50 @@ runNMF <- function(gobject,
 #' @param verbose verbosity of function
 #' @param toplevel_params deprecated
 #' @param toplevel relative stackframe where call was made from
-#' @inheritDotParams uwot::umap -X -n_neighbors -n_components -n_epochs
-#' -min_dist -n_threads -spread -seed -scale -pca -pca_center -pca_method
+#' @param method character. UMAP engine to use. One of `"umap2"` (default,
+#'   \code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
+#'   take identical arguments; see details.
+#' @param init UMAP param: initialization method for the embedding. `NULL`
+#'   (default) scales with the number of observations embedded: `"random"`
+#'   above 50,000, which skips the spectral initialization's
+#'   eigendecomposition, and `"spectral"` otherwise.
+#' @param batch UMAP param: use the batch optimizer. Default `TRUE`, which
+#'   under `method = "umap2"` also threads the stochastic gradient descent
+#'   across `n_threads`, deterministically.
+#' @inheritDotParams uwot::umap2 -X -n_neighbors -n_components -n_epochs
+#' -min_dist -n_threads -spread -init -batch -seed -scale -pca -pca_center
+#' -pca_method
 #' @returns giotto object with updated UMAP dimension reduction
-#' @details See \code{\link[uwot]{umap}} for more information about these and
+#' @details See \code{\link[uwot]{umap2}} for more information about these and
 #' other parameters.
+#'
+#' The default UMAP engine is \code{\link[uwot]{umap2}}, which selects a faster
+#' approximate nearest-neighbor backend when one is available: \pkg{RcppHNSW}
+#' (HNSW) is preferred for dense input with a euclidean, cosine or correlation
+#' metric, and \pkg{rnndescent} (nearest-neighbor descent) is used for sparse
+#' input and for metrics HNSW does not support. With neither installed the
+#' search falls back to Annoy, and only the \code{batch} optimizer speedup
+#' remains. Note that sparse input -- which is what \code{runUMAP()} passes
+#' when \code{dim_reduction_to_use = NULL} and the expression matrix is
+#' sparse -- \emph{requires} \pkg{rnndescent}.
+#'
+#' \code{method = "umap"} selects \code{\link[uwot]{umap}} instead, which is
+#' the engine used before Giotto 4.2.4. \code{umap2()} is the same algorithm
+#' with a different backend selection and optimizer default rather than a
+#' different method, and the two have identical formals, so every other
+#' argument means the same thing under either.
+#'
+#' \code{min_dist} and \code{spread} are not independent: uwot fits the
+#' embedding's \code{a} / \code{b} curve parameters from the pair, so changing
+#' one without the other changes how tightly points pack. They are set
+#' together.
+#'
+#' \code{n_epochs} and \code{init} are left \code{NULL} and resolved from the
+#' number of observations being embedded, because the fast settings are only
+#' the right trade at scale. Above 50,000 observations a short random-init run
+#' converges well and both choices save real wall-clock; below it they cost
+#' embedding quality for no useful saving. Passing either explicitly overrides
+#' the adaptation.
 #' \itemize{
 #'   \item Input for UMAP dimension reduction can be another dimension reduction
 #'   (default = 'pca')
@@ -2532,18 +2573,25 @@ runUMAP <- function(gobject,
     return_gobject = TRUE,
     n_neighbors = 40,
     n_components = 2,
-    n_epochs = 400,
-    min_dist = 0.01,
+    n_epochs = NULL,
+    min_dist = 0.05,
     n_threads = NA,
-    spread = 5,
+    spread = 1,
     set_seed = TRUE,
     seed_number = 1234L,
     verbose = TRUE,
     toplevel_params = deprecated(),
     toplevel = 1L,
+    method = c("umap2", "umap"),
+    init = NULL,
+    batch = TRUE,
     ...) {
     # NSE vars
     cell_ID <- NULL
+
+    # Appended after `toplevel` rather than grouped with the other uwot
+    # params so that no existing argument changes position.
+    method <- match.arg(method)
 
     toplevel <- deprecate_param(
         toplevel_params, toplevel,
@@ -2669,7 +2717,32 @@ runUMAP <- function(gobject,
         }
 
         ## run umap ##
-        uwot_clus <- uwot::umap(
+        # n_epochs and init scale with the number of observations being
+        # embedded. Above ~50k the optimizer has enough data that a short
+        # random-init run converges fine, and both choices are worth real
+        # wall-clock. Below it they are not: uwot's own n_epochs default is
+        # 500 under 10k observations (200 above), and a spectral init costs
+        # almost nothing on a small graph while separating it better --
+        # measured on a 624-cell object, 100 epochs + random init lost ~4%
+        # kNN preservation against uwot's defaults for no useful time saving.
+        # NULL means "not set by the caller", so an explicit value always wins.
+        n_obs <- nrow(matrix_to_use)
+        if (is.null(n_epochs) && n_obs > 50000L) n_epochs <- 100L
+        if (is.null(init)) {
+            init <- if (n_obs > 50000L) "random" else "spectral"
+        }
+
+        # umap2() is uwot::umap() with two pieces of wiring rather than a
+        # different algorithm: it picks RcppHNSW or rnndescent for the
+        # neighbor search when either is installed (Annoy otherwise), and it
+        # threads the SGD when batch = TRUE. Formals are identical to umap(),
+        # so the switch is safe in both directions -- every argument below
+        # means the same thing to either engine.
+        umap_fn <- switch(method,
+            "umap2" = uwot::umap2,
+            "umap" = uwot::umap
+        )
+        uwot_clus <- umap_fn(
             X = matrix_to_use, # as.matrix(matrix_to_use) necessary?
             n_neighbors = n_neighbors,
             n_components = n_components,
@@ -2677,6 +2750,8 @@ runUMAP <- function(gobject,
             min_dist = min_dist,
             n_threads = n_threads,
             spread = spread,
+            init = init,
+            batch = batch,
             ...
         )
 

@@ -20,7 +20,7 @@ for more information.
 
 \tabular{ll}{
 \code{resolution} \tab numeric (default = 1). Clustering resolution. \cr
-\code{n_iterations} \tab numeric (default = 1000). Number of iterations to run
+\code{n_iterations} \tab numeric (default = 20). Number of iterations to run
 the Leiden algorithm. \cr
 \code{weights} \tab (default = \code{NULL}) weights of edges. Set \code{NULL} to use
 weights associated with the igraph network. Set \code{NA} if you don't want

@@ -2028,20 +2028,23 @@ normalizeGiotto <- function(gobject,
         )
     }
 
-    norm_scaled_expr <- createExprObj(
-        expression_data = norm_scaled_expr,
-        name = "scaled",
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = provenance,
-        misc = NULL
-    )
-
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
     gobject <- setGiotto(
         gobject, norm_expr, verbose = verbose, initialize = FALSE)
-    gobject <- setGiotto(
-        gobject, norm_scaled_expr, verbose = verbose, initialize = FALSE)
+
+    # no scaling requested -- no scaled slot
+    if (!is.null(norm_scaled_expr)) {
+        norm_scaled_expr <- createExprObj(
+            expression_data = norm_scaled_expr,
+            name = "scaled",
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            provenance = provenance,
+            misc = NULL
+        )
+        gobject <- setGiotto(
+            gobject, norm_scaled_expr, verbose = verbose, initialize = FALSE)
+    }
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
     ## 6. return Giotto object

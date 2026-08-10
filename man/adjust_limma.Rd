@@ -13,10 +13,10 @@ Batch effect removal via \code{\link[limma:removeBatchEffect]{limma::removeBatch
 
 
 \tabular{ll}{
-\code{batch_columns} \tab \link[GiottoClass:spatValues]{svkey} (optional) Up to two
+\code{batch_columns} \tab \link[GiottoClass:svkey]{svkey} (optional) Up to two
 columns of information from a Giotto object with information indicating
 batches to remove the effects of. \cr
-\code{covariate_columns} \tab \link[GiottoClass:spatValues]{svkey} (optional) Columns
+\code{covariate_columns} \tab \link[GiottoClass:svkey]{svkey} (optional) Columns
 of information from a Giotto object with information indicating covariates
 to regress out.
 }

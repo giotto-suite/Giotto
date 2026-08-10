@@ -47,5 +47,5 @@ section according to spatial coordinates
 Description of parameters.
 }
 \seealso{
-\link[GiottoVisuals:spatFeatPlot3D]{GiottoVisuals::spatGenePlot3D} and \link[GiottoVisuals:spatFeatPlot2D]{GiottoVisuals::spatFeatPlot2D}
+\link[GiottoVisuals:spatGenePlot3D]{GiottoVisuals::spatGenePlot3D} and \link[GiottoVisuals:spatFeatPlot2D]{GiottoVisuals::spatFeatPlot2D}
 }

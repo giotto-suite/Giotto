@@ -12,7 +12,7 @@ showPattern(gobject, spatPatObj, ...)
 \item{spatPatObj}{Output from detectSpatialPatterns}
 
 \item{...}{
-  Arguments passed on to \code{\link[=showPattern2D]{showPattern2D}}
+  Arguments passed on to \code{\link{showPattern2D}}
   \describe{
     \item{\code{dimension}}{dimension to plot}
     \item{\code{trim}}{Trim ends of the PC values.}

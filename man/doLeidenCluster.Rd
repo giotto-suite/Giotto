@@ -17,10 +17,11 @@ doLeidenClusterIgraph(
   resolution = 1,
   beta = 0.01,
   initial_membership = NULL,
-  n_iterations = 1000,
+  n_iterations = 20,
   return_gobject = TRUE,
   set_seed = TRUE,
   seed_number = 1234,
+  verbose = NULL,
   ...
 )
 
@@ -36,10 +37,11 @@ doLeidenCluster(
   resolution = 1,
   beta = 0.01,
   initial_membership = NULL,
-  n_iterations = 1000,
+  n_iterations = 20,
   return_gobject = TRUE,
   set_seed = TRUE,
   seed_number = 1234,
+  verbose = NULL,
   ...
 )
 }
@@ -74,6 +76,8 @@ doLeidenCluster(
 \item{set_seed}{set seed}
 
 \item{seed_number}{number for seed}
+
+\item{verbose}{verbosity of function}
 
 \item{...}{
   Arguments passed on to \code{\link[igraph:cluster_leiden]{igraph::cluster_leiden}}

@@ -80,7 +80,7 @@ Passing \code{NULL} runs HVF on all cells.}
 \item{save_plot}{logical. directly save the plot}
 
 \item{save_param}{list of saving parameters from
-\code{\link[GiottoVisuals:plot_save]{GiottoVisuals::all_plots_save_function()}}}
+\code{\link[GiottoVisuals:all_plots_save_function]{GiottoVisuals::all_plots_save_function()}}}
 
 \item{default_save_name}{default save name for saving, don't change, change
 save_name in save_param}

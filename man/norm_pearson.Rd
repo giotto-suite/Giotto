@@ -59,7 +59,7 @@ https://doi.org/10.1186/s13059-021-02451-7
 \seealso{
 \link{process_param}
 
-Other normalization parameters: 
+Other normalization parameters:
 \code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_l2}},

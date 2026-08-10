@@ -8,7 +8,7 @@ findCPG(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[=findICF]{findICF}}
+  Arguments passed on to \code{\link{findICF}}
   \describe{
     \item{\code{gobject}}{giotto object}
     \item{\code{feat_type}}{feature type}

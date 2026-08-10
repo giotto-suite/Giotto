@@ -10,7 +10,7 @@ cellProximitySpatPlot(gobject, ...)
 \item{gobject}{giotto object}
 
 \item{...}{
-  Arguments passed on to \code{\link[=cellProximitySpatPlot2D]{cellProximitySpatPlot2D}}
+  Arguments passed on to \code{\link{cellProximitySpatPlot2D}}
   \describe{
     \item{\code{spat_loc_name}}{spatial locations to use}
     \item{\code{interaction_name}}{cell-cell interaction name}

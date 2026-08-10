@@ -50,7 +50,7 @@ https://doi.org/10.1093/bioinformatics/19.2.185
 \seealso{
 \link{process_param}
 
-Other normalization parameters: 
+Other normalization parameters:
 \code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_l2}},

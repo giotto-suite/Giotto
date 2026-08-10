@@ -8,7 +8,7 @@ combineCPG(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[=combineICF]{combineICF}}
+  Arguments passed on to \code{\link{combineICF}}
   \describe{
     \item{\code{icfObject}}{ICF (interaction changed feat) score object}
     \item{\code{selected_ints}}{subset of selected cell-cell interactions (optional)}

@@ -24,7 +24,6 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 URL: https://giotto-suite.github.io/Giotto/, https://github.com/giotto-suite/Giotto
 BugReports: https://github.com/giotto-suite/Giotto/issues
-RoxygenNote: 7.3.3
 Depends:
     R (>= 4.4.1),
     methods,
@@ -88,10 +87,12 @@ Suggests:
     quadprog,
     harmony,
     R.utils,
+    RcppHNSW,
     remotes,
     Rfast,
     rlang,
     rhdf5,
+    rnndescent,
     RTriangle (>= 1.6-0.10),
     Rtsne (>= 0.15),
     Rvision,
@@ -161,3 +162,4 @@ Collate:
 biocViews: Software, Technology, Spatial, SingleCell, Transcriptomics
 VignetteBuilder: knitr
 Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

@@ -133,7 +133,7 @@ Nat Genet. 2021 Mar;53(3):403-411. doi: 10.1038/s41588-021-00790-6.
 \seealso{
 \link{process_param}
 
-Other normalization parameters: 
+Other normalization parameters:
 \code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_l2}},
