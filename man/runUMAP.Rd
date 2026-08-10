@@ -18,7 +18,7 @@ runUMAP(
   return_gobject = TRUE,
   n_neighbors = 40,
   n_components = 2,
-  n_epochs = 100,
+  n_epochs = NULL,
   min_dist = 0.05,
   n_threads = NA,
   spread = 1,
@@ -28,7 +28,7 @@ runUMAP(
   toplevel_params = deprecated(),
   toplevel = 1L,
   method = c("umap2", "umap"),
-  init = "random",
+  init = NULL,
   batch = TRUE,
   ...
 )
@@ -60,7 +60,9 @@ runUMAP(
 
 \item{n_components}{UMAP param: number of components}
 
-\item{n_epochs}{UMAP param: number of epochs}
+\item{n_epochs}{UMAP param: number of epochs. `NULL` (default) scales with
+the number of observations embedded: `100` above 50,000, otherwise uwot's
+own default (500 below 10,000 observations, 200 above).}
 
 \item{min_dist}{UMAP param: minimum distance}
 
@@ -82,8 +84,10 @@ runUMAP(
 \code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
 take identical arguments; see details.}
 
-\item{init}{UMAP param: initialization method for the embedding. Default
-`"random"`, which skips the spectral initialization's eigendecomposition.}
+\item{init}{UMAP param: initialization method for the embedding. `NULL`
+(default) scales with the number of observations embedded: `"random"`
+above 50,000, which skips the spectral initialization's
+eigendecomposition, and `"spectral"` otherwise.}
 
 \item{batch}{UMAP param: use the batch optimizer. Default `TRUE`, which
 under `method = "umap2"` also threads the stochastic gradient descent
@@ -561,6 +565,13 @@ argument means the same thing under either.
 embedding's \code{a} / \code{b} curve parameters from the pair, so changing
 one without the other changes how tightly points pack. They are set
 together.
+
+\code{n_epochs} and \code{init} are left \code{NULL} and resolved from the
+number of observations being embedded, because the fast settings are only
+the right trade at scale. Above 50,000 observations a short random-init run
+converges well and both choices save real wall-clock; below it they cost
+embedding quality for no useful saving. Passing either explicitly overrides
+the adaptation.
 \itemize{
   \item Input for UMAP dimension reduction can be another dimension reduction
   (default = 'pca')
