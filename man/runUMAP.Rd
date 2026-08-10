@@ -19,15 +19,17 @@ runUMAP(
   n_neighbors = 40,
   n_components = 2,
   n_epochs = 100,
-  min_dist = 0.01,
+  min_dist = 0.05,
   n_threads = NA,
-  spread = 5,
+  spread = 1,
   set_seed = TRUE,
   seed_number = 1234L,
   verbose = TRUE,
   toplevel_params = deprecated(),
   toplevel = 1L,
   method = c("umap2", "umap"),
+  init = "random",
+  batch = TRUE,
   ...
 )
 }
@@ -79,6 +81,13 @@ runUMAP(
 \item{method}{character. UMAP engine to use. One of `"umap2"` (default,
 \code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
 take identical arguments; see details.}
+
+\item{init}{UMAP param: initialization method for the embedding. Default
+`"random"`, which skips the spectral initialization's eigendecomposition.}
+
+\item{batch}{UMAP param: use the batch optimizer. Default `TRUE`, which
+under `method = "umap2"` also threads the stochastic gradient descent
+across `n_threads`, deterministically.}
 
 \item{...}{
   Arguments passed on to \code{\link[uwot:umap2]{uwot::umap2}}
@@ -151,40 +160,6 @@ PCA applied to both, but with centering applied only to the real-valued data
 (it is typical not to apply centering to binary data before PCA is applied).}
     \item{\code{learning_rate}}{Initial learning rate used in optimization of the
 coordinates.}
-    \item{\code{init}}{Type of initialization for the coordinates. Options are:
- \itemize{
-   \item \code{"spectral"} Spectral embedding using the normalized Laplacian
-   of the fuzzy 1-skeleton, with Gaussian noise added.
-   \item \code{"normlaplacian"}. Spectral embedding using the normalized
-   Laplacian of the fuzzy 1-skeleton, without noise.
-   \item \code{"random"}. Coordinates assigned using a uniform random
-   distribution between -10 and 10.
-   \item \code{"lvrandom"}. Coordinates assigned using a Gaussian
-   distribution with standard deviation 1e-4, as used in LargeVis
-   (Tang et al., 2016) and t-SNE.
-   \item \code{"laplacian"}. Spectral embedding using the Laplacian Eigenmap
-   (Belkin and Niyogi, 2002).
-   \item \code{"pca"}. The first two principal components from PCA of
-   \code{X} if \code{X} is a data frame, and from a 2-dimensional classical
-   MDS if \code{X} is of class \code{"dist"}.
-   \item \code{"spca"}. Like \code{"pca"}, but each dimension is then scaled
-   so the standard deviation is 1e-4, to give a distribution similar to that
-   used in t-SNE. This is an alias for \code{init = "pca", init_sdev =
-   1e-4}.
-   \item \code{"agspectral"} An "approximate global" modification of
-   \code{"spectral"} which all edges in the graph to a value of 1, and then
-   sets a random number of edges (\code{negative_sample_rate} edges per
-   vertex) to 0.1, to approximate the effect of non-local affinities.
-   \item A matrix of initial coordinates.
- }
-For spectral initializations, (\code{"spectral"}, \code{"normlaplacian"},
-\code{"laplacian"}, \code{"agspectral"}), if more than one connected
-component is identified, no spectral initialization is attempted. Instead
-a PCA-based initialization is attempted. If \code{verbose = TRUE} the
-number of connected components are logged to the console. The existence of
-multiple connected components implies that a global view of the data cannot
-be attained with this initialization. Increasing the value of
-\code{n_neighbors} may help.}
     \item{\code{init_sdev}}{If non-\code{NULL}, scales each dimension of the initialized
 coordinates (including any user-supplied matrix) to this standard
 deviation. By default, (\code{init_sdev = "range"}), each column of the
@@ -405,13 +380,6 @@ over all the threads specified.}
 nearest neighbor search. Default is \code{\link{tempdir}}. The index is
 only written to disk if \code{n_threads > 1} and
 \code{nn_method = "annoy"}; otherwise, this parameter is ignored.}
-    \item{\code{batch}}{If \code{TRUE}, then embedding coordinates are updated at the
-end of each epoch rather than during the epoch. In batch mode, results are
-reproducible with a fixed random seed even with \code{n_sgd_threads > 1},
-at the cost of a slightly higher memory use. You may also have to modify
-\code{learning_rate} and increase \code{n_epochs}, so whether this provides
-a speed increase over the single-threaded optimization is likely to be
-dataset and hardware-dependent.}
     \item{\code{opt_args}}{A list of optimizer parameters, used when
 \code{batch = TRUE}. The default optimization method used is Adam (Kingma
 and Ba, 2014).
@@ -447,6 +415,30 @@ epoch. Its signature should be: \code{(epoch, n_epochs, coords)}, where:
   the embedded coordinates.
   \item \code{coords} The embedded coordinates as of the end of the current
   epoch, as a matrix with dimensions (N, \code{n_components}).
+}}
+    \item{\code{pca_method}}{Method to carry out any PCA dimensionality reduction when
+the \code{pca} parameter is specified. Allowed values are:
+\itemize{
+  \item{\code{"irlba"}}. Uses \code{\link[irlba]{prcomp_irlba}} from the
+  \href{https://cran.r-project.org/package=irlba}{irlba} package.
+  \item{\code{"rsvd"}}. Uses 5 iterations of \code{\link[irlba]{svdr}} from
+  the \href{https://cran.r-project.org/package=irlba}{irlba} package.
+  This is likely to give much faster but potentially less accurate results
+  than using \code{"irlba"}. For the purposes of nearest neighbor
+  calculation and coordinates initialization, any loss of accuracy doesn't
+  seem to matter much.
+  \item{\code{"bigstatsr"}}. Uses \code{\link[bigstatsr]{big_randomSVD}}
+  from the \href{https://cran.r-project.org/package=bigstatsr}{bigstatsr}
+  package. The SVD methods used in \code{bigstatsr} may be faster on
+  systems without access to efficient linear algebra libraries (e.g.
+  Windows). \strong{Note}: \code{bigstatsr} is \emph{not} a dependency of
+  uwot: if you choose to use this package for PCA, you \emph{must} install
+  it yourself.
+  \item{\code{"svd"}}. Uses \code{\link[base]{svd}} for the SVD. This is
+  likely to be slow for all but the smallest datasets.
+  \item{\code{"auto"}} (the default). Uses \code{"irlba"}, unless more than
+  50% of the full set of singular vectors would be calculated, in which
+  case \code{"svd"} is used.
 }}
     \item{\code{binary_edge_weights}}{If \code{TRUE} then edge weights in the input
 graph are treated as binary (0/1) rather than real valued. This affects the
@@ -564,6 +556,11 @@ the engine used before Giotto 4.2.4. \code{umap2()} is the same algorithm
 with a different backend selection and optimizer default rather than a
 different method, and the two have identical formals, so every other
 argument means the same thing under either.
+
+\code{min_dist} and \code{spread} are not independent: uwot fits the
+embedding's \code{a} / \code{b} curve parameters from the pair, so changing
+one without the other changes how tightly points pack. They are set
+together.
 \itemize{
   \item Input for UMAP dimension reduction can be another dimension reduction
   (default = 'pca')

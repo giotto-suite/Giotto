@@ -2502,8 +2502,14 @@ runNMF <- function(gobject,
 #' @param method character. UMAP engine to use. One of `"umap2"` (default,
 #'   \code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
 #'   take identical arguments; see details.
+#' @param init UMAP param: initialization method for the embedding. Default
+#'   `"random"`, which skips the spectral initialization's eigendecomposition.
+#' @param batch UMAP param: use the batch optimizer. Default `TRUE`, which
+#'   under `method = "umap2"` also threads the stochastic gradient descent
+#'   across `n_threads`, deterministically.
 #' @inheritDotParams uwot::umap2 -X -n_neighbors -n_components -n_epochs
-#' -min_dist -n_threads -spread -seed -scale -pca -pca_center -pca_method
+#' -min_dist -n_threads -spread -init -batch -seed -scale -pca -pca_center
+#' -pca_method
 #' @returns giotto object with updated UMAP dimension reduction
 #' @details See \code{\link[uwot]{umap2}} for more information about these and
 #' other parameters.
@@ -2523,6 +2529,11 @@ runNMF <- function(gobject,
 #' with a different backend selection and optimizer default rather than a
 #' different method, and the two have identical formals, so every other
 #' argument means the same thing under either.
+#'
+#' \code{min_dist} and \code{spread} are not independent: uwot fits the
+#' embedding's \code{a} / \code{b} curve parameters from the pair, so changing
+#' one without the other changes how tightly points pack. They are set
+#' together.
 #' \itemize{
 #'   \item Input for UMAP dimension reduction can be another dimension reduction
 #'   (default = 'pca')
@@ -2552,15 +2563,17 @@ runUMAP <- function(gobject,
     n_neighbors = 40,
     n_components = 2,
     n_epochs = 100,
-    min_dist = 0.01,
+    min_dist = 0.05,
     n_threads = NA,
-    spread = 5,
+    spread = 1,
     set_seed = TRUE,
     seed_number = 1234L,
     verbose = TRUE,
     toplevel_params = deprecated(),
     toplevel = 1L,
     method = c("umap2", "umap"),
+    init = "random",
+    batch = TRUE,
     ...) {
     # NSE vars
     cell_ID <- NULL
@@ -2711,6 +2724,8 @@ runUMAP <- function(gobject,
             min_dist = min_dist,
             n_threads = n_threads,
             spread = spread,
+            init = init,
+            batch = batch,
             ...
         )
 
