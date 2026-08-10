@@ -8,7 +8,7 @@ findCellProximityGenes(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[=findInteractionChangedFeats]{findInteractionChangedFeats}}
+  Arguments passed on to \code{\link{findInteractionChangedFeats}}
   \describe{
     \item{\code{gobject}}{giotto object}
     \item{\code{feat_type}}{feature type}

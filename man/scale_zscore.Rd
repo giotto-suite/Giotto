@@ -37,7 +37,7 @@ to perform the operation.
 \seealso{
 \link{process_param}
 
-Other scaling parameters: 
+Other scaling parameters:
 \code{\link{scale_default}}
 }
 \concept{scaling parameters}

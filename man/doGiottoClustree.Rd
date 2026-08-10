@@ -35,7 +35,7 @@ for resolution testing, i.e. (0.1, 0.6, 0.1)}
 \item{return_plot}{by default, pulls from provided gobject instructions}
 
 \item{save_param}{list of saving parameters from
-\code{\link[GiottoVisuals:plot_save]{GiottoVisuals::all_plots_save_function()}}}
+\code{\link[GiottoVisuals:all_plots_save_function]{GiottoVisuals::all_plots_save_function()}}}
 
 \item{default_save_name}{name of saved plot, default "clustree"}
 
@@ -44,7 +44,66 @@ for resolution testing, i.e. (0.1, 0.6, 0.1)}
 \item{...}{
   Arguments passed on to \code{\link[clustree:clustree]{clustree::clustree}}
   \describe{
-    \item{\code{}}{}
+    \item{\code{prefix}}{string indicating columns containing clustering information}
+    \item{\code{suffix}}{string at the end of column names containing clustering
+information}
+    \item{\code{metadata}}{data.frame containing metadata on each sample that can be
+used as node aesthetics}
+    \item{\code{count_filter}}{count threshold for filtering edges in the clustering
+graph}
+    \item{\code{prop_filter}}{in proportion threshold for filtering edges in the
+clustering graph}
+    \item{\code{layout}}{string specifying the "tree" or "sugiyama" layout, see
+\code{\link[igraph:layout_as_tree]{igraph::layout_as_tree()}} and \code{\link[igraph:layout_with_sugiyama]{igraph::layout_with_sugiyama()}} for details}
+    \item{\code{use_core_edges}}{logical, whether to only use core tree (edges with
+maximum in proportion for a node) when creating the graph layout, all
+(unfiltered) edges will still be displayed}
+    \item{\code{highlight_core}}{logical, whether to increase the edge width of the core
+network to make it easier to see}
+    \item{\code{node_colour}}{either a value indicating a colour to use for all nodes or
+the name of a metadata column to colour nodes by}
+    \item{\code{node_colour_aggr}}{if \code{node_colour} is a column name than a string
+giving the name of a function to aggregate that column for samples in each
+cluster}
+    \item{\code{node_size}}{either a numeric value giving the size of all nodes or the
+name of a metadata column to use for node sizes}
+    \item{\code{node_size_aggr}}{if \code{node_size} is a column name than a string
+giving the name of a function to aggregate that column for samples in each
+cluster}
+    \item{\code{node_size_range}}{numeric vector of length two giving the maximum and
+minimum point size for plotting nodes}
+    \item{\code{node_alpha}}{either a numeric value giving the alpha of all nodes or the
+name of a metadata column to use for node transparency}
+    \item{\code{node_alpha_aggr}}{if \code{node_aggr} is a column name than a string
+giving the name of a function to aggregate that column for samples in each
+cluster}
+    \item{\code{node_text_size}}{numeric value giving the size of node text if
+\code{scale_node_text} is \code{FALSE}}
+    \item{\code{scale_node_text}}{logical indicating whether to scale node text along
+with the node size}
+    \item{\code{node_text_colour}}{colour value for node text (and label)}
+    \item{\code{node_text_angle}}{the rotation of the node text}
+    \item{\code{node_label}}{additional label to add to nodes}
+    \item{\code{node_label_aggr}}{if \code{node_label} is a column name than a string
+giving the name of a function to aggregate that column for samples in each
+cluster}
+    \item{\code{node_label_size}}{numeric value giving the size of node label text}
+    \item{\code{node_label_nudge}}{numeric value giving nudge in y direction for node
+labels}
+    \item{\code{edge_width}}{numeric value giving the width of plotted edges}
+    \item{\code{edge_arrow}}{logical indicating whether to add an arrow to edges}
+    \item{\code{edge_arrow_ends}}{string indicating which ends of the line to draw arrow
+heads if \code{edge_arrow} is \code{TRUE}, one of "last", "first", or "both"}
+    \item{\code{show_axis}}{whether to show resolution axis}
+    \item{\code{return}}{string specifying what to return, either "plot" (a \code{ggplot}
+object), "graph" (a \code{tbl_graph} object) or "layout" (a \code{ggraph} layout
+object)}
+    \item{\code{exprs}}{source of gene expression information to use as node aesthetics,
+for \code{SingleCellExperiment} objects it must be a name in \code{assayNames(x)}, for
+a \code{seurat} object it must be one of \code{data}, \code{raw.data} or \code{scale.data} and
+for a \code{Seurat} object it must be one of \code{data}, \code{counts} or \code{scale.data}}
+    \item{\code{assay}}{name of assay to pull expression and clustering data from for
+\code{Seurat} objects}
   }}
 }
 \value{

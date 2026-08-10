@@ -27,7 +27,7 @@ determines the order in which the 2 scaling operations are performed. \cr
 \seealso{
 \link{process_param}
 
-Other scaling parameters: 
+Other scaling parameters:
 \code{\link{scale_zscore}}
 }
 \concept{scaling parameters}

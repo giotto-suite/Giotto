@@ -40,7 +40,7 @@ plot(mm_img)
 \seealso{
 \link{process_param}
 
-Other threshold parameters: 
+Other threshold parameters:
 \code{\link{threshold_binarize}}
 }
 \concept{threshold parameters}

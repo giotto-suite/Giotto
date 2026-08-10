@@ -36,7 +36,7 @@ None
 \seealso{
 \link{process_param}
 
-Other normalization parameters: 
+Other normalization parameters:
 \code{\link{norm_arcsinh}},
 \code{\link{norm_default}},
 \code{\link{norm_library}},

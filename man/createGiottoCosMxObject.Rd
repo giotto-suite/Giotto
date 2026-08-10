@@ -101,7 +101,7 @@ from \code{\link[GiottoClass]{createGiottoInstructions}}}
 \item{background_algo}{deprecated. Not used}
 
 \item{...}{
-  Arguments passed on to \code{\link[=importCosMx]{importCosMx}}
+  Arguments passed on to \code{\link{importCosMx}}
   \describe{
     \item{\code{micron}}{logical. Whether to scale spatial information as micron
 instead of the default pixels}

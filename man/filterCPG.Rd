@@ -8,7 +8,7 @@ filterCPG(...)
 }
 \arguments{
 \item{...}{
-  Arguments passed on to \code{\link[=filterICF]{filterICF}}
+  Arguments passed on to \code{\link{filterICF}}
   \describe{
     \item{\code{icfObject}}{ICF (interaction changed feature) score object}
     \item{\code{min_cells}}{minimum number of source cell type}

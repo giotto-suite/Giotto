@@ -38,7 +38,7 @@ use to log normalize expression values
 \seealso{
 \link{process_param}
 
-Other normalization parameters: 
+Other normalization parameters:
 \code{\link{norm_arcsinh}},
 \code{\link{norm_l2}},
 \code{\link{norm_library}},

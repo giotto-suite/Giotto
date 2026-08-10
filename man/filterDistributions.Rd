@@ -55,7 +55,7 @@ Type of plot to create.}
 
 \item{scale_axis}{character. {ggplot2} transformation for axis
 (e.g. \code{"log2"}). This is passed to the \code{transform} param of
-\code{\link[ggplot2:scale_continuous]{ggplot2::scale_x_continuous()}}}
+\code{\link[ggplot2:scale_x_continuous]{ggplot2::scale_x_continuous()}}}
 
 \item{axis_offset}{numeric. offset to be used together with the scaling
 transformation}
