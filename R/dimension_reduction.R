@@ -2499,13 +2499,16 @@ runNMF <- function(gobject,
 #' @param verbose verbosity of function
 #' @param toplevel_params deprecated
 #' @param toplevel relative stackframe where call was made from
+#' @param method character. UMAP engine to use. One of `"umap2"` (default,
+#'   \code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
+#'   take identical arguments; see details.
 #' @inheritDotParams uwot::umap2 -X -n_neighbors -n_components -n_epochs
 #' -min_dist -n_threads -spread -seed -scale -pca -pca_center -pca_method
 #' @returns giotto object with updated UMAP dimension reduction
 #' @details See \code{\link[uwot]{umap2}} for more information about these and
 #' other parameters.
 #'
-#' The UMAP engine is \code{\link[uwot]{umap2}}, which selects a faster
+#' The default UMAP engine is \code{\link[uwot]{umap2}}, which selects a faster
 #' approximate nearest-neighbor backend when one is available: \pkg{RcppHNSW}
 #' (HNSW) is preferred for dense input with a euclidean, cosine or correlation
 #' metric, and \pkg{rnndescent} (nearest-neighbor descent) is used for sparse
@@ -2514,6 +2517,12 @@ runNMF <- function(gobject,
 #' remains. Note that sparse input -- which is what \code{runUMAP()} passes
 #' when \code{dim_reduction_to_use = NULL} and the expression matrix is
 #' sparse -- \emph{requires} \pkg{rnndescent}.
+#'
+#' \code{method = "umap"} selects \code{\link[uwot]{umap}} instead, which is
+#' the engine used before Giotto 4.2.4. \code{umap2()} is the same algorithm
+#' with a different backend selection and optimizer default rather than a
+#' different method, and the two have identical formals, so every other
+#' argument means the same thing under either.
 #' \itemize{
 #'   \item Input for UMAP dimension reduction can be another dimension reduction
 #'   (default = 'pca')
@@ -2551,9 +2560,14 @@ runUMAP <- function(gobject,
     verbose = TRUE,
     toplevel_params = deprecated(),
     toplevel = 1L,
+    method = c("umap2", "umap"),
     ...) {
     # NSE vars
     cell_ID <- NULL
+
+    # Appended after `toplevel` rather than grouped with the other uwot
+    # params so that no existing argument changes position.
+    method <- match.arg(method)
 
     toplevel <- deprecate_param(
         toplevel_params, toplevel,
@@ -2683,8 +2697,13 @@ runUMAP <- function(gobject,
         # different algorithm: it picks RcppHNSW or rnndescent for the
         # neighbor search when either is installed (Annoy otherwise), and it
         # threads the SGD when batch = TRUE. Formals are identical to umap(),
-        # so nothing passed here changes meaning.
-        uwot_clus <- uwot::umap2(
+        # so the switch is safe in both directions -- every argument below
+        # means the same thing to either engine.
+        umap_fn <- switch(method,
+            "umap2" = uwot::umap2,
+            "umap" = uwot::umap
+        )
+        uwot_clus <- umap_fn(
             X = matrix_to_use, # as.matrix(matrix_to_use) necessary?
             n_neighbors = n_neighbors,
             n_components = n_components,
