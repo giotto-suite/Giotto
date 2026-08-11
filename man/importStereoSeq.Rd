@@ -11,7 +11,8 @@ importStereoSeq(
   bin_size = "bin100",
   gene_column = c("geneName", "geneID"),
   negative_y = TRUE,
-  gef_type = NULL
+  gef_type = NULL,
+  backend = NULL
 )
 
 \S4method{plot}{StereoSeqReader,missing}(x, y, ...)
@@ -34,12 +35,17 @@ One of `"geneName"` (default) or `"geneID"`.}
 \item{negative_y}{logical. Map data to negative y spatial values (default
 `TRUE`). Origin is placed at the upper-left instead of lower-left.}
 
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+`giotto` object as a managed on-disk project.}
+
 \item{x}{`StereoSeqReader`}
 
 \item{...}{additional params to pass}
 }
 \value{
-`StereoSeqReader` object
+`StereoSeqReader` object, or `StereoSeqDiskReader` when `backend`
+is set
 }
 \description{
 Giotto import functionalities for Stereo-seq datasets. This
