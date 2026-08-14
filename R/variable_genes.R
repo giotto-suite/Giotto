@@ -20,7 +20,8 @@
 #' - `covLoessParam` — residual COV above a LOESS fit of COV ~ log(mean_expr)
 #'
 #' **Variance param**:
-#' - `varParam` — per-feature variance on a scaled matrix
+#' - `varParam` — per-feature variance of analytic Pearson residuals,
+#'   computed from raw counts
 #'
 #' @param method character. One of `"feat_stats"`, `"cell_stats"`,
 #'   `"cov_groups"`, `"cov_loess"`, `"var"`.
@@ -85,6 +86,10 @@ setClass("varParam", contains = "analyzeParam")
 .analyze_param_var <- function(...) {
     p <- new("varParam", param = list(...))
     p$use_parallel <- p$use_parallel %null% FALSE
+    # NB overdispersion for the Pearson residuals. 100 follows Lause/Kobak and
+    # matches `normalizeGiotto(norm_methods = "pearson_resid")`, so both routes
+    # to a residual evaluate one formula.
+    p$theta <- p$theta %null% 100
     p
 }
 
@@ -254,10 +259,41 @@ setClass("varParam", contains = "analyzeParam")
 #' @param HVFname name for highly variable features in cell metadata
 #' @param difference_in_cov (cov_loess) minimum difference in coefficient of
 #' variance required
-#' @param var_threshold (var_p_resid) variance threshold for features for
-#' var_p_resid method
-#' @param var_number (var_p_resid) number of top variance features for
-#' var_p_resid method
+#' @param var_threshold (var_p_resid) noise floor on the residual variance.
+#' Under analytic Pearson residuals a feature with no biological signal has
+#' variance close to 1 by construction, so the default `1` drops features that
+#' are *less* variable than Poisson noise. It is a guard, not a selector: on
+#' real data it keeps most features (94.5% of a Stereo-seq transcriptome, 82%
+#' of a Xenium panel). Raise it to select on variance alone. `NULL` disables it.
+#' @param n_top_feats maximum number of features to keep, taken from the top of
+#' that method's own ranking. Default `2000`. Applies to every method.
+#' `NULL` disables it.
+#' @param var_number `r lifecycle::badge("deprecated")` use `n_top_feats`.
+#' @details
+#' # Feature selection
+#' Every method applies two constraints and the more restrictive one decides:
+#' its own threshold (`zscore_threshold` for `cov_groups`,
+#' `difference_in_cov` for `cov_loess`, `var_threshold` for `var_p_resid`)
+#' and the shared `n_top_feats` count. Setting either to `NULL` falls back to
+#' the other.
+#'
+#' The two cover different failure modes. A count keeps the selection a
+#' predictable size across samples, but pads the list when a dataset has few
+#' genuinely variable features, and cannot bind at all on a panel smaller than
+#' `n_top_feats`. A threshold is scale-free but its yield swings with the
+#' data.
+#'
+#' Each method ranks on its own score — residual variance, within-bin COV
+#' z-score, or COV above the LOESS fit. For `cov_groups` the z-score is
+#' standardised within expression bins, so a global ranking stays balanced
+#' across expression levels: on a Stereo-seq transcriptome a top-2000 cut drew
+#' 9.6-12.4% from each of 19 of 20 bins, the exception being the
+#' highest-expression bin, where COV is compressed by construction.
+#' Ties resolve by `order()`, so the selected count is exact.
+#' @param theta (var_p_resid) negative-binomial overdispersion used when
+#' forming the Pearson residuals. Default 100, following Lause/Kobak and
+#' matching `normalizeGiotto(norm_methods = "pearson_resid")`. Larger values
+#' approach a Poisson model.
 #' @param random_subset random subset to perform HVF detection on.
 #' Passing `NULL` runs HVF on all cells.
 #' @param set_seed logical. whether to set a seed when random_subset is used
@@ -309,8 +345,10 @@ calculateHVF <- function(
         zscore_threshold = 1.5,
         HVFname = "hvf",
         difference_in_cov = 0.1,
-        var_threshold = 1.5,
-        var_number = NULL,
+        var_threshold = 1,
+        n_top_feats = 2000,
+        theta = 100,
+        var_number = deprecated(),
         random_subset = NULL,
         set_seed = TRUE,
         seed_number = 1234,
@@ -324,6 +362,12 @@ calculateHVF <- function(
         verbose = TRUE) {
     # NSE vars
     selected <- feats <- var <- NULL
+
+    # `var_number` was var_p_resid-only; the top-N cut now applies to every
+    # method, so it is exposed under a name that does not imply variance.
+    n_top_feats <- GiottoUtils::deprecate_param(
+        var_number, n_top_feats, fun = "calculateHVF", when = "4.2.4"
+    )
 
     # determine whether to use parallel functions
     # Do not use future if future packages are not installed
@@ -346,11 +390,38 @@ calculateHVF <- function(
         feat_type = feat_type
     )
 
+    # Resolved here rather than further down, because which expression values
+    # get fetched depends on it.
+    method <- match.arg(
+        method,
+        choices = c("cov_groups", "cov_loess", "var_p_resid")
+    )
+
     # expression values to be used
     values <- match.arg(
         expression_values,
         unique(c("normalized", "scaled", "custom", expression_values))
     )
+
+    # `var_p_resid` builds Pearson residuals itself, and they are only defined
+    # on counts, so it always reads raw regardless of `expression_values`.
+    # This used to require running
+    # `normalizeGiotto(norm_methods = "pearson_resid")` first and then asking
+    # for the slot it wrote to -- "scaled", not the "normalized" default --
+    # a three-way agreement nothing checked, and which silently returned the
+    # variance of library-normalized values when it was not met.
+    if (method == "var_p_resid") {
+        if (!missing(expression_values)) {
+            warning(wrap_txt(
+                "[calculateHVF] expression_values =", paste0("'", values, "'"),
+                "is ignored for method = 'var_p_resid': Pearson residuals are",
+                "computed from raw counts. Use normalizeGiotto(norm_methods =",
+                "'pearson_resid') if you want residuals as a stored matrix."
+            ), call. = FALSE)
+        }
+        values <- "raw"
+    }
+
     expr_values <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -393,11 +464,7 @@ calculateHVF <- function(
     )
 
 
-    # method to use
-    method <- match.arg(
-        method,
-        choices = c("cov_groups", "cov_loess", "var_p_resid")
-    )
+    # `method` is already resolved above, where it selects the input values.
 
     # Stats compute is dispatched on the expression backend via
     # analyzeData(x, analyzeParam(method, ...)). Streaming backends
@@ -411,14 +478,15 @@ calculateHVF <- function(
         "var_p_resid" = {
             dt <- analyzeData(
                 expr_values,
-                analyzeParam("var", use_parallel = use_parallel)
+                analyzeParam("var", use_parallel = use_parallel,
+                             theta = theta)
             )
-            if (!is.null(var_number) && is.numeric(var_number)) {
-                dt[, selected := seq_len(.N)]
-                dt[, selected := ifelse(selected <= var_number, "yes", "no")]
+            keep <- if (is.null(var_threshold)) {
+                rep(TRUE, nrow(dt))
             } else {
-                dt[, selected := ifelse(var >= var_threshold, "yes", "no")]
+                dt$var >= var_threshold
             }
+            dt[, selected := .hvf_select(keep, dt$var, n_top_feats)]
             dt
         },
         "cov_groups" = {
@@ -429,8 +497,10 @@ calculateHVF <- function(
                     detection_threshold = expression_threshold,
                     use_parallel = use_parallel)
             )
-            dt[, selected := ifelse(cov_group_zscore > zscore_threshold,
-                                     "yes", "no")]
+            dt[, selected := .hvf_select(
+                cov_group_zscore > zscore_threshold,
+                cov_group_zscore, n_top_feats
+            )]
             dt
         },
         "cov_loess" = {
@@ -440,7 +510,9 @@ calculateHVF <- function(
                     detection_threshold = expression_threshold,
                     use_parallel = use_parallel)
             )
-            dt[, selected := ifelse(cov_diff > difference_in_cov, "yes", "no")]
+            dt[, selected := .hvf_select(
+                cov_diff > difference_in_cov, cov_diff, n_top_feats
+            )]
             dt
         }
     )
@@ -451,8 +523,15 @@ calculateHVF <- function(
     pl <- NULL
     if (want_plot) {
         if (method == "var_p_resid") {
+            # ggplot holds a reference to the data, and data.table's `:=`
+            # edits in place -- dropping `rank` after the fact would strip it
+            # back out of the plot. Hand the plot its own copy.
             feat_in_cells_detected[, rank := seq_len(.N)]
-            pl <- .create_calc_var_hvf_plot(feat_in_cells_detected)
+            pl <- .create_calc_var_hvf_plot(
+                data.table::copy(feat_in_cells_detected),
+                var_threshold = var_threshold,
+                n_top_feats = n_top_feats
+            )
             feat_in_cells_detected[, rank := NULL]
         } else if (method == "cov_groups") {
             prob_seq <- seq(0, 1, 1 / nr_expression_groups)
@@ -648,26 +727,127 @@ calculateHVF <- function(
 }
 
 
-.create_calc_var_hvf_plot <- function(dt_res) {
-    pl <- ggplot2::ggplot()
-    pl <- pl + ggplot2::geom_point(
-        data = dt_res, 
-        GiottoVisuals::aes_string2(x = "rank", y = "var", color = "selected")
-    )
-    pl <- pl + ggplot2::scale_x_reverse()
-    pl <- pl + ggplot2::theme_classic() + ggplot2::theme(
-        axis.title = ggplot2::element_text(size = 14),
-        axis.text = ggplot2::element_text(size = 12)
-    )
-    pl <- pl + ggplot2::scale_color_manual(
-        values = c(no = "lightgrey", yes = "orange"),
-        guide = ggplot2::guide_legend(
-            title = "HVF",
-            override.aes = list(size = 5)
+# Diagnostic for method = "var_p_resid".
+#
+# Two things make this readable that a bare rank-vs-variance scatter does not:
+# a reference line at var = 1 -- the value a feature with no biological signal
+# takes under analytic Pearson residuals, so it is the yardstick the threshold
+# is relative to -- and a log y axis, because residual variances are
+# heavy-tailed and the elbow is invisible on a linear scale.
+#
+# When `mean_expr` is available a second panel plots it against the residual
+# variance. Decoupling variance from expression level is the whole point of
+# Pearson residuals, so that panel is what shows whether the method did its
+# job: selected features should not bunch at high mean.
+# Apply the shared top-N cut on top of a method's own threshold, and return
+# the "yes"/"no" column.
+#
+# `keep` is the method's threshold verdict; `score` is the quantity it ranks
+# on (residual variance, within-bin COV z-score, COV above the LOESS fit).
+# Both constraints apply and the more restrictive one wins. They cover
+# different failure modes: a count keeps the selection a predictable size
+# across samples but pads the list when a dataset has few variable features --
+# and cannot bind at all on a panel smaller than `n_top`; a threshold is
+# scale-free but its yield swings with the data (the old var_p_resid default
+# of 1.5 took 49.6% of a Stereo-seq transcriptome and 39.2% of a Xenium panel).
+#
+# The rank is computed here rather than taken from row order, because the
+# `analyzeData()` methods do not agree on it: cov_loess and var return sorted,
+# cov_groups does not. Ties resolve by `order()`, so the count is exact.
+.hvf_select <- function(keep, score, n_top) {
+    if (!is.null(n_top) && is.numeric(n_top)) {
+        rank <- integer(length(score))
+        rank[order(-score)] <- seq_along(score)
+        keep <- keep & (rank <= min(as.integer(n_top), length(score)))
+    }
+    ifelse(keep, "yes", "no")
+}
+
+
+.create_calc_var_hvf_plot <- function(dt_res, var_threshold = NULL,
+                                       n_top_feats = NULL) {
+    n_sel <- sum(dt_res$selected == "yes")
+    n_all <- nrow(dt_res)
+
+    # Both constraints apply; say which one actually decided, since that is
+    # the thing a user needs to know before touching either.
+    bound <- if (!is.null(n_top_feats) && n_sel == min(n_top_feats, n_all)) {
+        sprintf("count-limited (top %s)", format(min(n_top_feats, n_all),
+                                                  big.mark = ","))
+    } else if (!is.null(var_threshold)) {
+        sprintf("threshold-limited (var >= %g)", var_threshold)
+    } else {
+        "unconstrained"
+    }
+    sub <- sprintf("%s of %s features selected -- %s",
+                   format(n_sel, big.mark = ","),
+                   format(n_all, big.mark = ","), bound)
+
+    .base <- function(pl) {
+        pl <- pl + ggplot2::geom_hline(
+            yintercept = 1, linetype = "solid", colour = "steelblue"
         )
+        if (!is.null(var_threshold)) {
+            pl <- pl + ggplot2::geom_hline(
+                yintercept = var_threshold, linetype = "dashed",
+                colour = "black"
+            )
+        }
+        pl + ggplot2::scale_y_log10() +
+            ggplot2::scale_color_manual(
+                values = c(no = "lightgrey", yes = "orange"),
+                guide = ggplot2::guide_legend(
+                    title = "HVF", override.aes = list(size = 5)
+                )
+            ) +
+            ggplot2::theme_classic() +
+            ggplot2::theme(
+                axis.title = ggplot2::element_text(size = 14),
+                axis.text = ggplot2::element_text(size = 12)
+            )
+    }
+
+    pl_rank <- .base(
+        ggplot2::ggplot() + ggplot2::geom_point(
+            data = dt_res,
+            GiottoVisuals::aes_string2(
+                x = "rank", y = "var", color = "selected"
+            )
+        ) + ggplot2::scale_x_reverse()
     )
-    pl <- pl + ggplot2::labs(x = "feature rank", y = "variance")
-    pl
+    # The count cut is a rank, so it only has a place on this panel.
+    if (!is.null(n_top_feats) && n_top_feats < n_all) {
+        pl_rank <- pl_rank + ggplot2::geom_vline(
+            xintercept = n_top_feats, linetype = "dotted", colour = "black"
+        )
+    }
+    pl_rank <- pl_rank + ggplot2::labs(
+        x = "feature rank", y = "Pearson residual variance",
+        title = "HVF by residual variance", subtitle = sub,
+        caption = paste("solid: var = 1, the no-signal expectation;",
+                        "dashed: var_threshold; dotted: n_top_feats")
+    )
+
+    if (!"mean_expr" %in% names(dt_res)) return(pl_rank)
+
+    pl_mean <- .base(
+        ggplot2::ggplot() + ggplot2::geom_point(
+            data = dt_res,
+            GiottoVisuals::aes_string2(
+                x = "mean_expr", y = "var", color = "selected"
+            )
+        ) + ggplot2::scale_x_log10()
+    ) + ggplot2::labs(
+        x = "mean expression", y = "Pearson residual variance",
+        title = "Residual variance vs expression level", subtitle = sub,
+        caption = "selection should not track mean expression"
+    )
+
+    if (requireNamespace("patchwork", quietly = TRUE)) {
+        return(pl_rank + pl_mean)
+    }
+    # patchwork is optional; the rank view is the primary one
+    pl_rank
 }
 
 
@@ -808,19 +988,38 @@ setMethod("analyzeData",
 setMethod("analyzeData",
     signature(x = "allMatrix", param = "varParam"),
     function(x, param, ...) {
+        # Analytic Pearson residual variance (Lause/Kobak/Berens), computed
+        # here from raw counts rather than expecting the caller to have run
+        # `normalizeGiotto(norm_methods = "pearson_resid")` first. Previously
+        # this was a plain `var` of whatever matrix it was handed, which was
+        # the residual criterion only if that prior step had happened and had
+        # been read back from the right slot -- it silently was not.
+        #
+        # `.prnorm()` is the same helper the normalization uses, so the two
+        # routes cannot drift apart.
+        theta <- param$theta %null% 100
+
         if (inherits(x, "IterableMatrix")) {
-            scores <- sort(BPCells::rowVars(x), decreasing = TRUE)
-            return(data.table::data.table(feats = names(scores), var = scores))
+            # BPCells has no residual path; rowVars on the stored values is
+            # not the same statistic, so say so rather than return it.
+            stop("[analyzeData(varParam)] Pearson residual variance is not ",
+                 "implemented for IterableMatrix. Use method = 'cov_loess' ",
+                 "or 'cov_groups', or a parquetExprStore backend.",
+                 call. = FALSE)
         }
-        if (isTRUE(param$use_parallel)) {
-            scores <- future.apply::future_apply(
-                X = x, MARGIN = 1, FUN = var, future.seed = TRUE
-            )
-        } else {
-            scores <- apply(X = x, MARGIN = 1, FUN = var)
-        }
-        scores <- sort(scores, decreasing = TRUE)
-        data.table::data.table(feats = names(scores), var = scores)
+
+        z <- .prnorm(x = x, theta = theta)
+        scores <- .rowVars_flex(z)
+        names(scores) <- rownames(x)
+        mu <- rowMeans_flex(x)
+
+        dt <- data.table::data.table(
+            feats = names(scores),
+            var = as.numeric(scores),
+            mean_expr = as.numeric(mu[names(scores)])
+        )
+        data.table::setorder(dt, -var)
+        dt
     }
 )
 

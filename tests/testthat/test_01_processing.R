@@ -53,11 +53,13 @@ test_that("highly variable gene detections - pearson resid", {
         update_slot = "pearson"
     )
 
+    # var_p_resid builds the residuals itself from raw counts, so the
+    # pearson_resid normalization above is no longer a prerequisite and
+    # expression_values is not consulted.
     g <- calculateHVF(
         g,
         method = "var_p_resid",
-        var_threshold = 7,
-        expression_values = "pearson"
+        var_threshold = 7
     )
 
     expect_true(any(c("var", "hvf") %in% names(fDataDT(g))))
@@ -65,6 +67,16 @@ test_that("highly variable gene detections - pearson resid", {
     # character "yes" and "no" expected
     checkmate::expect_numeric(fDataDT(g)$var)
     checkmate::expect_character(fDataDT(g)$hvf)
+})
+
+test_that("var_p_resid warns that expression_values is ignored", {
+    rlang::local_options(lifecycle_verbosity = "quiet")
+    g <- setFeatureMetadata(g, NULL, spat_unit = "cell", feat_type = "rna",
+                            verbose = FALSE)
+    expect_warning(
+        calculateHVF(g, method = "var_p_resid", expression_values = "normalized"),
+        "ignored for method"
+    )
 })
 
 test_that("var_p_resid row variance matches base variance on Giotto matrices", {
