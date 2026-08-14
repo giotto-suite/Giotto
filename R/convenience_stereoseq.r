@@ -90,8 +90,12 @@ setMethod("print", signature("StereoSeqReader"), function(x, ...) show(x))
 #'   One of `"geneName"` (default) or `"geneID"`.
 #' @param negative_y logical. Map data to negative y spatial values (default
 #'   `TRUE`). Origin is placed at the upper-left instead of lower-left.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
 #' @details Loading functions are generated after `stereoseq_dir` is set.
-#' @returns `StereoSeqReader` object
+#' @returns `StereoSeqReader` object, or `StereoSeqDiskReader` when `backend`
+#' is set
 #' @examples
 #' \dontrun{
 #' # Create a StereoSeqReader
@@ -120,7 +124,35 @@ importStereoSeq <- function(
     bin_size = "bin100",
     gene_column = c("geneName", "geneID"),
     negative_y = TRUE,
-    gef_type = NULL) {
+    gef_type = NULL,
+    backend = NULL) {
+
+    type <- match.arg(type, c("bin", "cell"))
+    gene_column <- match.arg(gene_column, c("geneName", "geneID"))
+
+    # default gef_type by type if not provided. Resolved ahead of the backend
+    # branch so the in-mem and disk readers are handed the same file choice --
+    # importStereoSeqDisk() has its own default and they used to disagree for
+    # type = "cell".
+    if (is.null(gef_type)) {
+        gef_type <- if (type == "bin") "tissue" else "adjusted_cellbin"
+    }
+
+    if (!is.null(backend)) {
+        package_check(
+            "GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk"
+        )
+        return(GiottoDisk::importStereoSeqDisk(
+            stereoseq_dir = stereoseq_dir,
+            backend = backend,
+            type = type,
+            bin_size = bin_size,
+            gene_column = gene_column,
+            negative_y = negative_y,
+            gef_type = gef_type
+        ))
+    }
 
     a <- list(Class = "StereoSeqReader")
 
@@ -128,17 +160,11 @@ importStereoSeq <- function(
         a$stereoseq_dir <- stereoseq_dir
     }
 
-    a$type <- match.arg(type, c("bin", "cell"))
+    a$type <- type
     a$bin_size <- bin_size
-    a$gene_column <- match.arg(gene_column, c("geneName", "geneID"))
+    a$gene_column <- gene_column
     a$negative_y  <- as.logical(negative_y)
-
-    # default gef_type by type if not provided
-    if (is.null(gef_type)) {
-        a$gef_type <- if (a$type == "bin") "tissue" else "adjusted_cellbin"
-    } else {
-        a$gef_type <- gef_type
-    }
+    a$gef_type <- gef_type
 
     do.call(new, args = a)
 }
@@ -1061,7 +1087,15 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         spatVector          = sv,
         spatVectorCentroids = NULL,
         overlaps            = NULL,
-        name                = "cell"
+        name                = "cell",
+        # Populate the ID cache, as every other polygon constructor does
+        # (e.g. createGiottoPolygonsFromMask()). Left at the prototype
+        # NA_character_, the IDs get recomputed downstream with
+        # `unique(<spatVector>$poly_ID)` -- which fails once the object is
+        # added to a backend-managed giotto, because setGiotto() has by then
+        # swapped the SpatVector for a parquetGeomStore and `unique()` does
+        # not apply to it.
+        unique_ID_cache     = as.character(sv$poly_ID)
     )
     gpoly <- centroids(gpoly, append_gpolygon = TRUE)
     gpoly
@@ -1121,6 +1155,9 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
 #' @param mask_path (optional) direct filepath to the `*_HE_mask.tif` file.
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
 #'
@@ -1148,6 +1185,7 @@ createGiottoStereoSeqObjectBin <- function(
     gef_path        = NULL,
     image_path      = NULL,
     mask_path       = NULL,
+    backend         = NULL,
     instructions    = NULL,
     verbose         = NULL) {
 
@@ -1157,7 +1195,8 @@ createGiottoStereoSeqObjectBin <- function(
         bin_size      = bin_size,
         gene_column   = match.arg(gene_column, c("geneName", "geneID")),
         negative_y    = negative_y,
-        gef_type      = match.arg(gef_type, c("tissue", "full", "raw"))
+        gef_type      = match.arg(gef_type, c("tissue", "full", "raw")),
+        backend       = backend
     )
 
     read_args <- list(
@@ -1216,6 +1255,9 @@ createGiottoStereoSeqObjectBin <- function(
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
 #' @param mask_path (optional) direct filepath to the `*_HE_mask.tif` file.
 #'   Auto-detected from `stereoseq_dir/image/` when not provided.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
 #'
@@ -1242,6 +1284,7 @@ createGiottoStereoSeqObjectCell <- function(
     gef_path        = NULL,
     image_path      = NULL,
     mask_path       = NULL,
+    backend         = NULL,
     instructions    = NULL,
     verbose         = NULL) {
 
@@ -1252,7 +1295,8 @@ createGiottoStereoSeqObjectCell <- function(
         negative_y    = negative_y,
         gef_type      = match.arg(
             gef_type, c("adjusted_cellbin", "cellbin")
-        )
+        ),
+        backend       = backend
     )
 
     read_args <- list(
