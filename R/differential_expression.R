@@ -562,8 +562,16 @@ findScranMarkers_one_vs_all <- function(
                 # data.table variables
                 p.value <- ranking <- NULL
 
+                # `logFC` names both this function's argument and a column of
+                # `selected_table`, and inside `i` the column wins -- so
+                # `logFC >= logFC` compared the column against itself and was
+                # always TRUE. Bind the threshold to a name that cannot
+                # collide.
+                logFC_thresh <- logFC
+
                 selected_table <- selected_table[
-                    (p.value <= pval & logFC >= logFC) | (ranking <= min_feats)
+                    (p.value <= pval & logFC >= logFC_thresh) |
+                        (ranking <= min_feats)
                 ]
 
                 pb(message = c("cluster ", clus_i, "/", length(uniq_clusters)))

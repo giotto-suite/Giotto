@@ -86,3 +86,29 @@ test_that("findScranMarkers_one_vs_all returns one block per cluster", {
     expect_true(all(c("logFC", "feats", "p.value", "ranking") %in%
         colnames(res)))
 })
+
+
+test_that("findScranMarkers_one_vs_all honours its logFC threshold", {
+    skip_if_not_installed("scran")
+    fx <- .mk_gobject()
+
+    # The filter is `(p.value <= pval & logFC >= logFC_thresh) |
+    # (ranking <= min_feats)`, so `min_feats` is set low enough that the
+    # rank clause cannot rescue a feature and the threshold is what decides.
+    strict <- findScranMarkers_one_vs_all(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", verbose = FALSE,
+        logFC = 0.5, min_feats = 1)
+    # `-Inf` is the honest "no threshold" control: `logFC = 0` would still
+    # exclude down-regulated features, which is a real filter, not the
+    # absence of one -- and the shadowed comparison it replaced admitted
+    # everything regardless of sign.
+    loose <- findScranMarkers_one_vs_all(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", verbose = FALSE,
+        logFC = -Inf, min_feats = 1)
+
+    # Nothing below the threshold survives on the p-value clause.
+    expect_equal(sum(strict$logFC < 0.5 & strict$ranking > 1), 0L)
+    # ... and removing the threshold genuinely admits more, which is what
+    # fails if the argument is ever shadowed by the column again.
+    expect_gt(nrow(loose), nrow(strict))
+})
