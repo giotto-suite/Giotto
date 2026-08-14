@@ -909,7 +909,7 @@ addVisiumPolygons <- function(gobject,
 #' if image_file is a list.
 #' @param flip_axis character. Axis along which to reflect the image after the
 #' spatial shift: \code{"none"} (default), \code{"y"}, \code{"x"}, or
-#' \code{"both"}. The reflection origin is the midpoint of the image extent in
+#' \code{"both"}. The reflection is performed around the origin (0, 0) in
 #' micron space.
 #' @returns giottoLargeImage
 #' @export
@@ -921,11 +921,12 @@ createMerscopeLargeImage <- function(image_file,
 
     if (flip_axis != "none") {
         message(
-            "The image is flipped around its own spatial midpoint (microns).",
-            " If you also used flip_axis (!= 'none) in createGiottoMerscopeObject,",
-            " verify that the image aligns with the polygons and transcripts --",
-            " the flip centers may differ if the image does not cover the same",
-            " area as the transcript coordinates."
+            "The image is flipped around the origin (0, 0) in micron space.",
+            " Note that createGiottoMerscopeObject flips polygons and transcripts",
+            " around their spatial midpoint, not the origin.",
+            " If you use flip_axis in both functions, the image and spatial data",
+            " will likely not align -- consider flipping the image manually after",
+            " loading to match the flip center of your spatial coordinates."
         )
     }
 
@@ -1290,12 +1291,12 @@ createGiottoMerscopeObject <- function(merscope_dir,
             if (isTRUE(verbose)) message("Calculating overlap for polygon layer: ", poly_name)
 
             z_sub <- GiottoClass::calculateOverlap(
-                gobject = z_sub, spat_info = poly_name, feat_info = "rna"
+                z_sub, spat_info = poly_name, feat_info = "rna"
             )
             if (isTRUE(overlap_to_matrix)) {
 
                 z_sub <- GiottoClass::overlapToMatrix(
-                    gobject = z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
+                    z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
                 )
             }
         }
