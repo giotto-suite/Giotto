@@ -177,6 +177,21 @@ setMethod("analyzeData",
     )
     # Not scran arguments: `comparison` selects which sweep this method runs.
     p[["comparison"]] <- NULL
+
+    # `std.lfc` is t-test only -- `pairwiseWilcox()` and `pairwiseBinom()` do
+    # not take it, and an effect size expressed in pooled standard deviations
+    # has no counterpart for an AUC or a detection rate. The param always
+    # carries the field (defaulted to FALSE), so forwarding it unconditionally
+    # breaks every non-t test with "unused argument (std.lfc = FALSE)".
+    if (!identical(p$test_type %null% "t", "t")) {
+        if (isTRUE(p$std_lfc)) {
+            stop("[markersParam] `std_lfc = TRUE` applies only to ",
+                "`test_type = \"t\"`; ", p$test_type, " reports no ",
+                "standardized effect size.", call. = FALSE)
+        }
+        p[["std_lfc"]] <- NULL
+    }
+
     for (from in names(rename)) {
         if (from %in% names(p)) {
             p[[rename[[from]]]] <- p[[from]]

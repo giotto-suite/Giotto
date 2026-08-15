@@ -112,3 +112,31 @@ test_that("findScranMarkers_one_vs_all honours its logFC threshold", {
     # fails if the argument is ever shadowed by the column again.
     expect_gt(nrow(loose), nrow(strict))
 })
+
+
+test_that("non-t tests do not receive the t-only std.lfc argument", {
+    skip_if_not_installed("scran")
+    fx <- .mk_gobject()
+
+    # `markersParam()` always materializes `std_lfc`, so forwarding it blindly
+    # broke every non-t test with "unused argument (std.lfc = FALSE)" --
+    # pairwiseWilcox()/pairwiseBinom() have no such parameter. This is the
+    # in-memory fallback the streaming backend points users at, so it has to
+    # work.
+    for (tt in c("wilcox", "binom")) {
+        res <- analyzeData(as.matrix(fx$mat),
+            markersParam(method = "scran", test_type = tt),
+            groups = fx$clus)
+        expect_named(as.list(res), c("a", "b", "c"), info = tt)
+    }
+
+    # ... and asking for it explicitly is an error rather than a silent drop:
+    # an AUC has no standardized-effect-size counterpart.
+    expect_error(
+        analyzeData(as.matrix(fx$mat),
+            markersParam(method = "scran", test_type = "wilcox",
+                std_lfc = TRUE),
+            groups = fx$clus),
+        "applies only to"
+    )
+})
