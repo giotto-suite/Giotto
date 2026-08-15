@@ -23,6 +23,11 @@
 #' - `varParam` — per-feature variance of analytic Pearson residuals,
 #'   computed from raw counts
 #'
+#' **Marker detection params** (one subclass of the virtual `markersParam`
+#' per detection method):
+#' - `scranMarkersParam` — pairwise group comparisons combined per group;
+#'   see [markers_scran]. Built with [markersParam()].
+#'
 #' @param method character. One of `"feat_stats"`, `"cell_stats"`,
 #'   `"cov_groups"`, `"cov_loess"`, `"var"`.
 #' @param ... additional parameters passed to the specific param constructor.
