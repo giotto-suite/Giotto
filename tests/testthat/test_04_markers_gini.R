@@ -223,6 +223,85 @@ test_that("no combination of gates can push the result below min_feats", {
     expect_true(all(starved$comb_rank <= 5L))
 })
 
+test_that("rank_score is inert at its Inf default", {
+    expect_equal(.gini(), .gini(rank_score = Inf))
+})
+
+test_that("rank_score filters on the raw rank, not the rescaled weight", {
+    # Regression: the ranks used to be overwritten in place by their own
+    # rescaling into [1, 0.1], so `expression_rank <= rank_score` could never
+    # fail for any rank_score >= 1 and the argument did nothing at its own
+    # default. Anything that reintroduces that will make these equal.
+    expect_lt(nrow(.gini(rank_score = 1)), nrow(.gini(rank_score = Inf)))
+    expect_lt(nrow(.gini(rank_score = 1)), nrow(.gini(rank_score = 2)))
+
+    # and the returned ranks are positions, not weights
+    r <- .gini()
+    expect_true(all(r$expression_rank >= 1))
+    expect_true(all(r$expression_rank == as.integer(r$expression_rank)))
+})
+
+test_that("rank_score = 1 keeps only clusters topping the feature", {
+    kept <- .gini(rank_score = 1, min_expression = -Inf, min_detection = -Inf)
+    beyond <- kept[comb_rank > 5L] # outside the min_feats rescue
+    expect_true(all(beyond$expression_rank == 1L))
+    expect_true(all(beyond$detection_rank == 1L))
+})
+
+test_that("clusters tied at the top all count as rank 1", {
+    # With ties.method = "average" a two-way tie gives both clusters 1.5, so
+    # `<= 1` rejected the feature entirely instead of crediting each winner.
+    # Detection is a fraction over cluster size, so top ties are common.
+    r <- .gini(min_expression = -Inf, min_detection = -Inf)
+    tied <- r[, .(n_top = sum(detection_rank == 1L)), by = feats]
+    expect_true(any(tied$n_top > 1L))
+    # no feature may end up with no rank-1 cluster at all
+    expect_true(all(tied$n_top >= 1L))
+})
+
+test_that("in one_vs_all only rank_score = 1 can bind", {
+    # Each iteration compares two groups, so ranks are only ever 1 or 2 and
+    # any threshold above 1 admits everything. Documented in @details.
+    f <- function(rs) {
+        findGiniMarkers_one_vs_all(g,
+            cluster_column = CLUS, expression_values = "normalized",
+            min_feats = 1, verbose = FALSE, rank_score = rs
+        )
+    }
+    loose <- f(Inf)
+    expect_equal(f(2), loose)
+    expect_lt(nrow(f(1)), nrow(loose))
+    expect_lte(max(loose$expression_rank), 2L)
+    expect_lte(max(loose$detection_rank), 2L)
+})
+
+test_that("findMarkers_one_vs_all forwards rank_score", {
+    # Regression: the gini branch declared rank_score but never passed it on.
+    loose <- findMarkers_one_vs_all(g,
+        method = "gini", expression_values = "normalized",
+        cluster_column = CLUS, min_feats = 1, verbose = FALSE,
+        rank_score = Inf
+    )
+    tight <- findMarkers_one_vs_all(g,
+        method = "gini", expression_values = "normalized",
+        cluster_column = CLUS, min_feats = 1, verbose = FALSE,
+        rank_score = 1
+    )
+    expect_lt(nrow(tight), nrow(loose))
+})
+
+test_that("comb_rank still follows comb_score within each cluster", {
+    # `comb_score` is built from the rescaled weights, which kept the original
+    # default tie handling when the rank was split out; only the returned rank
+    # columns changed. So the score -> rank relationship must be intact.
+    r <- .gini(min_expression = -Inf, min_detection = -Inf)
+    chk <- r[, .(ok = !is.unsorted(comb_rank[order(-comb_score)])),
+        by = cluster
+    ]
+    expect_true(all(chk$ok))
+    expect_false(any(is.na(r$comb_score)))
+})
+
 test_that("the gate comparisons are strict", {
     # A value exactly equal to its threshold does not pass. Detection values
     # are fractions over a cluster's cell count, so exact hits are common.

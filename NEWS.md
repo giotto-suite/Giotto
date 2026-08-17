@@ -1,5 +1,9 @@
 # Giotto 4.2.4 (in development)
 
+## Bug fixes
+* `rank_score` now takes effect in gini marker detection. Three separate defects kept it inert: the filter compared against the rank *after* it had been rescaled into `[1, 0.1]`, so any `rank_score >= 1` was trivially satisfied and only a value below 1 did anything; `findMarkers_one_vs_all(method = "gini")` accepted the argument but never forwarded it; and ties were ranked by the `"average"` method, so clusters sharing the top value all received a fractional rank and were rejected together rather than each counting as rank 1. The default is now `Inf` rather than `1`, which keeps existing results unchanged — `rank_score` had never done anything at its old default, so switching it on silently would have changed every gini call. Pass a finite value to use it: `rank_score = 1` keeps a feature only where its cluster ranks first on both expression and detection, `2` allows the top two.
+* `expression_rank` and `detection_rank` in the returned table now hold those ranks (1, 2, 3, …) rather than the `[1, 0.1]` weight used to build `comb_score`. Row counts, column names and `comb_score` itself are unchanged.
+
 ## Changes
 * `findGiniMarkers()`, `findGiniMarkers_one_vs_all()`, `findMarkers()` and `findMarkers_one_vs_all()`: `min_expr_gini_score` and `min_det_gini_score` are renamed `min_expression` and `min_detection`. Despite their names they have never gated the gini coefficients — they gate `expression` and `detection`, the per-cluster mean expression and detection fraction. Every gate is now `min_` plus the name of the result column it applies to. The old names are deprecated and still work; results are unchanged. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 

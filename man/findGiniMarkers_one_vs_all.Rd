@@ -16,7 +16,7 @@ findGiniMarkers_one_vs_all(
   min_expression_gini = -Inf,
   min_detection_gini = -Inf,
   detection_threshold = 0,
-  rank_score = 1,
+  rank_score = Inf,
   min_feats = 4,
   min_genes = NULL,
   verbose = TRUE,
@@ -53,7 +53,10 @@ the \code{expression_gini} column of the result. \code{-Inf} (default) disables 
 expressing a feature, used when computing \code{detection}. Not a filter on the
 returned rows -- see \code{min_detection} for that.}
 
-\item{rank_score}{rank scores for both detection and expression to include}
+\item{rank_score}{keep a feature when its cluster is within this rank for
+both \code{expression} and \code{detection}, where rank 1 is the cluster in which the
+feature is highest. \code{Inf} (default) disables it. Combined with \code{min_feats}
+by \code{or}, like the other gates.}
 
 \item{min_feats}{minimum number of top feats to return}
 
@@ -85,6 +88,13 @@ ceiling for \code{G} groups is \code{(G - 1) / G}. Thresholds passed to
 \code{min_expression_gini} or \code{min_detection_gini} have to sit below that or they
 reject every feature, leaving only the \code{min_feats} per cluster that the
 filter always keeps.
+
+Two groups also gives \code{rank_score} a direct reading here: with only the
+cluster and the pooled rest to rank, \code{rank_score = 1} keeps a feature only
+where the cluster under test is not beaten by the rest on either mean
+expression or detection fraction — a tie counts, since tied groups share
+rank 1. Any value above 1 admits every feature, there being no third rank
+to exclude.
 }
 \section{Filtering}{
 
@@ -108,15 +118,22 @@ they add over \code{min_feats} is an \emph{absolute} cutoff, where \code{min_fea
 weak those are, while a gini floor is a statement about the coefficient
 itself.
 
-All four comparisons are strict (\code{>}), so a value exactly equal to its
-threshold does not pass. This is worth knowing for \code{min_detection}, where
-the values are fractions over a cluster's cell count and land on round
-numbers often.
+\code{rank_score} is a third kind: a position rather than a value. It keeps a
+feature when the cluster in question is within the given rank for both
+\code{expression} and \code{detection}, rank 1 being the cluster where the feature is
+highest. So \code{rank_score = 1} means "this cluster tops the feature on both
+measures", and \code{2} means "top two". It is off by default (\code{Inf}). Clusters
+tied at the top all hold the same rank, so a tie does not exclude them.
 
-All four gates are combined with \code{min_feats} by \code{or}, so a feature in the
-top \code{min_feats} of its cluster by \code{comb_score} is kept regardless of every
-threshold above. Setting the gates more strictly therefore shrinks the
-result towards \code{min_feats} features per cluster, never below it.
+All four value comparisons are strict (\code{>}), so a value exactly equal to
+its threshold does not pass; \code{rank_score} is inclusive (\code{<=}). The strict
+case is worth knowing for \code{min_detection}, where the values are fractions
+over a cluster's cell count and land on round numbers often.
+
+Every gate is combined with \code{min_feats} by \code{or}, so a feature in the top
+\code{min_feats} of its cluster by \code{comb_score} is kept regardless of all of
+them. Setting the gates more strictly therefore shrinks the result towards
+\code{min_feats} features per cluster, never below it.
 
 To perform differential expression between custom selected groups of cells
 you need to specify the cell_ID column to parameter \emph{cluster_column}
