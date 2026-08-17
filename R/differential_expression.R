@@ -966,47 +966,57 @@ findGiniMarkers <- function(
         stats = c("sum", "nnz")
     )
 
-    aggr_sc_clusters_DT_melt <- data.table::data.table(
-        feats = st$feats,
-        cluster = st$group,
-        expression = st$mean_expr
-    )
-    aggr_detection_sc_clusters_DT_melt <- data.table::data.table(
-        feats = st$feats,
-        cluster = st$group,
-        detection = st$perc_cells / 100
+    top_feats_scores_filtered <- .gini_score_dt(
+        data.table::data.table(
+            feats = st$feats,
+            cluster = st$group,
+            expression = st$mean_expr,
+            detection = st$perc_cells / 100
+        ),
+        min_length = min_length,
+        min_expression = min_expression,
+        min_detection = min_detection,
+        min_expression_gini = min_expression_gini,
+        min_detection_gini = min_detection_gini,
+        rank_score = rank_score,
+        min_feats = min_feats
     )
 
-    ## gini
+    # Cluster labels come straight from the grouping vector now, so the
+    # 'cluster_' prefix that create_average_DT() added -- and the conditional
+    # strip that undid it -- are both gone. That strip only fired when no real
+    # cluster name contained "cluster_", so a cluster genuinely named
+    # 'cluster_3' used to come back mangled; labels are now verbatim.
+
+    return(top_feats_scores_filtered)
+}
+
+
+# Score a features x clusters table into the gini marker result.
+#
+# Takes `feats`, `cluster`, `expression` and `detection` and returns the
+# filtered, ordered result. Shared by findGiniMarkers() and the pooled
+# one-vs-all path so the statistic has one implementation.
+.gini_score_dt <- function(aggr_sc,
+    min_length, min_expression, min_detection,
+    min_expression_gini, min_detection_gini, rank_score, min_feats) {
+    # data.table variables
+    feats <- cluster <- expression <- detection <- NULL
+    expression_gini <- detection_gini <- NULL
+    expression_rank <- detection_rank <- expression_wt <- detection_wt <- NULL
+    comb_score <- comb_rank <- NULL
+
     # `min_length` pads the per-cluster vector so the coefficient stops
     # depending on how many clusters were compared -- see mygini_fun(). 0, the
     # default, never pads.
-    aggr_sc_clusters_DT_melt[, expression_gini := mygini_fun(
+    aggr_sc[, expression_gini := mygini_fun(
         expression,
         min_length = min_length
     ), by = feats]
-    aggr_detection_sc_clusters_DT_melt[, detection_gini := mygini_fun(
+    aggr_sc[, detection_gini := mygini_fun(
         detection,
         min_length = min_length
     ), by = feats]
-
-
-    ## combine
-    aggr_sc <- cbind(
-        aggr_sc_clusters_DT_melt,
-        aggr_detection_sc_clusters_DT_melt[
-            , .(detection, detection_gini)
-        ]
-    )
-
-    ## create combined rank
-
-    # expression rank for each feat in all samples
-    # rescale expression rank range between 1 and 0.1
-
-    # data.table variables
-    expression_rank <- cluster <- detection_rank <- NULL
-    expression_wt <- detection_wt <- NULL
 
     # Two distinct things are wanted from the same ordering, so they get two
     # columns. The rank is what `rank_score` filters on -- position 1 is the
@@ -1030,8 +1040,6 @@ findGiniMarkers <- function(
         to = c(1, 0.1)
     ), by = cluster]
 
-    # detection rank for each feat in all samples
-    # rescale detection rank range between 1 and 0.1
     aggr_sc[, detection_rank := rank(-detection, ties.method = "min"),
         by = feats]
     aggr_sc[, detection_wt := rank(-detection), by = feats]
@@ -1039,11 +1047,6 @@ findGiniMarkers <- function(
         detection_wt,
         to = c(1, 0.1)
     ), by = cluster]
-
-    # create combine score based on rescaled ranks and gini scores
-
-    # data.table variables
-    comb_score <- comb_rank <- NULL
 
     aggr_sc[, comb_score := (expression_gini * expression_wt) * (
         detection_gini * detection_wt)]
@@ -1069,13 +1072,14 @@ findGiniMarkers <- function(
     # drop them so the column contract is unchanged
     top_feats_scores_filtered[, c("expression_wt", "detection_wt") := NULL]
 
-    # Cluster labels come straight from the grouping vector now, so the
-    # 'cluster_' prefix that create_average_DT() added -- and the conditional
-    # strip that undid it -- are both gone. That strip only fired when no real
-    # cluster name contained "cluster_", so a cluster genuinely named
-    # 'cluster_3' used to come back mangled; labels are now verbatim.
+    # stated rather than left to fall out of construction order
+    data.table::setcolorder(top_feats_scores_filtered, c(
+        "feats", "cluster", "expression", "expression_gini",
+        "detection", "detection_gini", "expression_rank",
+        "detection_rank", "comb_score", "comb_rank"
+    ))
 
-    return(top_feats_scores_filtered)
+    top_feats_scores_filtered[]
 }
 
 
@@ -1230,6 +1234,43 @@ findGiniMarkers_one_vs_all <- function(
     # sort uniq clusters
     uniq_clusters <- mixedsort(unique(cell_metadata[[cluster_column]]))
 
+    # One grouped pass over the real clusters. Each cluster-vs-rest pair is
+    # then a row-sum of the other columns, because the accumulators behind
+    # `total_expr` and `nr_cells` are additive -- so what used to be one full
+    # scan per cluster is one scan total. The pooling is exact, not an
+    # approximation.
+    expr_data <- getExpression(
+        gobject = gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        values = values,
+        output = "matrix"
+    )
+    st <- GiottoClass::analyzeData(
+        expr_data,
+        analyzeParam("feat_stats", detection_threshold = detection_threshold),
+        # named so the verb matches on cell ID rather than position
+        groups = stats::setNames(
+            as.character(cell_metadata[[cluster_column]]),
+            cell_metadata[["cell_ID"]]
+        ),
+        stats = c("sum", "nnz")
+    )
+
+    lvls <- unique(st$group)
+    n_feats <- length(unique(st$feats))
+    feat_ids <- st$feats[seq_len(n_feats)]
+
+    # groups vary slowest with feats cycling within, so these unroll directly
+    sums <- matrix(st$total_expr, nrow = n_feats, dimnames = list(NULL, lvls))
+    nnz <- matrix(
+        as.numeric(st$nr_cells), nrow = n_feats, dimnames = list(NULL, lvls)
+    )
+    n_k <- st$n_cells[seq(1L, by = n_feats, length.out = length(lvls))]
+    names(n_k) <- lvls
+
+    # data.table variables
+    cluster <- NULL
 
     # GINI
     with_pbar({
@@ -1237,35 +1278,47 @@ findGiniMarkers_one_vs_all <- function(
         result_list <- lapply(
             seq_along(uniq_clusters),
             function(clus_i) {
-                selected_clus <- uniq_clusters[clus_i]
-                other_clus <- uniq_clusters[uniq_clusters != selected_clus]
+                selected_clus <- as.character(uniq_clusters[clus_i])
+                other_clus <- setdiff(lvls, selected_clus)
 
                 if (verbose == TRUE) {
                     cat("start with cluster ", selected_clus)
                 }
 
-                markers <- findGiniMarkers(
-                    gobject = gobject,
-                    feat_type = feat_type,
-                    spat_unit = spat_unit,
-                    expression_values = values,
-                    cluster_column = cluster_column,
-                    group_1 = selected_clus,
-                    group_2 = other_clus,
+                # default group naming matches what findGiniMarkers() would
+                # have produced for group_1 = selected, group_2 = rest
+                rest_name <- paste0(
+                    mixedsort(uniq_clusters[
+                        as.character(uniq_clusters) != selected_clus
+                    ]),
+                    collapse = "_"
+                )
+                n_rest <- sum(n_k[other_clus])
+
+                markers <- .gini_score_dt(
+                    data.table::data.table(
+                        feats = rep(feat_ids, 2L),
+                        cluster = rep(
+                            c(selected_clus, rest_name),
+                            each = n_feats
+                        ),
+                        expression = c(
+                            sums[, selected_clus] / n_k[[selected_clus]],
+                            rowSums(sums[, other_clus, drop = FALSE]) / n_rest
+                        ),
+                        detection = c(
+                            nnz[, selected_clus] / n_k[[selected_clus]],
+                            rowSums(nnz[, other_clus, drop = FALSE]) / n_rest
+                        )
+                    ),
+                    min_length = min_length,
                     min_expression = min_expression,
                     min_detection = min_detection,
                     min_expression_gini = min_expression_gini,
                     min_detection_gini = min_detection_gini,
-                    detection_threshold = detection_threshold,
-                    min_length = min_length,
                     rank_score = rank_score,
                     min_feats = min_feats
                 )
-
-                # filter steps
-
-                # data.table variables
-                cluster <- NULL
 
                 filtered_table <- markers[cluster == selected_clus]
 
