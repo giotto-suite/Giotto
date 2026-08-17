@@ -21,6 +21,7 @@ findMarkers_one_vs_all(
   min_expression_gini = -Inf,
   min_detection_gini = -Inf,
   detection_threshold = 0,
+  min_length = 0,
   rank_score = Inf,
   adjust_columns = NULL,
   verbose = TRUE,
@@ -65,6 +66,10 @@ expression above `detection_threshold`}
 
 \item{detection_threshold}{gini: expression value above which a cell counts
 as expressing a feature}
+
+\item{min_length}{gini: pad the per-cluster vector to this length before
+taking the gini coefficient, making scores comparable across runs with
+different cluster counts. `0` (the default) never pads.}
 
 \item{rank_score}{gini: keep a feature when its cluster is within this
 rank for both `expression` and `detection` (rank 1 = highest). `Inf`

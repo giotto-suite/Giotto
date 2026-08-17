@@ -161,6 +161,54 @@ test_that("findMarkers_one_vs_all keeps the same column contract", {
 })
 
 
+# min_length ####
+
+test_that("min_length is inert at its 0 default", {
+    expect_equal(.gini(), .gini(min_length = 0))
+})
+
+test_that("min_length lifts the (G - 1) / G ceiling", {
+    # Padding the per-cluster vector to n entries raises the attainable
+    # coefficient to (n - 1) / n regardless of the cluster count, which is what
+    # makes gini values comparable between runs.
+    expect_equal(
+        mygini_fun(c(1, 0), min_length = 16), 15 / 16,
+        tolerance = 1e-9
+    )
+    expect_equal(
+        mygini_fun(c(1, rep(0, 4)), min_length = 16), 15 / 16,
+        tolerance = 1e-9
+    )
+    # never shortens: a vector already longer than min_length is untouched
+    v <- c(1, rep(0, 19))
+    expect_equal(mygini_fun(v, min_length = 16), mygini_fun(v))
+})
+
+test_that("min_length reaches the gini scores through every entry point", {
+    # Regression guard of the D1 kind: a parameter that exists but is never
+    # forwarded. one_vs_all matters most here, since it always compares two
+    # groups and is therefore capped at 0.5 without padding.
+    base_pw <- .gini()
+    pad_pw <- .gini(min_length = 16)
+    expect_gt(max(pad_pw$expression_gini), max(base_pw$expression_gini))
+
+    ova <- function(...) {
+        findMarkers_one_vs_all(g,
+            method = "gini", expression_values = "normalized",
+            cluster_column = CLUS, min_feats = 5, verbose = FALSE, ...
+        )
+    }
+    expect_lte(max(ova()$expression_gini), 0.5 + 1e-9)
+    expect_gt(max(ova(min_length = 16)$expression_gini), 0.5)
+
+    direct <- findGiniMarkers_one_vs_all(g,
+        cluster_column = CLUS, expression_values = "normalized",
+        min_feats = 5, verbose = FALSE, min_length = 16
+    )
+    expect_gt(max(direct$expression_gini), 0.5)
+})
+
+
 # regressions ####
 
 test_that("the default gates do not collapse the result to the min_feats floor", {

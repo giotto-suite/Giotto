@@ -1,14 +1,15 @@
 # Giotto 4.2.4 (in development)
 
 ## Bug fixes
-* `rank_score` now takes effect in gini marker detection. Three separate defects kept it inert: the filter compared against the rank *after* it had been rescaled into `[1, 0.1]`, so any `rank_score >= 1` was trivially satisfied and only a value below 1 did anything; `findMarkers_one_vs_all(method = "gini")` accepted the argument but never forwarded it; and ties were ranked by the `"average"` method, so clusters sharing the top value all received a fractional rank and were rejected together rather than each counting as rank 1. The default is now `Inf` rather than `1`, which keeps existing results unchanged — `rank_score` had never done anything at its old default, so switching it on silently would have changed every gini call. Pass a finite value to use it: `rank_score = 1` keeps a feature only where its cluster ranks first on both expression and detection, `2` allows the top two.
-* `expression_rank` and `detection_rank` in the returned table now hold those ranks (1, 2, 3, …) rather than the `[1, 0.1]` weight used to build `comb_score`. Row counts, column names and `comb_score` itself are unchanged.
+* gini `rank_score` now takes effect. It compared against a rescaled rank capped at 1, and `findMarkers_one_vs_all()` never forwarded it. Default `1` -> `Inf` keeps results unchanged.
+* gini `expression_rank` and `detection_rank` now hold ranks, not the `[1, 0.1]` weight behind `comb_score`. Row counts and `comb_score` unchanged.
 
 ## Changes
-* `findGiniMarkers()`, `findGiniMarkers_one_vs_all()`, `findMarkers()` and `findMarkers_one_vs_all()`: `min_expr_gini_score` and `min_det_gini_score` are renamed `min_expression` and `min_detection`. Despite their names they have never gated the gini coefficients — they gate `expression` and `detection`, the per-cluster mean expression and detection fraction. Every gate is now `min_` plus the name of the result column it applies to. The old names are deprecated and still work; results are unchanged. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
+* gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
 ## New
-* `min_expression_gini` and `min_detection_gini` gate the `expression_gini` and `detection_gini` columns — the filter the old argument names implied. Both default to `-Inf`, so they are inert unless set. They are best used on a second pass, since the returned table carries both columns: run once, inspect the distribution, then set a floor. What they add over `min_feats` is an *absolute* cutoff — `min_feats` ranks within a cluster and so always returns its top few, whereas a gini floor can return nothing for a cluster with no specific features. The expression and detection floors remain, and are not redundant with them: the gini coefficient is scale-free (a feature averaging 0.001 against 0.0001 scores exactly as specific as one averaging 100 against 10), so it carries no magnitude term of its own and will otherwise rank near-noise features as perfectly selective. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
+* gini `min_expression_gini` and `min_detection_gini` gate the gini coefficients themselves, defaulting to `-Inf`. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
+* gini `min_length` pads the per-cluster vector so coefficients compare across runs with different cluster counts. Defaults to `0`, no padding. Replaces the unused `extended_gini_fun()`.
 
 # Giotto 4.2.3 (2026/05/14)
 

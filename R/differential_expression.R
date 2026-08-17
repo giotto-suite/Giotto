@@ -371,6 +371,11 @@ findScranMarkers_one_vs_all <- function(
 #' @param detection_threshold expression value above which a cell counts as
 #' expressing a feature, used when computing `detection`. Not a filter on the
 #' returned rows -- see `min_detection` for that.
+#' @param min_length pad the per-cluster vector to this length before taking
+#' the gini coefficient, using copies of its minimum. Removes the dependence
+#' of the coefficient on how many clusters were compared, so gini scores and
+#' the `min_expression_gini` / `min_detection_gini` thresholds become
+#' comparable across runs. `0` (the default) never pads.
 #' @param rank_score keep a feature when its cluster is within this rank for
 #' both `expression` and `detection`, where rank 1 is the cluster in which the
 #' feature is highest. `Inf` (default) disables it. Combined with `min_feats`
@@ -421,6 +426,9 @@ findScranMarkers_one_vs_all <- function(
 #'   exactly two values and are capped at 0.50 — well below what the same
 #'   feature would score in a multi-cluster run here.
 #'
+#' `min_length` exists to remove that dependence; see the *Comparing runs*
+#' section below.
+#'
 #' As a result "top gini" feats are feats that are very selectively expressed
 #' in a specific cluster,
 #' however not always expressed in all cells of that cluster. In other words
@@ -465,6 +473,90 @@ findScranMarkers_one_vs_all <- function(
 #' them. Setting the gates more strictly therefore shrinks the result towards
 #' `min_feats` features per cluster, never below it.
 #'
+#' @section Comparing runs:
+#' A *run* here means one call together with the set of clusters that call
+#' compares — `G` of them. A gini coefficient over `G` values cannot exceed
+#' `(G - 1) / G`, so a coefficient is a property of the feature **and** of the
+#' run that produced it, not of the feature alone.
+#'
+#' `G` is not fixed by the dataset; it is set by the arguments. On the mini
+#' visium object with seven leiden clusters:
+#'
+#' | call | `G` | ceiling | highest `expression_gini` |
+#' | --- | --- | --- | --- |
+#' | `findGiniMarkers()` | 7 | 0.857 | 0.484 |
+#' | `findGiniMarkers(subset_clusters = 3 of them)` | 3 | 0.667 | 0.443 |
+#' | `findGiniMarkers(group_1 =, group_2 =)` | 2 | 0.500 | 0.390 |
+#' | `findGiniMarkers_one_vs_all()` | 2 | 0.500 | 0.309 |
+#'
+#' The feature `Mustn1` scores 0.484 in the full run and 0.238 in the
+#' three-cluster subset — the same cells, the same expression, half the
+#' coefficient, because `subset_clusters` changed what it was compared against.
+#' That is the boundary: any point where a coefficient produced under one `G`
+#' is read against one produced under another.
+#'
+#' `min_length` pads the per-cluster vector with copies of its own minimum
+#' before the coefficient is taken, fixing the ceiling at
+#' `(min_length - 1) / min_length` for any run with fewer clusters than that,
+#' and so putting runs with different `G` back on one scale.
+#'
+#' Padding is not a neutral rescaling, and it is not strictly better than
+#' leaving it off. Two things follow from the padding value being *each
+#' feature's own minimum*. It reorders features within a single run, because a
+#' feature with a floor of zero gains far more from padding than one with a
+#' high floor — measured on mini visium, padded and unpadded
+#' `expression_gini` correlate at 0.95, not 1.0. And it asserts something the
+#' data does not contain: `c(10, 0)` scores 0.50 over two groups and 0.9375
+#' padded to sixteen, which amounts to assuming the feature would sit at its
+#' observed minimum in fourteen groups nobody measured. Being top of two
+#' clusters really is weaker evidence of specificity than being top of twenty;
+#' the unpadded ceiling is that fact, not an artefact.
+#'
+#' So this is a deliberate trade — a comparable number in exchange for an
+#' assumption — and it cannot be chosen automatically, because the right value
+#' depends on which *other* runs the score has to line up with, which a single
+#' call cannot see.
+#'
+#' **Leave it at `0` when** you are reading one run's results on their own
+#' terms — the default, and the case that needs no assumption. Nothing in the
+#' returned table requires an absolute coefficient: `comb_rank`, `min_feats`
+#' and `rank_score` are all relative to the run, and the gini columns are only
+#' being read against each other.
+#'
+#' **Set it when a gini number has to mean the same thing twice.** In rough
+#' order of how easily each is hit:
+#'
+#' * comparing a full run against one narrowed by `subset_clusters`, or against
+#'   a `group_1`/`group_2` pairwise call — the same object and the same
+#'   clustering, but a different `G`, so the coefficients are not on one scale;
+#' * comparing [findGiniMarkers()] against [findGiniMarkers_one_vs_all()],
+#'   whose two-group comparisons are capped at 0.50 while a 20-cluster run
+#'   reaches 0.95;
+#' * reusing one `min_expression_gini` or `min_detection_gini` threshold across
+#'   clustering resolutions, or across datasets, where the cluster count
+#'   differs;
+#' * reporting a coefficient as a property of a feature rather than of one
+#'   analysis.
+#'
+#' All four are the same situation: a coefficient produced under one `G` being
+#' read against one produced under another.
+#'
+#' Pick a value at least as large as the biggest cluster count you want to
+#' compare across. Below that, a run with more clusters than `min_length` is
+#' left unpadded and the scales still differ. Above it there is no real cost:
+#' padding harder widens the range rather than compressing it, and barely
+#' touches the ordering (measured on the mini visium dataset, `min_length` of
+#' 16 versus 100 gives a Spearman correlation of 0.998 between the resulting
+#' coefficients). `16` is the value this padding shipped with historically and
+#' fixes the ceiling at 0.9375.
+#'
+#' Turning it on is not free. Every gini score changes, so results stop being
+#' comparable with unpadded runs — pad both sides or neither. And since
+#' `comb_score` is built from the coefficients, the reordering described above
+#' propagates: on mini visium `min_length = 16` moves `comb_rank` for 98% of
+#' rows, which changes which features `min_feats` rescues and therefore which
+#' features are returned at all.
+#'
 #' To perform differential expression between custom selected groups of cells
 #' you need to specify the cell_ID column to parameter \emph{cluster_column}
 #' and provide the individual cell IDs to the parameters \emph{group_1} and
@@ -497,6 +589,7 @@ findGiniMarkers <- function(
         min_expression_gini = -Inf,
         min_detection_gini = -Inf,
         detection_threshold = 0,
+        min_length = 0,
         rank_score = Inf,
         min_feats = 5,
         min_genes = NULL,
@@ -655,11 +748,16 @@ findGiniMarkers <- function(
     # data.table variables
     expression_gini <- detection_gini <- detection <- NULL
 
+    # `min_length` pads the per-cluster vector so the coefficient stops
+    # depending on how many clusters were compared -- see mygini_fun(). 0, the
+    # default, never pads.
     aggr_sc_clusters_DT_melt[, expression_gini := mygini_fun(
-        expression
+        expression,
+        min_length = min_length
     ), by = feats]
     aggr_detection_sc_clusters_DT_melt[, detection_gini := mygini_fun(
-        detection
+        detection,
+        min_length = min_length
     ), by = feats]
 
 
@@ -776,6 +874,11 @@ findGiniMarkers <- function(
 #' @param detection_threshold expression value above which a cell counts as
 #' expressing a feature, used when computing `detection`. Not a filter on the
 #' returned rows -- see `min_detection` for that.
+#' @param min_length pad the per-cluster vector to this length before taking
+#' the gini coefficient, using copies of its minimum. Removes the dependence
+#' of the coefficient on how many clusters were compared, so gini scores and
+#' the `min_expression_gini` / `min_detection_gini` thresholds become
+#' comparable across runs. `0` (the default) never pads.
 #' @param rank_score keep a feature when its cluster is within this rank for
 #' both `expression` and `detection`, where rank 1 is the cluster in which the
 #' feature is highest. `Inf` (default) disables it. Combined with `min_feats`
@@ -808,6 +911,7 @@ findGiniMarkers <- function(
 #' to exclude.
 #' @md
 #' @inheritSection findGiniMarkers Filtering
+#' @inheritSection findGiniMarkers Comparing runs
 #' @seealso \code{\link{findGiniMarkers}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -826,6 +930,7 @@ findGiniMarkers_one_vs_all <- function(
         min_expression_gini = -Inf,
         min_detection_gini = -Inf,
         detection_threshold = 0,
+        min_length = 0,
         rank_score = Inf,
         min_feats = 4,
         min_genes = NULL,
@@ -924,6 +1029,7 @@ findGiniMarkers_one_vs_all <- function(
                     min_expression_gini = min_expression_gini,
                     min_detection_gini = min_detection_gini,
                     detection_threshold = detection_threshold,
+                    min_length = min_length,
                     rank_score = rank_score,
                     min_feats = min_feats
                 )
@@ -1340,6 +1446,9 @@ findMastMarkers_one_vs_all <- function(
 #' `-Inf` (default) disables it.
 #' @param detection_threshold gini: expression value above which a cell counts
 #' as expressing a feature
+#' @param min_length gini: pad the per-cluster vector to this length before
+#' taking the gini coefficient, making scores comparable across runs with
+#' different cluster counts. `0` (the default) never pads.
 #' @param rank_score gini: keep a feature when its cluster is within this
 #' rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 #' (default) disables it.
@@ -1365,6 +1474,14 @@ findMastMarkers_one_vs_all <- function(
 #'
 #' findMarkers(g, cluster_column = "leiden_clus")
 #' @export
+
+# TODO: findMarkers() and analyzeData(x, markersParam) occupy the same mental
+# space, and keeping both means every marker method has two entry points with
+# different argument vocabularies and different defaults (see the 0.2/0.2 vs
+# 0.5/0.5 split between findGiniMarkers() and this function). Pick one:
+# either deprecate findMarkers() in favour of param dispatch, or promote it to
+# a generic of its own rather than layering it over analyzeData(). Doing
+# neither is what lets the two drift.
 findMarkers <- function(
         gobject,
         spat_unit = NULL,
@@ -1380,6 +1497,7 @@ findMarkers <- function(
         min_expression_gini = -Inf,
         min_detection_gini = -Inf,
         detection_threshold = 0,
+        min_length = 0,
         rank_score = Inf,
         min_feats = 4,
         min_genes = NULL,
@@ -1441,6 +1559,7 @@ findMarkers <- function(
             min_expression_gini = min_expression_gini,
             min_detection_gini = min_detection_gini,
             detection_threshold = detection_threshold,
+            min_length = min_length,
             rank_score = rank_score,
             min_feats = min_feats
         )
@@ -1487,6 +1606,9 @@ findMarkers <- function(
 #' `-Inf` (default) disables it.
 #' @param detection_threshold gini: expression value above which a cell counts
 #' as expressing a feature
+#' @param min_length gini: pad the per-cluster vector to this length before
+#' taking the gini coefficient, making scores comparable across runs with
+#' different cluster counts. `0` (the default) never pads.
 #' @param rank_score gini: keep a feature when its cluster is within this
 #' rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 #' (default) disables it.
@@ -1529,6 +1651,7 @@ findMarkers_one_vs_all <- function(
         min_expression_gini = -Inf,
         min_detection_gini = -Inf,
         detection_threshold = 0,
+        min_length = 0,
         rank_score = Inf,
         # mast specific
         adjust_columns = NULL,
@@ -1578,6 +1701,7 @@ findMarkers_one_vs_all <- function(
             min_expression_gini = min_expression_gini,
             min_detection_gini = min_detection_gini,
             detection_threshold = detection_threshold,
+            min_length = min_length,
             rank_score = rank_score,
             min_feats = min_feats,
             verbose = verbose
