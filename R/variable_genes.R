@@ -925,11 +925,21 @@ setMethod("analyzeData",
 
 # Put `groups` into the column order of `x`.
 #
-# `groups` is positional against `x`'s columns, which is fragile: callers
-# typically build it from cell metadata, and the expression matrix and the
-# metadata are fetched independently with no guarantee they share a cell
-# order. A vector named by cell ID is matched to `colnames(x)` instead, and is
-# the only form that cannot be silently misaligned.
+# A grouping has to mean the same set of cells on both sides. Callers build it
+# from cell metadata, and the expression matrix and the metadata are fetched
+# independently with no guarantee they share a cell order, so a bare positional
+# vector can silently assign each cell another cell's group.
+#
+# Named input is matched on cell ID and cannot be misaligned. Names carry
+# through `factor()` and `droplevels()`, so a named factor works too and keeps
+# its level order. Unnamed input still works positionally, with a warning --
+# same contract `addCellMetadata()` uses for its key column.
+#
+# Columns the grouping does not name become NA and drop out of the statistics,
+# which is already what an NA label means here -- so narrowing to a few groups by
+# masking the rest is a supported way to call this, and the disk backend resolves
+# a grouping the same way. No overlap at all is a mistake, not an empty
+# selection, and says so.
 .align_groups <- function(x, groups) {
     if (is.null(groups)) {
         return(NULL)
@@ -938,17 +948,25 @@ setMethod("analyzeData",
 
     if (!is.null(names(groups)) && !is.null(ids)) {
         ord <- match(ids, names(groups))
-        if (anyNA(ord)) {
-            stop("`groups` is named but does not cover every column of `x`.",
+        if (all(is.na(ord))) {
+            stop("`groups` is named but none of its names are columns of `x`.",
                 call. = FALSE
             )
         }
-        return(unname(groups[ord]))
+        return(groups[ord])
     }
 
     if (length(groups) != ncol(x)) {
         stop("`groups` must have one entry per column of `x` (", ncol(x),
             "), got ", length(groups), ".",
+            call. = FALSE
+        )
+    }
+    if (!is.null(ids)) {
+        warning("`groups` is unnamed and is being matched to `x` by position. ",
+            "Pass a vector or factor named by cell ID to match on identity ",
+            "instead -- cell metadata and expression are not guaranteed to ",
+            "share a column order.",
             call. = FALSE
         )
     }

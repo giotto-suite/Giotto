@@ -549,7 +549,9 @@ findScranMarkers_one_vs_all <- function(
     marker_results <- analyzeData(
         x = expr_data,
         param = markersParam(method = "scran", comparison = "one_vs_rest"),
-        groups = cell_metadata[[cluster_column]]
+        groups = stats::setNames(
+            cell_metadata[[cluster_column]], cell_metadata[["cell_ID"]]
+        )
     )
 
     # save list
