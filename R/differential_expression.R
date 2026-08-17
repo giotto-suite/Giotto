@@ -360,31 +360,96 @@ findScranMarkers_one_vs_all <- function(
 #' @param group_2 group 2 cluster IDs from cluster_column for pairwise
 #' comparison
 #' @param group_2_name custom name for group_2 clusters
-#' @param min_expr_gini_score filter on minimum gini coefficient for expression
-#' @param min_det_gini_score filter on minimum gini coefficient for detection
-#' @param detection_threshold detection threshold for feat expression
+#' @param min_expression minimum per-cluster mean expression, gating the
+#' `expression` column of the result
+#' @param min_detection minimum fraction of a cluster's cells with expression
+#' above `detection_threshold`, gating the `detection` column of the result
+#' @param min_expression_gini minimum gini coefficient of expression, gating
+#' the `expression_gini` column of the result. `-Inf` (default) disables it.
+#' @param min_detection_gini minimum gini coefficient of detection, gating the
+#' `detection_gini` column of the result. `-Inf` (default) disables it.
+#' @param detection_threshold expression value above which a cell counts as
+#' expressing a feature, used when computing `detection`. Not a filter on the
+#' returned rows -- see `min_detection` for that.
 #' @param rank_score rank scores for both detection and expression to include
 #' @param min_feats minimum number of top feats to return
 #' @param min_genes deprecated, use min_feats
+#' @param min_expr_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_expression`. Despite its name it never gated a gini coefficient.
+#' @param min_det_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_detection`. Despite its name it never gated a gini coefficient.
 #' @returns data.table with marker feats
 #' @details
 #' Detection of marker feats using the
 #' [gini](https://en.wikipedia.org/wiki/Gini_coefficient)
-#' coefficient is based on the following steps/principles per feat:
-#' 1. calculate average expression per cluster
-#' 2. calculate detection fraction per cluster
-#' 3. calculate gini-coefficient for av. expression values over all clusters
-#' 4. calculate gini-coefficient for detection fractions over all clusters
-#' 5. convert gini-scores to rank scores
-#' 6. for each feat create combined score = detection rank x expression rank x
-#' expr gini-coefficient x detection gini-coefficient
-#' 7. for each feat sort on expression and detection rank and combined score
+#' coefficient is based on the following steps/principles, per feat:
+#' 1. `expression`: the mean expression over the cells of each cluster.
+#' 2. `detection`: the fraction of each cluster's cells whose expression
+#'    exceeds `detection_threshold`.
+#' 3. `expression_gini`: the gini coefficient of the `expression` values.
+#' 4. `detection_gini`: the gini coefficient of the `detection` values.
+#' 5. `expression_rank` / `detection_rank`: the clusters ranked by `expression`
+#'    and by `detection`, best first, then rescaled within each cluster to
+#'    \[1, 0.1\] so they act as weights. These are ranks of the **values**, not
+#'    of the gini coefficients.
+#' 6. `comb_score` = `expression_gini` x `expression_rank` x `detection_gini` x
+#'    `detection_rank`.
+#' 7. within each cluster, sort by `comb_score` (descending) and number the
+#'    result as `comb_rank`.
+#'
+#' Steps 1 and 2 reduce the matrix to two features x clusters tables; every
+#' step after that is arithmetic on those tables. So the vector handed to the
+#' gini calculation in steps 3 and 4 holds **one value per cluster**, not one
+#' per cell — its length is the number of clusters being compared. Two
+#' consequences worth knowing before setting `min_expression_gini` or
+#' `min_detection_gini`:
+#'
+#' * a gini coefficient over `G` values cannot exceed `(G - 1) / G`, so the
+#'   scale depends on how many clusters are being compared: the ceiling is
+#'   0.95 for 20 clusters, 0.80 for 5, and 0.50 for 2. A threshold chosen for
+#'   a many-cluster run is therefore not transferable to a smaller one, where
+#'   it may sit above the ceiling and reject every feature;
+#' * [findGiniMarkers_one_vs_all()] compares each cluster against all others
+#'   pooled into a single group, so its coefficients are always taken over
+#'   exactly two values and are capped at 0.50 — well below what the same
+#'   feature would score in a multi-cluster run here.
 #'
 #' As a results "top gini" feats are feats that are very selectivily expressed
 #' in a specific cluster,
 #' however not always expressed in all cells of that cluster. In other words
 #' highly specific, but
 #' not necessarily sensitive at the single-cell level.
+#'
+#' @section Filtering:
+#' Two kinds of gate are available, and they do different jobs.
+#'
+#' `min_expression` and `min_detection` are an abundance floor. The gini
+#' coefficient is scale-free: a feature averaging 0.001 in one cluster against
+#' 0.0001 in the rest scores exactly as specific as one averaging 100 against
+#' 10. It therefore carries no magnitude term, and will rank near-noise
+#' features as perfectly selective. These two gates supply that term. The
+#' equivalent for the other methods is `logFC`, which
+#' [findScranMarkers_one_vs_all()] and [findMastMarkers_one_vs_all()] filter
+#' on directly.
+#'
+#' `min_expression_gini` and `min_detection_gini` gate the gini coefficients
+#' themselves, and are off by default. They are best used on a second pass:
+#' the returned table always carries the `expression_gini` and `detection_gini`
+#' columns, so run once, look at their distribution, then set a floor. What
+#' they add over `min_feats` is an *absolute* cutoff, where `min_feats` is a
+#' *relative* one -- it takes each cluster's top few by `comb_score` however
+#' weak those are, while a gini floor is a statement about the coefficient
+#' itself.
+#'
+#' All four comparisons are strict (`>`), so a value exactly equal to its
+#' threshold does not pass. This is worth knowing for `min_detection`, where
+#' the values are fractions over a cluster's cell count and land on round
+#' numbers often.
+#'
+#' All four gates are combined with `min_feats` by `or`, so a feature in the
+#' top `min_feats` of its cluster by `comb_score` is kept regardless of every
+#' threshold above. Setting the gates more strictly therefore shrinks the
+#' result towards `min_feats` features per cluster, never below it.
 #'
 #' To perform differential expression between custom selected groups of cells
 #' you need to specify the cell_ID column to parameter \emph{cluster_column}
@@ -413,18 +478,31 @@ findGiniMarkers <- function(
         group_1_name = NULL,
         group_2 = NULL,
         group_2_name = NULL,
-        min_expr_gini_score = 0.2,
-        min_det_gini_score = 0.2,
+        min_expression = 0.2,
+        min_detection = 0.2,
+        min_expression_gini = -Inf,
+        min_detection_gini = -Inf,
         detection_threshold = 0,
         rank_score = 1,
         min_feats = 5,
-        min_genes = NULL) {
+        min_genes = NULL,
+        min_expr_gini_score = deprecated(),
+        min_det_gini_score = deprecated()) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
         warning("min_genes argument is deprecated, use min_feats argument in
                 the future")
     }
+    # `min_expr_gini_score` / `min_det_gini_score` never gated the gini
+    # coefficients despite their names -- they gated `expression` and
+    # `detection`, the per-cluster mean and detection fraction. The new names
+    # say that, and the gini coefficients get gates of their own above.
+    .dep <- function(...) {
+        deprecate_param(..., fun = "findGiniMarkers", when = "4.2.4")
+    }
+    min_expression <- .dep(min_expr_gini_score, min_expression)
+    min_detection <- .dep(min_det_gini_score, min_detection)
 
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
@@ -613,8 +691,17 @@ findGiniMarkers <- function(
 
     top_feats_scores <- aggr_sc[comb_rank <= min_feats | (
         expression_rank <= rank_score & detection_rank <= rank_score)]
+    # Gini is scale-free -- a 0.001 vs 0.0001 difference between clusters
+    # scores identically to 100 vs 10 -- so it carries no magnitude term of its
+    # own and will rank near-noise features as perfectly specific. The
+    # expression and detection floors are that magnitude term; scran and MAST
+    # get theirs for free from logFC. The gini floors are the absolute cutoff
+    # `comb_rank` cannot express, since it only ever ranks within a cluster.
     top_feats_scores_filtered <- top_feats_scores[comb_rank <= min_feats | (
-        expression_gini > min_expr_gini_score & detection_gini > min_det_gini_score)]
+        expression > min_expression &
+            detection > min_detection &
+            expression_gini > min_expression_gini &
+            detection_gini > min_detection_gini)]
     setorder(top_feats_scores_filtered, cluster, comb_rank)
 
 
@@ -642,14 +729,39 @@ findGiniMarkers <- function(
 #' @param expression_values feat expression values to use
 #' @param cluster_column clusters to use
 #' @param subset_clusters selection of clusters to compare
-#' @param min_expr_gini_score filter on minimum gini coefficient on expression
-#' @param min_det_gini_score filter on minimum gini coefficient on detection
-#' @param detection_threshold detection threshold for feat expression
+#' @param min_expression minimum per-cluster mean expression, gating the
+#' `expression` column of the result
+#' @param min_detection minimum fraction of a cluster's cells with expression
+#' above `detection_threshold`, gating the `detection` column of the result
+#' @param min_expression_gini minimum gini coefficient of expression, gating
+#' the `expression_gini` column of the result. `-Inf` (default) disables it.
+#' @param min_detection_gini minimum gini coefficient of detection, gating the
+#' `detection_gini` column of the result. `-Inf` (default) disables it.
+#' @param detection_threshold expression value above which a cell counts as
+#' expressing a feature, used when computing `detection`. Not a filter on the
+#' returned rows -- see `min_detection` for that.
 #' @param rank_score rank scores for both detection and expression to include
 #' @param min_feats minimum number of top feats to return
 #' @param min_genes deprecated, use min_feats
 #' @param verbose be verbose
+#' @param min_expr_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_expression`. Despite its name it never gated a gini coefficient.
+#' @param min_det_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_detection`. Despite its name it never gated a gini coefficient.
 #' @returns data.table with marker feats
+#' @details
+#' Each cluster is compared against every other cluster pooled into a single
+#' group, by calling [findGiniMarkers()] once per cluster and keeping the rows
+#' belonging to the cluster under test. See there for how the scores are built.
+#'
+#' Because each of those calls compares exactly two groups, the gini
+#' coefficients are taken over two values and so cannot exceed 0.50 — the
+#' ceiling for `G` groups is `(G - 1) / G`. Thresholds passed to
+#' `min_expression_gini` or `min_detection_gini` have to sit below that or they
+#' reject every feature, leaving only the `min_feats` per cluster that the
+#' filter always keeps.
+#' @md
+#' @inheritSection findGiniMarkers Filtering
 #' @seealso \code{\link{findGiniMarkers}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -663,19 +775,30 @@ findGiniMarkers_one_vs_all <- function(
         expression_values = c("normalized", "scaled", "custom"),
         cluster_column,
         subset_clusters = NULL,
-        min_expr_gini_score = 0.5,
-        min_det_gini_score = 0.5,
+        min_expression = 0.5,
+        min_detection = 0.5,
+        min_expression_gini = -Inf,
+        min_detection_gini = -Inf,
         detection_threshold = 0,
         rank_score = 1,
         min_feats = 4,
         min_genes = NULL,
-        verbose = TRUE) {
+        verbose = TRUE,
+        min_expr_gini_score = deprecated(),
+        min_det_gini_score = deprecated()) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
         min_feats <- min_genes
         warning("min_genes argument is deprecated, use min_feats argument in
                 the future")
     }
+    .dep <- function(...) {
+        deprecate_param(
+            ..., fun = "findGiniMarkers_one_vs_all", when = "4.2.4"
+        )
+    }
+    min_expression <- .dep(min_expr_gini_score, min_expression)
+    min_detection <- .dep(min_det_gini_score, min_detection)
 
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
@@ -750,8 +873,10 @@ findGiniMarkers_one_vs_all <- function(
                     cluster_column = cluster_column,
                     group_1 = selected_clus,
                     group_2 = other_clus,
-                    min_expr_gini_score = min_expr_gini_score,
-                    min_det_gini_score = min_det_gini_score,
+                    min_expression = min_expression,
+                    min_detection = min_detection,
+                    min_expression_gini = min_expression_gini,
+                    min_detection_gini = min_detection_gini,
                     detection_threshold = detection_threshold,
                     rank_score = rank_score,
                     min_feats = min_feats
@@ -1160,10 +1285,15 @@ findMastMarkers_one_vs_all <- function(
 #' comparison
 #' @param group_2 group 2 cluster IDs from cluster_column for pairwise
 #' comparison
-#' @param min_expr_gini_score gini: filter on minimum gini coefficient for
-#' expression
-#' @param min_det_gini_score gini: filter minimum gini coefficient for detection
-#' @param detection_threshold gini: detection threshold for feat expression
+#' @param min_expression gini: minimum per-cluster mean expression
+#' @param min_detection gini: minimum fraction of a cluster's cells with
+#' expression above `detection_threshold`
+#' @param min_expression_gini gini: minimum gini coefficient of expression.
+#' `-Inf` (default) disables it.
+#' @param min_detection_gini gini: minimum gini coefficient of detection.
+#' `-Inf` (default) disables it.
+#' @param detection_threshold gini: expression value above which a cell counts
+#' as expressing a feature
 #' @param rank_score gini: rank scores to include
 #' @param min_feats minimum number of top feats to return (for gini)
 #' @param min_genes deprecated, use min_feats
@@ -1171,6 +1301,10 @@ findMastMarkers_one_vs_all <- function(
 #' @param group_2_name mast: custom name for group_2 clusters
 #' @param adjust_columns mast: column in pDataDT to adjust for
 #' (e.g. detection rate)
+#' @param min_expr_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_expression`. Despite its name it never gated a gini coefficient.
+#' @param min_det_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_detection`. Despite its name it never gated a gini coefficient.
 #' @param ... additional parameters for the findMarkers function in scran or
 #' zlm function in MAST
 #' @returns data.table with marker feats
@@ -1193,8 +1327,10 @@ findMarkers <- function(
         subset_clusters = NULL,
         group_1 = NULL,
         group_2 = NULL,
-        min_expr_gini_score = 0.5,
-        min_det_gini_score = 0.5,
+        min_expression = 0.5,
+        min_detection = 0.5,
+        min_expression_gini = -Inf,
+        min_detection_gini = -Inf,
         detection_threshold = 0,
         rank_score = 1,
         min_feats = 4,
@@ -1202,6 +1338,8 @@ findMarkers <- function(
         group_1_name = NULL,
         group_2_name = NULL,
         adjust_columns = NULL,
+        min_expr_gini_score = deprecated(),
+        min_det_gini_score = deprecated(),
         ...) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
@@ -1209,6 +1347,11 @@ findMarkers <- function(
         warning("min_genes argument is deprecated, use min_feats argument in
                 the future")
     }
+    .dep <- function(...) {
+        deprecate_param(..., fun = "findMarkers", when = "4.2.4")
+    }
+    min_expression <- .dep(min_expr_gini_score, min_expression)
+    min_detection <- .dep(min_det_gini_score, min_detection)
 
     # input
     if (is.null(cluster_column)) {
@@ -1245,8 +1388,10 @@ findMarkers <- function(
             group_2 = group_2,
             group_1_name = group_1_name,
             group_2_name = group_2_name,
-            min_expr_gini_score = min_expr_gini_score,
-            min_det_gini_score = min_det_gini_score,
+            min_expression = min_expression,
+            min_detection = min_detection,
+            min_expression_gini = min_expression_gini,
+            min_detection_gini = min_detection_gini,
             detection_threshold = detection_threshold,
             rank_score = rank_score,
             min_feats = min_feats
@@ -1285,14 +1430,23 @@ findMarkers <- function(
 #' @param logFC scan & mast: filter on logFC
 #' @param min_feats minimum feats to keep per cluster, overrides pval and logFC
 #' @param min_genes deprecated, use min_feats
-#' @param min_expr_gini_score gini: filter on minimum gini coefficient for
-#' expression
-#' @param min_det_gini_score gini: filter minimum gini coefficient for detection
-#' @param detection_threshold gini: detection threshold for feat expression
+#' @param min_expression gini: minimum per-cluster mean expression
+#' @param min_detection gini: minimum fraction of a cluster's cells with
+#' expression above `detection_threshold`
+#' @param min_expression_gini gini: minimum gini coefficient of expression.
+#' `-Inf` (default) disables it.
+#' @param min_detection_gini gini: minimum gini coefficient of detection.
+#' `-Inf` (default) disables it.
+#' @param detection_threshold gini: expression value above which a cell counts
+#' as expressing a feature
 #' @param rank_score gini: rank scores to include
 #' @param adjust_columns mast: column in pDataDT to adjust for
 #' (e.g. detection rate)
 #' @param verbose be verbose
+#' @param min_expr_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_expression`. Despite its name it never gated a gini coefficient.
+#' @param min_det_gini_score `r lifecycle::badge("deprecated")` use
+#' `min_detection`. Despite its name it never gated a gini coefficient.
 #' @param ... additional parameters for the findMarkers function in scran or
 #' zlm function in MAST
 #' @returns data.table with marker feats
@@ -1320,13 +1474,17 @@ findMarkers_one_vs_all <- function(
         min_feats = 10,
         min_genes = NULL,
         # gini
-        min_expr_gini_score = 0.5,
-        min_det_gini_score = 0.5,
+        min_expression = 0.5,
+        min_detection = 0.5,
+        min_expression_gini = -Inf,
+        min_detection_gini = -Inf,
         detection_threshold = 0,
         rank_score = 1,
         # mast specific
         adjust_columns = NULL,
         verbose = TRUE,
+        min_expr_gini_score = deprecated(),
+        min_det_gini_score = deprecated(),
         ...) {
     ## deprecated arguments
     if (!is.null(min_genes)) {
@@ -1334,6 +1492,11 @@ findMarkers_one_vs_all <- function(
         warning("min_genes argument is deprecated, use min_feats argument in
                 the future")
     }
+    .dep <- function(...) {
+        deprecate_param(..., fun = "findMarkers_one_vs_all", when = "4.2.4")
+    }
+    min_expression <- .dep(min_expr_gini_score, min_expression)
+    min_detection <- .dep(min_det_gini_score, min_detection)
 
     # select method
     method <- match.arg(method, choices = c("scran", "gini", "mast"))
@@ -1360,8 +1523,10 @@ findMarkers_one_vs_all <- function(
             expression_values = expression_values,
             cluster_column = cluster_column,
             subset_clusters = subset_clusters,
-            min_expr_gini_score = min_expr_gini_score,
-            min_det_gini_score = min_det_gini_score,
+            min_expression = min_expression,
+            min_detection = min_detection,
+            min_expression_gini = min_expression_gini,
+            min_detection_gini = min_detection_gini,
             detection_threshold = detection_threshold,
             min_feats = min_feats,
             verbose = verbose

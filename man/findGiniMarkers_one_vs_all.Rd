@@ -11,13 +11,17 @@ findGiniMarkers_one_vs_all(
   expression_values = c("normalized", "scaled", "custom"),
   cluster_column,
   subset_clusters = NULL,
-  min_expr_gini_score = 0.5,
-  min_det_gini_score = 0.5,
+  min_expression = 0.5,
+  min_detection = 0.5,
+  min_expression_gini = -Inf,
+  min_detection_gini = -Inf,
   detection_threshold = 0,
   rank_score = 1,
   min_feats = 4,
   min_genes = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  min_expr_gini_score = deprecated(),
+  min_det_gini_score = deprecated()
 )
 }
 \arguments{
@@ -33,11 +37,21 @@ findGiniMarkers_one_vs_all(
 
 \item{subset_clusters}{selection of clusters to compare}
 
-\item{min_expr_gini_score}{filter on minimum gini coefficient on expression}
+\item{min_expression}{minimum per-cluster mean expression, gating the
+\code{expression} column of the result}
 
-\item{min_det_gini_score}{filter on minimum gini coefficient on detection}
+\item{min_detection}{minimum fraction of a cluster's cells with expression
+above \code{detection_threshold}, gating the \code{detection} column of the result}
 
-\item{detection_threshold}{detection threshold for feat expression}
+\item{min_expression_gini}{minimum gini coefficient of expression, gating
+the \code{expression_gini} column of the result. \code{-Inf} (default) disables it.}
+
+\item{min_detection_gini}{minimum gini coefficient of detection, gating the
+\code{detection_gini} column of the result. \code{-Inf} (default) disables it.}
+
+\item{detection_threshold}{expression value above which a cell counts as
+expressing a feature, used when computing \code{detection}. Not a filter on the
+returned rows -- see \code{min_detection} for that.}
 
 \item{rank_score}{rank scores for both detection and expression to include}
 
@@ -46,6 +60,12 @@ findGiniMarkers_one_vs_all(
 \item{min_genes}{deprecated, use min_feats}
 
 \item{verbose}{be verbose}
+
+\item{min_expr_gini_score}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} use
+\code{min_expression}. Despite its name it never gated a gini coefficient.}
+
+\item{min_det_gini_score}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} use
+\code{min_detection}. Despite its name it never gated a gini coefficient.}
 }
 \value{
 data.table with marker feats
@@ -54,6 +74,62 @@ data.table with marker feats
 Identify marker feats for all clusters in a one vs all manner
 based on gini detection and expression scores.
 }
+\details{
+Each cluster is compared against every other cluster pooled into a single
+group, by calling \code{\link[=findGiniMarkers]{findGiniMarkers()}} once per cluster and keeping the rows
+belonging to the cluster under test. See there for how the scores are built.
+
+Because each of those calls compares exactly two groups, the gini
+coefficients are taken over two values and so cannot exceed 0.50 — the
+ceiling for \code{G} groups is \code{(G - 1) / G}. Thresholds passed to
+\code{min_expression_gini} or \code{min_detection_gini} have to sit below that or they
+reject every feature, leaving only the \code{min_feats} per cluster that the
+filter always keeps.
+}
+\section{Filtering}{
+
+Two kinds of gate are available, and they do different jobs.
+
+\code{min_expression} and \code{min_detection} are an abundance floor. The gini
+coefficient is scale-free: a feature averaging 0.001 in one cluster against
+0.0001 in the rest scores exactly as specific as one averaging 100 against
+10. It therefore carries no magnitude term, and will rank near-noise
+features as perfectly selective. These two gates supply that term. The
+equivalent for the other methods is \code{logFC}, which
+\code{\link[=findScranMarkers_one_vs_all]{findScranMarkers_one_vs_all()}} and \code{\link[=findMastMarkers_one_vs_all]{findMastMarkers_one_vs_all()}} filter
+on directly.
+
+\code{min_expression_gini} and \code{min_detection_gini} gate the gini coefficients
+themselves, and are off by default. They are best used on a second pass:
+the returned table always carries the \code{expression_gini} and \code{detection_gini}
+columns, so run once, look at their distribution, then set a floor. What
+they add over \code{min_feats} is an \emph{absolute} cutoff, where \code{min_feats} is a
+\emph{relative} one -- it takes each cluster's top few by \code{comb_score} however
+weak those are, while a gini floor is a statement about the coefficient
+itself.
+
+All four comparisons are strict (\code{>}), so a value exactly equal to its
+threshold does not pass. This is worth knowing for \code{min_detection}, where
+the values are fractions over a cluster's cell count and land on round
+numbers often.
+
+All four gates are combined with \code{min_feats} by \code{or}, so a feature in the
+top \code{min_feats} of its cluster by \code{comb_score} is kept regardless of every
+threshold above. Setting the gates more strictly therefore shrinks the
+result towards \code{min_feats} features per cluster, never below it.
+
+To perform differential expression between custom selected groups of cells
+you need to specify the cell_ID column to parameter \emph{cluster_column}
+and provide the individual cell IDs to the parameters \emph{group_1} and
+\emph{group_2}
+
+By default group names will be created by pasting the different id names
+within each selected group.
+When you have many different ids in a single group
+it is recommend to provide names for both groups to \emph{group_1_name} and
+\emph{group_2_name}
+}
+
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 
