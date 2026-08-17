@@ -192,7 +192,7 @@ getCellsFromPolygon <- function(
     ## get polygons spatial info
     polygon_spatVector <- getPolygonInfo(
         gobject = gobject,
-        polygon_name = polygon_name,
+        name = polygon_name,
         return_giottoPolygon = FALSE
     )
 
@@ -589,7 +589,7 @@ plotPolygons <- function(
     ## get polygons spatial info
     polygon_spatVector <- getPolygonInfo(
         gobject = gobject,
-        polygon_name = polygon_name,
+        name = polygon_name,
         return_giottoPolygon = FALSE
     )
 
