@@ -86,6 +86,41 @@ test_that("the ungrouped path is unchanged and refuses stats selection", {
     expect_error(.fs(stats = "sum"), "grouped path")
 })
 
-test_that("a groups vector of the wrong length errors", {
-    expect_error(.fs(groups = CL[-1L]), "one entry per cell")
+test_that("an unnamed groups vector of the wrong length errors", {
+    expect_error(.fs(groups = CL[-1L]), "one entry per column")
+})
+
+
+# alignment ####
+
+test_that("a named groups vector is matched on cell ID, not position", {
+    # This object's metadata and expression disagree on cell order, which is
+    # exactly the case a positional vector gets silently wrong.
+    ids <- getCellMetadata(g, output = "data.table")[["cell_ID"]]
+    expect_false(identical(ids, colnames(EX)))
+
+    named <- stats::setNames(CL, ids)
+    got <- .fs(groups = named, stats = "sum")
+
+    ref <- as.numeric(vapply(LV, function(k) {
+        Matrix::rowMeans(EX[, colnames(EX) %in% ids[CL == k], drop = FALSE])
+    }, numeric(nrow(EX))))
+    expect_equal(got$mean_expr, ref)
+
+    # and the naming genuinely matters here
+    expect_false(isTRUE(all.equal(
+        got$mean_expr, .fs(groups = unname(CL), stats = "sum")$mean_expr
+    )))
+})
+
+test_that("an unnamed groups vector is still taken positionally", {
+    # GiottoDisk passes an unnamed vector aligned to the current view; that
+    # contract has to keep working.
+    expect_silent(.fs(groups = unname(CL), stats = "sum"))
+})
+
+test_that("a named groups vector missing cells errors", {
+    ids <- getCellMetadata(g, output = "data.table")[["cell_ID"]]
+    named <- stats::setNames(CL, ids)
+    expect_error(.fs(groups = named[-1L]), "does not cover every column")
 })

@@ -897,7 +897,7 @@ setMethod("analyzeData",
 
         if (!is.null(groups)) {
             return(.feat_stats_grouped(
-                x, det_thresh, groups,
+                x, det_thresh, .align_groups(x, groups),
                 stats = stats %null% c("sum", "sumsq", "nnz", "sum_det")
             ))
         }
@@ -923,6 +923,39 @@ setMethod("analyzeData",
     }
 )
 
+# Put `groups` into the column order of `x`.
+#
+# `groups` is positional against `x`'s columns, which is fragile: callers
+# typically build it from cell metadata, and the expression matrix and the
+# metadata are fetched independently with no guarantee they share a cell
+# order. A vector named by cell ID is matched to `colnames(x)` instead, and is
+# the only form that cannot be silently misaligned.
+.align_groups <- function(x, groups) {
+    if (is.null(groups)) {
+        return(NULL)
+    }
+    ids <- colnames(x)
+
+    if (!is.null(names(groups)) && !is.null(ids)) {
+        ord <- match(ids, names(groups))
+        if (anyNA(ord)) {
+            stop("`groups` is named but does not cover every column of `x`.",
+                call. = FALSE
+            )
+        }
+        return(unname(groups[ord]))
+    }
+
+    if (length(groups) != ncol(x)) {
+        stop("`groups` must have one entry per column of `x` (", ncol(x),
+            "), got ", length(groups), ".",
+            call. = FALSE
+        )
+    }
+    groups
+}
+
+
 # Per-(feature, group) statistics: the same accumulators, partitioned by a
 # per-cell grouping instead of taken over every cell.
 #
@@ -941,10 +974,6 @@ setMethod("analyzeData",
     stats <- match.arg(stats, several.ok = TRUE)
 
     n_cells <- ncol(x)
-    if (length(groups) != n_cells) {
-        stop("[feat_stats] `groups` must have one entry per cell (",
-            n_cells, "), got ", length(groups), ".", call. = FALSE)
-    }
 
     # `droplevels` so an unused level cannot surface as a group of zero cells
     g <- droplevels(if (is.factor(groups)) groups else factor(groups))

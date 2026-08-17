@@ -118,7 +118,11 @@ markersParam <- function(method = "scran", ...) {
 #' @param x expression values. A `matrix`, a `Matrix`, or a `DelayedMatrix`
 #'   (which is what `expression_values = "scaled"` holds).
 #' @param param a [scranMarkersParam-class].
-#' @param groups vector of group assignments, one per cell, in column order.
+#' @param groups vector of group assignments, one per cell. Taken in column
+#'   order of `x`, unless the vector is named by cell ID, in which case it is
+#'   matched to `colnames(x)`. Naming is the safer form: the expression matrix
+#'   and the cell metadata a caller builds `groups` from are fetched
+#'   independently and need not share a cell order.
 #' @export
 setMethod("analyzeData",
     signature(x = "matrix", param = "scranMarkersParam"),
@@ -155,6 +159,9 @@ setMethod("analyzeData",
         stop("[analyzeData(scranMarkersParam)] `groups` is required: one group ",
             "assignment per cell.", call. = FALSE)
     }
+    # positional against the columns of `x` unless named by cell ID
+    groups <- .align_groups(x, groups)
+
     if (identical(param$comparison %null% "pairwise", "one_vs_rest")) {
         return(.markers_one_vs_rest_scran(x, groups, param))
     }
@@ -383,7 +390,10 @@ findScranMarkers <- function(
     marker_results <- analyzeData(
         x = expr_data,
         param = markersParam(method = "scran", ...),
-        groups = cell_metadata[[cluster_column]]
+        # named so the verb matches on cell ID rather than position
+        groups = stats::setNames(
+            cell_metadata[[cluster_column]], cell_metadata[["cell_ID"]]
+        )
     )
 
     lapply(names(marker_results), function(x) {
@@ -898,29 +908,19 @@ findGiniMarkers <- function(
     }
 
 
-    # subset clusters
-    if (!is.null(subset_clusters)) {
-        cell_metadata[] <- cell_metadata[][
-            get(cluster_column) %in% subset_clusters
-        ]
-        subset_cell_IDs <- cell_metadata[][["cell_ID"]]
-        gobject <- subsetGiotto(
-            gobject = gobject,
-            feat_type = feat_type,
-            spat_unit = spat_unit,
-            cell_ids = subset_cell_IDs
-        )
-    } else if (!is.null(group_1) & !is.null(group_2)) {
-        cell_metadata[] <- cell_metadata[][
-            get(cluster_column) %in% c(group_1, group_2)
-        ]
+    # Narrowing is expressed as `NA` in the grouping vector rather than by
+    # subsetting the object. The aggregate excludes NA-group cells on every
+    # backend, so this is equivalent, avoids copying the object, and keeps a
+    # disk-backed store from being materialized just to drop columns.
+    grp <- as.character(cell_metadata[][[cluster_column]])
 
-        # create new pairwise group
+    if (!is.null(subset_clusters)) {
+        grp[!grp %in% as.character(subset_clusters)] <- NA
+    } else if (!is.null(group_1) & !is.null(group_2)) {
         if (!is.null(group_1_name)) {
             if (!is.character(group_1_name)) {
                 stop("group_1_name needs to be a character")
             }
-            group_1_name <- group_1_name
         } else {
             group_1_name <- paste0(group_1, collapse = "_")
         }
@@ -929,81 +929,55 @@ findGiniMarkers <- function(
             if (!is.character(group_2_name)) {
                 stop("group_2_name needs to be a character")
             }
-            group_2_name <- group_2_name
         } else {
             group_2_name <- paste0(group_2, collapse = "_")
         }
-        # data.table variables
-        pairwise_select_comp <- NULL
 
-        cell_metadata[][, pairwise_select_comp := ifelse(
-            get(cluster_column) %in% group_1, group_1_name, group_2_name
-        )]
-
-        cluster_column <- "pairwise_select_comp"
-
-        # expression data
-        subset_cell_IDs <- cell_metadata[][["cell_ID"]]
-        gobject <- subsetGiotto(
-            gobject = gobject,
-            feat_type = feat_type,
-            spat_unit = spat_unit,
-            cell_ids = subset_cell_IDs
+        grp <- ifelse(grp %in% as.character(group_1), group_1_name,
+            ifelse(grp %in% as.character(group_2), group_2_name, NA_character_)
         )
-
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- setGiotto(gobject, cell_metadata, verbose = FALSE)
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
     }
 
-
-    # average expression per cluster
-    aggr_sc_clusters <- create_average_DT(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        meta_data_name = cluster_column,
-        expression_values = values
-    )
-    aggr_sc_clusters_DT <- data.table::as.data.table(aggr_sc_clusters)
+    if (all(is.na(grp))) {
+        stop("no cells remain after the requested cluster selection")
+    }
 
     # data.table variables
-    feats <- NULL
+    feats <- cluster <- expression <- NULL
+    expression_gini <- detection_gini <- detection <- NULL
 
-    aggr_sc_clusters_DT[, feats := rownames(aggr_sc_clusters)]
-    aggr_sc_clusters_DT_melt <- data.table::melt.data.table(aggr_sc_clusters_DT,
-        variable.name = "cluster",
-        id.vars = "feats",
-        value.name = "expression"
-    )
-
-
-    ## detection per cluster
-    aggr_detection_sc_clusters <- create_average_detection_DT(
+    # One grouped pass replaces create_average_DT() and
+    # create_average_detection_DT(). `mean_expr` is the former and
+    # `perc_cells / 100` the latter; going through the verb means any backend
+    # implementing it -- including a disk-backed store -- supplies gini
+    # markers without further work here.
+    expr_data <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
         feat_type = feat_type,
-        meta_data_name = cluster_column,
-        expression_values = values,
-        detection_threshold = detection_threshold
+        values = values,
+        output = "matrix"
     )
-    aggr_detection_sc_clusters_DT <- data.table::as.data.table(
-        aggr_detection_sc_clusters
+    st <- GiottoClass::analyzeData(
+        expr_data,
+        analyzeParam("feat_stats", detection_threshold = detection_threshold),
+        # named so the verb matches on cell ID rather than position
+        groups = stats::setNames(grp, cell_metadata[][["cell_ID"]]),
+        stats = c("sum", "nnz")
     )
-    aggr_detection_sc_clusters_DT[, feats := rownames(
-        aggr_detection_sc_clusters
-    )]
-    aggr_detection_sc_clusters_DT_melt <- data.table::melt.data.table(
-        aggr_detection_sc_clusters_DT,
-        variable.name = "cluster",
-        id.vars = "feats",
-        value.name = "detection"
+
+    aggr_sc_clusters_DT_melt <- data.table::data.table(
+        feats = st$feats,
+        cluster = st$group,
+        expression = st$mean_expr
+    )
+    aggr_detection_sc_clusters_DT_melt <- data.table::data.table(
+        feats = st$feats,
+        cluster = st$group,
+        detection = st$perc_cells / 100
     )
 
     ## gini
-    # data.table variables
-    expression_gini <- detection_gini <- detection <- NULL
-
     # `min_length` pads the per-cluster vector so the coefficient stops
     # depending on how many clusters were compared -- see mygini_fun(). 0, the
     # default, never pads.
@@ -1095,13 +1069,11 @@ findGiniMarkers <- function(
     # drop them so the column contract is unchanged
     top_feats_scores_filtered[, c("expression_wt", "detection_wt") := NULL]
 
-    # remove 'cluster_' part if this is not part of the original cluster names
-    original_uniq_cluster_names <- unique(cell_metadata[][[cluster_column]])
-    if (sum(grepl("cluster_", original_uniq_cluster_names)) == 0) {
-        top_feats_scores_filtered[, cluster := gsub(
-            x = cluster, "cluster_", ""
-        )]
-    }
+    # Cluster labels come straight from the grouping vector now, so the
+    # 'cluster_' prefix that create_average_DT() added -- and the conditional
+    # strip that undid it -- are both gone. That strip only fired when no real
+    # cluster name contained "cluster_", so a cluster genuinely named
+    # 'cluster_3' used to come back mangled; labels are now verbatim.
 
     return(top_feats_scores_filtered)
 }
