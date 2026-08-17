@@ -118,9 +118,31 @@ test_that("a named grouping is matched on cell ID, not position", {
     )
 })
 
-test_that("an x the featStats verb cannot handle is refused directly", {
-    # The whole method is derived from analyzeData(x, featStatsParam), so the
-    # error names that rather than failing somewhere inside the statistic.
+test_that("the ANY signature carries every substrate featStats supports", {
+    # `ANY` is the only gini method, so what actually decides whether an input
+    # works is whether `analyzeData(x, featStatsParam)` dispatches on it -- not
+    # whether the class is matrix-like. These are the in-memory members of
+    # `allMatrix`; a disk-backed store is covered by GiottoDisk's own tests, and
+    # is the case that shows matrix-likeness is not required at all.
+    ref <- analyzeData(EX, .gp(), groups = GRP)
+
+    skip_if_not_installed("DelayedArray")
+    dm <- DelayedArray::DelayedArray(as.matrix(EX))
+    dimnames(dm) <- dimnames(EX)
+    expect_true(methods::is(dm, "allMatrix"))
+    expect_equal(analyzeData(dm, .gp(), groups = GRP)$comb_score, ref$comb_score)
+
+    skip_if_not_installed("BPCells")
+    im <- BPCells::write_matrix_memory(EX, compress = FALSE)
+    expect_true(methods::is(im, "allMatrix"))
+    expect_equal(analyzeData(im, .gp(), groups = GRP)$comb_score, ref$comb_score)
+})
+
+test_that("an unsupported x fails at featStats dispatch, not at a hand check", {
+    # There is deliberately no signature check in the method: the featStats call
+    # is the check, so the error is S4's own and names both the class and the
+    # param. A hand-rolled check would be a second source of truth about which
+    # methods exist.
     expect_error(
         analyzeData(data.frame(a = 1), .gp(), groups = GRP),
         "featStatsParam"

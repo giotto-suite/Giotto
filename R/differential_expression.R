@@ -1086,9 +1086,12 @@ findGiniMarkers <- function(
 # whole reason the statistic was pushed into that verb.
 #
 # `ANY` is the primary implementation here, not a warning fallback as it is for
-# `autoPcaParam`. What `x` must satisfy is checked below rather than encoded in
-# the signature, because the requirement is "featStats dispatches on it", which
-# a class union cannot express across package boundaries.
+# `autoPcaParam`. The requirement on `x` is "featStats dispatches on it", which
+# no class union can express across package boundaries -- `allMatrix` covers the
+# in-memory substrates (matrix, Matrix, DelayedArray, BPCells) but a store is not
+# a matrix in any R sense. So the signature stays open and the featStats call
+# does the deciding: unsupported input fails there, naming both the class and
+# `featStatsParam`.
 
 #' @rdname markers_gini
 #' @param x expression values — anything `analyzeData(x, featStatsParam)`
@@ -1118,14 +1121,11 @@ setMethod("analyzeData",
         stop("[analyzeData(giniMarkersParam)] `groups` is required: one group ",
             "assignment per cell.", call. = FALSE)
     }
-    if (!hasMethod("analyzeData", signature(class(x)[1L], "featStatsParam"))) {
-        stop("[analyzeData(giniMarkersParam)] no ",
-            "analyzeData(<", class(x)[1L], ">, featStatsParam) method, so the ",
-            "per-group statistics gini needs cannot be computed. Gini markers ",
-            "are derived entirely from that verb.",
-            call. = FALSE
-        )
-    }
+    # No check that `x` is supported: the featStats call below IS the check, and
+    # S4 dispatch reports it better than a second source of truth could -- it
+    # names the class and the param, and it cannot fall out of step with the
+    # methods actually registered. Anything base-R matrix semantics reach,
+    # `allMatrix` already covers.
 
     # The one pass over the values. `mean_expr` is the per-group mean and
     # `perc_cells / 100` the detection fraction; `sum` and `nnz` are the only
