@@ -163,8 +163,7 @@
         img_type = img_type
     )))) {
         giottoImage_list <- lapply(
-            X = gobject_list, FUN = getGiottoImage, name = image_unreg,
-            image_type = img_type
+            X = gobject_list, FUN = getGiottoImage, name = image_unreg
         )
         image_corners <- lapply(giottoImage_list, .get_img_corners)
 
