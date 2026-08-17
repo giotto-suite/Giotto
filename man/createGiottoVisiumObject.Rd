@@ -20,7 +20,7 @@ createGiottoVisiumObject(
   ymax_adj = 0,
   ymin_adj = 0,
   instructions = NULL,
-  expression_matrix_class = c("dgCMatrix", "DelayedArray"),
+  expression_matrix_class = deprecated(),
   h5_file = NULL,
   cores = NA,
   verbose = NULL
@@ -59,8 +59,8 @@ autoscaling looks for matches in the filename for either "hires" or "lowres"}
 \item{instructions}{list of instructions or output result from
 \code{\link[GiottoClass]{createGiottoInstructions}}}
 
-\item{expression_matrix_class}{class of expression matrix to use
-(e.g. "dgCMatrix", "DelayedArray")}
+\item{expression_matrix_class}{deprecated. See
+[GiottoClass::createExprObj] for details}
 
 \item{h5_file}{optional path to create an on-disk h5 file}
 

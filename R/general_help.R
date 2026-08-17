@@ -4,12 +4,40 @@
 
 
 #' @title mygini_fun
+#' @name mygini_fun
 #' @description calculate gini coefficient
+#' @param x numeric vector to take the coefficient over
+#' @param weights numeric vector of weights, one per entry of `x`
+#' @param min_length pad `x` up to this length before computing, using
+#' copies of its own minimum. `0` (the default) never pads.
+#' @details
+#' A gini coefficient over `n` values cannot exceed `(n - 1) / n`, so
+#' coefficients taken over vectors of different lengths are not on a common
+#' scale — 0.50 is a perfect score over two values and a middling one over
+#' twenty. `min_length` removes that dependence for short vectors by
+#' padding them out with their own minimum, which raises the ceiling to
+#' `(min_length - 1) / min_length` for anything shorter. Padded
+#' entries carry weight 1.
+#'
+#' This matters wherever the vector length is set by the data rather than
+#' chosen: per-cluster marker scores are taken over one value per cluster, so
+#' without padding the same feature scores differently depending on how many
+#' clusters were compared.
 #' @keywords internal
 #' @returns gini coefficient
 mygini_fun <- function(
         x,
-        weights = rep(1, length(x))) {
+        weights = rep(1, length(x)),
+        min_length = 0) {
+    # Pad before `weights` is forced, so its default follows the padded length.
+    # An explicitly supplied `weights` is padded with 1s to match, rather than
+    # being silently recycled by the cbind below.
+    if (length(x) < min_length) {
+        n_pad <- min_length - length(x)
+        if (!missing(weights)) weights <- c(weights, rep(1, n_pad))
+        x <- c(x, rep(min(x), n_pad))
+    }
+
     # adapted from R package GiniWegNeg
     dataset <- cbind(x, weights)
     ord_x <- order(x)
@@ -30,25 +58,6 @@ mygini_fun <- function(
     mean_RSV <- (n_RSV / 2)
     G_RSV <- (1 / mean_RSV) * G_num
     return(G_RSV)
-}
-
-
-#' @title extended_gini_fun
-#' @description calculate gini coefficient on a minimum length vector
-#' @keywords internal
-#' @returns gini coefficient
-extended_gini_fun <- function(
-        x,
-        weights = rep(1, length = length(x)),
-        minimum_length = 16) {
-    if (length(x) < minimum_length) {
-        difference <- minimum_length - length(x)
-        min_value <- min(x)
-        x <- c(x, rep(min_value, difference))
-    }
-
-    result <- mygini_fun(x = x, weights = weights)
-    return(result)
 }
 
 

@@ -14,15 +14,20 @@ findMarkers(
   subset_clusters = NULL,
   group_1 = NULL,
   group_2 = NULL,
-  min_expr_gini_score = 0.5,
-  min_det_gini_score = 0.5,
+  min_expression = 0.5,
+  min_detection = 0.5,
+  min_expression_gini = -Inf,
+  min_detection_gini = -Inf,
   detection_threshold = 0,
-  rank_score = 1,
+  min_length = 0,
+  rank_score = Inf,
   min_feats = 4,
   min_genes = NULL,
   group_1_name = NULL,
   group_2_name = NULL,
   adjust_columns = NULL,
+  min_expr_gini_score = deprecated(),
+  min_det_gini_score = deprecated(),
   ...
 )
 }
@@ -47,14 +52,27 @@ comparison}
 \item{group_2}{group 2 cluster IDs from cluster_column for pairwise
 comparison}
 
-\item{min_expr_gini_score}{gini: filter on minimum gini coefficient for
-expression}
+\item{min_expression}{gini: minimum per-cluster mean expression}
 
-\item{min_det_gini_score}{gini: filter minimum gini coefficient for detection}
+\item{min_detection}{gini: minimum fraction of a cluster's cells with
+expression above `detection_threshold`}
 
-\item{detection_threshold}{gini: detection threshold for feat expression}
+\item{min_expression_gini}{gini: minimum gini coefficient of expression.
+`-Inf` (default) disables it.}
 
-\item{rank_score}{gini: rank scores to include}
+\item{min_detection_gini}{gini: minimum gini coefficient of detection.
+`-Inf` (default) disables it.}
+
+\item{detection_threshold}{gini: expression value above which a cell counts
+as expressing a feature}
+
+\item{min_length}{gini: pad the per-cluster vector to this length before
+taking the gini coefficient, making scores comparable across runs with
+different cluster counts. `0` (the default) never pads.}
+
+\item{rank_score}{gini: keep a feature when its cluster is within this
+rank for both `expression` and `detection` (rank 1 = highest). `Inf`
+(default) disables it.}
 
 \item{min_feats}{minimum number of top feats to return (for gini)}
 
@@ -66,6 +84,12 @@ expression}
 
 \item{adjust_columns}{mast: column in pDataDT to adjust for
 (e.g. detection rate)}
+
+\item{min_expr_gini_score}{`r lifecycle::badge("deprecated")` use
+`min_expression`. Despite its name it never gated a gini coefficient.}
+
+\item{min_det_gini_score}{`r lifecycle::badge("deprecated")` use
+`min_detection`. Despite its name it never gated a gini coefficient.}
 
 \item{...}{additional parameters for the findMarkers function in scran or
 zlm function in MAST}
