@@ -3657,11 +3657,10 @@ runIterativeLSI <- function(
     
     # ---- TF-IDF and SVD on Subsampled Data ----
     sub_mat_exprobj <- createExprObj(
-      sub_mat, 
-      name = "raw", 
-      spat_unit = "cell", 
-      feat_type = feat_type,
-      expression_matrix_class = "dgCMatrix"
+      sub_mat,
+      name = "raw",
+      spat_unit = "cell",
+      feat_type = feat_type
     )
     mini_g <- giotto(instructions = instrs)
     mini_g <- setExpression(mini_g, sub_mat_exprobj, spat_unit = "cell", feat_type = feat_type)
@@ -3719,11 +3718,10 @@ runIterativeLSI <- function(
     full_mat <- mat[feats, , drop = FALSE]
     vmsg(.v = verbose, "Normalizing full matrix with TF-IDF for projection")
     full_mat_exprobj <- createExprObj(
-      full_mat, 
-      name = "raw", 
-      spat_unit = "cell", 
-      feat_type = feat_type,
-      expression_matrix_class = "dgCMatrix"
+      full_mat,
+      name = "raw",
+      spat_unit = "cell",
+      feat_type = feat_type
     )
     projected_g <- setExpression(projected_g, full_mat_exprobj, spat_unit = "cell", feat_type = feat_type)
     projected_g <- processExpression(projected_g, 

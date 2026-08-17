@@ -284,8 +284,8 @@ NULL
 #' \code{\link[GiottoClass]{createGiottoInstructions}}
 #' @param cores how many cores or threads to use to read data if paths are
 #' provided
-#' @param expression_matrix_class class of expression matrix to use
-#' (e.g. "dgCMatrix", "DelayedArray")
+#' @param expression_matrix_class deprecated. See
+#'   [GiottoClass::createExprObj] for details
 #' @param h5_file optional path to create an on-disk h5 file
 #' @param verbose be verbose
 #'
@@ -330,7 +330,7 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
     ymax_adj = 0, # deprecated
     ymin_adj = 0, # deprecated
     instructions = NULL,
-    expression_matrix_class = c("dgCMatrix", "DelayedArray"),
+    expression_matrix_class = deprecated(),
     h5_file = NULL,
     cores = NA,
     verbose = NULL) {
@@ -347,6 +347,14 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
         ymax_adj != 0 ||
         ymin_adj != 0) {
         stop(wrap_txt(img_dep_msg))
+    }
+
+    if (!missing(expression_matrix_class)) {
+        deprecate_warn(
+            "4.2.5",
+            "createGiottoVisiumObject(expression_matrix_class)",
+            details = "See `?GiottoClass::createExprObj` for details."
+        )
     }
 
     # set number of cores automatically, but with limit of 10
@@ -376,7 +384,6 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
 
     # additional args to pass to object creation
     argslist$verbose <- verbose
-    argslist$expression_matrix_class <- expression_matrix_class
     argslist$h5_file <- h5_file
     argslist$instructions <- instructions
 
@@ -401,7 +408,6 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
         scale_json_path = NULL,
         png_name = NULL,
         instructions = NULL,
-        expression_matrix_class = c("dgCMatrix", "DelayedArray"),
         h5_file = NULL,
         verbose = NULL) {
     # NSE vars
@@ -903,7 +909,7 @@ addVisiumPolygons <- function(gobject,
 #' if image_file is a list.
 #' @param flip_axis character. Axis along which to reflect the image after the
 #' spatial shift: \code{"none"} (default), \code{"y"}, \code{"x"}, or
-#' \code{"both"}. The reflection origin is the midpoint of the image extent in
+#' \code{"both"}. The reflection is performed around the origin (0, 0) in
 #' micron space.
 #' @returns giottoLargeImage
 #' @export
@@ -915,11 +921,12 @@ createMerscopeLargeImage <- function(image_file,
 
     if (flip_axis != "none") {
         message(
-            "The image is flipped around its own spatial midpoint (microns).",
-            " If you also used flip_axis (!= 'none) in createGiottoMerscopeObject,",
-            " verify that the image aligns with the polygons and transcripts --",
-            " the flip centers may differ if the image does not cover the same",
-            " area as the transcript coordinates."
+            "The image is flipped around the origin (0, 0) in micron space.",
+            " Note that createGiottoMerscopeObject flips polygons and transcripts",
+            " around their spatial midpoint, not the origin.",
+            " If you use flip_axis in both functions, the image and spatial data",
+            " will likely not align -- consider flipping the image manually after",
+            " loading to match the flip center of your spatial coordinates."
         )
     }
 
@@ -1284,12 +1291,12 @@ createGiottoMerscopeObject <- function(merscope_dir,
             if (isTRUE(verbose)) message("Calculating overlap for polygon layer: ", poly_name)
 
             z_sub <- GiottoClass::calculateOverlap(
-                gobject = z_sub, spat_info = poly_name, feat_info = "rna"
+                z_sub, spat_info = poly_name, feat_info = "rna"
             )
             if (isTRUE(overlap_to_matrix)) {
 
                 z_sub <- GiottoClass::overlapToMatrix(
-                    gobject = z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
+                    z_sub, spat_info = poly_name, feat_info = "rna", name = "raw"
                 )
             }
         }

@@ -883,11 +883,31 @@ setMethod("analyzeData",
 
 # * featStatsParam ####
 #' @rdname analyzeData
+#' @param groups optional vector of group assignments, one per column of `x`,
+#' `NA` to exclude. When supplied, the statistics are taken per
+#' (feature, group) instead of over every cell, and the result gains `group`
+#' and `n_cells` columns.
+#' @param stats optional character vector of accumulators to compute, any of
+#' `"sum"`, `"sumsq"`, `"nnz"`, `"sum_det"`. Grouped path only; emitted columns
+#' are whichever the requested accumulators support.
 setMethod("analyzeData",
     signature(x = "allMatrix", param = "featStatsParam"),
-    function(x, param, ...) {
-        mean_expr_det <- NULL
+    function(x, param, ..., groups = NULL, stats = NULL) {
         det_thresh <- param$detection_threshold
+
+        if (!is.null(groups)) {
+            return(.feat_stats_grouped(
+                x, det_thresh, .align_groups(x, groups),
+                stats = stats %null% c("sum", "sumsq", "nnz", "sum_det")
+            ))
+        }
+        if (!is.null(stats)) {
+            stop("[feat_stats] `stats` selection is only available on the ",
+                "grouped path (pass `groups`). The ungrouped verb has a ",
+                "fixed column contract.", call. = FALSE)
+        }
+
+        mean_expr_det <- NULL
         n_detected <- rowSums_flex(x > det_thresh)
         feat_stats <- data.table::data.table(
             feats      = rownames(x),
@@ -902,6 +922,146 @@ setMethod("analyzeData",
         feat_stats
     }
 )
+
+# Put `groups` into the column order of `x`.
+#
+# A grouping has to mean the same set of cells on both sides. Callers build it
+# from cell metadata, and the expression matrix and the metadata are fetched
+# independently with no guarantee they share a cell order, so a bare positional
+# vector can silently assign each cell another cell's group.
+#
+# Named input is matched on cell ID and cannot be misaligned. Names carry
+# through `factor()` and `droplevels()`, so a named factor works too and keeps
+# its level order. Unnamed input still works positionally, with a warning --
+# same contract `addCellMetadata()` uses for its key column.
+#
+# Columns the grouping does not name become NA and drop out of the statistics,
+# which is already what an NA label means here -- so narrowing to a few groups by
+# masking the rest is a supported way to call this, and the disk backend resolves
+# a grouping the same way. No overlap at all is a mistake, not an empty
+# selection, and says so.
+.align_groups <- function(x, groups) {
+    if (is.null(groups)) {
+        return(NULL)
+    }
+    ids <- colnames(x)
+
+    if (!is.null(names(groups)) && !is.null(ids)) {
+        ord <- match(ids, names(groups))
+        if (all(is.na(ord))) {
+            stop("`groups` is named but none of its names are columns of `x`.",
+                call. = FALSE
+            )
+        }
+        return(groups[ord])
+    }
+
+    if (length(groups) != ncol(x)) {
+        stop("`groups` must have one entry per column of `x` (", ncol(x),
+            "), got ", length(groups), ".",
+            call. = FALSE
+        )
+    }
+    if (!is.null(ids)) {
+        warning("`groups` is unnamed and is being matched to `x` by position. ",
+            "Pass a vector or factor named by cell ID to match on identity ",
+            "instead -- cell metadata and expression are not guaranteed to ",
+            "share a column order.",
+            call. = FALSE
+        )
+    }
+    groups
+}
+
+
+# Per-(feature, group) statistics: the same accumulators, partitioned by a
+# per-cell grouping instead of taken over every cell.
+#
+# The contract matches GiottoDisk's streaming implementation exactly, because
+# the whole point is that a caller cannot tell the backends apart -- same
+# columns, same zero-filled feats x groups cross product, same `adr/0009`
+# threshold semantics where the detection threshold gates `nr_cells` but never
+# the sums.
+#
+# Emitting the complete cross product matters: a feature with no expression in
+# a group has mean 0 over that group's cells, not a missing row. Gini is taken
+# over the length-G vector per feature, so a dropped row would silently change
+# the coefficient.
+.feat_stats_grouped <- function(x, thr, groups,
+    stats = c("sum", "sumsq", "nnz", "sum_det")) {
+    stats <- match.arg(stats, several.ok = TRUE)
+
+    n_cells <- ncol(x)
+
+    # `droplevels` so an unused level cannot surface as a group of zero cells
+    g <- droplevels(if (is.factor(groups)) groups else factor(groups))
+    lvls <- levels(g)
+    if (length(lvls) < 1L) {
+        stop("[feat_stats] `groups` has no non-empty levels.", call. = FALSE)
+    }
+
+    n_feats <- nrow(x)
+    nk <- as.numeric(tabulate(as.integer(g), nbins = length(lvls)))
+    names(nk) <- lvls
+
+    acc <- lapply(stats, function(nm) numeric(0))
+    names(acc) <- stats
+    per <- lapply(lvls, function(k) {
+        sub <- x[, which(g == k), drop = FALSE]
+        det <- if (any(c("nnz", "sum_det") %in% stats)) sub > thr
+        list(
+            # `rowMeans_flex` rather than sum/n: this is what
+            # `create_average_DT()` used, so the rewired gini path stays
+            # bit-identical rather than merely equal to tolerance.
+            mean = if ("sum" %in% stats) rowMeans_flex(sub),
+            sum = if ("sum" %in% stats) rowSums_flex(sub),
+            sumsq = if ("sumsq" %in% stats) rowSums_flex(sub * sub),
+            nnz = if ("nnz" %in% stats) rowSums_flex(det),
+            sum_det = if ("sum_det" %in% stats) rowSums_flex(sub * det)
+        )
+    })
+
+    # groups slowest, feats cycling within -- the order `matrix` unrolls in,
+    # matching what the streaming backend emits
+    nn <- rep(nk, each = n_feats)
+    out <- data.table::data.table(
+        feats = rep(rownames(x), times = length(lvls)),
+        group = rep(lvls, each = n_feats),
+        n_cells = nn
+    )
+    pull <- function(nm) as.numeric(unlist(lapply(per, `[[`, nm)))
+
+    if ("sum" %in% stats) {
+        gene_sum <- pull("sum")
+        out[, "total_expr" := gene_sum]
+        out[, "mean_expr" := pull("mean")]
+
+        if ("sumsq" %in% stats) {
+            gene_sumsq <- pull("sumsq")
+            out[, "sumsq" := gene_sumsq]
+            # clamped: the subtraction can go slightly negative when the mean
+            # dominates the spread, and a negative variance would surface as
+            # an NaN standard deviation
+            gene_var <- ifelse(nn > 1,
+                pmax((gene_sumsq - gene_sum * gene_sum / nn) / (nn - 1), 0), 0
+            )
+            out[, "sd" := sqrt(gene_var)]
+        }
+    }
+    if ("nnz" %in% stats) {
+        gene_nnz <- pull("nnz")
+        out[, "nr_cells" := as.integer(gene_nnz)]
+        out[, "perc_cells" := ifelse(nn > 0, gene_nnz / nn * 100, NaN)]
+
+        if ("sum_det" %in% stats) {
+            out[, "mean_expr_det" := ifelse(
+                gene_nnz > 0, pull("sum_det") / gene_nnz, NaN
+            )]
+        }
+    }
+
+    out[]
+}
 
 # * cellStatsParam ####
 #' @rdname analyzeData

@@ -2092,18 +2092,45 @@ print.combIcfObject <- function(x, ...) {
         feat_type = feat_type
     )
 
-    average_DT <- create_average_DT(
+    # per-cluster mean expression, from the grouped feature-statistics verb.
+    # `mean_expr` is what create_average_DT() returned, minus its "cluster_"
+    # prefix and the gsub that used to strip it back off.
+    expr_data <- getExpression(
         gobject = gobject,
-        feat_type = feat_type,
         spat_unit = spat_unit,
-        meta_data_name = cluster_column
+        feat_type = feat_type,
+        values = "normalized",
+        output = "matrix"
+    )
+    cell_metadata <- getCellMetadata(gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        output = "data.table",
+        copy_obj = TRUE
     )
 
-    # change column names back to original
-    new_colnames <- gsub(
-        pattern = "cluster_", replacement = "", colnames(average_DT)
+    # data.table variables
+    feats <- group <- NULL
+
+    st <- GiottoClass::analyzeData(
+        expr_data,
+        analyzeParam("feat_stats"),
+        # named so the verb matches on cell ID rather than position
+        groups = stats::setNames(
+            as.character(cell_metadata[[cluster_column]]),
+            cell_metadata[["cell_ID"]]
+        ),
+        stats = "sum"
     )
-    colnames(average_DT) <- new_colnames
+
+    wide <- data.table::dcast(st, feats ~ group, value.var = "mean_expr")
+    average_DT <- as.data.frame(wide[, -1L])
+    rownames(average_DT) <- wide[["feats"]]
+
+    # keep the column order the previous helper produced, since it feeds the
+    # melt below
+    new_colnames <- unique(as.character(cell_metadata[[cluster_column]]))
+    average_DT <- average_DT[, new_colnames, drop = FALSE]
 
     # keep order of colnames
     colnames_order <- sort(new_colnames)
