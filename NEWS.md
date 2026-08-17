@@ -25,7 +25,7 @@
 * gini markers and ligand-receptor scoring now run on that verb, so both work on disk-backed expression. `findGiniMarkers_one_vs_all()` takes one grouped pass instead of one per cluster (8.9s -> 4.2s at 4000 features x 12000 cells x 20 clusters).
 
 ## Bug fixes
-* gini markers, `findScranMarkers_one_vs_all()` and ligand-receptor scoring now match cluster labels to expression columns by `cell_ID`. Expression and cell metadata are fetched independently and are not guaranteed to share a cell order, so per-cluster statistics were taken over mislabelled cells — none of the 624 cells of `GiottoData::loadGiottoMini("visium")` are in matching position. **Results will change for affected objects**; they were wrong before.
+* gini markers, `findScranMarkers()`, `findScranMarkers_one_vs_all()` and ligand-receptor scoring now match cluster labels to expression columns by `cell_ID`. Expression and cell metadata are fetched independently and are not guaranteed to share a cell order, so statistics were taken over mislabelled cells — none of the 624 cells of `GiottoData::loadGiottoMini("visium")` are in matching position, and only 1 of 70 top-10 scran markers agreed with the correctly labelled run. **Results will change for affected objects**; they were wrong before.
 * gini `rank_score` now takes effect. It compared against a rescaled rank capped at 1, and `findMarkers_one_vs_all()` never forwarded it. Default `1` -> `Inf` keeps results unchanged.
 * gini `expression_rank` and `detection_rank` now hold ranks, not the `[1, 0.1]` weight behind `comb_score`. Row counts and `comb_score` unchanged.
 
