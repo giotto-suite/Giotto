@@ -388,7 +388,7 @@ runWNN <- function(
 
     gobject <- setMultiomics(
         gobject = gobject,
-        result = theta_weighted,
+        x = theta_weighted,
         spat_unit = spat_unit,
         feat_type = integrated_feat_type,
         integration_method = "WNN",
@@ -406,7 +406,7 @@ runWNN <- function(
 
         gobject <- setMultiomics(
             gobject = gobject,
-            result = w_list[feat_type],
+            x = w_list[feat_type],
             spat_unit = spat_unit,
             feat_type = integrated_feat_type,
             integration_method = "WNN",
@@ -525,7 +525,7 @@ runIntegratedUMAP <- function(
         ## store nn_network id
         gobject <- setMultiomics(
             gobject = gobject,
-            result = nn_network$id,
+            x = nn_network$id,
             spat_unit = spat_unit,
             feat_type = integrated_feat_type,
             integration_method = "WNN",
@@ -536,7 +536,7 @@ runIntegratedUMAP <- function(
         ## store nn_network dist
         gobject <- setMultiomics(
             gobject = gobject,
-            result = nn_network$dist,
+            x = nn_network$dist,
             spat_unit = spat_unit,
             feat_type = integrated_feat_type,
             integration_method = "WNN",
