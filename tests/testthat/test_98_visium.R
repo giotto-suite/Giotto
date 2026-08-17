@@ -77,7 +77,7 @@ describe("Integrative testing with visium dataset", {
         # spatlocs
         expect_equal(nrow(getSpatialLocations(g_nofil)), 4992L)
         # image
-        i_nofil <- getGiottoImage(g_nofil, image_type = "largeImage")
+        i_nofil <- getGiottoImage(g_nofil)
         expect_s4_class(i_nofil, "giottoLargeImage")
         expect_identical(dim(i_nofil), c(2000, 2000, 3))
         expect_equal(ext_to_rounded_num(i_nofil), c(0, 1e4, -1e4, 0))
@@ -107,7 +107,7 @@ describe("Integrative testing with visium dataset", {
         # spatlocs
         expect_equal(nrow(getSpatialLocations(g_fil)), 1185L)
         # image
-        i_fil <- getGiottoImage(g_fil, image_type = "largeImage")
+        i_fil <- getGiottoImage(g_fil)
         expect_s4_class(i_fil, "giottoLargeImage")
         expect_identical(dim(i_fil), c(2000, 2000, 3))
         expect_equal(ext_to_rounded_num(i_fil), c(0, 1e4, -1e4, 0))
@@ -146,7 +146,7 @@ describe("Integrative testing with visium dataset", {
         # spatlocs
         expect_equal(nrow(getSpatialLocations(g_nofil)), 4992L)
         # image
-        i_nofil <- getGiottoImage(g_nofil, image_type = "largeImage")
+        i_nofil <- getGiottoImage(g_nofil)
         expect_s4_class(i_nofil, "giottoLargeImage")
         expect_identical(dim(i_nofil), c(600, 600, 3))
         expect_equal(ext_to_rounded_num(i_nofil), c(0, 1e4, -1e4, 0))
@@ -185,7 +185,7 @@ describe("Integrative testing with visium dataset", {
         # spatlocs
         expect_equal(nrow(getSpatialLocations(g_fil)), 1185L)
         # image
-        i_fil <- getGiottoImage(g_fil, image_type = "largeImage")
+        i_fil <- getGiottoImage(g_fil)
         expect_s4_class(i_fil, "giottoLargeImage")
         expect_identical(dim(i_fil), c(600, 600, 3))
         expect_equal(ext_to_rounded_num(i_fil), c(0, 1e4, -1e4, 0))
