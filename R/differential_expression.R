@@ -1260,14 +1260,57 @@ setMethod("analyzeData",
     # `min_length` pads the per-cluster vector so the coefficient stops
     # depending on how many clusters were compared -- see mygini_fun(). 0, the
     # default, never pads.
-    aggr_sc[, expression_gini := mygini_fun(
-        expression,
-        min_length = min_length
-    ), by = feats]
-    aggr_sc[, detection_gini := mygini_fun(
-        detection,
-        min_length = min_length
-    ), by = feats]
+    # One coefficient per feature over its vector of per-cluster values. The
+    # table is the full feats x clusters cross product -- the grouped statistic
+    # emits zeros rather than dropping rows, and the pooled path builds both
+    # columns explicitly -- so it reshapes to a matrix and both coefficients come
+    # from one vectorized pass each. `by = feats` here meant one R call per
+    # feature over a vector of a dozen values, where the call overhead dominated.
+    #
+    # Positional reshape by (feature, cluster) rather than by assuming row order,
+    # then `anyNA` catches a table that is not actually rectangular -- an
+    # incomplete cross product, or a repeated (feature, cluster) pair. That falls
+    # back to the per-feature path, which does not care about shape.
+    ufeats <- unique(aggr_sc$feats)
+    uclust <- unique(aggr_sc$cluster)
+
+    # A single group has no specificity to measure. Previously this reached
+    # mygini_fun() with a length-1 vector and died on "incorrect number of
+    # dimensions"; the vectorized path would instead return a coefficient of 0
+    # for every feature, which is worse -- a meaningless result that looks like
+    # an answer.
+    if (length(uclust) < 2L) {
+        stop("gini marker detection compares groups, so it needs at least 2; ",
+            "got ", length(uclust), ".",
+            call. = FALSE
+        )
+    }
+
+    fi <- match(aggr_sc$feats, ufeats)
+    ci <- match(aggr_sc$cluster, uclust)
+
+    m_expr <- matrix(NA_real_, length(ufeats), length(uclust))
+    m_det <- m_expr
+    m_expr[cbind(fi, ci)] <- aggr_sc$expression
+    m_det[cbind(fi, ci)] <- aggr_sc$detection
+
+    if (anyNA(m_expr) || anyNA(m_det)) {
+        aggr_sc[, expression_gini := mygini_fun(
+            expression,
+            min_length = min_length
+        ), by = feats]
+        aggr_sc[, detection_gini := mygini_fun(
+            detection,
+            min_length = min_length
+        ), by = feats]
+    } else {
+        aggr_sc[, expression_gini := .gini_rows(
+            m_expr, min_length = min_length
+        )[fi]]
+        aggr_sc[, detection_gini := .gini_rows(
+            m_det, min_length = min_length
+        )[fi]]
+    }
 
     # Two distinct things are wanted from the same ordering, so they get two
     # columns. The rank is what `rank_score` filters on -- position 1 is the

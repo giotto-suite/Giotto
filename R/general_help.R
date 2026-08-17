@@ -61,6 +61,81 @@ mygini_fun <- function(
 }
 
 
+# Gini coefficient of every ROW of a matrix, unweighted.
+#
+# Same statistic as mygini_fun() with default weights, including the negative
+# handling and the `min_length` padding -- but taken over all rows at once. The
+# marker path takes one coefficient per feature over a length-(n groups) vector,
+# so calling mygini_fun() per feature meant thousands of R-level calls over
+# vectors of a dozen values, where the per-call overhead dominated the
+# arithmetic.
+#
+# Two things make the vectorized form possible. With unit weights `C_i` is just
+# `i`, and `num_2` and `num_3` both collapse to `sum(x)`, so the numerator is
+#
+#     G_num = (2/n^2) * sum(i * x_sorted) - ((n + 1)/n^2) * sum(x)
+#
+# which is the sorted form of `sum_i sum_j |x_i - x_j| / (2 n^2)`. And the
+# per-row sort needs one `order()` over the flattened matrix rather than one per
+# row: ordering by (row, value) lays every row's values out contiguously in
+# ascending order.
+#
+# Weighted input is deliberately not handled -- mygini_fun() remains the general
+# case, and no caller in the package weights this statistic.
+.gini_rows <- function(m, min_length = 0) {
+    n_row <- nrow(m)
+    n_col <- ncol(m)
+    if (n_row == 0L || n_col == 0L) return(numeric(n_row))
+
+    # One order() for every row: by row first, then value ascending, so `v[o]`
+    # is row 1 sorted, then row 2 sorted, and so on. Filled column-wise into an
+    # (n_col x n_row) matrix, each COLUMN is one row of `m`, sorted.
+    v <- as.numeric(m)
+    o <- order(rep.int(seq_len(n_row), n_col), v)
+    xs <- matrix(v[o], nrow = n_col, ncol = n_row)
+
+    # Padding with the row minimum, which in sorted order is the first entry.
+    # `min_length` raises the ceiling from (n-1)/n to (min_length-1)/min_length
+    # so coefficients compare across runs with different group counts.
+    if (n_col < min_length) {
+        n_pad <- min_length - n_col
+        xs <- rbind(
+            matrix(rep(xs[1L, ], each = n_pad), nrow = n_pad), xs
+        )
+        n_col <- min_length
+    }
+
+    # The arithmetic below mirrors mygini_fun()'s operation for operation, and
+    # deliberately does not simplify it. Results feed rank ties and strict `>`
+    # thresholds downstream, so a last-bit difference can change which features
+    # are returned -- folding `(1/N)num_2 + (1/N^2)num_3` into one term, or
+    # reaching for a BLAS dot product instead of colSums, both reround and cost
+    # bit-identity. Measured: those two shortcuts alone moved results by ~2e-16.
+    n <- as.numeric(n_col)
+
+    # `C_i` is `cumsum(weights)` = 1..n at unit weights, so this is an
+    # elementwise scale plus a column sum -- summed in the same ascending order
+    # `sum()` walked, and with the same long-double accumulator.
+    num_1 <- colSums(xs * seq_len(n_col))
+    num_2 <- colSums(xs)
+    num_3 <- num_2   # sum(xw * w) == sum(xw) when every weight is 1
+
+    g_num <- (2 / n^2) * num_1 - (1 / n) * num_2 - (1 / n^2) * num_3
+
+    # RSV normalization: negatives are added back in absolute value so the
+    # coefficient stays defined when the vector is not all non-negative. Kept as
+    # two separate additions of `T_neg` rather than one doubling, because
+    # `(a + b) + b` and `a + 2b` do not round alike.
+    t_neg <- colSums(pmin(xs, 0))
+    t_pos <- num_2 + abs(t_neg)
+    mean_rsv <- (t_pos + abs(t_neg)) / n
+
+    # Reciprocal-then-multiply, not a divide, for the same reason.
+    # `mean_rsv == 0` (an all-zero row) gives NaN, as mygini_fun() does.
+    (1 / mean_rsv) * g_num
+}
+
+
 # matrix binarization methods ####
 
 #' @title .kmeans_binarize
