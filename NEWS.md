@@ -11,11 +11,6 @@
 * `runUMAP()` now uses `uwot::umap2()` instead of `uwot::umap()`. `umap2()` is the same algorithm with a faster approximate nearest-neighbor backend selected automatically, and it threads the optimizer when `batch = TRUE`. Pass `method = "umap"` to restore the previous engine.
 * `runUMAP()` defaults retuned to match the benchmarked streaming pipeline: `min_dist` `0.01` -> `0.05`, `spread` `5` -> `1`, and a new `batch = TRUE` argument (was `FALSE`). `min_dist` and `spread` are changed together because uwot fits the embedding's `a`/`b` curve from the pair. `batch = TRUE` is also what lets `umap2()` thread the optimizer. **Embeddings will differ from previous releases**; `min_dist = 0.01, spread = 5, init = "spectral", n_epochs = 400, batch = FALSE` restores the old shape. `n_neighbors` is unchanged at `40`.
 
-## Bug fixes
-* gini markers and ligand-receptor scoring now match cluster labels to expression columns by `cell_ID`. The expression matrix and cell metadata are fetched independently and are not guaranteed to share a cell order, so per-cluster means were computed over mislabelled cells. On `GiottoData::loadGiottoMini("visium")` none of the 624 cells were in matching position. **Results will change for affected objects**; they were wrong before.
-* gini `rank_score` now takes effect. It compared against a rescaled rank capped at 1, and `findMarkers_one_vs_all()` never forwarded it. Default `1` -> `Inf` keeps results unchanged.
-* gini `expression_rank` and `detection_rank` now hold ranks, not the `[1, 0.1]` weight behind `comb_score`. Row counts and `comb_score` unchanged.
-
 ## Changes
 * gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
@@ -26,8 +21,11 @@
 * `RcppHNSW` and `rnndescent` added to `Suggests`. Either one accelerates the `runUMAP()` neighbor search; without them uwot falls back to Annoy. `RcppHNSW` is preferred for dense input with a euclidean, cosine or correlation metric (the usual `runUMAP()` case), while `rnndescent` covers sparse input and metrics HNSW does not support. Installing `rnndescent` is **required** to run `runUMAP(dim_reduction_to_use = NULL)` on a sparse expression matrix.
 * gini `min_expression_gini` and `min_detection_gini` gate the gini coefficients themselves, defaulting to `-Inf`. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 * gini `min_length` pads the per-cluster vector so coefficients compare across runs with different cluster counts. Defaults to `0`, no padding. Replaces the unused `extended_gini_fun()`.
+* `analyzeData(x, featStatsParam)` gained `groups` and `stats`, giving per-(feature, group) statistics from one pass. Group means are a pseudobulk matrix and mean plus percent-detected is dot plot input. `groups` may be named or factored by `cell_ID`, which is the only form that cannot be misaligned; an unnamed vector is still positional, with a warning.
+* gini markers and ligand-receptor scoring now run on that verb, so both work on disk-backed expression. `findGiniMarkers_one_vs_all()` takes one grouped pass instead of one per cluster (8.9s -> 4.2s at 4000 features x 12000 cells x 20 clusters).
 
 ## Bug fixes
+* gini markers, `findScranMarkers_one_vs_all()` and ligand-receptor scoring now match cluster labels to expression columns by `cell_ID`. Expression and cell metadata are fetched independently and are not guaranteed to share a cell order, so per-cluster statistics were taken over mislabelled cells — none of the 624 cells of `GiottoData::loadGiottoMini("visium")` are in matching position. **Results will change for affected objects**; they were wrong before.
 * gini `rank_score` now takes effect. It compared against a rescaled rank capped at 1, and `findMarkers_one_vs_all()` never forwarded it. Default `1` -> `Inf` keeps results unchanged.
 * gini `expression_rank` and `detection_rank` now hold ranks, not the `[1, 0.1]` weight behind `comb_score`. Row counts and `comb_score` unchanged.
 
