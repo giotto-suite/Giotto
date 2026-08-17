@@ -2092,11 +2092,14 @@ print.combIcfObject <- function(x, ...) {
         feat_type = feat_type
     )
 
-    average_DT <- create_average_DT(
+    # TODO: replace with analyzeData(x, featStatsParam) once that reaches this
+    # branch from gsource. See .average_by_group() in differential_expression.R
+    average_DT <- .average_by_group(
         gobject = gobject,
         feat_type = feat_type,
         spat_unit = spat_unit,
-        meta_data_name = cluster_column
+        meta_data_name = cluster_column,
+        expression_values = "normalized"
     )
 
     # change column names back to original

@@ -1,3 +1,66 @@
+# TODO: remove both helpers below once analyzeData(x, featStatsParam) reaches
+# this branch from gsource. They are a temporary local copy: the grouped verb
+# computes both statistics in one pass -- `mean_expr` is the average and
+# `perc_cells / 100` the detection fraction -- and works on disk-backed
+# expression, which these do not.
+#
+# GiottoClass exported equivalents of these. `create_average_detection_DT()`
+# has since been removed there, and `create_average_DT()` is retained only for
+# an internal GiottoClass caller, so Giotto now carries its own.
+#
+# Group membership is keyed on `cell_ID`: `getExpression()` and
+# `getCellMetadata()` are fetched independently and the suite makes no
+# guarantee that they share a cell order.
+.average_by_group <- function(gobject, spat_unit, feat_type, meta_data_name,
+    expression_values, detection_threshold = NULL) {
+    expr_data <- getExpression(
+        gobject = gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        values = expression_values,
+        output = "matrix"
+    )
+    cell_metadata <- getCellMetadata(gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        output = "data.table",
+        copy_obj = TRUE
+    )
+    if (!meta_data_name %in% colnames(cell_metadata)) {
+        stop("metadata column '", meta_data_name, "' not found",
+            call. = FALSE
+        )
+    }
+
+    ord <- match(colnames(expr_data), cell_metadata[["cell_ID"]])
+    if (anyNA(ord)) {
+        stop(
+            "expression columns and cell metadata do not describe the same ",
+            "cells; cannot align them.",
+            call. = FALSE
+        )
+    }
+    grouping <- cell_metadata[[meta_data_name]][ord]
+
+    detection <- !is.null(detection_threshold)
+    savelist <- lapply(unique(cell_metadata[[meta_data_name]]), function(group) {
+        temp <- expr_data[, grouping == group, drop = FALSE]
+        if (detection) {
+            rowSums_flex(as.matrix(temp) > detection_threshold) / ncol(temp)
+        } else {
+            rowMeans_flex(temp)
+        }
+    })
+    names(savelist) <- paste0(
+        "cluster_", unique(cell_metadata[[meta_data_name]])
+    )
+
+    out <- do.call("cbind", savelist)
+    rownames(out) <- rownames(expr_data)
+    as.data.frame(out)
+}
+
+
 #' @title findScranMarkers
 #' @name findScranMarkers
 #' @description Identify marker genes for all or selected clusters based on
@@ -702,7 +765,7 @@ findGiniMarkers <- function(
 
 
     # average expression per cluster
-    aggr_sc_clusters <- create_average_DT(
+    aggr_sc_clusters <- .average_by_group(
         gobject = gobject,
         feat_type = feat_type,
         spat_unit = spat_unit,
@@ -723,7 +786,7 @@ findGiniMarkers <- function(
 
 
     ## detection per cluster
-    aggr_detection_sc_clusters <- create_average_detection_DT(
+    aggr_detection_sc_clusters <- .average_by_group(
         gobject = gobject,
         spat_unit = spat_unit,
         feat_type = feat_type,

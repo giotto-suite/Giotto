@@ -1,6 +1,7 @@
 # Giotto 4.2.4 (in development)
 
 ## Bug fixes
+* gini markers and ligand-receptor scoring now match cluster labels to expression columns by `cell_ID`. The expression matrix and cell metadata are fetched independently and are not guaranteed to share a cell order, so per-cluster means were computed over mislabelled cells. On `GiottoData::loadGiottoMini("visium")` none of the 624 cells were in matching position. **Results will change for affected objects**; they were wrong before.
 * gini `rank_score` now takes effect. It compared against a rescaled rank capped at 1, and `findMarkers_one_vs_all()` never forwarded it. Default `1` -> `Inf` keeps results unchanged.
 * gini `expression_rank` and `detection_rank` now hold ranks, not the `[1, 0.1]` weight behind `comb_score`. Row counts and `comb_score` unchanged.
 
