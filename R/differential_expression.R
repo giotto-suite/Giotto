@@ -210,8 +210,25 @@ findScranMarkers <- function(
 
 
     ## SCRAN ##
+    # TODO: remove this reorder once analyzeData(x, scranMarkersParam) reaches
+    # this branch from gsource. There `.markers_scran()` resolves `groups` by
+    # `cell_ID` for every backend, so the alignment stops being this function's
+    # problem.
+    #
+    # `scran::findMarkers()` takes `groups` positionally, and nothing so far has
+    # put the two sides in the same order: `getExpression()` and
+    # `getCellMetadata()` are fetched independently, and the subset branches
+    # above filter `cell_metadata` into metadata order while
+    # `colnames(expr_data) %in% ...` keeps the matrix in its own.
+    ord <- match(colnames(expr_data), cell_metadata[["cell_ID"]])
+    if (anyNA(ord)) {
+        stop("expression columns and cell metadata do not describe the same ",
+            "cells; cannot align them.",
+            call. = FALSE
+        )
+    }
     marker_results <- scran::findMarkers(
-        x = expr_data, groups = cell_metadata[[cluster_column]], ...
+        x = expr_data, groups = cell_metadata[[cluster_column]][ord], ...
     )
 
     # data.table variables
