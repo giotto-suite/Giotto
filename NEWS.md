@@ -1,3 +1,16 @@
+# Giotto 4.2.4 (in development)
+
+## Bug fixes
+* gini `rank_score` now takes effect. It compared against a rescaled rank capped at 1, and `findMarkers_one_vs_all()` never forwarded it. Default `1` -> `Inf` keeps results unchanged.
+* gini `expression_rank` and `detection_rank` now hold ranks, not the `[1, 0.1]` weight behind `comb_score`. Row counts and `comb_score` unchanged.
+
+## Changes
+* gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
+
+## New
+* gini `min_expression_gini` and `min_detection_gini` gate the gini coefficients themselves, defaulting to `-Inf`. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
+* gini `min_length` pads the per-cluster vector so coefficients compare across runs with different cluster counts. Defaults to `0`, no padding. Replaces the unused `extended_gini_fun()`.
+
 # Giotto 4.2.3 (2026/05/14)
 
 ## Changes
