@@ -66,6 +66,81 @@
 NULL
 
 
+#' @name markers_gini
+#' @title Specificity Marker Detection (gini)
+#' @description
+#' Detect marker features by how unevenly a feature is distributed across
+#' groups, using the Gini coefficient.
+#'
+#' Two coefficients are taken per feature, over the per-group mean expression
+#' and over the per-group detection fraction:
+#'
+#' \deqn{\LARGE
+#' G_i = \frac{\sum_{a}\sum_{b} |v_{i,a} - v_{i,b}|}
+#'            {2 G^2 \bar{v}_i}
+#' }
+#' Where:
+#'
+#' * (\eqn{v_{i,a}}) is the statistic for feature \eqn{i} in group \eqn{a} —
+#' mean expression for `expression_gini`, detection fraction for
+#' `detection_gini`
+#' * (\eqn{G}) is the number of groups
+#'
+#' The statistic depends on the values only through the per-(feature, group)
+#' mean and detection fraction, so the expression matrix is visited once
+#' regardless of how many groups there are. That is what lets a streaming
+#' backend supply gini markers with no code of its own — the pass is
+#' [featStatsParam-class], and this method consumes its output.
+#'
+#' Gini is **scale-free**: a 0.001 vs 0.0001 difference between groups scores
+#' identically to 100 vs 10. It therefore carries no magnitude term and will
+#' rank near-noise features as perfectly specific, which is what
+#' `min_expression` and `min_detection` exist to prevent. Its ceiling is
+#' \eqn{(G-1)/G}, so a fixed `min_expression_gini` is not comparable across
+#' runs with different group counts unless `min_length` is set.
+#'
+#' Which expression values are scored is the caller's choice — the method uses
+#' whatever matrix it is given.
+#' @section params:
+#'
+#' \tabular{ll}{
+#'   `comparison` \tab character (default = "pairwise"). `"pairwise"` scores
+#'   every group against the others at once; `"one_vs_rest"` scores each group
+#'   against the pooled remainder, one table per group. \cr
+#'   `min_expression` \tab numeric (default = 0.2). Minimum per-group mean
+#'   expression, gating the `expression` column. \cr
+#'   `min_detection` \tab numeric (default = 0.2). Minimum fraction of a
+#'   group's cells above `detection_threshold`, gating `detection`. \cr
+#'   `min_expression_gini` \tab numeric (default = -Inf). Minimum coefficient,
+#'   gating `expression_gini`. \cr
+#'   `min_detection_gini` \tab numeric (default = -Inf). Minimum coefficient,
+#'   gating `detection_gini`. \cr
+#'   `detection_threshold` \tab numeric (default = 0). Value above which a cell
+#'   counts as expressing a feature. Not a filter on returned rows. \cr
+#'   `min_length` \tab integer (default = 0). Pad each per-group vector to this
+#'   length with copies of its minimum before taking the coefficient, removing
+#'   the dependence on group count so scores compare across runs. `0` never
+#'   pads. \cr
+#'   `rank_score` \tab numeric (default = Inf). Keep a feature when its group is
+#'   within this rank for both expression and detection. \cr
+#'   `min_feats` \tab integer (default = 5). Keep this many top features per
+#'   group regardless of the gates, so a group is never empty.
+#' }
+#'
+#' The gates are OR'd with `min_feats`, so tightening them shrinks the result
+#' toward `min_feats` per group and never below it.
+#'
+#' Defaults here are [findGiniMarkers()]'s. [findGiniMarkers_one_vs_all()]
+#' passes `min_expression = 0.5`, `min_detection = 0.5` and `min_feats = 4`
+#' explicitly; `comparison = "one_vs_rest"` does **not** switch them for you.
+#' @md
+#' @family marker detection parameters
+#' @seealso [analyze_param], [markersParam()], [findGiniMarkers()],
+#'   [featStatsParam-class]
+#' @returns marker detection results
+NULL
+
+
 #' @rdname analyze_param
 #' @exportClass markersParam
 setClass("markersParam", contains = c("VIRTUAL", "analyzeParam"))
@@ -74,15 +149,20 @@ setClass("markersParam", contains = c("VIRTUAL", "analyzeParam"))
 #' @exportClass scranMarkersParam
 setClass("scranMarkersParam", contains = "markersParam")
 
+#' @rdname analyze_param
+#' @exportClass giniMarkersParam
+setClass("giniMarkersParam", contains = "markersParam")
+
 
 # param factory ####
 
 #' @rdname analyze_param
 #' @export
 markersParam <- function(method = "scran", ...) {
-    method <- match.arg(tolower(method), c("scran"))
+    method <- match.arg(tolower(method), c("scran", "gini"))
     switch(method,
-        "scran" = .markers_param_scran(...)
+        "scran" = .markers_param_scran(...),
+        "gini" = .markers_param_gini(...)
     )
 }
 
@@ -99,6 +179,22 @@ markersParam <- function(method = "scran", ...) {
     p$log_p <- isTRUE(p$log_p)
     p$full_stats <- isTRUE(p$full_stats)
     p$sorted <- p$sorted %null% TRUE
+    p
+}
+
+#' @keywords internal
+#' @noRd
+.markers_param_gini <- function(...) {
+    p <- new("giniMarkersParam", param = list(...))
+    p$comparison <- p$comparison %null% "pairwise"
+    p$min_expression <- as.numeric(p$min_expression %null% 0.2)
+    p$min_detection <- as.numeric(p$min_detection %null% 0.2)
+    p$min_expression_gini <- as.numeric(p$min_expression_gini %null% -Inf)
+    p$min_detection_gini <- as.numeric(p$min_detection_gini %null% -Inf)
+    p$detection_threshold <- as.numeric(p$detection_threshold %null% 0)
+    p$min_length <- as.numeric(p$min_length %null% 0)
+    p$rank_score <- as.numeric(p$rank_score %null% Inf)
+    p$min_feats <- as.numeric(p$min_feats %null% 5)
     p
 }
 
@@ -944,15 +1040,16 @@ findGiniMarkers <- function(
         stop("no cells remain after the requested cluster selection")
     }
 
-    # data.table variables
-    feats <- cluster <- expression <- NULL
-    expression_gini <- detection_gini <- detection <- NULL
-
-    # One grouped pass replaces create_average_DT() and
-    # create_average_detection_DT(). `mean_expr` is the former and
-    # `perc_cells / 100` the latter; going through the verb means any backend
-    # implementing it -- including a disk-backed store -- supplies gini
-    # markers without further work here.
+    # Dispatched on the expression object, not computed here: `getExpression`
+    # returns whatever the slot holds, so a disk-backed store arrives intact
+    # and its own featStats method supplies the pass. Everything from the
+    # statistic onward lives in analyzeData(x, giniMarkersParam).
+    #
+    # Cluster labels come straight from the grouping vector, so the 'cluster_'
+    # prefix that create_average_DT() added -- and the conditional strip that
+    # undid it -- are both gone. That strip only fired when no real cluster name
+    # contained "cluster_", so a cluster genuinely named 'cluster_3' used to
+    # come back mangled; labels are now verbatim.
     expr_data <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -960,45 +1057,197 @@ findGiniMarkers <- function(
         values = values,
         output = "matrix"
     )
-    st <- GiottoClass::analyzeData(
-        expr_data,
-        analyzeParam("feat_stats", detection_threshold = detection_threshold),
+    analyzeData(
+        x = expr_data,
+        param = markersParam(
+            method = "gini",
+            comparison = "pairwise",
+            min_expression = min_expression,
+            min_detection = min_detection,
+            min_expression_gini = min_expression_gini,
+            min_detection_gini = min_detection_gini,
+            detection_threshold = detection_threshold,
+            min_length = min_length,
+            rank_score = rank_score,
+            min_feats = min_feats
+        ),
         # named so the verb matches on cell ID rather than position
-        groups = stats::setNames(grp, cell_metadata[][["cell_ID"]]),
+        groups = stats::setNames(grp, cell_metadata[][["cell_ID"]])
+    )
+}
+
+
+# analyzeData(<any>, giniMarkersParam) ####
+
+# Gini marker detection consumes `analyzeData(x, featStatsParam)` and nothing
+# else, so it is substrate-agnostic by construction -- hence the `ANY`
+# signature. There is deliberately no per-backend method: a store that
+# implements the grouped statistic supplies gini markers already, which is the
+# whole reason the statistic was pushed into that verb.
+#
+# `ANY` is the primary implementation here, not a warning fallback as it is for
+# `autoPcaParam`. The requirement on `x` is "featStats dispatches on it", which
+# no class union can express across package boundaries -- `allMatrix` covers the
+# in-memory substrates (matrix, Matrix, DelayedArray, BPCells) but a store is not
+# a matrix in any R sense. So the signature stays open and the featStats call
+# does the deciding: unsupported input fails there, naming both the class and
+# `featStatsParam`.
+
+#' @rdname markers_gini
+#' @param x expression values — anything `analyzeData(x, featStatsParam)`
+#'   accepts, including a `matrix`, a `Matrix`, a `DelayedMatrix` (what
+#'   `expression_values = "scaled"` holds) or a disk-backed store.
+#' @param param a [giniMarkersParam-class].
+#' @param groups vector of group assignments, one per cell. Taken in column
+#'   order of `x`, unless the vector is named by cell ID, in which case it is
+#'   matched on identity. Naming is the safer form: the expression matrix and
+#'   the cell metadata a caller builds `groups` from are fetched independently
+#'   and need not share a cell order. `NA` excludes a cell from every group,
+#'   which is how a caller narrows to a subset without copying the object.
+#' @param verbose report progress per group. `"one_vs_rest"` only.
+#' @export
+setMethod("analyzeData",
+    signature(x = "ANY", param = "giniMarkersParam"),
+    function(x, param, ..., groups = NULL, verbose = TRUE) {
+        .markers_gini(x, param, groups = groups, verbose = verbose)
+    }
+)
+
+
+#' @keywords internal
+#' @noRd
+.markers_gini <- function(x, param, groups, verbose = TRUE) {
+    if (is.null(groups)) {
+        stop("[analyzeData(giniMarkersParam)] `groups` is required: one group ",
+            "assignment per cell.", call. = FALSE)
+    }
+    # No check that `x` is supported: the featStats call below IS the check, and
+    # S4 dispatch reports it better than a second source of truth could -- it
+    # names the class and the param, and it cannot fall out of step with the
+    # methods actually registered. Anything base-R matrix semantics reach,
+    # `allMatrix` already covers.
+
+    # The one pass over the values. `mean_expr` is the per-group mean and
+    # `perc_cells / 100` the detection fraction; `sum` and `nnz` are the only
+    # accumulators either needs, so the other two are never computed.
+    st <- analyzeData(
+        x,
+        analyzeParam("feat_stats",
+            detection_threshold = param$detection_threshold),
+        groups = groups,
         stats = c("sum", "nnz")
     )
 
-    top_feats_scores_filtered <- .gini_score_dt(
+    if (identical(param$comparison %null% "pairwise", "one_vs_rest")) {
+        return(.markers_one_vs_rest_gini(st, param, verbose = verbose))
+    }
+    .gini_score_dt(
         data.table::data.table(
             feats = st$feats,
             cluster = st$group,
             expression = st$mean_expr,
             detection = st$perc_cells / 100
         ),
-        min_length = min_length,
-        min_expression = min_expression,
-        min_detection = min_detection,
-        min_expression_gini = min_expression_gini,
-        min_detection_gini = min_detection_gini,
-        rank_score = rank_score,
-        min_feats = min_feats
+        min_length = param$min_length,
+        min_expression = param$min_expression,
+        min_detection = param$min_detection,
+        min_expression_gini = param$min_expression_gini,
+        min_detection_gini = param$min_detection_gini,
+        rank_score = param$rank_score,
+        min_feats = param$min_feats
     )
+}
 
-    # Cluster labels come straight from the grouping vector now, so the
-    # 'cluster_' prefix that create_average_DT() added -- and the conditional
-    # strip that undid it -- are both gone. That strip only fired when no real
-    # cluster name contained "cluster_", so a cluster genuinely named
-    # 'cluster_3' used to come back mangled; labels are now verbatim.
 
-    return(top_feats_scores_filtered)
+# One table per group, each scoring that group against the pooled remainder.
+#
+# Takes the grouped statistics rather than the store: the accumulators behind
+# `total_expr` and `nr_cells` are additive, so each group-vs-rest pair is a
+# row-sum over the other columns. What used to be one full scan per group is one
+# scan total, and the pooling is exact rather than an approximation.
+#' @keywords internal
+#' @noRd
+.markers_one_vs_rest_gini <- function(st, param, verbose = TRUE) {
+    cluster <- NULL   # NSE binding
+
+    lvls <- unique(st$group)
+    n_feats <- length(unique(st$feats))
+    feat_ids <- st$feats[seq_len(n_feats)]
+
+    # groups vary slowest with feats cycling within, so these unroll directly
+    sums <- matrix(st$total_expr, nrow = n_feats, dimnames = list(NULL, lvls))
+    nnz <- matrix(
+        as.numeric(st$nr_cells), nrow = n_feats, dimnames = list(NULL, lvls)
+    )
+    n_k <- st$n_cells[seq(1L, by = n_feats, length.out = length(lvls))]
+    names(n_k) <- lvls
+
+    uniq_clusters <- mixedsort(lvls)
+
+    with_pbar({
+        pb <- pbar(along = uniq_clusters)
+        result_list <- lapply(
+            seq_along(uniq_clusters),
+            function(clus_i) {
+                selected_clus <- as.character(uniq_clusters[clus_i])
+                other_clus <- setdiff(lvls, selected_clus)
+
+                if (isTRUE(verbose)) {
+                    cat("start with cluster ", selected_clus)
+                }
+
+                # default group naming matches what findGiniMarkers() would
+                # have produced for group_1 = selected, group_2 = rest
+                rest_name <- paste0(
+                    mixedsort(uniq_clusters[
+                        as.character(uniq_clusters) != selected_clus
+                    ]),
+                    collapse = "_"
+                )
+                n_rest <- sum(n_k[other_clus])
+
+                markers <- .gini_score_dt(
+                    data.table::data.table(
+                        feats = rep(feat_ids, 2L),
+                        cluster = rep(
+                            c(selected_clus, rest_name),
+                            each = n_feats
+                        ),
+                        expression = c(
+                            sums[, selected_clus] / n_k[[selected_clus]],
+                            rowSums(sums[, other_clus, drop = FALSE]) / n_rest
+                        ),
+                        detection = c(
+                            nnz[, selected_clus] / n_k[[selected_clus]],
+                            rowSums(nnz[, other_clus, drop = FALSE]) / n_rest
+                        )
+                    ),
+                    min_length = param$min_length,
+                    min_expression = param$min_expression,
+                    min_detection = param$min_detection,
+                    min_expression_gini = param$min_expression_gini,
+                    min_detection_gini = param$min_detection_gini,
+                    rank_score = param$rank_score,
+                    min_feats = param$min_feats
+                )
+
+                filtered_table <- markers[cluster == selected_clus]
+
+                pb(message = c("cluster ", clus_i, "/", length(uniq_clusters)))
+                return(filtered_table)
+            }
+        )
+    })
+
+    do.call("rbind", result_list)
 }
 
 
 # Score a features x clusters table into the gini marker result.
 #
 # Takes `feats`, `cluster`, `expression` and `detection` and returns the
-# filtered, ordered result. Shared by findGiniMarkers() and the pooled
-# one-vs-all path so the statistic has one implementation.
+# filtered, ordered result. Shared by the pairwise and pooled one-vs-rest paths
+# so the statistic has one implementation.
 .gini_score_dt <- function(aggr_sc,
     min_length, min_expression, min_detection,
     min_expression_gini, min_detection_gini, rank_score, min_feats) {
@@ -1233,14 +1482,6 @@ findGiniMarkers_one_vs_all <- function(
     }
 
 
-    # sort uniq clusters
-    uniq_clusters <- mixedsort(unique(cell_metadata[[cluster_column]]))
-
-    # One grouped pass over the real clusters. Each cluster-vs-rest pair is
-    # then a row-sum of the other columns, because the accumulators behind
-    # `total_expr` and `nr_cells` are additive -- so what used to be one full
-    # scan per cluster is one scan total. The pooling is exact, not an
-    # approximation.
     expr_data <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -1248,89 +1489,27 @@ findGiniMarkers_one_vs_all <- function(
         values = values,
         output = "matrix"
     )
-    st <- GiottoClass::analyzeData(
-        expr_data,
-        analyzeParam("feat_stats", detection_threshold = detection_threshold),
+    analyzeData(
+        x = expr_data,
+        param = markersParam(
+            method = "gini",
+            comparison = "one_vs_rest",
+            min_expression = min_expression,
+            min_detection = min_detection,
+            min_expression_gini = min_expression_gini,
+            min_detection_gini = min_detection_gini,
+            detection_threshold = detection_threshold,
+            min_length = min_length,
+            rank_score = rank_score,
+            min_feats = min_feats
+        ),
         # named so the verb matches on cell ID rather than position
         groups = stats::setNames(
             as.character(cell_metadata[[cluster_column]]),
             cell_metadata[["cell_ID"]]
         ),
-        stats = c("sum", "nnz")
+        verbose = verbose
     )
-
-    lvls <- unique(st$group)
-    n_feats <- length(unique(st$feats))
-    feat_ids <- st$feats[seq_len(n_feats)]
-
-    # groups vary slowest with feats cycling within, so these unroll directly
-    sums <- matrix(st$total_expr, nrow = n_feats, dimnames = list(NULL, lvls))
-    nnz <- matrix(
-        as.numeric(st$nr_cells), nrow = n_feats, dimnames = list(NULL, lvls)
-    )
-    n_k <- st$n_cells[seq(1L, by = n_feats, length.out = length(lvls))]
-    names(n_k) <- lvls
-
-    # data.table variables
-    cluster <- NULL
-
-    # GINI
-    with_pbar({
-        pb <- pbar(along = uniq_clusters)
-        result_list <- lapply(
-            seq_along(uniq_clusters),
-            function(clus_i) {
-                selected_clus <- as.character(uniq_clusters[clus_i])
-                other_clus <- setdiff(lvls, selected_clus)
-
-                if (verbose == TRUE) {
-                    cat("start with cluster ", selected_clus)
-                }
-
-                # default group naming matches what findGiniMarkers() would
-                # have produced for group_1 = selected, group_2 = rest
-                rest_name <- paste0(
-                    mixedsort(uniq_clusters[
-                        as.character(uniq_clusters) != selected_clus
-                    ]),
-                    collapse = "_"
-                )
-                n_rest <- sum(n_k[other_clus])
-
-                markers <- .gini_score_dt(
-                    data.table::data.table(
-                        feats = rep(feat_ids, 2L),
-                        cluster = rep(
-                            c(selected_clus, rest_name),
-                            each = n_feats
-                        ),
-                        expression = c(
-                            sums[, selected_clus] / n_k[[selected_clus]],
-                            rowSums(sums[, other_clus, drop = FALSE]) / n_rest
-                        ),
-                        detection = c(
-                            nnz[, selected_clus] / n_k[[selected_clus]],
-                            rowSums(nnz[, other_clus, drop = FALSE]) / n_rest
-                        )
-                    ),
-                    min_length = min_length,
-                    min_expression = min_expression,
-                    min_detection = min_detection,
-                    min_expression_gini = min_expression_gini,
-                    min_detection_gini = min_detection_gini,
-                    rank_score = rank_score,
-                    min_feats = min_feats
-                )
-
-                filtered_table <- markers[cluster == selected_clus]
-
-                pb(message = c("cluster ", clus_i, "/", length(uniq_clusters)))
-                return(filtered_table)
-            }
-        )
-    })
-
-    return(do.call("rbind", result_list))
 }
 
 

@@ -19,7 +19,11 @@
 
 \item{param}{a [scranMarkersParam-class].}
 
-\item{groups}{vector of group assignments, one per cell, in column order.}
+\item{groups}{vector of group assignments, one per cell. Taken in column
+order of `x`, unless the vector is named by cell ID, in which case it is
+matched to `colnames(x)`. Naming is the safer form: the expression matrix
+and the cell metadata a caller builds `groups` from are fetched
+independently and need not share a cell order.}
 }
 \value{
 marker detection results
@@ -88,5 +92,8 @@ comparisons and have no meaning independent of it; see
 
 \seealso{
 \link{analyze_param}, \code{\link[=markersParam]{markersParam()}}, \code{\link[=findScranMarkers]{findScranMarkers()}}
+
+Other marker detection parameters:
+\code{\link{markers_gini}}
 }
 \concept{marker detection parameters}

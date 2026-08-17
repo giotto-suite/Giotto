@@ -4,6 +4,7 @@
 \name{markersParam-class}
 \alias{markersParam-class}
 \alias{scranMarkersParam-class}
+\alias{giniMarkersParam-class}
 \alias{markersParam}
 \alias{analyze_param}
 \alias{analyzeParam}
@@ -46,10 +47,13 @@ thresholding or selection is a separate step.
 - `covLoessParam` — residual COV above a LOESS fit of COV ~ log(mean_expr)
 
 **Variance param**:
-- `varParam` — per-feature variance on a scaled matrix
+- `varParam` — per-feature variance of analytic Pearson residuals,
+  computed from raw counts
 
 **Marker detection params** (one subclass of the virtual `markersParam`
 per detection method):
 - `scranMarkersParam` — pairwise group comparisons combined per group;
   see [markers_scran]. Built with [markersParam()].
+- `giniMarkersParam` — per-group specificity by Gini coefficient, derived
+  from `featStatsParam`; see [markers_gini]. Built with [markersParam()].
 }

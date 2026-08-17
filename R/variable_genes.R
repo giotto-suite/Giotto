@@ -27,6 +27,8 @@
 #' per detection method):
 #' - `scranMarkersParam` — pairwise group comparisons combined per group;
 #'   see [markers_scran]. Built with [markersParam()].
+#' - `giniMarkersParam` — per-group specificity by Gini coefficient, derived
+#'   from `featStatsParam`; see [markers_gini]. Built with [markersParam()].
 #'
 #' @param method character. One of `"feat_stats"`, `"cell_stats"`,
 #'   `"cov_groups"`, `"cov_loess"`, `"var"`.
