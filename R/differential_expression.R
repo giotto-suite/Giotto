@@ -656,7 +656,10 @@ findScranMarkers_one_vs_all <- function(
         result_list <- lapply(
             seq_along(uniq_clusters),
             function(clus_i) {
-                selected_clus <- uniq_clusters[clus_i]
+                # character, matching findGiniMarkers_one_vs_all(). Returning a
+                # different type from the sibling function made the two results
+                # impossible to join on `cluster`.
+                selected_clus <- as.character(uniq_clusters[clus_i])
 
                 if (verbose == TRUE) {
                     cat("start with cluster ", selected_clus)

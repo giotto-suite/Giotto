@@ -140,3 +140,73 @@ test_that("non-t tests do not receive the t-only std.lfc argument", {
         "applies only to"
     )
 })
+
+
+# `cluster` column type invariant across marker methods. findMarkers_one_vs_all()
+# dispatches to all three, so a caller joining or rbind-ing results must be able
+# to rely on one type regardless of `method`. A numeric cluster column is used
+# deliberately -- that is where a missing coercion shows up, and cluster columns
+# from Leiden are numeric.
+
+.mk_numeric_clus_gobject <- function(n_genes = 60L, n_cells = 120L, seed = 1L) {
+    set.seed(seed)
+    cells <- paste0("c_", seq_len(n_cells))
+    m <- matrix(rpois(n_genes * n_cells, 3L), nrow = n_genes,
+        dimnames = list(paste0("g_", seq_len(n_genes)), cells))
+    clus <- rep(1:3, length.out = n_cells)
+    # separate the groups so every method finds markers
+    for (k in 1:3) {
+        rows <- ((k - 1L) * 10L + 1L):(k * 10L)
+        m[rows, clus == k] <- m[rows, clus == k] + 25L
+    }
+    g <- GiottoClass::createGiottoObject(expression = m, verbose = FALSE)
+    g <- Giotto::normalizeGiotto(g, verbose = FALSE)
+    GiottoClass::addCellMetadata(g,
+        new_metadata = data.frame(cell_ID = cells, clus = clus))
+}
+
+test_that("cluster column is character for every marker method", {
+    skip_if_not_installed("scran")
+    g <- .mk_numeric_clus_gobject()
+    # the fixture must actually be numeric, or this proves nothing
+    expect_true(is.numeric(GiottoClass::pDataDT(g)$clus))
+
+    scran_ova <- findScranMarkers_one_vs_all(g, cluster_column = "clus",
+        verbose = FALSE)
+    gini_ova <- findGiniMarkers_one_vs_all(g, cluster_column = "clus",
+        verbose = FALSE)
+
+    expect_type(scran_ova$cluster, "character")
+    expect_type(gini_ova$cluster, "character")
+
+    # plain (non one-vs-all) paths emit `cluster` too
+    scran_plain <- data.table::rbindlist(
+        findScranMarkers(g, cluster_column = "clus", verbose = FALSE),
+        fill = TRUE)
+    expect_type(scran_plain$cluster, "character")
+    expect_type(findGiniMarkers(g, cluster_column = "clus")$cluster, "character")
+
+    # the dispatcher must not vary the type by method
+    for (m in c("scran", "gini")) {
+        res <- findMarkers_one_vs_all(g, method = m, cluster_column = "clus",
+            verbose = FALSE)
+        expect_type(res$cluster, "character")
+    }
+
+    # and the results must be joinable on it -- the reason the type matters
+    j <- merge(gini_ova[, c("feats", "cluster")],
+               scran_ova[, c("feats", "cluster")],
+               by = c("feats", "cluster"))
+    expect_gt(nrow(j), 0L)
+})
+
+test_that("MAST labels comparisons rather than bare clusters", {
+    skip_if_not_installed("MAST")
+    g <- .mk_numeric_clus_gobject()
+    res <- findMastMarkers_one_vs_all(g, cluster_column = "clus",
+        verbose = FALSE)
+    # character like the others, but the value is "<clus>_vs_others", not
+    # "<clus>" -- so cross-method joins on `cluster` need a translation step.
+    expect_type(res$cluster, "character")
+    expect_true(all(grepl("_vs_others$", res$cluster)))
+})
