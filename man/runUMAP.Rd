@@ -61,7 +61,7 @@ runUMAP(
 \item{n_components}{UMAP param: number of components}
 
 \item{n_epochs}{UMAP param: number of epochs. `NULL` (default) scales with
-the number of observations embedded: `100` above 50,000, otherwise uwot's
+the number of observations embedded: `200` above 50,000, otherwise uwot's
 own default (500 below 10,000 observations, 200 above).}
 
 \item{min_dist}{UMAP param: minimum distance}
@@ -85,9 +85,8 @@ own default (500 below 10,000 observations, 200 above).}
 take identical arguments; see details.}
 
 \item{init}{UMAP param: initialization method for the embedding. `NULL`
-(default) scales with the number of observations embedded: `"random"`
-above 50,000, which skips the spectral initialization's
-eigendecomposition, and `"spectral"` otherwise.}
+(default) scales with the number of observations embedded: `"pca"` above
+50,000 and `"spectral"` otherwise.}
 
 \item{batch}{UMAP param: use the batch optimizer. Default `TRUE`, which
 under `method = "umap2"` also threads the stochastic gradient descent
@@ -567,11 +566,10 @@ one without the other changes how tightly points pack. They are set
 together.
 
 \code{n_epochs} and \code{init} are left \code{NULL} and resolved from the
-number of observations being embedded, because the fast settings are only
-the right trade at scale. Above 50,000 observations a short random-init run
-converges well and both choices save real wall-clock; below it they cost
-embedding quality for no useful saving. Passing either explicitly overrides
-the adaptation.
+number of observations being embedded: uwot's own \code{n_epochs} default
+and \code{"spectral"} below 50,000, \code{n_epochs = 200} and
+\code{init = "pca"} above it. Passing either explicitly overrides the
+adaptation.
 \itemize{
   \item Input for UMAP dimension reduction can be another dimension reduction
   (default = 'pca')

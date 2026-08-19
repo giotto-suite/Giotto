@@ -2491,7 +2491,7 @@ runNMF <- function(gobject,
 #' @param n_neighbors UMAP param: number of neighbors
 #' @param n_components UMAP param: number of components
 #' @param n_epochs UMAP param: number of epochs. `NULL` (default) scales with
-#'   the number of observations embedded: `100` above 50,000, otherwise uwot's
+#'   the number of observations embedded: `200` above 50,000, otherwise uwot's
 #'   own default (500 below 10,000 observations, 200 above).
 #' @param min_dist UMAP param: minimum distance
 #' @param n_threads UMAP param: threads/cores to use
@@ -2505,9 +2505,8 @@ runNMF <- function(gobject,
 #'   \code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
 #'   take identical arguments; see details.
 #' @param init UMAP param: initialization method for the embedding. `NULL`
-#'   (default) scales with the number of observations embedded: `"random"`
-#'   above 50,000, which skips the spectral initialization's
-#'   eigendecomposition, and `"spectral"` otherwise.
+#'   (default) scales with the number of observations embedded: `"pca"` above
+#'   50,000 and `"spectral"` otherwise.
 #' @param batch UMAP param: use the batch optimizer. Default `TRUE`, which
 #'   under `method = "umap2"` also threads the stochastic gradient descent
 #'   across `n_threads`, deterministically.
@@ -2540,11 +2539,10 @@ runNMF <- function(gobject,
 #' together.
 #'
 #' \code{n_epochs} and \code{init} are left \code{NULL} and resolved from the
-#' number of observations being embedded, because the fast settings are only
-#' the right trade at scale. Above 50,000 observations a short random-init run
-#' converges well and both choices save real wall-clock; below it they cost
-#' embedding quality for no useful saving. Passing either explicitly overrides
-#' the adaptation.
+#' number of observations being embedded: uwot's own \code{n_epochs} default
+#' and \code{"spectral"} below 50,000, \code{n_epochs = 200} and
+#' \code{init = "pca"} above it. Passing either explicitly overrides the
+#' adaptation.
 #' \itemize{
 #'   \item Input for UMAP dimension reduction can be another dimension reduction
 #'   (default = 'pca')
@@ -2717,19 +2715,16 @@ runUMAP <- function(gobject,
         }
 
         ## run umap ##
-        # n_epochs and init scale with the number of observations being
-        # embedded. Above ~50k the optimizer has enough data that a short
-        # random-init run converges fine, and both choices are worth real
-        # wall-clock. Below it they are not: uwot's own n_epochs default is
-        # 500 under 10k observations (200 above), and a spectral init costs
-        # almost nothing on a small graph while separating it better --
-        # measured on a 624-cell object, 100 epochs + random init lost ~4%
-        # kNN preservation against uwot's defaults for no useful time saving.
+        # n_epochs and init scale with the number of observations. Below ~50k,
+        # uwot's own n_epochs default and a spectral init, which is cheap on a
+        # small graph and separates it better. Above it, 200 epochs (uwot's own
+        # large-data default) and a PCA init, which benchmarked both tighter
+        # and faster than a random or spectral init at that scale.
         # NULL means "not set by the caller", so an explicit value always wins.
         n_obs <- nrow(matrix_to_use)
-        if (is.null(n_epochs) && n_obs > 50000L) n_epochs <- 100L
+        if (is.null(n_epochs) && n_obs > 50000L) n_epochs <- 200L
         if (is.null(init)) {
-            init <- if (n_obs > 50000L) "random" else "spectral"
+            init <- if (n_obs > 50000L) "pca" else "spectral"
         }
 
         # umap2() is uwot::umap() with two pieces of wiring rather than a
