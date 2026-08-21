@@ -1,5 +1,8 @@
 # Giotto 4.2.4 (in development)
 
+## Bug fixes
+* `createGiottoXeniumObject()` no longer errors on Xenium-format directories that ship no panel json; feature metadata is generated from the expression matrix when the panel is absent.
+
 ## Breaking changes
 * `findScranMarkers_one_vs_all()` returns `cluster` as **character**. All `findMarkers_one_vs_all()` methods now agree on the type, so their results can be joined or stacked on `cluster` regardless of `method`; previously scran disagreed with gini. Code comparing against a numeric literal needs `"3"` rather than `3`. Note that `method = "mast"` labels the comparison (`"3_vs_others"`) rather than the bare cluster id, so joins across mast and the others still need a translation step.
 * `calculateHVF(method = "var_p_resid")` now computes analytic Pearson residuals itself, from **raw counts**, instead of taking the plain variance of whatever matrix it was handed. **Selected features will differ from previous releases.** Previously the residual criterion required running `normalizeGiotto(norm_methods = "pearson_resid")` first *and* passing `expression_values = "scaled"` (the slot that normalization writes to, not the `"normalized"` default) — a three-way agreement nothing verified, and which silently returned the variance of library-normalized values whenever it was not met. `expression_values` is now ignored for this method, with a warning if it was set explicitly. `normalizeGiotto(norm_methods = "pearson_resid")` is unaffected and remains available for producing residuals as a stored matrix.
