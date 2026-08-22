@@ -129,6 +129,7 @@ Collate:
     'convenience_stereoseq.r'
     'convenience_visiumHD.R'
     'convenience_xenium.R'
+    'convenience_atera.R'
     'cross_section.R'
     'dd.R'
     'differential_expression.R'
