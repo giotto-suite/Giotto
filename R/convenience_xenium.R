@@ -32,9 +32,14 @@ setClass(
         qv = "ANY",
         micron = "numeric",
         calls = "list",
-        paths = "list"
+        paths = "list",
+        # label used in path-detection messages. A subclass for a platform
+        # that shares this layout (see AteraReader) overrides it via its
+        # prototype so warnings name the right platform.
+        platform = "character"
     ),
     prototype = list(
+        platform = "Xenium",
         filetype = list(
             transcripts = "parquet",
             boundaries = "parquet",
@@ -157,7 +162,8 @@ setMethod(
 
 
         # detect paths and subdirs
-        obj@paths <- .xenium_detect_paths(obj@xenium_dir, ftype)
+        obj@paths <- .xenium_detect_paths(obj@xenium_dir, ftype,
+            platform = obj@platform)
         # mirror into the init frame so closures can reference the path
         # names directly via default-arg expressions (each default
         # evaluates to a bare character string at call time)
@@ -729,11 +735,12 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 # `list2env(paths, envir = environment())` into the frame whose closures
 # reference these names via default-arg expressions, so each call
 # re-resolves to a bare character string.
-.xenium_detect_paths <- function(xenium_dir, filetype) {
+.xenium_detect_paths <- function(xenium_dir, filetype,
+    platform = "Xenium") {
     .xenium_detect <- function(pattern, ...) {
         .detect_in_dir(
             pattern = pattern, ...,
-            path = xenium_dir, platform = "Xenium"
+            path = xenium_dir, platform = platform
         )
     }
     .xenium_ftype <- function(paths, ftype) {
