@@ -466,14 +466,24 @@ setMethod(
 
 
             # feat metadata
-            fx <- funs$load_featmeta(
-                path = gene_panel_json_path,
-                # ID = symbols makes sense with the subcellular feat_IDs
-                gene_ids = "symbols",
-                # no dropcols
-                verbose = verbose
-            )
-            g <- setGiotto(g, fx, verbose = FALSE)
+            # `gene_panel_json_path` is optional, and some Xenium-format
+            # exports ship no panel json. Feature metadata is generated from
+            # the expression matrix when it is absent, so skip rather than
+            # error -- matching how the other optional inputs are handled.
+            if (length(gene_panel_json_path) > 0L &&
+                nzchar(gene_panel_json_path[[1L]])) {
+                fx <- funs$load_featmeta(
+                    path = gene_panel_json_path,
+                    # ID = symbols makes sense with the subcellular feat_IDs
+                    gene_ids = "symbols",
+                    # no dropcols
+                    verbose = verbose
+                )
+                g <- setGiotto(g, fx, verbose = FALSE)
+            } else {
+                vmsg("No panel metadata file found, skipping feature metadata",
+                    .v = verbose)
+            }
 
 
             # cell metadata
