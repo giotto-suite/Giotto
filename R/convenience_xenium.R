@@ -254,6 +254,17 @@ setMethod(
         }
         obj@calls$load_cellmeta <- cmeta_fun
 
+        # load spatlocs (cell centroids, used when there are no polygons)
+        sloc_fun <- function(
+        path = cell_meta_path,
+        flip_vertical = TRUE,
+        cores = determine_cores(),
+        verbose = NULL) {
+            .xenium_spatlocs(path = path, flip_vertical = flip_vertical,
+                cores = cores, verbose = verbose)
+        }
+        obj@calls$load_spatlocs <- sloc_fun
+
         # load featmeta
         fmeta_fun <- function(
         path = panel_meta_path,
@@ -594,13 +605,21 @@ setMethod(
             }
 
             # centroids
-            vmsg(.v = verbose, "calculating centroids")
+            # polygon centroids are preferred. With no polygons loaded there
+            # are none to derive, so fall back to the centroids recorded in
+            # the cell metadata file.
             spat_units_to_calc <- list_spatial_info_names(g)
-            g <- addSpatialCentroidLocations(g,
-                poly_info = spat_units_to_calc,
-                provenance = as.list(spat_units_to_calc),
-                verbose = FALSE
-            )
+            if (length(spat_units_to_calc) > 0L) {
+                vmsg(.v = verbose, "calculating centroids")
+                g <- addSpatialCentroidLocations(g,
+                    poly_info = spat_units_to_calc,
+                    provenance = as.list(spat_units_to_calc),
+                    verbose = FALSE
+                )
+            } else {
+                sl <- funs$load_spatlocs(verbose = verbose)
+                if (!is.null(sl)) g <- setGiotto(g, sl, verbose = FALSE)
+            }
 
             vmsg(.v = verbose, "done")
 
@@ -1143,6 +1162,52 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         dplyr::mutate(cell_id = cast(cell_id, arrow::string())) %>%
         dplyr::select(-dplyr::any_of(dropcols)) %>%
         data.table::as.data.table()
+}
+
+
+## spatlocs ####
+
+# Cell centroids as spatial locations.
+#
+# The cell metadata file carries `x_centroid` / `y_centroid`, which
+# `.xenium_cellmeta()` drops on purpose -- coordinates belong in spatial
+# locations, not metadata. This reads the same file for exactly those columns,
+# and is the fallback used when no polygons were loaded and there are therefore
+# no polygon centroids to derive.
+.xenium_spatlocs <- function(path, flip_vertical = TRUE,
+    cores = determine_cores(), verbose = NULL) {
+    if (missing(path) || length(path) == 0L || !nzchar(path[[1L]])) {
+        return(NULL)
+    }
+    checkmate::assert_file_exists(path)
+    cols <- c("cell_id", "x_centroid", "y_centroid")
+
+    e <- file_extension(path) %>%
+        head(1L) %>%
+        tolower()
+    vmsg("Loading cell centroids as spatial locations...", .v = verbose)
+    sl <- switch(e,
+        "csv" = data.table::fread(path, nThread = cores, select = cols),
+        "parquet" = arrow::read_parquet(file = path, as_data_frame = FALSE) %>%
+            dplyr::mutate(cell_id = cast(cell_id, arrow::string())) %>%
+            dplyr::select(dplyr::all_of(cols)) %>%
+            data.table::as.data.table()
+    )
+    data.table::setnames(sl, cols, c("cell_ID", "sdimx", "sdimy"))
+
+    # same convention as the transcript and polygon loaders, which both
+    # default to flip_vertical = TRUE. Without this the fallback would place
+    # cells mirrored against every other Xenium modality.
+    sdimy <- NULL # NSE var
+    if (flip_vertical) sl[, sdimy := -sdimy]
+
+    createSpatLocsObj(
+        coordinates = sl,
+        name = "raw",
+        spat_unit = "cell",
+        provenance = "cell",
+        verbose = FALSE
+    )
 }
 
 
