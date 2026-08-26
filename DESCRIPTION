@@ -15,14 +15,14 @@ Authors@R: c(
 	person("Edward", "Ruiz", email = "ecruiz@bu.edu",
 		 role = c("aut")),
 	person("Wen", "Wang", email = "wen.wang@mssm.edu",
-		 role = c("aut")),
+		 role = c("aut"), comment = c(ORCID = "0000-0003-4366-933X")),
 	person("Natalie", "Del Rossi", email = "natalie.delrossi@mssm.edu",
 		 role = c("aut"))
 	)
 Description: Toolbox to process, analyze and visualize spatial single-cell expression data.
 License: MIT + file LICENSE
 Encoding: UTF-8
-URL: https://giotto-suite.github.io/Giotto/, https://github.com/giotto-suite/Giotto
+URL: https://giottosuite.com, https://github.com/giotto-suite/Giotto
 BugReports: https://github.com/giotto-suite/Giotto/issues
 RoxygenNote: 7.3.3
 Depends:
