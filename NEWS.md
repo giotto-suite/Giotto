@@ -16,6 +16,7 @@
 * `runUMAP()` defaults retuned to match the benchmarked streaming pipeline: `min_dist` `0.01` -> `0.05`, `spread` `5` -> `1`, and a new `batch = TRUE` argument (was `FALSE`). `min_dist` and `spread` are changed together because uwot fits the embedding's `a`/`b` curve from the pair. `batch = TRUE` is also what lets `umap2()` thread the optimizer. **Embeddings will differ from previous releases**; `min_dist = 0.01, spread = 5, init = "spectral", n_epochs = 400, batch = FALSE` restores the old shape. `n_neighbors` is unchanged at `40`.
 
 ## Changes
+* `createGiottoXeniumObject()` reads `ome.tif` morphology images directly and no longer converts them through python, so no `tif_exports/` directory is written next to the data. A converted tif left by an earlier run is still used if present. JPEG-2000 images, which is what 10x actually ships, are read through a GDAL VRT rather than decoded up front.
 * gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
 ## New

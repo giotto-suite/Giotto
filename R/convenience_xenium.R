@@ -1628,61 +1628,66 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         }
 
         bn <- basename(path)
-        # Primary expected path matches `GiottoClass::to_simple_tif`'s
-        # current convention (commit de206ed4, GiottoClass 0.5.x+) which
-        # appends `_page<NNNN>` to every output (default page = 1).
-        # Legacy un-suffixed path is kept as a fallback for older
-        # GiottoClass installs
+        # `.ome.tif` no longer needs converting -- GiottoClass reads it
+        # directly, routing JPEG-2000 tiles through a GDAL VRT. A tif left
+        # behind by an earlier run is still honoured so that repeat calls on
+        # a dataset converted by an older Giotto keep working.
+        # `to_simple_tif`'s current convention (GiottoClass 0.5.x+) appends
+        # `_page<NNNN>`; the un-suffixed path is from older installs.
         tiff_path_new <- file.path(output_dir,
             sub("(?i)\\.ome\\.tif{1,2}$", "_page0001.tif", bn, perl = TRUE))
         tiff_path_legacy <- file.path(output_dir,
             sub("(?i)\\.ome\\.tif{1,2}$", ".tif", bn, perl = TRUE))
-        .resolve_tiff <- function() {
-            if (checkmate::test_file_exists(tiff_path_new)) tiff_path_new
-            else if (checkmate::test_file_exists(tiff_path_legacy)) tiff_path_legacy
-            else NA_character_
+        tiff_path <- if (checkmate::test_file_exists(tiff_path_new)) {
+            tiff_path_new
+        } else if (checkmate::test_file_exists(tiff_path_legacy)) {
+            tiff_path_legacy
+        } else {
+            NA_character_
         }
-        tiff_path <- .resolve_tiff()
 
         if (!is.na(tiff_path)) {
-            vmsg(.is_debug = TRUE, sprintf(
-                "converted tiff already present\n%s", tiff_path
-            ))
             if (isTRUE(overwrite)) {
+                vmsg(.is_debug = TRUE, sprintf(
+                    "removing stale converted tiff\n%s", tiff_path
+                ))
                 unlink(tiff_path, force = TRUE)
-                tiff_path <- NA_character_
-            }
-            # the convenience fun can be run multiple times on the dataset
-            # So, we allow directly using already converted imgs
-        }
-
-        if (is.na(tiff_path)) {
-            vmsg(.is_debug = TRUE, sprintf(
-                "converting ome to tif\n%s", tiff_path_new
-            ))
-            to_simple_tif(
-                input_file = path,
-                output_dir = output_dir,
-                overwrite = overwrite
-            )
-            tiff_path <- .resolve_tiff()
-            if (is.na(tiff_path)) {
-                stop("to_simple_tif produced no output at expected paths:\n  ",
-                    tiff_path_new, "\n  ", tiff_path_legacy,
-                    call. = FALSE)
+            } else {
+                vmsg(.is_debug = TRUE, sprintf(
+                    "using previously converted tiff\n%s", tiff_path
+                ))
+                path <- tiff_path
             }
         }
-
-        path <- tiff_path
     }
 
-    img <- createGiottoLargeImage(path,
+    img <- try(createGiottoLargeImage(path,
         name = name,
         flip_vertical = flip_vertical,
         flip_horizontal = flip_horizontal,
         negative_y = negative_y,
         verbose = verbose
-    )
+    ), silent = TRUE)
+
+    if (inherits(img, "try-error")) {
+        # last resort for codecs GDAL cannot reach: convert through python
+        vmsg(.is_debug = TRUE, "direct read failed, converting via python")
+        if (identical(output_dir, "default")) {
+            output_dir <- file.path(dirname(path), "tif_exports")
+        }
+        conv <- to_simple_tif(
+            input_file = path,
+            output_dir = output_dir,
+            overwrite = overwrite
+        )
+        img <- createGiottoLargeImage(conv,
+            name = name,
+            flip_vertical = flip_vertical,
+            flip_horizontal = flip_horizontal,
+            negative_y = negative_y,
+            verbose = verbose
+        )
+    }
     img <- rescale(img, micron, x0 = 0, y0 = 0)
 
     # NEW
@@ -1735,9 +1740,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' @param qv_threshold Minimum Phred-scaled quality score cutoff to be included
 #' as a subcellular transcript detection (default = 20)
 #' @param load_images Named list of filepaths to `.tif` images, usually the
-#' ones in the `morphology_focus` directory. These `ome.tif` images are not
-#' compatible and must be converted to `tif` using
-#' `[GiottoClass::to_simple_tif()]`.
+#' ones in the `morphology_focus` directory. `ome.tif` images are read
+#' directly, including the JPEG-2000 compressed ones Xenium ships.
 #' @param load_aligned_images Named list of filepaths. The list names are used
 #' as the image names when loaded. Two filepaths are expected per entry. The
 #' first one should be to the `.tif` image. The second path is to the `.csv`
