@@ -4,15 +4,14 @@ describe("Integrative testing with merfish dataset", {
     skip_on_bioc()
     skip_if_offline()
     
-    # data setup (warning about non-existing dir expected)
+    # data setup. getSpatialDataset returns the directory it wrote to, which
+    # is a per-dataset subdirectory of `directory`
     data_dir <- file.path(tempdir(), "testdata", "merfish")
-    suppressWarnings(
-        GiottoData::getSpatialDataset(
-            dataset = "merfish_preoptic", 
-            directory = data_dir
-        )
+    dataset_dir <- GiottoData::getSpatialDataset(
+        dataset = "merfish_preoptic",
+        directory = data_dir
     )
-    
+
     # register cleanup
     on.exit({
         # remove downloaded datasets after tests run
@@ -20,10 +19,10 @@ describe("Integrative testing with merfish dataset", {
             unlink(data_dir, recursive = TRUE, force = TRUE)
         }
     }, add = TRUE)
-    
-    expr_path <- file.path(data_dir, "merFISH_3D_data_expression.txt.gz")
-    loc_path  <- file.path(data_dir, "merFISH_3D_data_cell_locations.txt")
-    meta_path <- file.path(data_dir, "merFISH_3D_metadata.txt")
+
+    expr_path <- file.path(dataset_dir, "merFISH_3D_data_expression.txt.gz")
+    loc_path  <- file.path(dataset_dir, "merFISH_3D_data_cell_locations.txt")
+    meta_path <- file.path(dataset_dir, "merFISH_3D_metadata.txt")
     
     # CREATE GIOTTO OBJECT
     object <- createGiottoObject(

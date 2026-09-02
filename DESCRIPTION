@@ -66,7 +66,7 @@ Suggests:
     FNN,
     future,
     future.apply,
-    GiottoData,
+    GiottoData (>= 0.3.0),
     GiottoDisk,
     ggalluvial,
     ggdendro,

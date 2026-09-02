@@ -9,17 +9,20 @@
 # ------------------------------------
 
 test_that("Expression matrix is read correctly", {
-    # getSpatialDataset
-    expect_no_error(suppressWarnings(GiottoData::getSpatialDataset(
-        dataset = "scRNA_mouse_brain",
-        directory = paste0(getwd(), "/testdata/")
-    )))
+    # getSpatialDataset returns the directory it wrote to, which is a
+    # per-dataset subdirectory of `directory`
+    expect_no_error(
+        data_dir <- GiottoData::getSpatialDataset(
+            dataset = "scRNA_mouse_brain",
+            directory = file.path(getwd(), "testdata")
+        )
+    )
 
-    expect_true(file.exists(paste0(getwd(), "/testdata/brain_sc_expression_matrix.txt.gz")))
+    expr_file <- file.path(data_dir, "brain_sc_expression_matrix.txt.gz")
+    expect_true(file.exists(expr_file))
 
     # readExprMatrix
-    expr_mat <- readExprMatrix(
-        paste0(getwd(), "/testdata/brain_sc_expression_matrix.txt.gz"))
+    expr_mat <- readExprMatrix(expr_file)
 
     expect_s4_class(expr_mat, "dgCMatrix")
     expect_equal(expr_mat@Dim, c(27998, 8039))
@@ -40,10 +43,6 @@ test_that("Expression matrix is read correctly", {
 
 # -----------------------------
 # remove files after testing
-if (file.exists("./testdata/brain_sc_expression_matrix.txt.gz")) {
-    unlink("./testdata/brain_sc_expression_matrix.txt.gz")
-}
-
-if (file.exists("./testdata/brain_sc_metadata.csv")) {
-    unlink("./testdata/brain_sc_metadata.csv")
+if (dir.exists("./testdata/scRNA_mouse_brain")) {
+    unlink("./testdata/scRNA_mouse_brain", recursive = TRUE, force = TRUE)
 }
