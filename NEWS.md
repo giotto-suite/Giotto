@@ -1,5 +1,16 @@
 # Giotto 4.2.4 (in development)
 
+## Enhancements
+* `importXenium()` / `importAtera()` path detection now recognizes zarr
+  output (`.zarr.zip` archives and unzipped `.zarr` trees): `filetype` accepts
+  `"zarr"` for transcripts / boundaries / cell_meta / expression, and detection
+  falls back to zarr automatically when a slot's requested filetype matches
+  nothing but a zarr archive is present (zarr-only exports, e.g. Atera).
+  Existing datasets detect exactly as before — parquet/csv/h5/mtx still win
+  when present. Reading zarr requires the disk pathway
+  (`GiottoDisk::importXeniumDisk()` / `importAteraDisk()`); the in-memory
+  loaders now point there instead of a bare "not yet supported" stop.
+
 ## Bug fixes
 * `createGiottoXeniumObject()` no longer errors on Xenium-format directories that ship no panel json; feature metadata is generated from the expression matrix when the panel is absent.
 
