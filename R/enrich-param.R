@@ -197,6 +197,8 @@ NULL
 #'   engine registered against [pageEnrichParam-class] accepts.
 #' @param param a [pageEnrichParam-class].
 #' @param sign_matrix binary sign matrix, genes x cell types.
+#' @param ... unused. Declared because [analyzeData()] carries it, so an
+#'   engine registered from another package can accept its own arguments.
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
@@ -318,6 +320,12 @@ setMethod("analyzeData",
     enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
 
     if (isTRUE(param$p_value)) {
+        # Suggests-only, and reached solely by this branch -- checked here
+        # rather than at the top so the common path does not require it.
+        # It went unguarded while this branch errored regardless; now that
+        # it works, a missing install is the only thing that stops it.
+        package_check(pkg_name = "fitdistrplus", repository = "CRAN")
+
         random_rank <- .do_rank_permutation(
             sc_gene = rownames(sign_matrix), n = param$n_times
         )
