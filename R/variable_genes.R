@@ -373,7 +373,7 @@ calculateHVF <- function(
     # `var_number` was var_p_resid-only; the top-N cut now applies to every
     # method, so it is exposed under a name that does not imply variance.
     n_top_feats <- GiottoUtils::deprecate_param(
-        var_number, n_top_feats, fun = "calculateHVF", when = "4.2.4"
+        var_number, n_top_feats, fun = "calculateHVF", when = "4.3.0"
     )
 
     # determine whether to use parallel functions
