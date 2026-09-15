@@ -9,6 +9,12 @@ a patch's worth, and a distinct minor makes `gsource` the visibly leading line.
 Downstream packages pinning a class or generic added here should require
 `Giotto (>= 4.3.0)`.
 
+Deprecation markers were retargeted only where the deprecation is unique to
+this line: `calculateHVF()`'s `var_number` and the `runUMAP()` engine note now
+say 4.3.0. The `findGiniMarkers()` / `findMarkers()` gini-threshold renames
+keep `when = "4.2.4"` — they are on `suite_dev` too, and will ship from there
+under that version.
+
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr
   output (`.zarr.zip` archives and unzipped `.zarr` trees): `filetype` accepts
