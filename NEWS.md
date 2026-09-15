@@ -1,4 +1,13 @@
-# Giotto 4.2.4 (in development)
+# Giotto 4.3.0 (in development)
+
+`gsource` moves to its own minor line. It was previously 4.2.4 against
+`suite_dev`'s 4.2.3, so the two shared a minor version and a downstream package
+could only tell them apart by patch. The accumulated changes below — new
+readers, the param families, and several results-changing fixes — are more than
+a patch's worth, and a distinct minor makes `gsource` the visibly leading line.
+
+Downstream packages pinning a class or generic added here should require
+`Giotto (>= 4.3.0)`.
 
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr
