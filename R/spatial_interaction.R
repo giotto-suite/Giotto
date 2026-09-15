@@ -98,6 +98,56 @@ make_simulated_network <- function(gobject,
 
 
 
+#' @title .cpe_permutation_counts
+#' @name .cpe_permutation_counts
+#' @description Vectorized cell-type-pair counting for the observed network
+#' and for a set of node-label permutations.
+#' @param from,to integer vectors of 1-based node indices, one entry per
+#' (deduplicated, undirected) edge.
+#' @param codes integer vector of cell-type codes (1..K), one entry per node.
+#' @param K integer, number of cell-type levels.
+#' @param number_of_simulations number of label permutations.
+#' @param set_seed,seed_number seed control.
+#' @returns list with `obs` (integer vector of length K*K) and `sim`
+#' (K*K x number_of_simulations integer matrix) of pair counts, indexed by
+#' `(lo - 1) * K + hi` for the sorted type pair `(lo, hi)`.
+#' @details The null model permutes cell-type labels over the *nodes* of the
+#' network, so each cell keeps a single label across all of its edges. Counting
+#' is done with [tabulate()] over an integer pair key, so no intermediate
+#' edge x simulation table is ever materialized.
+#' @keywords internal
+.cpe_permutation_counts <- function(from,
+    to,
+    codes,
+    K,
+    number_of_simulations,
+    set_seed = TRUE,
+    seed_number = 1234) {
+    nbins <- K * K
+    n_nodes <- length(codes)
+
+    # canonical unordered pair key: (min - 1) * K + max
+    .pair_key <- function(cf, ct) {
+        lo <- pmin.int(cf, ct)
+        hi <- pmax.int(cf, ct)
+        (lo - 1L) * K + hi
+    }
+
+    obs <- tabulate(.pair_key(codes[from], codes[to]), nbins = nbins)
+
+    sim <- matrix(0L, nrow = nbins, ncol = number_of_simulations)
+    if (isTRUE(set_seed)) {
+        GiottoUtils::local_seed(seed = seed_number)
+    }
+    for (i in seq_len(number_of_simulations)) {
+        perm <- codes[sample.int(n_nodes)]
+        sim[, i] <- tabulate(.pair_key(perm[from], perm[to]), nbins = nbins)
+    }
+
+    list(obs = obs, sim = sim)
+}
+
+
 #' @title cellProximityEnrichment
 #' @name cellProximityEnrichment
 #' @description Compute cell-cell interaction enrichment (observed vs expected)
@@ -116,11 +166,28 @@ make_simulated_network <- function(gobject,
 #' original and simulated networks. The second data.table (enrichm_res) shows
 #' the enrichment results.
 #' @details Spatial proximity enrichment or depletion between pairs of cell
-#' types is calculated by calculating the observed over the expected frequency
-#' of cell-cell proximity interactions. The expected frequency is the average
-#' frequency calculated from a number of spatial network simulations. Each
-#' individual simulation is obtained by reshuffling the cell type labels of
-#' each node (cell) in the spatial network.
+#' types is calculated from the observed over the expected frequency of
+#' cell-cell proximity interactions. The expected frequency is the average
+#' frequency across `number_of_simulations` spatial network simulations. Each
+#' simulation reshuffles the cell type labels over the nodes (cells) of the
+#' spatial network, holding the network topology fixed; every cell therefore
+#' carries a single label across all of its edges.
+#'
+#' Empirical p-values use the unbiased estimator
+#' `(1 + #{simulated >= observed}) / (1 + number_of_simulations)`, so they lie
+#' in `(0, 1]` and can never be exactly zero.
+#'
+#' Alongside the enrichment score `enrichm`, the result carries the standard
+#' deviation of the simulated counts (`sd_sim`) and a standardized effect size
+#' (`z`).
+#'
+#' The result is only as good as the network it is given. On a large section
+#' pass `delaunay_method = "delaunayn_geometry"` to
+#' [GiottoClass::createSpatialNetwork()] -- an identical triangulation, orders
+#' of magnitude faster -- and set `maximum_distance_delaunay` explicitly, so
+#' that edges spanning empty tissue are not counted as proximity. See the
+#' *Building the network for a large section* section of
+#' [cellProximityMotifs()].
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
@@ -157,6 +224,11 @@ cellProximityEnrichment <- function(gobject,
         "BY"
     ))
 
+    # data.table variables
+    unified_cells <- unified_int <- original <- simulations <- enrichm <-
+        sd_sim <- z <- p_higher_orig <- p_lower_orig <- p.adj_higher <-
+        p.adj_lower <- PI_value <- int_ranking <- NULL
+
     spatial_network_annot <- annotateSpatialNetwork(
         gobject = gobject,
         feat_type = feat_type,
@@ -167,193 +239,117 @@ cellProximityEnrichment <- function(gobject,
 
     # remove double edges between same cells #
     # a simplified network does not have double edges between cells #
-
-    # data.table variables
-    unified_cells <- type_int <- N <- NULL
-
     spatial_network_annot <- dt_sort_combine_two_columns(
         spatial_network_annot, "to", "from", "unified_cells"
     )
     spatial_network_annot <- spatial_network_annot[!duplicated(unified_cells)]
 
-    sample_dt <- make_simulated_network(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        spatial_network_name = spatial_network_name,
-        cluster_column = cluster_column,
+    ## encode nodes and cell types as integers ##
+    node_ids <- unique(c(
+        spatial_network_annot$from, spatial_network_annot$to
+    ))
+    from_idx <- match(spatial_network_annot$from, node_ids)
+    to_idx <- match(spatial_network_annot$to, node_ids)
+
+    # one label per node, taken from whichever endpoint column mentions it
+    node_type <- character(length(node_ids))
+    node_type[match(spatial_network_annot$from, node_ids)] <-
+        as.character(spatial_network_annot$from_cell_type)
+    node_type[match(spatial_network_annot$to, node_ids)] <-
+        as.character(spatial_network_annot$to_cell_type)
+
+    type_levels <- sort(unique(node_type))
+    K <- length(type_levels)
+    codes <- match(node_type, type_levels)
+
+    ## observed + simulated pair counts ##
+    cnts <- .cpe_permutation_counts(
+        from = from_idx,
+        to = to_idx,
+        codes = codes,
+        K = K,
         number_of_simulations = number_of_simulations,
         set_seed = set_seed,
         seed_number = seed_number
     )
 
-    # combine original and simulated network
-    table_sim_results <- sample_dt[, .N, by = c(
-        "unified_int", "type_int", "round"
-    )]
+    ## keep only pairs seen in the original or in any simulation ##
+    keep <- which(cnts$obs > 0L | rowSums(cnts$sim) > 0L)
+    lo <- ((keep - 1L) %/% K) + 1L
+    hi <- keep - (lo - 1L) * K
 
-    ## create complete simulations
-    ## add 0 if no single interaction was found
-    unique_ints <- unique(table_sim_results[, .(unified_int, type_int)])
-
-    # data.table with 0's for all interactions
-    minimum_simulations <- unique_ints[rep(
-        seq_len(nrow(unique_ints)), number_of_simulations
-    ), ]
-    minimum_simulations[, round := rep(
-        paste0("sim", seq_len(number_of_simulations)),
-        each = nrow(unique_ints)
-    )]
-    minimum_simulations[, N := 0]
-
-    table_sim_minimum_results <- rbind(table_sim_results, minimum_simulations)
-    table_sim_minimum_results[, V1 := sum(N), by = c(
-        "unified_int", "type_int", "round"
-    )]
-    table_sim_minimum_results <- unique(
-        table_sim_minimum_results[, .(unified_int, type_int, round, V1)]
+    pair_dt <- data.table::data.table(
+        unified_int = paste0(type_levels[lo], "--", type_levels[hi]),
+        type_int = ifelse(lo == hi, "homo", "hetero"),
+        original = as.numeric(cnts$obs[keep])
     )
-    table_sim_results <- table_sim_minimum_results
+    sim_mat <- cnts$sim[keep, , drop = FALSE]
 
-
-    # data.table variables
-    orig <- unified_int <- V1 <- original <- enrichm <- simulations <- NULL
-
-    table_sim_results[, orig := "simulations"]
-    spatial_network_annot[, round := "original"]
-
-    table_orig_results <- spatial_network_annot[, .N, by = c(
-        "unified_int", "type_int", "round"
-    )]
-    table_orig_results[, orig := "original"]
-    data.table::setnames(table_orig_results, old = "N", new = "V1")
-
-    table_results <- rbind(table_orig_results, table_sim_results)
-
-
-
-    # add missing combinations from original or simulations
-    # probably not needed anymore
-    all_simulation_ints <- as.character(unique(table_results[
-        orig == "simulations"
-    ]$unified_int))
-    all_original_ints <- as.character(unique(table_results[
-        orig == "original"
-    ]$unified_int))
-    missing_in_original <- all_simulation_ints[
-        !all_simulation_ints %in% all_original_ints
-    ]
-    missing_in_simulations <- all_original_ints[
-        !all_original_ints %in% all_simulation_ints
-    ]
-    create_missing_for_original <- table_results[
-        unified_int %in% missing_in_original
-    ]
-    create_missing_for_original <- unique(create_missing_for_original[
-        , c("orig", "V1") := list("original", 0)
-    ])
-    create_missing_for_simulations <- table_results[
-        unified_int %in% missing_in_simulations
-    ]
-    create_missing_for_simulations <- unique(
-        create_missing_for_simulations[, c("orig", "V1") := list(
-            "simulations", 0
-        )]
-    )
-
-    table_results <- do.call(
-        "rbind",
-        list(
-            table_results, create_missing_for_original,
-            create_missing_for_simulations
+    ## long raw table: one row per (pair, round) ##
+    n_pairs <- nrow(pair_dt)
+    table_results <- rbind(
+        data.table::data.table(
+            unified_int = pair_dt$unified_int,
+            type_int = pair_dt$type_int,
+            round = "original",
+            V1 = pair_dt$original,
+            orig = "original"
+        ),
+        data.table::data.table(
+            unified_int = rep(pair_dt$unified_int, times = number_of_simulations),
+            type_int = rep(pair_dt$type_int, times = number_of_simulations),
+            round = rep(
+                paste0("sim", seq_len(number_of_simulations)),
+                each = n_pairs
+            ),
+            V1 = as.numeric(sim_mat),
+            orig = "simulations"
         )
     )
 
+    ## statistics ##
+    pair_dt[, simulations := rowMeans(sim_mat)]
+    pair_dt[, sd_sim := apply(sim_mat, 1L, stats::sd)]
+    pair_dt[, enrichm := log2((original + 1) / (simulations + 1))]
+    pair_dt[, z := (original - simulations) /
+        pmax(sd_sim, sqrt(.Machine$double.eps))]
 
-    ## p-values
-    combo_list <- rep(NA, length = length(unique(table_results$unified_int)))
-    p_high <- rep(NA, length = length(unique(table_results$unified_int)))
-    p_low <- rep(NA, length = length(unique(table_results$unified_int)))
+    # unbiased "+1" empirical p-values; never exactly 0
+    n_ge <- rowSums(sim_mat >= pair_dt$original)
+    n_le <- rowSums(sim_mat <= pair_dt$original)
+    pair_dt[, p_higher_orig := (1 + n_ge) / (1 + number_of_simulations)]
+    pair_dt[, p_lower_orig := (1 + n_le) / (1 + number_of_simulations)]
 
-    for (int_combo in seq_along(unique(table_results$unified_int))) {
-        this_combo <- as.character(unique(table_results$unified_int)[int_combo])
-
-        sub <- table_results[unified_int == this_combo]
-
-        orig_value <- sub[orig == "original"]$V1
-        sim_values <- sub[orig == "simulations"]$V1
-
-        length_simulations <- length(sim_values)
-        if (length_simulations != number_of_simulations) {
-            additional_length_needed <- number_of_simulations -
-                length_simulations
-            sim_values <- c(sim_values, rep(0, additional_length_needed))
-        }
-
-        p_orig_higher <- 1 - (sum((orig_value + 1) > (sim_values + 1)) /
-            number_of_simulations)
-        p_orig_lower <- 1 - (sum((orig_value + 1) < (sim_values + 1)) /
-            number_of_simulations)
-
-        combo_list[[int_combo]] <- this_combo
-        p_high[[int_combo]] <- p_orig_higher
-        p_low[[int_combo]] <- p_orig_lower
-    }
-    res_pvalue_DT <- data.table::data.table(
-        unified_int = as.vector(combo_list),
-        p_higher_orig = p_high,
-        p_lower_orig = p_low
-    )
-
-
-    # depletion or enrichment in barplot format
-    table_mean_results <- table_results[, .(mean(V1)), by = c(
-        "orig", "unified_int", "type_int"
-    )]
-    table_mean_results_dc <- data.table::dcast.data.table(
-        data = table_mean_results, formula = type_int + unified_int ~ orig,
-        value.var = "V1"
-    )
-    table_mean_results_dc[, original := ifelse(is.na(original), 0, original)]
-    table_mean_results_dc[, enrichm := log2((original + 1) / (simulations + 1))]
-
-
-    table_mean_results_dc <- merge(
-        table_mean_results_dc, res_pvalue_DT,
-        by = "unified_int"
-    )
-    data.table::setorder(table_mean_results_dc, enrichm)
-    table_mean_results_dc[, unified_int := factor(unified_int, unified_int)]
-
-    # adjust p-values for mht
-
-    # data.table variables
-    p.adj_higher <- p.adj_lower <- p_lower_orig <- p_higher_orig <-
-        PI_value <- int_ranking <- NULL
-
-    table_mean_results_dc[, p.adj_higher := stats::p.adjust(
+    pair_dt[, p.adj_higher := stats::p.adjust(
         p_higher_orig,
         method = sel_adjust_method
     )]
-    table_mean_results_dc[, p.adj_lower := stats::p.adjust(
+    pair_dt[, p.adj_lower := stats::p.adjust(
         p_lower_orig,
         method = sel_adjust_method
     )]
 
-
-    table_mean_results_dc[, PI_value := ifelse(p.adj_higher <= p.adj_lower,
+    pair_dt[, PI_value := ifelse(p.adj_higher <= p.adj_lower,
         -log10(p.adj_higher + (1 / number_of_simulations)) * enrichm,
         -log10(p.adj_lower + (1 / number_of_simulations)) * enrichm
     )]
-    data.table::setorder(table_mean_results_dc, PI_value)
 
-    # order
-    table_mean_results_dc <- table_mean_results_dc[order(-PI_value)]
-    table_mean_results_dc[, int_ranking := seq_len(.N)]
+    # factor levels follow ascending enrichment (barplot x-axis ordering),
+    # row order follows descending PI_value
+    data.table::setorder(pair_dt, enrichm)
+    pair_dt[, unified_int := factor(unified_int, unified_int)]
+    pair_dt <- pair_dt[order(-PI_value)]
+    pair_dt[, int_ranking := seq_len(.N)]
+
+    data.table::setcolorder(pair_dt, c(
+        "unified_int", "type_int", "original", "simulations", "enrichm",
+        "p_higher_orig", "p_lower_orig", "p.adj_higher", "p.adj_lower",
+        "PI_value", "int_ranking", "sd_sim", "z"
+    ))
 
     return(list(
         raw_sim_table = table_results,
-        enrichm_res = table_mean_results_dc
+        enrichm_res = pair_dt
     ))
 }
 

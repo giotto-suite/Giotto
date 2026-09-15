@@ -71,6 +71,7 @@ Suggests:
     ggalluvial,
     ggdendro,
     ggforce,
+    ggrepel,
     ggspavis,
     graphcoloring,
     HDF5Array (>= 1.18.1),
@@ -103,6 +104,7 @@ Suggests:
     shiny,
     SingleCellExperiment,
     smfishHmrf,
+    smotif,
     SPARK,
     SpatialExperiment,
     spdep,
@@ -111,11 +113,13 @@ Suggests:
     tidygraph,
     trendsceek,
     testthat (>= 3.0.0),
-    rmarkdown
+    rmarkdown,
+    withr
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
-    giotto-suite/GiottoVisuals
+    giotto-suite/GiottoVisuals,
+    drieslab/smotif
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
@@ -156,6 +160,8 @@ Collate:
     'spatial_interaction.R'
     'spatial_interaction_spot.R'
     'spatial_interaction_visuals.R'
+    'spatial_motif.R'
+    'spatial_motif_visuals.R'
     'spdep.R'
     'variable_genes.R'
     'wnn.R'
