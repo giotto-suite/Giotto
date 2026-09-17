@@ -164,7 +164,7 @@ enrichParam <- function(method = "PAGE", ...) {
         stop("[", what, "] score columns must be numeric; these are not: ",
             paste(not_num, collapse = ", "), call. = FALSE)
     }
-    invisible(x)
+    x
 }
 
 
