@@ -13,6 +13,9 @@ engine registered against \link[=pageEnrichParam-class]{pageEnrichParam} accepts
 
 \item{param}{a \link[=pageEnrichParam-class]{pageEnrichParam}.}
 
+\item{...}{unused. Declared because \code{\link[=analyzeData]{analyzeData()}} carries it, so an
+engine registered from another package can accept its own arguments.}
+
 \item{sign_matrix}{binary matrix of signature features (rows) by cell type
 or process (columns), 1 where the feature marks the type. Build one with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}

@@ -62,8 +62,7 @@ spatialSplitCluster <- function(
 
     clus_info <- cell_meta[, c("cell_ID", cluster_col), with = FALSE]
     # subset to needed cols
-    g <- GiottoClass::spat_net_to_igraph(sn)
-    # convert spatialNetworkObject to igraph
+    g <- .spat_net_to_igraph(sn)
 
     # assign cluster info to igraph nodes
     clus_values <- clus_info[
@@ -167,8 +166,7 @@ identifyTMAcores <- function(
         verbose = FALSE,
     )
 
-    g <- GiottoClass::spat_net_to_igraph(sn)
-    # convert spatialNetworkObject to igraph
+    g <- .spat_net_to_igraph(sn)
 
     # get new clusterings as initial indices
     # these indices may need repairs and updates to be finalized
@@ -288,6 +286,38 @@ identifyTMAcores <- function(
 
 
 # internals ####
+
+
+#' @title Spatial network as an undirected igraph
+#' @name .spat_net_to_igraph
+#' @description Read a `spatialNetworkObj` as the undirected, attribute-free
+#' igraph the clustering helpers below expect.
+#'
+#' `as.igraph()` returns the graph the `@network` slot holds, unchanged -- a
+#' kNN network is stored directed and carries `weight`/`distance`. Neither
+#' suits `.igraph_vertex_membership()` or `.igraph_remove_hetero_edges()`, so
+#' the shaping happens here, next to the code that needs it, rather than in
+#' GiottoClass where nothing consumed it.
+#' @param x spatialNetworkObj
+#' @param attr character. Edge attributes to keep. Default keeps none.
+#' @returns igraph
+#' @noRd
+#' @keywords internal
+.spat_net_to_igraph <- function(x, attr = NULL) {
+    net <- igraph::as.igraph(x)
+
+    # `mode = "each"` rather than "collapse": reciprocal kNN pairs stay two
+    # edges. No-op on an already-undirected network such as Delaunay.
+    if (igraph::is_directed(net)) {
+        net <- igraph::as_undirected(net, mode = "each")
+    }
+
+    drop <- setdiff(igraph::edge_attr_names(net), attr)
+    for (a in drop) net <- igraph::delete_edge_attr(net, a)
+
+    net
+}
+
 
 #' @title Remove hetero edges from igraph
 #' @name .igraph_remove_hetero_edges

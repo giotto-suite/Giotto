@@ -16,18 +16,21 @@ skip_if_no_mini <- function() {
 # 634 genes x 624 spots. `python_path = NA` skips the conda probe, which this
 # object does not need -- nothing below touches a python module.
 .enrich_fixture <- function(n_markers = 150L, seed = 1L) {
-    withr::local_options(giotto.use_conda = FALSE, giotto.verbose = FALSE)
-    g <- suppressMessages(
-        GiottoData::loadGiottoMini("visium", python_path = NA)
-    )
-    genes <- rownames(getExpression(g, values = "normalized",
-                                    output = "matrix"))
-    set.seed(seed)
-    types <- c("typeA", "typeB", "typeC")
-    sm <- matrix(0L, nrow = length(genes), ncol = length(types),
-                 dimnames = list(genes, types))
-    for (j in seq_along(types)) sm[sample(length(genes), n_markers), j] <- 1L
-    list(g = g, sm = sm, genes = genes)
+    gwith_options(list(giotto.use_conda = FALSE, giotto.verbose = FALSE), {
+        g <- suppressMessages(
+            GiottoData::loadGiottoMini("visium", python_path = NA)
+        )
+        genes <- rownames(getExpression(g, values = "normalized",
+                                        output = "matrix"))
+        set.seed(seed)
+        types <- c("typeA", "typeB", "typeC")
+        sm <- matrix(0L, nrow = length(genes), ncol = length(types),
+                     dimnames = list(genes, types))
+        for (j in seq_along(types)) {
+            sm[sample(length(genes), n_markers), j] <- 1L
+        }
+        list(g = g, sm = sm, genes = genes)
+    })
 }
 
 

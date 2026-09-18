@@ -1,4 +1,30 @@
-# Giotto 4.2.4 (in development)
+# Giotto 4.3.0 (in development)
+
+`gsource` moves to its own minor line. It was previously 4.2.4 against
+`suite_dev`'s 4.2.3, so the two shared a minor version and a downstream package
+could only tell them apart by patch. The accumulated changes below — new
+readers, the param families, and several results-changing fixes — are more than
+a patch's worth, and a distinct minor makes `gsource` the visibly leading line.
+
+Downstream packages pinning a class or generic added here should require
+`Giotto (>= 4.3.0)`.
+
+Deprecation markers were retargeted only where the deprecation is unique to
+this line: `calculateHVF()`'s `var_number` and the `runUMAP()` engine note now
+say 4.3.0. The `findGiniMarkers()` / `findMarkers()` gini-threshold renames
+keep `when = "4.2.4"` — they are on `suite_dev` too, and will ship from there
+under that version.
+
+## Enhancements
+* `importXenium()` / `importAtera()` path detection now recognizes zarr
+  output (`.zarr.zip` archives and unzipped `.zarr` trees): `filetype` accepts
+  `"zarr"` for transcripts / boundaries / cell_meta / expression, and detection
+  falls back to zarr automatically when a slot's requested filetype matches
+  nothing but a zarr archive is present (zarr-only exports, e.g. Atera).
+  Existing datasets detect exactly as before — parquet/csv/h5/mtx still win
+  when present. Reading zarr requires the disk pathway
+  (`GiottoDisk::importXeniumDisk()` / `importAteraDisk()`); the in-memory
+  loaders now point there instead of a bare "not yet supported" stop.
 
 ## Bug fixes
 * `@param name` no longer starts mid-sentence in the enrichment functions. It read "to give to spatial enrichment results", so `?runRankEnrich` rendered *"name: to give to spatial enrichment results"* -- the word the reader needs was the one missing.

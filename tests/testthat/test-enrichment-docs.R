@@ -126,9 +126,12 @@ test_that("a shared parameter is described one way within each family", {
     #     adds a caveat the others do not need. A strict superset is a
     #     specialization, not a conflict;
     #  3. `param` names the param class the method dispatches on, so it is
-    #     necessarily different on each; and runRankEnrich deprecates
-    #     reverse_log_scale/logbase, so its text differs on purpose.
-    per_topic <- c("param", "reverse_log_scale", "logbase")
+    #     necessarily different on each; `...` carries the method-specific
+    #     parameters on the enrichParam() factory but is unused on the
+    #     analyzeData() methods, which document it only because it is in
+    #     their usage; and runRankEnrich deprecates reverse_log_scale/logbase,
+    #     so its text differs on purpose.
+    per_topic <- c("param", "...", "reverse_log_scale", "logbase")
     for (f in FAMILIES) {
         members <- .family_members(db, f)
         seen <- list()

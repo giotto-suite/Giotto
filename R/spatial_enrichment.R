@@ -899,11 +899,11 @@ runRankEnrich <- function(
         "step needs to matter."
     )
     if (!missing(reverse_log_scale)) {
-        deprecate_warn("4.2.4", "runRankEnrich(reverse_log_scale)",
+        deprecate_warn("4.3.0", "runRankEnrich(reverse_log_scale)",
             details = .rank_inert)
     }
     if (!missing(logbase)) {
-        deprecate_warn("4.2.4", "runRankEnrich(logbase)",
+        deprecate_warn("4.3.0", "runRankEnrich(logbase)",
             details = .rank_inert)
     }
 
@@ -1157,7 +1157,7 @@ runSpatialEnrich <- function(
     if (identical(enrich_method, "rank")) {
         for (a in c("reverse_log_scale", "logbase")) {
             if (!eval(call("missing", as.name(a)))) {
-                deprecate_warn("4.2.4",
+                deprecate_warn("4.3.0",
                     sprintf("runSpatialEnrich(%s)", a),
                     details = paste(
                         "Ignored when enrich_method = \"rank\": ranking is",
