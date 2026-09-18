@@ -12,26 +12,26 @@
 
 skip_if_no_mini <- function() skip_if_not_installed("GiottoData")
 
-.deconv_fixture <- function(n_cells = 120L, n_genes = 100L, seed = 1L,
-                            envir = parent.frame()) {
-    withr::local_options(giotto.use_conda = FALSE, giotto.verbose = FALSE,
-                         giotto.no_python_warn = TRUE, giotto.has_conda = FALSE,
-                         .local_envir = envir)
-    g0 <- suppressMessages(
-        GiottoData::loadGiottoMini("visium", python_path = NA)
-    )
-    g <- GiottoClass::subsetGiotto(
-        g0, cell_ids = pDataDT(g0)$cell_ID[seq_len(n_cells)]
-    )
-    md <- pDataDT(g)
-    set.seed(seed)
-    genes <- rownames(GiottoClass::getExpression(g, values = "normalized",
-                                                 output = "matrix"))
-    sm <- makeSignMatrixDWLS(g,
-        sign_gene = sample(genes, n_genes),
-        cell_type_vector = as.character(md$leiden_clus)
-    )
-    list(g = g, sm = sm, md = md)
+.deconv_fixture <- function(n_cells = 120L, n_genes = 100L, seed = 1L) {
+    gwith_options(list(giotto.use_conda = FALSE, giotto.verbose = FALSE,
+                       giotto.no_python_warn = TRUE,
+                       giotto.has_conda = FALSE), {
+        g0 <- suppressMessages(
+            GiottoData::loadGiottoMini("visium", python_path = NA)
+        )
+        g <- GiottoClass::subsetGiotto(
+            g0, cell_ids = pDataDT(g0)$cell_ID[seq_len(n_cells)]
+        )
+        md <- pDataDT(g)
+        set.seed(seed)
+        genes <- rownames(GiottoClass::getExpression(g, values = "normalized",
+                                                     output = "matrix"))
+        sm <- makeSignMatrixDWLS(g,
+            sign_gene = sample(genes, n_genes),
+            cell_type_vector = as.character(md$leiden_clus)
+        )
+        list(g = g, sm = sm, md = md)
+    })
 }
 
 
