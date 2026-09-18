@@ -23,6 +23,8 @@ runSpatialEnrich(
   output_enrichment = c("original", "zscore"),
   name = NULL,
   verbose = TRUE,
+  include_depletion = FALSE,
+  ties_method = c("average", "max"),
   return_gobject = TRUE
 )
 }
@@ -65,6 +67,12 @@ to have gene expression with matrix binarization}
 \item{name}{to give to spatial enrichment results, default = PAGE}
 
 \item{verbose}{be verbose}
+
+\item{include_depletion}{(PAGE) also test for depletion, not enrichment
+only (default = FALSE)}
+
+\item{ties_method}{(rank) how to rank tied expression values, \code{"average"}
+(default) or \code{"max"}}
 
 \item{return_gobject}{return giotto object}
 }
