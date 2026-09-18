@@ -250,3 +250,69 @@ NULL
 #' @returns plot
 #' @keywords internal
 NULL
+
+
+# Signature-based analysis ####
+#
+# Three blocks rather than one. `signature_analysis_params` covers what
+# feature-set enrichment and spatial deconvolution genuinely share; the two
+# families then document what is theirs alone.
+#
+# `sign_matrix` and `logbase` are deliberately NOT here, even though both
+# families take arguments by those names. A PAGE sign matrix is a binary 0/1
+# membership matrix from makeSignMatrixPAGE(); a DWLS one is mean expression per
+# cell type from makeSignMatrixDWLS(). Same name, different kind of object, so
+# they are documented per family. `logbase` is tied to `reverse_log_scale` in
+# enrichment, and deconvolution has no such argument.
+
+#' Params documentation template: signature_analysis_params
+#' @name signature_analysis_params
+#' @param gobject giotto object
+#' @param spat_unit spatial unit (e.g. "cell")
+#' @param feat_type feature type (e.g. "rna", "dna", "protein")
+#' @param expression_values character. Which expression values to use, e.g.
+#' "normalized". A method's own default is shown in its Usage section.
+#' @param name character. Name to store the result under in the giotto object's
+#' spatial enrichment slot. `NULL` (default) uses the method's own name -- see
+#' the Usage section.
+#' @param return_gobject logical. Return the giotto object with the result
+#' added (default = TRUE), or the result object on its own.
+#' @md
+#' @returns giotto object or the result object, depending on `return_gobject`
+#' @keywords internal
+NULL
+
+#' Params documentation template: enrichment_params
+#' @name enrichment_params
+#' @param sign_matrix binary matrix of signature features (rows) by cell type
+#' or process (columns), 1 where the feature marks the type. Build one with
+#' \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.
+#' @param reverse_log_scale logical. Undo a log transform before averaging
+#' (default = TRUE).
+#' @param logbase numeric. Log base to undo when `reverse_log_scale = TRUE`
+#' (default = 2).
+#' @param output_enrichment character. "original" (default) or "zscore", which
+#' standardizes the scores within each cell type.
+#' @param p_value logical. Calculate p-values (default = FALSE).
+#' @md
+#' @returns spatial enrichment scores, one per cell per signature
+#' @keywords internal
+NULL
+
+#' Params documentation template: deconvolution_params
+#' @name deconvolution_params
+#' @param sign_matrix matrix of mean expression per cell type: signature
+#' features (rows) by cell type (columns). Build one with
+#' \code{\link{makeSignMatrixDWLS}} or
+#' \code{\link{makeSignMatrixDWLSfromMatrix}}. This is not the binary matrix
+#' the enrichment methods take.
+#' @param logbase numeric. Log base of the expression values (default = 2).
+#' @param cluster_column character. Cell metadata column holding the cluster
+#' assignment used to group cells.
+#' @param n_cell numeric. Number of cells per spot (default = 50).
+#' @param cutoff numeric. Expression cutoff below which a value is treated as
+#' absent (default = 2).
+#' @md
+#' @returns cell type proportions, one row per cell, summing to 1
+#' @keywords internal
+NULL

@@ -9,28 +9,18 @@
 #' `makeSignMatrixPAGE()`. This matrix is then used with `runPAGEEnrich()` in
 #' order to calculate feature signature enrichment scores per spatial position
 #' using PAGE.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
 #' @param sign_names `character` vector with names (labels) for each provided
 #' feat signature
 #' @param sign_list list of feats in signature
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix binary matrix of signature feats for each cell type /
-#' process. Alternatively a list of signature feats can be provided to
-#' `makeSignMatrixPAGE()`, which will create the matrix for you.
-#' @param expression_values expression values to use
-#' @param min_overlap_genes minimum number of overlapping feats in
-#' `sign_matrix` required to calculate enrichment
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param output_enrichment how to return enrichment output
-#' @param p_value logical. Default = `FALSE`. calculate p-values
-#' @param include_depletion calculate both enrichment and depletion
-#' @param n_times number of permutations to calculate for p_value
+#' @param min_overlap_genes minimum number of overlapping features in
+#' `sign_matrix` required to calculate enrichment (PAGE)
+#' @param include_depletion also test for depletion, not enrichment only
+#' (default = FALSE)
+#' @param n_times number of permutation iterations to calculate p-value
 #' @param max_block number of lines to process together (default = 20e6)
-#' @param name to give to spatial enrichment results, default = PAGE
 #' @param verbose be verbose
-#' @param return_gobject return giotto object
 #' @returns `matrix` (`makeSignMatrixPAGE()`) and
 #' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or
 #' `data.table` (`runPAGEEnrich(return_gobject = FALSE)`)
@@ -42,6 +32,7 @@
 #' expression and delta is the standard deviation. Sm is the mean fold change
 #' value of a specific marker gene set and  m is the size of a given marker
 #' gene set.
+#' @family feature set enrichment
 #' @md
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -121,14 +112,17 @@ makeSignMatrixPAGE <- function(
 
 ## create spatialDWLS matrix ####
 
-#' @title makeSignMatrixDWLSfromMatrix
+#' @title Build a DWLS signature matrix from a matrix
 #' @name makeSignMatrixDWLSfromMatrix
-#' @description Function to convert a single-cell RNAseq matrix into a format
-#'  that can be used with \code{\link{runDWLSDeconv}}.
+#' @description Convert a single-cell RNAseq matrix into the mean-expression
+#' reference \code{\link{runDWLSDeconv}} expects: signature features by cell
+#' type, each entry the mean expression of that feature in that type.
 #' @param matrix scRNA-seq matrix
-#' @param sign_gene genes to use (e.g. marker genes)
+#' @param sign_gene features to use, typically differentially expressed ones
 #' @param cell_type_vector vector with cell types (length = ncol(matrix))
-#' @returns matrix
+#' @returns matrix of mean expression, features by cell type
+#' @md
+#' @family spatial deconvolution
 #' @seealso \code{\link{runDWLSDeconv}}
 #' @examples
 #' sign_gene <- c(
@@ -194,21 +188,21 @@ makeSignMatrixDWLSfromMatrix <- function(
 
 
 
-#' @title makeSignMatrixDWLS
-#' @description Function to convert a matrix within a Giotto object into a
-#' format that can be used with \code{\link{runDWLSDeconv}} for deconvolution.
-#' A vector of cell types for parameter \code{cell_type_vector} can be created
-#' from the cell metadata (\code{\link{pDataDT}}).
-#' @param gobject Giotto object of single cell
-#' @param spat_unit spatial unit
-#' @param feat_type feature type to use
-#' @param expression_values expression values to use
+#' @title Build a DWLS signature matrix from a Giotto object
+#' @description Convert expression held in a Giotto object into the
+#' mean-expression reference \code{\link{runDWLSDeconv}} expects: signature
+#' features by cell type, each entry the mean expression of that feature in
+#' that type. A vector for \code{cell_type_vector} can be taken from the cell
+#' metadata (\code{\link{pDataDT}}).
+#' @inheritParams signature_analysis_params
 #' @param reverse_log reverse a log-normalized expression matrix
 #' @param log_base the logarithm base (default = 2)
-#' @param sign_gene all of DE genes (signature)
+#' @param sign_gene features to use, typically differentially expressed ones
 #' @param cell_type_vector vector with cell types (length = ncol(matrix))
 #' @param cell_type deprecated, use \code{cell_type_vector}
-#' @returns matrix
+#' @returns matrix of mean expression, features by cell type
+#' @md
+#' @family spatial deconvolution
 #' @seealso \code{\link{runDWLSDeconv}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -284,17 +278,19 @@ makeSignMatrixDWLS <- function(
 
 
 
-#' @title makeSignMatrixRank
-#' @description Function to convert a single-cell count matrix
-#' and a corresponding single-cell cluster vector into
-#' a rank matrix that can be used with the Rank enrichment option.
+#' @title Build a rank signature matrix
+#' @description Convert a single-cell count matrix and its cluster assignments
+#' into the rank matrix [runRankEnrich()] expects.
 #' @param sc_matrix matrix of single-cell RNAseq expression data
 #' @param sc_cluster_ids vector of cluster ids
-#' @param ties_method how to handle rank ties
-#' @param gobject if giotto object is given then only genes present in both
-#' datasets will be considered
+#' @param ties_method how to rank tied expression values, `"average"`
+#' (default) or `"max"`
+#' @param gobject giotto object. When given, only features present in both
+#' datasets are kept.
 #' @returns matrix
-#' @seealso \code{\link{rankEnrich}}
+#' @md
+#' @family feature set enrichment
+#' @seealso \code{\link{runRankEnrich}}
 #' @examples
 #' sign_gene <- c(
 #'     "Bcl11b", "Lmo1", "F3", "Cnih3", "Ppp1r3c", "Rims2", "Gfap",
@@ -819,24 +815,21 @@ runPAGEEnrich <- function(
 }
 
 
-#' @title runRankEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using a rank based approach.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param output_enrichment how to return enrichment output
-#' @param ties_method how to handle rank ties
-#' @param p_value calculate p-values (boolean, default = FALSE)
-#' @param n_times number of permutations to calculate for p_value
+#' @title Rank-based feature signature enrichment
+#' @description Score each spatial position against cell type or process
+#' signatures using a rank-biased-precision approach. Genes are ranked across
+#' cells and those ranks are then ranked within each cell, so the score depends
+#' on relative ordering rather than on absolute expression.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
+#' @param reverse_log_scale `r lifecycle::badge("deprecated")` ignored; see
+#' Details.
+#' @param logbase `r lifecycle::badge("deprecated")` ignored; see Details.
+#' @param ties_method how to rank tied expression values, `"average"`
+#' (default) or `"max"`
+#' @param n_times number of permutation iterations to calculate p-value
 #' @param rbp_p fractional binarization threshold (default = 0.99)
 #' @param num_agg number of top genes to aggregate (default = 100)
-#' @param name to give to spatial enrichment results, default = rank
-#' @param return_gobject return giotto object
 #' @returns data.table with enrichment results
 #' @details
 #' sign_matrix: a rank-fold matrix with genes as row names and cell-types as
@@ -850,6 +843,14 @@ runPAGEEnrich <- function(
 #' The Rank-Biased Precision is then calculated as:
 #' RBP = (1 - 0.99) * (0.99)^(R - 1)
 #' and the final enrichment score is then calculated as the sum of top 100 RBPs.
+#'
+#' `reverse_log_scale` and `logbase` are ignored, and cannot be made to work:
+#' the statistic is a rank of a rank, and ranking is invariant to any monotonic
+#' per-gene transform, so no value of either argument can move a single rank.
+#' Use [runPAGEEnrich()] or [runHyperGeometricEnrich()] if the reverse-log step
+#' needs to matter.
+#' @md
+#' @family feature set enrichment
 #' @seealso \code{\link{makeSignMatrixRank}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -971,25 +972,20 @@ runRankEnrich <- function(
 
 
 
-#' @title runHyperGeometricEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using a hypergeometric test.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param top_percentage percentage of cells that will be considered to have
-#' gene expression with matrix binarization
-#' @param output_enrichment how to return enrichment output
-#' @param p_value calculate p-values (boolean, default = FALSE)
-#' @param name to give to spatial enrichment results, default = hypergeometric
-#' @param return_gobject return giotto object
+#' @title Hypergeometric feature signature enrichment
+#' @description Score each spatial position against cell type or process
+#' signatures with a hypergeometric test. Each cell's most highly expressed
+#' features are binarized, and each signature is tested for over-representation
+#' among them.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
+#' @param top_percentage percentage of features per cell treated as expressed
+#' when binarizing (default = 5)
 #' @returns data.table with enrichment results
 #' @details The enrichment score is calculated based on the p-value from the
 #' hypergeometric test, -log10(p-value).
+#' @md
+#' @family feature set enrichment
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #' x <- findMarkers_one_vs_all(g,
@@ -1075,20 +1071,16 @@ runHyperGeometricEnrich <- function(
 
 
 
-#' @title runSpatialEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using an enrichment test.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
+#' @title Feature signature enrichment, any method
+#' @description Score each spatial position against cell type or process
+#' signatures, dispatching to one of the three enrichment methods. A thin
+#' router: every argument is forwarded to the chosen method, and the result is
+#' whatever that method returns.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
 #' @param enrich_method method for gene signature enrichment calculation
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param min_overlap_genes minimum number of overlapping genes in sign_matrix
-#' required to calculate enrichment (PAGE)
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param p_value calculate p-value (default = FALSE)
+#' @param min_overlap_genes minimum number of overlapping features in
+#' `sign_matrix` required to calculate enrichment (PAGE)
 #' @param include_depletion (PAGE) also test for depletion, not enrichment
 #' only (default = FALSE)
 #' @param ties_method (rank) how to rank tied expression values, `"average"`
@@ -1098,17 +1090,18 @@ runHyperGeometricEnrich <- function(
 #' @param rbp_p (rank) fractional binarization threshold (default = 0.99)
 #' @param num_agg (rank) number of top genes to aggregate (default = 100)
 #' @param max_block number of lines to process together (default = 20e6)
-#' @param top_percentage (hyper) percentage of cells that will be considered
-#' to have gene expression with matrix binarization
-#' @param output_enrichment how to return enrichment output
-#' @param name to give to spatial enrichment results, default = PAGE
+#' @param top_percentage (hyper) percentage of features per cell treated as
+#' expressed when binarizing (default = 5)
 #' @param verbose be verbose
-#' @param return_gobject return giotto object
 #' @returns Giotto object or enrichment results if return_gobject = FALSE
 #' @details For details see the individual functions:
 #'   * **PAGE:** \code{\link{runPAGEEnrich}}
 #'   * **Rank:** \code{\link{runRankEnrich}}
 #'   * **Hypergeometric:** \code{\link{runHyperGeometricEnrich}}
+#'
+#' `reverse_log_scale` and `logbase` are ignored when
+#' `enrich_method = "rank"`, and passing either warns. See [runRankEnrich()].
+#' @family feature set enrichment
 #' @md
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -2484,21 +2477,16 @@ solve_dampened_WLSj <- function(
 }
 
 
-#' @title runDWLSDeconv
-#' @description Function to perform DWLS deconvolution based on single cell
-#' expression data
-#' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param expression_values expression values to use
-#' @param logbase base used for log normalization
-#' @param cluster_column name of cluster column
-#' @param sign_matrix sig matrix for deconvolution
-#' @param n_cell number of cells per spot
-#' @param cutoff cut off (default = 2)
-#' @param name name to give to spatial deconvolution results, default = DWLS
-#' @param return_gobject return giotto object
+#' @title Estimate cell type proportions with spatialDWLS
+#' @description Estimate what fraction of each spatial position is made up of
+#' each cell type, given a mean-expression reference from single-cell data.
+#' Unlike the enrichment methods, which return unbounded scores, this returns a
+#' composition: the values for a position sum to one.
+#' @inheritParams signature_analysis_params
+#' @inheritParams deconvolution_params
 #' @returns giotto object or deconvolution results
+#' @md
+#' @family spatial deconvolution
 #' @seealso \url{https://github.com/dtsoucas/DWLS} for the \emph{DWLS} bulk
 #' deconvolution method, and \doi{10.1186/s13059-021-02362-7} for
 #' \emph{spatialDWLS}, the spatial implementation used here.
@@ -2664,23 +2652,17 @@ runDWLSDeconv <- function(
 
 
 
-#' @title runSpatialDeconv
+#' @title Cell type deconvolution, any method
 #' @name runSpatialDeconv
-#' @description Function to perform deconvolution based on single cell
-#' expression data
-#' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
+#' @description Estimate cell type proportions per spatial position,
+#' dispatching to one of the deconvolution methods. A thin router: every
+#' argument is forwarded to the chosen method.
+#' @inheritParams signature_analysis_params
+#' @inheritParams deconvolution_params
 #' @param deconv_method method to use for deconvolution
-#' @param expression_values expression values to use
-#' @param logbase base used for log normalization
-#' @param cluster_column name of cluster column
-#' @param sign_matrix signature matrix for deconvolution
-#' @param n_cell number of cells per spot
-#' @param cutoff cut off (default = 2)
-#' @param name name to give to spatial deconvolution results
-#' @param return_gobject return giotto object
 #' @returns giotto object or deconvolution results
+#' @md
+#' @family spatial deconvolution
 #' @seealso \code{\link{runDWLSDeconv}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")

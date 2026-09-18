@@ -2,7 +2,7 @@
 % Please edit documentation in R/spatial_enrichment.R
 \name{makeSignMatrixRank}
 \alias{makeSignMatrixRank}
-\title{makeSignMatrixRank}
+\title{Build a rank signature matrix}
 \usage{
 makeSignMatrixRank(
   sc_matrix,
@@ -16,18 +16,18 @@ makeSignMatrixRank(
 
 \item{sc_cluster_ids}{vector of cluster ids}
 
-\item{ties_method}{how to handle rank ties}
+\item{ties_method}{how to rank tied expression values, \code{"average"}
+(default) or \code{"max"}}
 
-\item{gobject}{if giotto object is given then only genes present in both
-datasets will be considered}
+\item{gobject}{giotto object. When given, only features present in both
+datasets are kept.}
 }
 \value{
 matrix
 }
 \description{
-Function to convert a single-cell count matrix
-and a corresponding single-cell cluster vector into
-a rank matrix that can be used with the Rank enrichment option.
+Convert a single-cell count matrix and its cluster assignments
+into the rank matrix \code{\link[=runRankEnrich]{runRankEnrich()}} expects.
 }
 \examples{
 sign_gene <- c(
@@ -47,5 +47,16 @@ makeSignMatrixRank(
 )
 }
 \seealso{
-\code{\link{rankEnrich}}
+\code{\link{runRankEnrich}}
+
+Other feature set enrichment:
+\code{\link{enrich_hyper}},
+\code{\link{enrich_page}},
+\code{\link{enrich_param}},
+\code{\link{enrich_rank}},
+\code{\link{enrichment_PAGE}},
+\code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}},
+\code{\link[=runRankEnrich]{runRankEnrich()}},
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
 }
+\concept{feature set enrichment}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/feature_set_enrichment.R
 \name{doFeatureSetEnrichment}
 \alias{doFeatureSetEnrichment}
-\title{doFeatureSetEnrichment}
+\title{Gene Set Enrichment Analysis via the external GSEA tool}
 \usage{
 doFeatureSetEnrichment(
   dryrun = TRUE,
@@ -66,27 +66,54 @@ in Basic Fields in GSEA Application}
 data.table
 }
 \description{
-Preform Gene Set Enrichment Analysis using marker genes
+Run Gene Set Enrichment Analysis by driving the Broad Institute's GSEA
+command-line application over a ranked feature list.
+
+\strong{This is not one of Giotto's spatial enrichment methods and does not behave
+like them.} It takes no \code{giotto} object, reads and writes files rather than
+object slots, and requires a separately installed Java executable plus a
+downloaded MSigDB collection. Its input is a ranked \code{.rnk} file, typically
+built from marker results. For per-cell scoring of a signature against a
+Giotto object, see \code{\link[=runSpatialEnrich]{runSpatialEnrich()}} and the feature set enrichment
+family instead.
 }
 \details{
 NECESSARY PREREQUISITES
-1. download and install the COMMAND line (all platforms) gsea-XXX.jar
+\enumerate{
+\item download and install the COMMAND line (all platforms) gsea-XXX.jar
 https://www.gsea-msigdb.org/gsea/downloads.jsp
 1.1. download zip file
 1.2. unzip and move to known location
 (e.g. in path/to/your/applications/gsea/GSEA_4.3.2)
-
-2. download the Human and Mouse collections
+\item download the Human and Mouse collections
 https://www.gsea-msigdb.org/gsea/msigdb/index.jsp or zipped folder
 https://www.gsea-msigdb.org/gsea/downloads.jsp (all downloaded)
-
-3. create ranked gene lists
+\item create ranked gene lists
 format: data.table or data.frame with 2 columns
 column 1 = gene symbols, column 2 = weight or rank metric
 for more details, see:
-https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#RNK:_Ranked_list_file_format_.28.2A.rnk.29
+https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#RNK:\emph{Ranked_list_file_format}.28.2A.rnk.29
+}
 
 For more information on parameter conventions,
 please reference GSEA's documentation here:
 https://www.gsea-msigdb.org/gsea/doc/GSEAUserGuideTEXT.htm#_Syntax
+}
+\examples{
+# Requires a separately installed GSEA executable and an MSigDB collection,
+# so this cannot run in an example. `dryrun = TRUE` (the default) prints the
+# command that would be issued rather than running it.
+\dontrun{
+doFeatureSetEnrichment(
+    dryrun = TRUE,
+    path_to_GSEA = "~/GSEA_4.3.2/gsea-cli.sh",
+    GSEA_dataset = "~/msigdb/h.all.v2023.1.Hs.symbols.gmt",
+    GSEA_ranked_file = "~/my_markers.rnk",
+    output_folder = tempdir()
+)
+}
+}
+\seealso{
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}} for per-cell signature scoring on a giotto
+object, which is a different operation despite the similar name.
 }

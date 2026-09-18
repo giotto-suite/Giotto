@@ -2,23 +2,24 @@
 % Please edit documentation in R/spatial_enrichment.R
 \name{makeSignMatrixDWLSfromMatrix}
 \alias{makeSignMatrixDWLSfromMatrix}
-\title{makeSignMatrixDWLSfromMatrix}
+\title{Build a DWLS signature matrix from a matrix}
 \usage{
 makeSignMatrixDWLSfromMatrix(matrix, sign_gene, cell_type_vector)
 }
 \arguments{
 \item{matrix}{scRNA-seq matrix}
 
-\item{sign_gene}{genes to use (e.g. marker genes)}
+\item{sign_gene}{features to use, typically differentially expressed ones}
 
 \item{cell_type_vector}{vector with cell types (length = ncol(matrix))}
 }
 \value{
-matrix
+matrix of mean expression, features by cell type
 }
 \description{
-Function to convert a single-cell RNAseq matrix into a format
- that can be used with \code{\link{runDWLSDeconv}}.
+Convert a single-cell RNAseq matrix into the mean-expression
+reference \code{\link{runDWLSDeconv}} expects: signature features by cell
+type, each entry the mean expression of that feature in that type.
 }
 \examples{
 sign_gene <- c(
@@ -39,4 +40,10 @@ makeSignMatrixDWLSfromMatrix(
 }
 \seealso{
 \code{\link{runDWLSDeconv}}
+
+Other spatial deconvolution:
+\code{\link[=makeSignMatrixDWLS]{makeSignMatrixDWLS()}},
+\code{\link[=runDWLSDeconv]{runDWLSDeconv()}},
+\code{\link[=runSpatialDeconv]{runSpatialDeconv()}}
 }
+\concept{spatial deconvolution}

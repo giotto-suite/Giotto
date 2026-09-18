@@ -13,22 +13,22 @@
 enrichParam(method = "PAGE", ...)
 }
 \arguments{
-\item{method}{character. `"PAGE"`, `"rank"` or `"hypergeometric"`.}
+\item{method}{character. \code{"PAGE"}, \code{"rank"} or \code{"hypergeometric"}.}
 
 \item{...}{method-specific parameters; see Details.}
 }
 \value{
-an [enrichParam-class]-inheriting object
+an \link[=enrichParam-class]{enrichParam}-inheriting object
 }
 \description{
 Parameter objects for the sign-matrix spatial enrichment methods. Pass one
-to [analyzeData()] together with a sign matrix, or use the
-[runPAGEEnrich()] / [runRankEnrich()] / [runHyperGeometricEnrich()]
+to \code{\link[=analyzeData]{analyzeData()}} together with a sign matrix, or use the
+\code{\link[=runPAGEEnrich]{runPAGEEnrich()}} / \code{\link[=runRankEnrich]{runRankEnrich()}} / \code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}}
 wrappers, which build the param for you.
 
 Each method has its own factory because their parameters do not overlap:
-`min_overlap_genes`, `include_depletion` and `max_block` are PAGE-only,
-`ties_method`, `rbp_p` and `num_agg` are rank-only, and `top_percentage` is
+\code{min_overlap_genes}, \code{include_depletion} and \code{max_block} are PAGE-only,
+\code{ties_method}, \code{rbp_p} and \code{num_agg} are rank-only, and \code{top_percentage} is
 hypergeometric-only. A single flat signature would accept all of them for
 every method and silently ignore the inapplicable ones, which is the
 behaviour this replaces.
@@ -36,24 +36,35 @@ behaviour this replaces.
 \details{
 Shared by all three:
 \describe{
-  \item{`reverse_log_scale`}{logical. undo a log transform before averaging
-    (default `TRUE`).}
-  \item{`logbase`}{numeric. base for `reverse_log_scale` (default 2).}
-  \item{`output_enrichment`}{`"original"` (default) or `"zscore"`.}
-  \item{`p_value`}{logical. return p-values instead of scores.}
+\item{\code{reverse_log_scale}}{logical. undo a log transform before averaging
+(default \code{TRUE}).}
+\item{\code{logbase}}{numeric. base for \code{reverse_log_scale} (default 2).}
+\item{\code{output_enrichment}}{\code{"original"} (default) or \code{"zscore"}.}
+\item{\code{p_value}}{logical. return p-values instead of scores.}
 }
-PAGE: `min_overlap_genes` (5), `include_depletion` (`FALSE`), `n_times`
-(1000), `max_block` (2e7), `verbose` (`TRUE`).
+PAGE: \code{min_overlap_genes} (5), \code{include_depletion} (\code{FALSE}), \code{n_times}
+(1000), \code{max_block} (2e7), \code{verbose} (\code{TRUE}).
 
-rank: `ties_method` (`"average"`), `n_times` (1000), `rbp_p` (0.99),
-`num_agg` (100).
+rank: \code{ties_method} (\code{"average"}), \code{n_times} (1000), \code{rbp_p} (0.99),
+\code{num_agg} (100).
 
-hypergeometric: `top_percentage` (5).
+hypergeometric: \code{top_percentage} (5).
 }
 \examples{
 p <- enrichParam("PAGE", min_overlap_genes = 10)
 p$min_overlap_genes
 }
 \seealso{
-[analyze_param], [runSpatialEnrich()]
+\link{analyze_param}, \code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
+
+Other feature set enrichment:
+\code{\link{enrich_hyper}},
+\code{\link{enrich_page}},
+\code{\link{enrich_rank}},
+\code{\link{enrichment_PAGE}},
+\code{\link[=makeSignMatrixRank]{makeSignMatrixRank()}},
+\code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}},
+\code{\link[=runRankEnrich]{runRankEnrich()}},
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
 }
+\concept{feature set enrichment}

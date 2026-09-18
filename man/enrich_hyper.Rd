@@ -8,20 +8,51 @@
 \S4method{analyzeData}{ANY,hyperEnrichParam}(x, param, ..., sign_matrix)
 }
 \arguments{
-\item{x}{expression values. A `matrix`, a `Matrix`, or anything an
-engine registered against [pageEnrichParam-class] accepts.}
+\item{x}{expression values. A \code{matrix}, a \code{Matrix}, or anything an
+engine registered against \link[=pageEnrichParam-class]{pageEnrichParam} accepts.}
 
-\item{param}{a [hyperEnrichParam-class].}
+\item{param}{a \link[=hyperEnrichParam-class]{hyperEnrichParam}.}
 
-\item{sign_matrix}{binary sign matrix, genes x cell types.}
+\item{...}{unused. Declared because \code{\link[=analyzeData]{analyzeData()}} carries it, so an
+engine registered from another package can accept its own arguments.}
+
+\item{sign_matrix}{binary matrix of signature features (rows) by cell type
+or process (columns), 1 where the feature marks the type. Build one with
+\code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 }
 \value{
-a `data.table` of `cell_ID` and one column per cell type
+a \code{data.table} of \code{cell_ID} and one column per cell type
 
-a `data.table` of `cell_ID` and one column per cell type
+a \code{data.table} of \code{cell_ID} and one column per cell type
 }
 \description{
 Hypergeometric enrichment
 
 Hypergeometric enrichment
 }
+\examples{
+g <- GiottoData::loadGiottoMini("visium")
+expr <- GiottoClass::getExpression(g, values = "normalized",
+                                   output = "matrix")
+feats <- rownames(expr)
+sm <- makeSignMatrixPAGE(
+    sign_names = c("typeA", "typeB"),
+    sign_list = list(feats[1:150], feats[151:300])
+)
+
+# the verb runs on a bare matrix, with no giotto object involved
+res <- analyzeData(expr, enrichParam("hypergeometric"), sign_matrix = sm)
+head(res)
+}
+\seealso{
+Other feature set enrichment:
+\code{\link{enrich_page}},
+\code{\link{enrich_param}},
+\code{\link{enrich_rank}},
+\code{\link{enrichment_PAGE}},
+\code{\link[=makeSignMatrixRank]{makeSignMatrixRank()}},
+\code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}},
+\code{\link[=runRankEnrich]{runRankEnrich()}},
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
+}
+\concept{feature set enrichment}

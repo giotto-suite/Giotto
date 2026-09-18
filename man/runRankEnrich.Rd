@@ -2,7 +2,7 @@
 % Please edit documentation in R/spatial_enrichment.R
 \name{runRankEnrich}
 \alias{runRankEnrich}
-\title{runRankEnrich}
+\title{Rank-based feature signature enrichment}
 \usage{
 runRankEnrich(
   gobject,
@@ -23,42 +23,53 @@ runRankEnrich(
 )
 }
 \arguments{
-\item{gobject}{Giotto object}
+\item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
-\item{feat_type}{feature type}
+\item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{sign_matrix}{Matrix of signature genes for each cell type / process}
+\item{sign_matrix}{binary matrix of signature features (rows) by cell type
+or process (columns), 1 where the feature marks the type. Build one with
+\code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
-\item{expression_values}{expression values to use}
+\item{expression_values}{character. Which expression values to use, e.g.
+"normalized". A method's own default is shown in its Usage section.}
 
-\item{reverse_log_scale}{reverse expression values from log scale}
+\item{reverse_log_scale}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} ignored; see
+Details.}
 
-\item{logbase}{log base to use if reverse_log_scale = TRUE}
+\item{logbase}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} ignored; see Details.}
 
-\item{output_enrichment}{how to return enrichment output}
+\item{output_enrichment}{character. "original" (default) or "zscore", which
+standardizes the scores within each cell type.}
 
-\item{ties_method}{how to handle rank ties}
+\item{ties_method}{how to rank tied expression values, \code{"average"}
+(default) or \code{"max"}}
 
-\item{p_value}{calculate p-values (boolean, default = FALSE)}
+\item{p_value}{logical. Calculate p-values (default = FALSE).}
 
-\item{n_times}{number of permutations to calculate for p_value}
+\item{n_times}{number of permutation iterations to calculate p-value}
 
 \item{rbp_p}{fractional binarization threshold (default = 0.99)}
 
 \item{num_agg}{number of top genes to aggregate (default = 100)}
 
-\item{name}{to give to spatial enrichment results, default = rank}
+\item{name}{character. Name to store the result under in the giotto object's
+spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
+the Usage section.}
 
-\item{return_gobject}{return giotto object}
+\item{return_gobject}{logical. Return the giotto object with the result
+added (default = TRUE), or the result object on its own.}
 }
 \value{
 data.table with enrichment results
 }
 \description{
-Function to calculate gene signature enrichment scores per
-spatial position using a rank based approach.
+Score each spatial position against cell type or process
+signatures using a rank-biased-precision approach. Genes are ranked across
+cells and those ranks are then ranked within each cell, so the score depends
+on relative ordering rather than on absolute expression.
 }
 \details{
 sign_matrix: a rank-fold matrix with genes as row names and cell-types as
@@ -72,6 +83,12 @@ each cell type.
 The Rank-Biased Precision is then calculated as:
 RBP = (1 - 0.99) * (0.99)^(R - 1)
 and the final enrichment score is then calculated as the sum of top 100 RBPs.
+
+\code{reverse_log_scale} and \code{logbase} are ignored, and cannot be made to work:
+the statistic is a rank of a rank, and ranking is invariant to any monotonic
+per-gene transform, so no value of either argument can move a single rank.
+Use \code{\link[=runPAGEEnrich]{runPAGEEnrich()}} or \code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}} if the reverse-log step
+needs to matter.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -93,4 +110,15 @@ runRankEnrich(
 }
 \seealso{
 \code{\link{makeSignMatrixRank}}
+
+Other feature set enrichment:
+\code{\link{enrich_hyper}},
+\code{\link{enrich_page}},
+\code{\link{enrich_param}},
+\code{\link{enrich_rank}},
+\code{\link{enrichment_PAGE}},
+\code{\link[=makeSignMatrixRank]{makeSignMatrixRank()}},
+\code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}},
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
 }
+\concept{feature set enrichment}

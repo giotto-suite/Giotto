@@ -45,10 +45,12 @@
 #' `num_agg` (100).
 #'
 #' hypergeometric: `top_percentage` (5).
+#' @md
 #' @returns an [enrichParam-class]-inheriting object
 #' @examples
 #' p <- enrichParam("PAGE", min_overlap_genes = 10)
 #' p$min_overlap_genes
+#' @family feature set enrichment
 #' @seealso [analyze_param], [runSpatialEnrich()]
 NULL
 
@@ -175,17 +177,62 @@ enrichParam <- function(method = "PAGE", ...) {
 
 #' @name enrich_page
 #' @title PAGE enrichment
+#' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
+#' @family feature set enrichment
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' expr <- GiottoClass::getExpression(g, values = "normalized",
+#'                                    output = "matrix")
+#' feats <- rownames(expr)
+#' sm <- makeSignMatrixPAGE(
+#'     sign_names = c("typeA", "typeB"),
+#'     sign_list = list(feats[1:150], feats[151:300])
+#' )
+#'
+#' # the verb runs on a bare matrix, with no giotto object involved
+#' res <- analyzeData(expr, enrichParam("PAGE"), sign_matrix = sm)
+#' head(res)
 NULL
 
 #' @name enrich_rank
 #' @title Rank enrichment
+#' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
+#' @family feature set enrichment
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' expr <- GiottoClass::getExpression(g, values = "normalized",
+#'                                    output = "matrix")
+#' feats <- rownames(expr)
+#' sm <- makeSignMatrixPAGE(
+#'     sign_names = c("typeA", "typeB"),
+#'     sign_list = list(feats[1:150], feats[151:300])
+#' )
+#'
+#' # the verb runs on a bare matrix, with no giotto object involved
+#' res <- analyzeData(expr, enrichParam("rank"), sign_matrix = sm)
+#' head(res)
 NULL
 
 #' @name enrich_hyper
 #' @title Hypergeometric enrichment
+#' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
+#' @family feature set enrichment
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' expr <- GiottoClass::getExpression(g, values = "normalized",
+#'                                    output = "matrix")
+#' feats <- rownames(expr)
+#' sm <- makeSignMatrixPAGE(
+#'     sign_names = c("typeA", "typeB"),
+#'     sign_list = list(feats[1:150], feats[151:300])
+#' )
+#'
+#' # the verb runs on a bare matrix, with no giotto object involved
+#' res <- analyzeData(expr, enrichParam("hypergeometric"), sign_matrix = sm)
+#' head(res)
 NULL
 
 
@@ -196,9 +243,10 @@ NULL
 #' @param x expression values. A `matrix`, a `Matrix`, or anything an
 #'   engine registered against [pageEnrichParam-class] accepts.
 #' @param param a [pageEnrichParam-class].
-#' @param sign_matrix binary sign matrix, genes x cell types.
+#' @inheritParams enrichment_params
 #' @param ... unused. Declared because [analyzeData()] carries it, so an
 #'   engine registered from another package can accept its own arguments.
+#' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
@@ -232,6 +280,7 @@ setMethod("analyzeData",
 #' @rdname enrich_rank
 #' @inheritParams enrich_page
 #' @param param a [rankEnrichParam-class].
+#' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
@@ -366,6 +415,7 @@ setMethod("analyzeData",
 #' @rdname enrich_hyper
 #' @inheritParams enrich_page
 #' @param param a [hyperEnrichParam-class].
+#' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
