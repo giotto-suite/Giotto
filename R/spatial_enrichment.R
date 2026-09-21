@@ -2559,6 +2559,18 @@ runDWLSDeconv <- function(
     if (!cluster_column %in% colnames(cell_metadata)) {
         stop("cluster column not found")
     }
+
+    # Alignment guard -- enrich_deconvolution / spot_deconvolution take the
+    # cluster vector positionally against the expression columns. Same
+    # independent-accessor problem as the other two: key the metadata onto
+    # the expression cell axis before pulling the column off it.
+    ord <- match(colnames(expr_values[]), cell_metadata$cell_ID)
+    if (anyNA(ord)) {
+        stop("[runDWLSDeconv] expression matrix columns and cell_metadata ",
+            "cell_IDs do not all match", call. = FALSE)
+    }
+    cell_metadata <- cell_metadata[ord, ]
+
     cluster <- cell_metadata[[cluster_column]]
 
 
