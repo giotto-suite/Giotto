@@ -1,0 +1,133 @@
+---
+title: "ReconST: gene-panel selection in one call"
+output:
+  html_document:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{ReconST: gene-panel selection in one call}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE, collapse = TRUE, comment = "#>")
+```
+
+# Setup
+
+ReconST learns gene weights on scRNA-seq reference expression and evaluates
+reconstruction on spatial expression. Supply two Giotto objects and receive the
+spatial object with gene scores attached. Spatial coordinates are not required
+by the algorithm, and reference/spatial cells do not need to correspond.
+
+Install once from the public ReconST repository:
+
+```{r install}
+library(Giotto)
+installGiottoReconSTEnvironment()
+```
+
+At the start of each new R session, before creating Giotto objects or invoking
+Python, select the environment:
+
+```{r environment}
+GiottoClass::set_giotto_python_path(python_path = "giotto_reconst_env")
+```
+
+Restart R if another Python environment has already been initialized. If ReconST
+is already installed in your active Giotto Python environment, use
+`envname = NULL` in `runReconST()` instead.
+
+# Run
+
+The example assumes you already have `gobject_sc` and `gobject_spatial`, each
+with a `raw` expression matrix. Use matching, unique gene symbols or Ensembl IDs
+in both objects. ReconST does not translate between identifier conventions.
+
+```{r run}
+gobject_spatial <- runReconST(
+  gobject_sc = gobject_sc,
+  gobject_spatial = gobject_spatial,
+  output_dir = "reconst_results",
+  seed = 42
+)
+```
+
+This performs export, training, evaluation, and result annotation. Intermediate
+input files are temporary. Results remain in `output_dir`; use a separate output
+folder to preserve each run. The wrapper converts integer parameters for Python.
+Training uses one CPU thread by default for compatibility with R's native
+libraries; `num_threads` overrides this for the call and the previous Torch
+thread setting is restored afterwards.
+
+The default reference filters require 200 detected genes per cell and 100 cells
+per gene. Reference counts are normalized to 10,000, while spatial expression
+is evaluated as supplied. Confirm that these scales fit your data. On small or
+already prepared reference data you can disable filters with
+`min_genes_per_cell = NULL` and `min_cells_per_gene = NULL`, and disable reference
+normalization with `normalize_target_sum = NULL` if appropriate.
+
+Slots default to each object's active spatial unit and feature type. Use
+`spat_unit` / `feat_type` and `spat_unit_sc` / `feat_type_sc` to select them
+explicitly for the spatial and reference objects, respectively.
+
+# Retrieve the panel
+
+```{r panel}
+meta <- fDataDT(gobject_spatial)
+panel <- meta$feat_ID[which(meta$reconst_selected)]
+writeLines(panel, "reconst_panel.txt")
+```
+
+Feature metadata contains `reconst_importance` and `reconst_selected`. Unscored
+genes receive `NA`. Pass `subset_to_panel = TRUE` to return only selected genes.
+The result CSV also preserves the original IDs in `gene_id` for reliable matching.
+
+# Existing h5ad files
+
+For a file-based workflow, the same function returns a summary list:
+
+```{r files}
+summary <- runReconST(
+  input = list(sc_h5ad = "reference.h5ad", spatial_h5ad = "spatial.h5ad"),
+  output_dir = "reconst_results"
+)
+gobject_spatial <- loadReconSTResults(gobject_spatial, summary)
+```
+
+# Small reproducible example
+
+The following synthetic counts demonstrate the complete workflow without a data
+download. They are only a software check, not a biological benchmark. Set up the
+Python environment before running this block.
+
+```{r synthetic-example}
+set.seed(42)
+genes <- paste0("gene", seq_len(20))
+reference_counts <- matrix(rpois(20 * 40, 4), nrow = 20,
+  dimnames = list(genes, paste0("ref", seq_len(40))))
+spatial_counts <- matrix(rpois(15 * 20, 4), nrow = 15,
+  dimnames = list(rev(genes[1:15]), paste0("sp", seq_len(20))))
+gobject_sc <- createGiottoObject(expression = reference_counts)
+gobject_spatial <- createGiottoObject(expression = spatial_counts)
+
+result <- runReconST(
+  gobject_sc = gobject_sc,
+  gobject_spatial = gobject_spatial,
+  output_dir = file.path(tempdir(), "reconst_example"),
+  num_epochs = 2, embedding_size = 5, batch_size = 16,
+  min_genes_per_cell = NULL, min_cells_per_gene = NULL,
+  normalize_target_sum = NULL, device = "cpu"
+)
+fDataDT(result)
+```
+
+The installer defaults to a pinned, public ReconST revision. Local source
+folders can be selected with `package_path`; use `reconst_version` to override
+with a Git installation URL or a published PyPI version. Giotto provides the
+file adapter in `inst/python/python_reconst.py`; the independent ReconST package
+provides the model, training and gene-selection implementation.
+
+A fixed seed improves repeatability within the same environment; hardware and
+package versions can affect results. This tutorial requires user-supplied data
+and is not executed during vignette rendering.
