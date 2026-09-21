@@ -2041,13 +2041,17 @@ addHMRF_V2 <- function(gobject, HMRFoutput, name = "hmrf") {
             gobject = gobject,
             spat_unit = spat_unit,
             feat_type = feat_type,
-            new_metadata = HMRFoutput[[i]]$class[match(
-                ordered_cell_IDs,
-                rownames(HMRFoutput[[i]]$prob)
-            )],
+            # already aligned to ordered_cell_IDs by the match() below,
+            # so naming it costs nothing and lets the setter key on it
+            # rather than trust the row order it is handed
+            new_metadata = stats::setNames(
+                HMRFoutput[[i]]$class[match(
+                    ordered_cell_IDs,
+                    rownames(HMRFoutput[[i]]$prob)
+                )],
+                ordered_cell_IDs
+            ),
             vector_name = paste(name, names(HMRFoutput)[i])
-            # ,column_cell_ID = 'cell_ID',
-            # by_column = TRUE
         )
     }
     return(gobject)

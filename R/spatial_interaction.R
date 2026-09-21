@@ -2343,12 +2343,28 @@ exprCellCellcom <- function(gobject,
             random_cell_types <- sample(
                 x = cell_types, size = length(cell_types)
             )
-            tempGiotto <- addCellMetadata(
+            # A shuffled label belongs to no cell, so there is no ID to
+            # key it by and the metadata setter is the wrong door: it
+            # aligns on cell_ID, and refuses input it cannot align. Write
+            # onto the metadata object directly instead -- the column is
+            # positional on purpose, and this is the one place that is
+            # true. `cell_types` is read from the same spat_unit /
+            # feat_type that `tempGiotto` was subset on, so the lengths
+            # agree by construction.
+            cmeta <- getCellMetadata(
                 gobject = tempGiotto,
                 feat_type = feat_type,
                 spat_unit = spat_unit,
-                new_metadata = random_cell_types,
-                by_column = FALSE # on purpose since values are random
+                output = "cellMetaObj",
+                copy_obj = TRUE
+            )
+            data.table::set(cmeta[],
+                j = "random_cell_types", value = random_cell_types)
+            tempGiotto <- setCellMetadata(
+                gobject = tempGiotto,
+                x = cmeta,
+                verbose = FALSE,
+                initialize = FALSE
             )
 
             # get random communication scores
