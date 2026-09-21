@@ -116,6 +116,7 @@ Remotes:
     giotto-suite/GiottoVisuals
 Collate:
     'ONTraC_wrapper.R'
+    'ReconST_wrapper.R'
     'auxiliary_giotto.R'
     'basilisk.R'
     'cell_segmentation.R'
