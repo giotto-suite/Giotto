@@ -266,9 +266,11 @@ setMethod(
     out
 }
 
-# The network slot is polymorphic as of GiottoClass 0.6.0: an igraph, or a
-# GiottoDisk dataStore on a backed project. ADR 0004 is explicit that every new
-# consumer of @network owes a branch, so this is it.
+# `as.igraph()` on the subobject handles the polymorphic `@network` itself: it
+# returns the slot when it already holds a graph, and otherwise re-dispatches
+# on whatever backend class is there. GiottoDisk registers the method for its
+# own stores, which is how a backed network is read without naming that
+# package here.
 #' @keywords internal
 #' @noRd
 .motif_network_as_igraph <- function(gobject, spat_unit, name) {
@@ -276,22 +278,8 @@ setMethod(
         spat_unit = spat_unit, name = name,
         output = "spatialNetworkObj", verbose = FALSE
     )
-    net <- sn[]
-    if (inherits(net, "dataStore")) {
-        package_check("GiottoDisk",
-            repository = "github:giotto-suite/GiottoDisk"
-        )
-        return(GiottoDisk::storeRead(net, output = "igraph"))
-    }
-    if (!inherits(net, "igraph")) {
-        .gstop(sprintf(
-            "unsupported spatial network storage: %s",
-            paste(class(net), collapse = "/")
-        ))
-    }
-    net
+    igraph::as.igraph(sn)
 }
-
 
 # Paths to a parquetEdgeStore's parquet files, or NULL when the network is not
 # one, when ops are pending on it (the files on disk do not reflect a pending
