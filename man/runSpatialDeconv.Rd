@@ -2,7 +2,7 @@
 % Please edit documentation in R/spatial_enrichment.R
 \name{runSpatialDeconv}
 \alias{runSpatialDeconv}
-\title{runSpatialDeconv}
+\title{Cell type deconvolution, any method}
 \usage{
 runSpatialDeconv(
   gobject,
@@ -22,34 +22,45 @@ runSpatialDeconv(
 \arguments{
 \item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
-\item{feat_type}{feature type}
+\item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
 \item{deconv_method}{method to use for deconvolution}
 
-\item{expression_values}{expression values to use}
+\item{expression_values}{character. Which expression values to use, e.g.
+"normalized". A method's own default is shown in its Usage section.}
 
-\item{logbase}{base used for log normalization}
+\item{logbase}{numeric. Log base of the expression values (default = 2).}
 
-\item{cluster_column}{name of cluster column}
+\item{cluster_column}{character. Cell metadata column holding the cluster
+assignment used to group cells.}
 
-\item{sign_matrix}{signature matrix for deconvolution}
+\item{sign_matrix}{matrix of mean expression per cell type: signature
+features (rows) by cell type (columns). Build one with
+\code{\link{makeSignMatrixDWLS}} or
+\code{\link{makeSignMatrixDWLSfromMatrix}}. This is not the binary matrix
+the enrichment methods take.}
 
-\item{n_cell}{number of cells per spot}
+\item{n_cell}{numeric. Number of cells per spot (default = 50).}
 
-\item{cutoff}{cut off (default = 2)}
+\item{cutoff}{numeric. Expression cutoff below which a value is treated as
+absent (default = 2).}
 
-\item{name}{name to give to spatial deconvolution results}
+\item{name}{character. Name to store the result under in the giotto object's
+spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
+the Usage section.}
 
-\item{return_gobject}{return giotto object}
+\item{return_gobject}{logical. Return the giotto object with the result
+added (default = TRUE), or the result object on its own.}
 }
 \value{
 giotto object or deconvolution results
 }
 \description{
-Function to perform deconvolution based on single cell
-expression data
+Estimate cell type proportions per spatial position,
+dispatching to one of the deconvolution methods. A thin router: every
+argument is forwarded to the chosen method.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -68,4 +79,10 @@ runSpatialDeconv(gobject = g, sign_matrix = sign_matrix)
 }
 \seealso{
 \code{\link{runDWLSDeconv}}
+
+Other spatial deconvolution:
+\code{\link[=makeSignMatrixDWLS]{makeSignMatrixDWLS()}},
+\code{\link[=makeSignMatrixDWLSfromMatrix]{makeSignMatrixDWLSfromMatrix()}},
+\code{\link[=runDWLSDeconv]{runDWLSDeconv()}}
 }
+\concept{spatial deconvolution}

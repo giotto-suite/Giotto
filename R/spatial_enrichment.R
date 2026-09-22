@@ -9,28 +9,18 @@
 #' `makeSignMatrixPAGE()`. This matrix is then used with `runPAGEEnrich()` in
 #' order to calculate feature signature enrichment scores per spatial position
 #' using PAGE.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
 #' @param sign_names `character` vector with names (labels) for each provided
 #' feat signature
 #' @param sign_list list of feats in signature
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix binary matrix of signature feats for each cell type /
-#' process. Alternatively a list of signature feats can be provided to
-#' `makeSignMatrixPAGE()`, which will create the matrix for you.
-#' @param expression_values expression values to use
-#' @param min_overlap_genes minimum number of overlapping feats in
-#' `sign_matrix` required to calculate enrichment
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param output_enrichment how to return enrichment output
-#' @param p_value logical. Default = `FALSE`. calculate p-values
-#' @param include_depletion calculate both enrichment and depletion
-#' @param n_times number of permutations to calculate for p_value
+#' @param min_overlap_genes minimum number of overlapping features in
+#' `sign_matrix` required to calculate enrichment (PAGE)
+#' @param include_depletion also test for depletion, not enrichment only
+#' (default = FALSE)
+#' @param n_times number of permutation iterations to calculate p-value
 #' @param max_block number of lines to process together (default = 20e6)
-#' @param name to give to spatial enrichment results, default = PAGE
 #' @param verbose be verbose
-#' @param return_gobject return giotto object
 #' @returns `matrix` (`makeSignMatrixPAGE()`) and
 #' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or
 #' `data.table` (`runPAGEEnrich(return_gobject = FALSE)`)
@@ -42,6 +32,7 @@
 #' expression and delta is the standard deviation. Sm is the mean fold change
 #' value of a specific marker gene set and  m is the size of a given marker
 #' gene set.
+#' @family feature set enrichment
 #' @md
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -121,14 +112,17 @@ makeSignMatrixPAGE <- function(
 
 ## create spatialDWLS matrix ####
 
-#' @title makeSignMatrixDWLSfromMatrix
+#' @title Build a DWLS signature matrix from a matrix
 #' @name makeSignMatrixDWLSfromMatrix
-#' @description Function to convert a single-cell RNAseq matrix into a format
-#'  that can be used with \code{\link{runDWLSDeconv}}.
+#' @description Convert a single-cell RNAseq matrix into the mean-expression
+#' reference \code{\link{runDWLSDeconv}} expects: signature features by cell
+#' type, each entry the mean expression of that feature in that type.
 #' @param matrix scRNA-seq matrix
-#' @param sign_gene genes to use (e.g. marker genes)
+#' @param sign_gene features to use, typically differentially expressed ones
 #' @param cell_type_vector vector with cell types (length = ncol(matrix))
-#' @returns matrix
+#' @returns matrix of mean expression, features by cell type
+#' @md
+#' @family spatial deconvolution
 #' @seealso \code{\link{runDWLSDeconv}}
 #' @examples
 #' sign_gene <- c(
@@ -194,21 +188,21 @@ makeSignMatrixDWLSfromMatrix <- function(
 
 
 
-#' @title makeSignMatrixDWLS
-#' @description Function to convert a matrix within a Giotto object into a
-#' format that can be used with \code{\link{runDWLSDeconv}} for deconvolution.
-#' A vector of cell types for parameter \code{cell_type_vector} can be created
-#' from the cell metadata (\code{\link{pDataDT}}).
-#' @param gobject Giotto object of single cell
-#' @param spat_unit spatial unit
-#' @param feat_type feature type to use
-#' @param expression_values expression values to use
+#' @title Build a DWLS signature matrix from a Giotto object
+#' @description Convert expression held in a Giotto object into the
+#' mean-expression reference \code{\link{runDWLSDeconv}} expects: signature
+#' features by cell type, each entry the mean expression of that feature in
+#' that type. A vector for \code{cell_type_vector} can be taken from the cell
+#' metadata (\code{\link{pDataDT}}).
+#' @inheritParams signature_analysis_params
 #' @param reverse_log reverse a log-normalized expression matrix
 #' @param log_base the logarithm base (default = 2)
-#' @param sign_gene all of DE genes (signature)
+#' @param sign_gene features to use, typically differentially expressed ones
 #' @param cell_type_vector vector with cell types (length = ncol(matrix))
 #' @param cell_type deprecated, use \code{cell_type_vector}
-#' @returns matrix
+#' @returns matrix of mean expression, features by cell type
+#' @md
+#' @family spatial deconvolution
 #' @seealso \code{\link{runDWLSDeconv}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -284,17 +278,19 @@ makeSignMatrixDWLS <- function(
 
 
 
-#' @title makeSignMatrixRank
-#' @description Function to convert a single-cell count matrix
-#' and a corresponding single-cell cluster vector into
-#' a rank matrix that can be used with the Rank enrichment option.
+#' @title Build a rank signature matrix
+#' @description Convert a single-cell count matrix and its cluster assignments
+#' into the rank matrix [runRankEnrich()] expects.
 #' @param sc_matrix matrix of single-cell RNAseq expression data
 #' @param sc_cluster_ids vector of cluster ids
-#' @param ties_method how to handle rank ties
-#' @param gobject if giotto object is given then only genes present in both
-#' datasets will be considered
+#' @param ties_method how to rank tied expression values, `"average"`
+#' (default) or `"max"`
+#' @param gobject giotto object. When given, only features present in both
+#' datasets are kept.
 #' @returns matrix
-#' @seealso \code{\link{rankEnrich}}
+#' @md
+#' @family feature set enrichment
+#' @seealso \code{\link{runRankEnrich}}
 #' @examples
 #' sign_gene <- c(
 #'     "Bcl11b", "Lmo1", "F3", "Cnih3", "Ppp1r3c", "Rims2", "Gfap",
@@ -736,40 +732,26 @@ runPAGEEnrich <- function(
         name = NULL,
         verbose = TRUE,
         return_gobject = TRUE) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # expression values to be used
+    # `match.arg(x, choices)` returns choices[[1]] only when `x` is *identical*
+    # to `choices`, order included. That made this idiom depend on the caller's
+    # default vector matching the hardcoded list exactly -- it broke once for
+    # runRankEnrich()'s own default, and again when runSpatialEnrich() forwarded
+    # its shorter default here. Taking the first element is what match.arg does
+    # for a default anyway, and it validates a single value the same as before.
     values <- match.arg(
-        expression_values,
+        expression_values[[1L]],
         unique(c("normalized", "scaled", "custom", expression_values))
     )
-    expr_values <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = values,
-        output = "exprObj"
+    output_enrichment <- match.arg(
+        output_enrichment, choices = c("original", "zscore")
     )
-
-    # check parameters
     if (is.null(name)) name <- "PAGE"
 
-    PAGE_results <- .page_dt_method(
-        sign_matrix = sign_matrix,
-        expr_values = as.matrix(expr_values[]),
+    param <- enrichParam("PAGE",
         min_overlap_genes = min_overlap_genes,
-        logbase = logbase,
         reverse_log_scale = reverse_log_scale,
-        output_enrichment = c("original", "zscore"),
+        logbase = logbase,
+        output_enrichment = output_enrichment,
         p_value = p_value,
         include_depletion = include_depletion,
         n_times = n_times,
@@ -777,14 +759,12 @@ runPAGEEnrich <- function(
         verbose = verbose
     )
 
-    # create spatial enrichment object
-    enrObj <- createSpatEnrObj(
-        name = name,
-        method = "PAGE",
-        enrichment_data =PAGE_results[["matrix"]],
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = expr_values@provenance,
+    out <- .enrich_run(
+        gobject = gobject, param = param, sign_matrix = sign_matrix,
+        method = "PAGE", name = name,
+        spat_unit = spat_unit, feat_type = feat_type,
+        values = values, expression_values = expression_values,
+        densify = TRUE,
         misc = list(
             expr_values_used = expression_values,
             reverse_log_scale = reverse_log_scale,
@@ -793,28 +773,8 @@ runPAGEEnrich <- function(
             output_enrichment_scores = output_enrichment,
             include_depletion = include_depletion,
             nr_permutations = n_times
-        )
-    )
-
-    ## return object or results ##
-    if (return_gobject == TRUE) {
-        spenr_names <- list_spatial_enrichments_names(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type
-        )
-
-        if (name %in% spenr_names) {
-            cat(name, " has already been used, will be overwritten")
-        }
-
-        ## update parameters used ##
-        parameters_list <- gobject@parameters
-        number_of_rounds <- length(parameters_list)
-        update_name <- paste0(number_of_rounds, "_spatial_enrichment")
-
-        # parameters to include
-        parameters_list[[update_name]] <- c(
+        ),
+        history = c(
             "method used" = "PAGE",
             "enrichment name" = name,
             "expression values" = expression_values,
@@ -824,28 +784,16 @@ runPAGEEnrich <- function(
             "p values calculated" = p_value,
             "include depletion" = include_depletion,
             "nr permutations" = n_times
-        )
+        ),
+        return_gobject = return_gobject
+    )
 
-        gobject@parameters <- parameters_list
-
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- setGiotto(gobject, enrObj)
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-
-        return(gobject)
-    } else {
-        PAGE_results[["matrix"]] <- enrObj
-        return(PAGE_results)
-    }
+    if (isTRUE(return_gobject)) return(out$gobject)
+    # PAGE is the only one of the four that returns a list. Kept as it was:
+    # changing it is a breaking change to a public return value and belongs in
+    # its own commit, not in a refactor that is meant to be a no-op.
+    list(DT = out$detail, matrix = out$enrObj)
 }
-
-
-
-
-
-
-
 
 
 #' @title Rank permutation
@@ -867,24 +815,21 @@ runPAGEEnrich <- function(
 }
 
 
-#' @title runRankEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using a rank based approach.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param output_enrichment how to return enrichment output
-#' @param ties_method how to handle rank ties
-#' @param p_value calculate p-values (boolean, default = FALSE)
-#' @param n_times number of permutations to calculate for p_value
+#' @title Rank-based feature signature enrichment
+#' @description Score each spatial position against cell type or process
+#' signatures using a rank-biased-precision approach. Genes are ranked across
+#' cells and those ranks are then ranked within each cell, so the score depends
+#' on relative ordering rather than on absolute expression.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
+#' @param reverse_log_scale `r lifecycle::badge("deprecated")` ignored; see
+#' Details.
+#' @param logbase `r lifecycle::badge("deprecated")` ignored; see Details.
+#' @param ties_method how to rank tied expression values, `"average"`
+#' (default) or `"max"`
+#' @param n_times number of permutation iterations to calculate p-value
 #' @param rbp_p fractional binarization threshold (default = 0.99)
 #' @param num_agg number of top genes to aggregate (default = 100)
-#' @param name to give to spatial enrichment results, default = rank
-#' @param return_gobject return giotto object
 #' @returns data.table with enrichment results
 #' @details
 #' sign_matrix: a rank-fold matrix with genes as row names and cell-types as
@@ -898,6 +843,14 @@ runPAGEEnrich <- function(
 #' The Rank-Biased Precision is then calculated as:
 #' RBP = (1 - 0.99) * (0.99)^(R - 1)
 #' and the final enrichment score is then calculated as the sum of top 100 RBPs.
+#'
+#' `reverse_log_scale` and `logbase` are ignored, and cannot be made to work:
+#' the statistic is a rank of a rank, and ranking is invariant to any monotonic
+#' per-gene transform, so no value of either argument can move a single rank.
+#' Use [runPAGEEnrich()] or [runHyperGeometricEnrich()] if the reverse-log step
+#' needs to matter.
+#' @md
+#' @family feature set enrichment
 #' @seealso \code{\link{makeSignMatrixRank}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -933,162 +886,64 @@ runRankEnrich <- function(
         num_agg = 100,
         name = NULL,
         return_gobject = TRUE) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # determine ties.method
     ties_method <- match.arg(ties_method, choices = c("average", "max"))
 
-    # expression values to be used
-    values <- match.arg(
-        expression_values,
-        unique(c("normalized", "scaled", "custom", expression_values))
+    # `reverse_log_scale` and `logbase` cannot affect a rank statistic. Warn
+    # only when one is passed explicitly -- a call relying on the defaults is
+    # not doing anything wrong and should stay quiet.
+    .rank_inert <- paste(
+        "Rank enrichment ranks genes across cells and then ranks those ranks",
+        "within each cell. Ranking is invariant to any monotonic per-gene",
+        "transform, so no value of this argument can change the result.",
+        "Use runPAGEEnrich() or runHyperGeometricEnrich() if the reverse-log",
+        "step needs to matter."
     )
-    expr_values <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = values,
-        output = "exprObj"
-    )
-
-    if (values == "raw") {
-        expr_values[] <- Matrix::as.matrix(expr_values[])
+    if (!missing(reverse_log_scale)) {
+        deprecate_warn("4.3.0", "runRankEnrich(reverse_log_scale)",
+            details = .rank_inert)
+    }
+    if (!missing(logbase)) {
+        deprecate_warn("4.3.0", "runRankEnrich(logbase)",
+            details = .rank_inert)
     }
 
-    # check parameters
+    # The choices have to start with this function's own formal default, or
+    # match.arg() sees a length-4 arg that is not identical to choices and
+    # errors. "raw" sits second here and third in the sibling functions.
+    # `match.arg(x, choices)` returns choices[[1]] only when `x` is *identical*
+    # to `choices`, order included. That made this idiom depend on the caller's
+    # default vector matching the hardcoded list exactly -- it broke once for
+    # runRankEnrich()'s own default, and again when runSpatialEnrich() forwarded
+    # its shorter default here. Taking the first element is what match.arg does
+    # for a default anyway, and it validates a single value the same as before.
+    values <- match.arg(
+        expression_values[[1L]],
+        unique(c("normalized", "raw", "scaled", "custom", expression_values))
+    )
+    output_enrichment <- match.arg(
+        output_enrichment, choices = c("original", "zscore")
+    )
     if (is.null(name)) name <- "rank"
 
-    # check gene list
-    interGene <- intersect(rownames(sign_matrix), rownames(expr_values[]))
-    if (length(interGene) < 100) {
-        stop("Please check the gene numbers or names of scRNA-seq. The names
-            of scRNA-seq should be consistent with spatial data.")
-    }
-
-    # output enrichment
-    output_enrichment <- match.arg(
-        output_enrichment,
-        choices = c("original", "zscore")
+    param <- enrichParam("rank",
+        reverse_log_scale = reverse_log_scale,
+        logbase = logbase,
+        output_enrichment = output_enrichment,
+        ties_method = ties_method,
+        p_value = p_value,
+        n_times = n_times,
+        rbp_p = rbp_p,
+        num_agg = num_agg
     )
 
-    enrichment <- matrix(
-        data = NA,
-        nrow = dim(sign_matrix)[2],
-        ncol = dim(expr_values[])[2]
-    )
-
-    # calculate mean gene expression
-    if (reverse_log_scale == TRUE) {
-        mean_gene_expr <- log(Matrix::rowMeans(
-            logbase^expr_values[] - 1,
-            dims = 1
-        ) + 1)
-    } else {
-        mean_gene_expr <- Matrix::rowMeans(expr_values[])
-    }
-
-    # fold change and ranking
-
-    ties_1 <- ties_method
-    ties_2 <- ties_method
-    if (ties_method == "max") {
-        ties_1 <- "min"
-        ties_2 <- "max"
-    }
-    # else ties_1=ties_2 is equal to random
-    geneFold <- expr_values[]
-    geneFold <- sparseMatrixStats::rowRanks(geneFold, ties.method = ties_1)
-    rankFold <- t(sparseMatrixStats::colRanks(-geneFold, ties.method = ties_2))
-
-    rownames(rankFold) <- rownames(expr_values[])
-    colnames(rankFold) <- colnames(expr_values[])
-
-    for (i in seq_len(dim(sign_matrix)[2])) {
-        signames <- rownames(sign_matrix)[which(sign_matrix[, i] > 0)]
-        interGene <- intersect(signames, rownames(rankFold))
-        filterSig <- sign_matrix[interGene, ]
-        filterRankFold <- rankFold[interGene, ]
-
-        multiplyRank <- (filterRankFold * filterSig[, i])^(1 / 2)
-        rpb <- (1.0 - rbp_p) * (rbp_p^(multiplyRank - 1))
-
-        vectorX <- rep(NA, dim(filterRankFold)[2])
-
-        for (j in seq_len(dim(filterRankFold)[2])) {
-            toprpb <- sort(rpb[, j], decreasing = TRUE)
-            zscore <- sum(toprpb[seq_len(num_agg)])
-            vectorX[j] <- zscore
-        }
-        enrichment[i, ] <- vectorX
-    }
-
-    rownames(enrichment) <- colnames(sign_matrix)
-    colnames(enrichment) <- colnames(rankFold)
-
-    enrichment <- t(enrichment)
-
-    if (output_enrichment == "zscore") {
-        enrichment <- scale(enrichment)
-    }
-
-    enrichmentDT <- data.table::data.table(cell_ID = rownames(enrichment))
-    enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
-
-
-    # default name for page enrichment
-
-    if (isTRUE(p_value)) {
-        random_rank <- .do_rank_permutation(
-            sc_gene = rownames(sign_matrix),
-            n = n_times
-        )
-
-        random_DT <- runRankEnrich(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            sign_matrix = random_rank,
-            expression_values = expression_values,
-            reverse_log_scale = reverse_log_scale,
-            logbase = logbase,
-            output_enrichment = output_enrichment,
-            p_value = FALSE
-        )
-
-        background <- unlist(random_DT[, 2:dim(random_DT)[2]])
-        fit.gamma <- fitdistrplus::fitdist(
-            background,
-            distr = "gamma", method = "mle"
-        )
-        pvalue_DT <- enrichmentDT
-        enrichmentDT[, 2:dim(enrichmentDT)[2]] <- lapply(
-            enrichmentDT[, 2:dim(enrichmentDT)[2]], function(x) {
-                stats::pgamma(
-                    x, fit.gamma$estimate[1],
-                    rate = fit.gamma$estimate[2],
-                    lower.tail = FALSE, log.p = FALSE
-                )
-            }
-        )
-    }
-
-    # create spatial enrichment object
-    enrObj <- createSpatEnrObj(
-        name = name,
-        method = "rank",
-        enrichment_data =enrichmentDT,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = expr_values@provenance,
+    out <- .enrich_run(
+        gobject = gobject, param = param, sign_matrix = sign_matrix,
+        method = "rank", name = name,
+        spat_unit = spat_unit, feat_type = feat_type,
+        values = values, expression_values = expression_values,
+        # "raw" is the one values slot that can still hold a sparse matrix the
+        # rank sweep cannot index into
+        densify = identical(values, "raw"),
         misc = list(
             expr_values_used = expression_values,
             reverse_log_scale = reverse_log_scale,
@@ -1096,27 +951,8 @@ runRankEnrich <- function(
             p_values_calculated = p_value,
             output_enrichment_scores = output_enrichment,
             nr_permutations = n_times
-        )
-    )
-
-    ## return object or results ##
-    if (return_gobject == TRUE) {
-        spenr_names <- list_spatial_enrichments_names(
-            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
-        )
-
-
-        if (name %in% spenr_names) {
-            cat(name, " has already been used, will be overwritten")
-        }
-
-        ## update parameters used ##
-        parameters_list <- gobject@parameters
-        number_of_rounds <- length(parameters_list)
-        update_name <- paste0(number_of_rounds, "_spatial_enrichment")
-
-        # parameters to include
-        parameters_list[[update_name]] <- c(
+        ),
+        history = c(
             "method used" = "rank",
             "enrichment name" = name,
             "expression values" = expression_values,
@@ -1126,41 +962,30 @@ runRankEnrich <- function(
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value,
             "nr permutations" = n_times
-        )
-        gobject@parameters <- parameters_list
+        ),
+        return_gobject = return_gobject
+    )
 
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- setGiotto(gobject, enrObj)
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-        return(gobject)
-    } else {
-        return(enrObj)
-    }
+    if (isTRUE(return_gobject)) out$gobject else out$enrObj
 }
 
 
 
 
-#' @title runHyperGeometricEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using a hypergeometric test.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param top_percentage percentage of cells that will be considered to have
-#' gene expression with matrix binarization
-#' @param output_enrichment how to return enrichment output
-#' @param p_value calculate p-values (boolean, default = FALSE)
-#' @param name to give to spatial enrichment results, default = hypergeometric
-#' @param return_gobject return giotto object
+#' @title Hypergeometric feature signature enrichment
+#' @description Score each spatial position against cell type or process
+#' signatures with a hypergeometric test. Each cell's most highly expressed
+#' features are binarized, and each signature is tested for over-representation
+#' among them.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
+#' @param top_percentage percentage of features per cell treated as expressed
+#' when binarizing (default = 5)
 #' @returns data.table with enrichment results
 #' @details The enrichment score is calculated based on the p-value from the
 #' hypergeometric test, -log10(p-value).
+#' @md
+#' @family feature set enrichment
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #' x <- findMarkers_one_vs_all(g,
@@ -1189,123 +1014,34 @@ runHyperGeometricEnrich <- function(
         p_value = FALSE,
         name = NULL,
         return_gobject = TRUE) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
+    # `match.arg(x, choices)` returns choices[[1]] only when `x` is *identical*
+    # to `choices`, order included. That made this idiom depend on the caller's
+    # default vector matching the hardcoded list exactly -- it broke once for
+    # runRankEnrich()'s own default, and again when runSpatialEnrich() forwarded
+    # its shorter default here. Taking the first element is what match.arg does
+    # for a default anyway, and it validates a single value the same as before.
     values <- match.arg(
-        expression_values,
+        expression_values[[1L]],
         unique(c("normalized", "scaled", "custom", expression_values))
     )
-    expr_values <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = values,
-        output = "exprObj"
+    output_enrichment <- match.arg(
+        output_enrichment, choices = c("original", "zscore")
     )
-
-
-    # check parameters
     if (is.null(name)) name <- "hypergeometric"
 
-    # output enrichment
-    output_enrichment <- match.arg(
-        output_enrichment,
-        choices = c("original", "zscore")
+    param <- enrichParam("hypergeometric",
+        reverse_log_scale = reverse_log_scale,
+        logbase = logbase,
+        top_percentage = top_percentage,
+        output_enrichment = output_enrichment,
+        p_value = p_value
     )
 
-    # calculate mean gene expression
-    if (reverse_log_scale == TRUE) {
-        expr_values[] <- logbase^expr_values[] - 1
-    }
-
-    interGene <- intersect(rownames(expr_values[]), rownames(sign_matrix))
-
-    inter_sign_matrix <- sign_matrix[interGene, ]
-
-    aveExp <- log2(2 * (Matrix::rowMeans(2^(expr_values[] - 1), dims = 1)) + 1)
-
-    foldChange <- expr_values[] - aveExp
-
-    top_q <- 1 - top_percentage / 100
-    quantilecut <- apply(
-        foldChange, 2, stats::quantile,
-        probs = top_q, na.rm = TRUE
-    )
-    expbinary <- t_flex(1 * t_flex(foldChange > quantilecut))
-
-    markerGenes <- rownames(inter_sign_matrix)
-    expbinaryOverlap <- expbinary[markerGenes, ]
-    total <- length(markerGenes)
-    enrichment <- matrix(
-        data = NA,
-        nrow = dim(inter_sign_matrix)[2],
-        ncol = dim(expbinaryOverlap)[2]
-    )
-
-    for (i in seq_len(dim(inter_sign_matrix)[2])) {
-        signames <- rownames(inter_sign_matrix)[
-            which(inter_sign_matrix[, i] == 1)
-        ]
-        vectorX <- NULL
-
-        for (j in seq_len(dim(expbinaryOverlap)[2])) {
-            cellsiggene <- names(expbinaryOverlap[
-                which(expbinaryOverlap[, j] == 1), j
-            ])
-            x <- length(intersect(cellsiggene, signames))
-            m <- length(rownames(inter_sign_matrix)[which(
-                inter_sign_matrix[, i] == 1
-            )])
-            n <- total - m
-            k <- length(intersect(cellsiggene, markerGenes))
-            enrich <- (0 - log10(stats::phyper(
-                x, m, n, k,
-                log.p = FALSE, lower.tail = FALSE
-            )))
-            vectorX <- append(vectorX, enrich)
-        }
-        enrichment[i, ] <- vectorX
-    }
-
-    rownames(enrichment) <- colnames(inter_sign_matrix)
-    colnames(enrichment) <- colnames(expbinaryOverlap)
-
-    enrichment <- t(enrichment)
-
-    if (output_enrichment == "zscore") {
-        enrichment <- scale(enrichment)
-    }
-
-    enrichmentDT <- data.table::data.table(cell_ID = rownames(enrichment))
-    enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
-
-
-    ## calculate p-values ##
-    if (p_value == TRUE) {
-        enrichmentDT[, 2:dim(enrichmentDT)[2]] <- lapply(
-            enrichmentDT[, 2:dim(enrichmentDT)[2]], function(x) {
-                10^(-x)
-            }
-        )
-    }
-
-    # create spatial enrichment object
-    enrObj <- createSpatEnrObj(
-        name = name,
-        method = "hypergeometric",
-        enrichment_data =enrichmentDT,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = expr_values@provenance,
+    out <- .enrich_run(
+        gobject = gobject, param = param, sign_matrix = sign_matrix,
+        method = "hypergeometric", name = name,
+        spat_unit = spat_unit, feat_type = feat_type,
+        values = values, expression_values = expression_values,
         misc = list(
             expr_values_used = expression_values,
             reverse_log_scale = reverse_log_scale,
@@ -1313,26 +1049,8 @@ runHyperGeometricEnrich <- function(
             top_percentage = top_percentage,
             p_values_calculated = p_value,
             output_enrichment_scores = output_enrichment
-        )
-    )
-
-    ## return object or results ##
-    if (return_gobject == TRUE) {
-        spenr_names <- list_spatial_enrichments_names(
-            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
-        )
-
-        if (name %in% spenr_names) {
-            cat(name, " has already been used, will be overwritten")
-        }
-
-        ## update parameters used ##
-        parameters_list <- gobject@parameters
-        number_of_rounds <- length(parameters_list)
-        update_name <- paste0(number_of_rounds, "_spatial_enrichment")
-
-        # parameters to include
-        parameters_list[[update_name]] <- c(
+        ),
+        history = c(
             "method used" = "hypergeometric",
             "enrichment name" = name,
             "expression values" = expression_values,
@@ -1342,53 +1060,48 @@ runHyperGeometricEnrich <- function(
             "p-values calculated" = p_value,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value
-        )
-        gobject@parameters <- parameters_list
+        ),
+        return_gobject = return_gobject
+    )
 
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- setGiotto(gobject, enrObj)
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-        return(gobject)
-    } else {
-        return(enrObj)
-    }
+    if (isTRUE(return_gobject)) out$gobject else out$enrObj
 }
 
 
 
 
 
-#' @title runSpatialEnrich
-#' @description Function to calculate gene signature enrichment scores per
-#' spatial position using an enrichment test.
-#' @param gobject Giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
+#' @title Feature signature enrichment, any method
+#' @description Score each spatial position against cell type or process
+#' signatures, dispatching to one of the three enrichment methods. A thin
+#' router: every argument is forwarded to the chosen method, and the result is
+#' whatever that method returns.
+#' @inheritParams signature_analysis_params
+#' @inheritParams enrichment_params
 #' @param enrich_method method for gene signature enrichment calculation
-#' @param sign_matrix Matrix of signature genes for each cell type / process
-#' @param expression_values expression values to use
-#' @param reverse_log_scale reverse expression values from log scale
-#' @param min_overlap_genes minimum number of overlapping genes in sign_matrix
-#' required to calculate enrichment (PAGE)
-#' @param logbase log base to use if reverse_log_scale = TRUE
-#' @param p_value calculate p-value (default = FALSE)
+#' @param min_overlap_genes minimum number of overlapping features in
+#' `sign_matrix` required to calculate enrichment (PAGE)
+#' @param include_depletion (PAGE) also test for depletion, not enrichment
+#' only (default = FALSE)
+#' @param ties_method (rank) how to rank tied expression values, `"average"`
+#' (default) or `"max"`
 #' @param n_times (page/rank) number of permutation iterations to calculate
 #' p-value
 #' @param rbp_p (rank) fractional binarization threshold (default = 0.99)
 #' @param num_agg (rank) number of top genes to aggregate (default = 100)
 #' @param max_block number of lines to process together (default = 20e6)
-#' @param top_percentage (hyper) percentage of cells that will be considered
-#' to have gene expression with matrix binarization
-#' @param output_enrichment how to return enrichment output
-#' @param name to give to spatial enrichment results, default = PAGE
+#' @param top_percentage (hyper) percentage of features per cell treated as
+#' expressed when binarizing (default = 5)
 #' @param verbose be verbose
-#' @param return_gobject return giotto object
 #' @returns Giotto object or enrichment results if return_gobject = FALSE
 #' @details For details see the individual functions:
 #'   * **PAGE:** \code{\link{runPAGEEnrich}}
 #'   * **Rank:** \code{\link{runRankEnrich}}
 #'   * **Hypergeometric:** \code{\link{runHyperGeometricEnrich}}
+#'
+#' `reverse_log_scale` and `logbase` are ignored when
+#' `enrich_method = "rank"`, and passing either warns. See [runRankEnrich()].
+#' @family feature set enrichment
 #' @md
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -1424,70 +1137,82 @@ runSpatialEnrich <- function(
         output_enrichment = c("original", "zscore"),
         name = NULL,
         verbose = TRUE,
+        # Appended rather than grouped with the arguments they belong beside:
+        # inserting them mid-list shifts every positional argument after it,
+        # so a caller passing past `p_value` positionally would silently bind
+        # the wrong one.
+        include_depletion = FALSE,
+        ties_method = c("average", "max"),
         return_gobject = TRUE) {
     enrich_method <- match.arg(
         enrich_method,
         choices = c("PAGE", "rank", "hypergeometric")
     )
-
     output_enrichment <- match.arg(
         output_enrichment,
         choices = c("original", "zscore")
     )
+    ties_method <- match.arg(ties_method, choices = c("average", "max"))
 
-
-    if (enrich_method == "PAGE") {
-        results <- runPAGEEnrich(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            sign_matrix = sign_matrix,
-            expression_values = expression_values,
-            reverse_log_scale = reverse_log_scale,
-            logbase = logbase,
-            output_enrichment = output_enrichment,
-            p_value = p_value,
-            n_times = n_times,
-            name = name,
-            return_gobject = return_gobject
-        )
-    } else if (enrich_method == "rank") {
-        results <- runRankEnrich(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            sign_matrix = sign_matrix,
-            expression_values = expression_values,
-            reverse_log_scale = reverse_log_scale,
-            logbase = logbase,
-            output_enrichment = output_enrichment,
-            p_value = p_value,
-            n_times = n_times,
-            rbp_p = rbp_p,
-            num_agg = num_agg,
-            name = name,
-            return_gobject = return_gobject
-        )
-    } else if (enrich_method == "hypergeometric") {
-        results <- runHyperGeometricEnrich(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            sign_matrix = sign_matrix,
-            expression_values = expression_values,
-            reverse_log_scale = reverse_log_scale,
-            logbase = logbase,
-            top_percentage = top_percentage,
-            output_enrichment = output_enrichment,
-            p_value = p_value,
-            name = name,
-            return_gobject = return_gobject
-        )
+    if (identical(enrich_method, "rank")) {
+        for (a in c("reverse_log_scale", "logbase")) {
+            if (!eval(call("missing", as.name(a)))) {
+                deprecate_warn("4.3.0",
+                    sprintf("runSpatialEnrich(%s)", a),
+                    details = paste(
+                        "Ignored when enrich_method = \"rank\": ranking is",
+                        "invariant to any monotonic per-gene transform, so no",
+                        "value of this argument can change the result."
+                    ))
+            }
+        }
     }
 
-    return(results)
-}
+    # Shared by all three; the method-specific arguments are added below.
+    # Every formal of this function reaches exactly one method -- see
+    # test-spatial-enrichment.R, which asserts it rather than trusting it.
+    common <- list(
+        gobject = gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        sign_matrix = sign_matrix,
+        expression_values = expression_values,
+        reverse_log_scale = reverse_log_scale,
+        logbase = logbase,
+        output_enrichment = output_enrichment,
+        p_value = p_value,
+        name = name,
+        return_gobject = return_gobject
+    )
 
+    switch(enrich_method,
+        "PAGE" = do.call(runPAGEEnrich, c(common, list(
+            min_overlap_genes = min_overlap_genes,
+            include_depletion = include_depletion,
+            n_times = n_times,
+            max_block = max_block,
+            verbose = verbose
+        ))),
+        # `reverse_log_scale` / `logbase` are dropped for rank rather than
+        # forwarded. They are inert there, and forwarding them would fire
+        # runRankEnrich()'s deprecation on every routed call including ones
+        # that never mentioned them. The warning below keeps it at the layer
+        # the user actually called.
+        "rank" = do.call(runRankEnrich, c(
+            common[setdiff(names(common),
+                           c("reverse_log_scale", "logbase"))],
+            list(
+                ties_method = ties_method,
+                n_times = n_times,
+                rbp_p = rbp_p,
+                num_agg = num_agg
+            )
+        )),
+        "hypergeometric" = do.call(runHyperGeometricEnrich, c(common, list(
+            top_percentage = top_percentage
+        )))
+    )
+}
 
 
 
@@ -2752,21 +2477,16 @@ solve_dampened_WLSj <- function(
 }
 
 
-#' @title runDWLSDeconv
-#' @description Function to perform DWLS deconvolution based on single cell
-#' expression data
-#' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param expression_values expression values to use
-#' @param logbase base used for log normalization
-#' @param cluster_column name of cluster column
-#' @param sign_matrix sig matrix for deconvolution
-#' @param n_cell number of cells per spot
-#' @param cutoff cut off (default = 2)
-#' @param name name to give to spatial deconvolution results, default = DWLS
-#' @param return_gobject return giotto object
+#' @title Estimate cell type proportions with spatialDWLS
+#' @description Estimate what fraction of each spatial position is made up of
+#' each cell type, given a mean-expression reference from single-cell data.
+#' Unlike the enrichment methods, which return unbounded scores, this returns a
+#' composition: the values for a position sum to one.
+#' @inheritParams signature_analysis_params
+#' @inheritParams deconvolution_params
 #' @returns giotto object or deconvolution results
+#' @md
+#' @family spatial deconvolution
 #' @seealso \url{https://github.com/dtsoucas/DWLS} for the \emph{DWLS} bulk
 #' deconvolution method, and \doi{10.1186/s13059-021-02362-7} for
 #' \emph{spatialDWLS}, the spatial implementation used here.
@@ -2839,6 +2559,18 @@ runDWLSDeconv <- function(
     if (!cluster_column %in% colnames(cell_metadata)) {
         stop("cluster column not found")
     }
+
+    # Alignment guard -- enrich_deconvolution / spot_deconvolution take the
+    # cluster vector positionally against the expression columns. Same
+    # independent-accessor problem as the other two: key the metadata onto
+    # the expression cell axis before pulling the column off it.
+    ord <- match(colnames(expr_values[]), cell_metadata$cell_ID)
+    if (anyNA(ord)) {
+        stop("[runDWLSDeconv] expression matrix columns and cell_metadata ",
+            "cell_IDs do not all match", call. = FALSE)
+    }
+    cell_metadata <- cell_metadata[ord, ]
+
     cluster <- cell_metadata[[cluster_column]]
 
 
@@ -2932,23 +2664,17 @@ runDWLSDeconv <- function(
 
 
 
-#' @title runSpatialDeconv
+#' @title Cell type deconvolution, any method
 #' @name runSpatialDeconv
-#' @description Function to perform deconvolution based on single cell
-#' expression data
-#' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
+#' @description Estimate cell type proportions per spatial position,
+#' dispatching to one of the deconvolution methods. A thin router: every
+#' argument is forwarded to the chosen method.
+#' @inheritParams signature_analysis_params
+#' @inheritParams deconvolution_params
 #' @param deconv_method method to use for deconvolution
-#' @param expression_values expression values to use
-#' @param logbase base used for log normalization
-#' @param cluster_column name of cluster column
-#' @param sign_matrix signature matrix for deconvolution
-#' @param n_cell number of cells per spot
-#' @param cutoff cut off (default = 2)
-#' @param name name to give to spatial deconvolution results
-#' @param return_gobject return giotto object
 #' @returns giotto object or deconvolution results
+#' @md
+#' @family spatial deconvolution
 #' @seealso \code{\link{runDWLSDeconv}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")

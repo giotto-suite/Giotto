@@ -2528,7 +2528,7 @@ runNMF <- function(gobject,
 #' sparse -- \emph{requires} \pkg{rnndescent}.
 #'
 #' \code{method = "umap"} selects \code{\link[uwot]{umap}} instead, which is
-#' the engine used before Giotto 4.2.4. \code{umap2()} is the same algorithm
+#' the engine used before Giotto 4.3.0. \code{umap2()} is the same algorithm
 #' with a different backend selection and optimizer default rather than a
 #' different method, and the two have identical formals, so every other
 #' argument means the same thing under either.
@@ -3411,6 +3411,18 @@ runGiottoHarmony <- function(gobject,
 
     # get metadata
     metadata <- pDataDT(gobject, feat_type = feat_type, spat_unit = spat_unit)
+
+    # Alignment guard -- harmony::RunHarmony pairs `meta_data` rows with
+    # `data_mat` rows by position. The embedding's rownames and pDataDT's
+    # row order come from independent accessors with no shared-order
+    # guarantee, so reorder the metadata onto the embedding's cell axis.
+    # Otherwise the correction is driven by the wrong covariate per cell.
+    ord <- match(rownames(matrix_to_use), metadata$cell_ID)
+    if (anyNA(ord)) {
+        stop("[runGiottoHarmony] dim reduction rownames and pDataDT ",
+            "cell_IDs do not all match", call. = FALSE)
+    }
+    metadata <- metadata[ord, ]
 
     # start seed
     if (isTRUE(set_seed)) {

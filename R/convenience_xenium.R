@@ -121,8 +121,14 @@ setMethod(
         }
 
         ftype <- obj@filetype
-        ft_tab <- c("csv", "parquet")
-        ft_exp <- c("h5", "mtx") # zarr not yet supported
+        # "zarr" targets the .zarr.zip archives (or unzipped .zarr trees);
+        # reading them requires the GiottoDisk-backed pathway
+        # (importXeniumDisk() / importAteraDisk()). Detection also falls
+        # back to zarr automatically when a slot's requested filetype
+        # matches nothing but a zarr archive is present (zarr-only
+        # exports, e.g. Atera).
+        ft_tab <- c("csv", "parquet", "zarr")
+        ft_exp <- c("h5", "mtx", "zarr")
         if (!ftype$transcripts %in% ft_tab) {
             stop(
                 wrap_txt(
@@ -744,9 +750,13 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         )
     }
     .xenium_ftype <- function(paths, ftype) {
-        paths[grepl(pattern = paste0("\\.", ftype, "$"),
-                    x = paths,
-                    ignore.case = TRUE)]
+        # "zarr" covers both .zarr.zip archives and unzipped .zarr trees
+        pattern <- if (identical(ftype, "zarr")) {
+            "\\.zarr(\\.zip)?$"
+        } else {
+            paste0("\\.", ftype, "$")
+        }
+        paths[grepl(pattern = pattern, x = paths, ignore.case = TRUE)]
     }
 
     cell_meta_path <- .xenium_detect("cells", first = FALSE)
@@ -768,20 +778,53 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     nuc_bound_path <- .xenium_detect("nucleus_bound", first = FALSE)
     expr_path <- .xenium_detect("cell_feature_matrix", first = FALSE)
 
+    # zarr candidates. Boundaries and cell metadata both live INSIDE the
+    # cells zarr archive, so all three point at cells.zarr(.zip); the
+    # readers pick the polygon set / arrays out of it.
+    zarr_cells <- .xenium_ftype(cell_meta_path, "zarr")
+    zarr_tx <- .xenium_ftype(tx_path, "zarr")
+
     # select file formats based on reader settings
     tx_path <- .xenium_ftype(tx_path, filetype$transcripts)
-    cell_bound_path <- .xenium_ftype(cell_bound_path, filetype$boundaries)
-    nuc_bound_path <- .xenium_ftype(nuc_bound_path, filetype$boundaries)
+    if (identical(filetype$boundaries, "zarr")) {
+        cell_bound_path <- zarr_cells
+        nuc_bound_path <- zarr_cells
+    } else {
+        cell_bound_path <- .xenium_ftype(cell_bound_path, filetype$boundaries)
+        nuc_bound_path <- .xenium_ftype(nuc_bound_path, filetype$boundaries)
+    }
     cell_meta_path <- .xenium_ftype(cell_meta_path, filetype$cell_meta)
 
+    # auto-fallback: when the requested filetype matched nothing but a
+    # zarr archive is present (zarr-only exports, e.g. Atera), use it.
+    # Requested formats always win when present, so existing datasets
+    # detect exactly as before.
+    .zarr_fallback <- function(current, zarr_alt, what) {
+        if (length(current) || !length(zarr_alt)) return(current)
+        vmsg(sprintf(
+            "no %s file of the requested filetype found; using zarr: %s",
+            what, basename(zarr_alt[[1L]])
+        ))
+        zarr_alt
+    }
+    tx_path <- .zarr_fallback(tx_path, zarr_tx, "transcripts")
+    cell_bound_path <- .zarr_fallback(
+        cell_bound_path, zarr_cells, "cell boundaries")
+    nuc_bound_path <- .zarr_fallback(
+        nuc_bound_path, zarr_cells, "nucleus boundaries")
+    cell_meta_path <- .zarr_fallback(
+        cell_meta_path, zarr_cells, "cell metadata")
+
     # resolve expression path
+    zarr_expr <- .xenium_ftype(expr_path, "zarr")
     expr_candidates <- character(0)
     if ("h5" %in% filetype$expression) {
         expr_candidates <- c(
             expr_candidates,
             .xenium_ftype(expr_path, "h5"))
     }
-    # for mtx, check if directory instead
+    # for mtx, check if directory instead (excluding unzipped .zarr trees,
+    # which are also directories)
     if ("mtx" %in% filetype$expression) {
         is_dir <- vapply(
             expr_path,
@@ -789,17 +832,31 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
             FUN.VALUE = logical(1L))
         expr_candidates <- c(
             expr_candidates,
-            expr_path[is_dir])
+            setdiff(expr_path[is_dir], zarr_expr))
+    }
+    if ("zarr" %in% filetype$expression) {
+        expr_candidates <- c(expr_candidates, zarr_expr)
     }
     expr_candidates <- unique(expr_candidates)
+    # auto-fallback to zarr for zarr-only exports (see table slots above)
+    if (length(expr_candidates) == 0L && length(zarr_expr)) {
+        vmsg(sprintf(
+            "no expression file of the requested filetype found; using zarr: %s",
+            basename(zarr_expr[[1L]])
+        ))
+        expr_candidates <- zarr_expr
+    }
     if (length(expr_candidates) == 0L) {
         stop("No expression path matching allowed types (",
              paste(filetype$expression, collapse = ", "),
              ") found in: ", xenium_dir)
     }
-    mtx_dirs <- expr_candidates[vapply(expr_candidates,
-                                       checkmate::test_directory,
-                                       FUN.VALUE = logical(1L))]
+    zarr_hits <- .xenium_ftype(expr_candidates, "zarr")
+    mtx_dirs <- setdiff(
+        expr_candidates[vapply(expr_candidates,
+                               checkmate::test_directory,
+                               FUN.VALUE = logical(1L))],
+        zarr_hits)
     h5_files <- grep("\\.h5$",
                      expr_candidates,
                      ignore.case = TRUE,
@@ -809,6 +866,8 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         expr_path <- mtx_dirs[[1]]
     } else if (length(h5_files)) {
         expr_path <- h5_files[[1]]
+    } else if (length(zarr_hits)) {
+        expr_path <- zarr_hits[[1]]
     } else {
         stop("No usable expression path among candidates: ",
              paste(expr_candidates, collapse = ", "))
@@ -892,7 +951,10 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         ),
         "parquet" = do.call(.xenium_transcript_parquet, 
             args = c(a, list(output = parquet_output))),
-        "zarr" = stop("zarr not yet supported")
+        "zarr" = stop(wrap_txt(
+            "zarr input requires the disk-backed pathway: use",
+            "GiottoDisk::importXeniumDisk() or GiottoDisk::importAteraDisk()"
+        ), call. = FALSE)
     )
 
     # flip values vertically
@@ -1045,7 +1107,10 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     polys <- switch(e,
         "csv" = do.call(.xenium_poly_csv, args = c(a, list(cores = cores))),
         "parquet" = do.call(.xenium_poly_parquet, args = a),
-        "zarr" = stop("zarr not yet supported")
+        "zarr" = stop(wrap_txt(
+            "zarr input requires the disk-backed pathway: use",
+            "GiottoDisk::importXeniumDisk() or GiottoDisk::importAteraDisk()"
+        ), call. = FALSE)
     )
 
     if (is.null(part_col) || !part_col %in% colnames(polys)) {
@@ -1335,7 +1400,10 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     ex_list <- switch(e,
         "mtx" = do.call(.xenium_expression_mtx, args = a),
         "h5" = do.call(.xenium_expression_h5, args = a),
-        "zarr" = stop("zarr reading not yet implemented")
+        "zarr" = stop(wrap_txt(
+            "zarr input requires the disk-backed pathway: use",
+            "GiottoDisk::importXeniumDisk() or GiottoDisk::importAteraDisk()"
+        ), call. = FALSE)
     )
 
     # ensure list

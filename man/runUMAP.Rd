@@ -555,7 +555,7 @@ when \code{dim_reduction_to_use = NULL} and the expression matrix is
 sparse -- \emph{requires} \pkg{rnndescent}.
 
 \code{method = "umap"} selects \code{\link[uwot]{umap}} instead, which is
-the engine used before Giotto 4.2.4. \code{umap2()} is the same algorithm
+the engine used before Giotto 4.3.0. \code{umap2()} is the same algorithm
 with a different backend selection and optimizer default rather than a
 different method, and the two have identical formals, so every other
 argument means the same thing under either.

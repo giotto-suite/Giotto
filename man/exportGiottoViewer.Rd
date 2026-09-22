@@ -66,7 +66,7 @@ compute highly variable genes
 \details{
 Giotto Viewer expects the results from Giotto Analyzer in a
 specific format, which is provided by this function. To include enrichment
-results from {\code{\link{createSpatialEnrich}}} include the provided
+results from {\code{\link{runSpatialEnrich}}} include the provided
 spatial enrichment name (default PAGE or rank) and add the gene signature
 names (.e.g cell types) to the numeric annotations parameter.
 }

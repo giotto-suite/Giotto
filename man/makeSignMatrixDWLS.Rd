@@ -2,7 +2,7 @@
 % Please edit documentation in R/spatial_enrichment.R
 \name{makeSignMatrixDWLS}
 \alias{makeSignMatrixDWLS}
-\title{makeSignMatrixDWLS}
+\title{Build a DWLS signature matrix from a Giotto object}
 \usage{
 makeSignMatrixDWLS(
   gobject,
@@ -17,32 +17,34 @@ makeSignMatrixDWLS(
 )
 }
 \arguments{
-\item{gobject}{Giotto object of single cell}
+\item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
-\item{feat_type}{feature type to use}
+\item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{expression_values}{expression values to use}
+\item{expression_values}{character. Which expression values to use, e.g.
+"normalized". A method's own default is shown in its Usage section.}
 
 \item{reverse_log}{reverse a log-normalized expression matrix}
 
 \item{log_base}{the logarithm base (default = 2)}
 
-\item{sign_gene}{all of DE genes (signature)}
+\item{sign_gene}{features to use, typically differentially expressed ones}
 
 \item{cell_type_vector}{vector with cell types (length = ncol(matrix))}
 
 \item{cell_type}{deprecated, use \code{cell_type_vector}}
 }
 \value{
-matrix
+matrix of mean expression, features by cell type
 }
 \description{
-Function to convert a matrix within a Giotto object into a
-format that can be used with \code{\link{runDWLSDeconv}} for deconvolution.
-A vector of cell types for parameter \code{cell_type_vector} can be created
-from the cell metadata (\code{\link{pDataDT}}).
+Convert expression held in a Giotto object into the
+mean-expression reference \code{\link{runDWLSDeconv}} expects: signature
+features by cell type, each entry the mean expression of that feature in
+that type. A vector for \code{cell_type_vector} can be taken from the cell
+metadata (\code{\link{pDataDT}}).
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -60,4 +62,10 @@ makeSignMatrixDWLS(
 }
 \seealso{
 \code{\link{runDWLSDeconv}}
+
+Other spatial deconvolution:
+\code{\link[=makeSignMatrixDWLSfromMatrix]{makeSignMatrixDWLSfromMatrix()}},
+\code{\link[=runDWLSDeconv]{runDWLSDeconv()}},
+\code{\link[=runSpatialDeconv]{runSpatialDeconv()}}
 }
+\concept{spatial deconvolution}

@@ -33,40 +33,48 @@ feat signature}
 
 \item{sign_list}{list of feats in signature}
 
-\item{gobject}{Giotto object}
+\item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
-\item{feat_type}{feature type}
+\item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{sign_matrix}{binary matrix of signature feats for each cell type /
-process. Alternatively a list of signature feats can be provided to
-\code{makeSignMatrixPAGE()}, which will create the matrix for you.}
+\item{sign_matrix}{binary matrix of signature features (rows) by cell type
+or process (columns), 1 where the feature marks the type. Build one with
+\code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
-\item{expression_values}{expression values to use}
+\item{expression_values}{character. Which expression values to use, e.g.
+"normalized". A method's own default is shown in its Usage section.}
 
-\item{min_overlap_genes}{minimum number of overlapping feats in
-\code{sign_matrix} required to calculate enrichment}
+\item{min_overlap_genes}{minimum number of overlapping features in
+\code{sign_matrix} required to calculate enrichment (PAGE)}
 
-\item{reverse_log_scale}{reverse expression values from log scale}
+\item{reverse_log_scale}{logical. Undo a log transform before averaging
+(default = TRUE).}
 
-\item{logbase}{log base to use if reverse_log_scale = TRUE}
+\item{logbase}{numeric. Log base to undo when \code{reverse_log_scale = TRUE}
+(default = 2).}
 
-\item{output_enrichment}{how to return enrichment output}
+\item{output_enrichment}{character. "original" (default) or "zscore", which
+standardizes the scores within each cell type.}
 
-\item{p_value}{logical. Default = \code{FALSE}. calculate p-values}
+\item{p_value}{logical. Calculate p-values (default = FALSE).}
 
-\item{include_depletion}{calculate both enrichment and depletion}
+\item{include_depletion}{also test for depletion, not enrichment only
+(default = FALSE)}
 
-\item{n_times}{number of permutations to calculate for p_value}
+\item{n_times}{number of permutation iterations to calculate p-value}
 
 \item{max_block}{number of lines to process together (default = 20e6)}
 
-\item{name}{to give to spatial enrichment results, default = PAGE}
+\item{name}{character. Name to store the result under in the giotto object's
+spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
+the Usage section.}
 
 \item{verbose}{be verbose}
 
-\item{return_gobject}{return giotto object}
+\item{return_gobject}{logical. Return the giotto object with the result
+added (default = TRUE), or the result object on its own.}
 }
 \value{
 \code{matrix} (\code{makeSignMatrixPAGE()}) and
@@ -125,3 +133,15 @@ spatPlot2D(g,
     color_as_factor = FALSE
 )
 }
+\seealso{
+Other feature set enrichment:
+\code{\link{enrich_hyper}},
+\code{\link{enrich_page}},
+\code{\link{enrich_param}},
+\code{\link{enrich_rank}},
+\code{\link[=makeSignMatrixRank]{makeSignMatrixRank()}},
+\code{\link[=runHyperGeometricEnrich]{runHyperGeometricEnrich()}},
+\code{\link[=runRankEnrich]{runRankEnrich()}},
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
+}
+\concept{feature set enrichment}

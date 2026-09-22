@@ -2,7 +2,7 @@
 % Please edit documentation in R/spatial_enrichment.R
 \name{runHyperGeometricEnrich}
 \alias{runHyperGeometricEnrich}
-\title{runHyperGeometricEnrich}
+\title{Hypergeometric feature signature enrichment}
 \usage{
 runHyperGeometricEnrich(
   gobject,
@@ -20,37 +20,48 @@ runHyperGeometricEnrich(
 )
 }
 \arguments{
-\item{gobject}{Giotto object}
+\item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{spat_unit}{spatial unit (e.g. "cell")}
 
-\item{feat_type}{feature type}
+\item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{sign_matrix}{Matrix of signature genes for each cell type / process}
+\item{sign_matrix}{binary matrix of signature features (rows) by cell type
+or process (columns), 1 where the feature marks the type. Build one with
+\code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
-\item{expression_values}{expression values to use}
+\item{expression_values}{character. Which expression values to use, e.g.
+"normalized". A method's own default is shown in its Usage section.}
 
-\item{reverse_log_scale}{reverse expression values from log scale}
+\item{reverse_log_scale}{logical. Undo a log transform before averaging
+(default = TRUE).}
 
-\item{logbase}{log base to use if reverse_log_scale = TRUE}
+\item{logbase}{numeric. Log base to undo when \code{reverse_log_scale = TRUE}
+(default = 2).}
 
-\item{top_percentage}{percentage of cells that will be considered to have
-gene expression with matrix binarization}
+\item{top_percentage}{percentage of features per cell treated as expressed
+when binarizing (default = 5)}
 
-\item{output_enrichment}{how to return enrichment output}
+\item{output_enrichment}{character. "original" (default) or "zscore", which
+standardizes the scores within each cell type.}
 
-\item{p_value}{calculate p-values (boolean, default = FALSE)}
+\item{p_value}{logical. Calculate p-values (default = FALSE).}
 
-\item{name}{to give to spatial enrichment results, default = hypergeometric}
+\item{name}{character. Name to store the result under in the giotto object's
+spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
+the Usage section.}
 
-\item{return_gobject}{return giotto object}
+\item{return_gobject}{logical. Return the giotto object with the result
+added (default = TRUE), or the result object on its own.}
 }
 \value{
 data.table with enrichment results
 }
 \description{
-Function to calculate gene signature enrichment scores per
-spatial position using a hypergeometric test.
+Score each spatial position against cell type or process
+signatures with a hypergeometric test. Each cell's most highly expressed
+features are binarized, and each signature is tested for over-representation
+among them.
 }
 \details{
 The enrichment score is calculated based on the p-value from the
@@ -71,3 +82,15 @@ colnames(sign_matrix) <- paste0("celltype_", unique(x$cluster))
 
 runHyperGeometricEnrich(gobject = g, sign_matrix = sign_matrix)
 }
+\seealso{
+Other feature set enrichment:
+\code{\link{enrich_hyper}},
+\code{\link{enrich_page}},
+\code{\link{enrich_param}},
+\code{\link{enrich_rank}},
+\code{\link{enrichment_PAGE}},
+\code{\link[=makeSignMatrixRank]{makeSignMatrixRank()}},
+\code{\link[=runRankEnrich]{runRankEnrich()}},
+\code{\link[=runSpatialEnrich]{runSpatialEnrich()}}
+}
+\concept{feature set enrichment}

@@ -1,6 +1,16 @@
-#' @title doFeatureSetEnrichment
+#' @title Gene Set Enrichment Analysis via the external GSEA tool
 #' @name doFeatureSetEnrichment
-#' @description Preform Gene Set Enrichment Analysis using marker genes
+#' @description
+#' Run Gene Set Enrichment Analysis by driving the Broad Institute's GSEA
+#' command-line application over a ranked feature list.
+#'
+#' **This is not one of Giotto's spatial enrichment methods and does not behave
+#' like them.** It takes no `giotto` object, reads and writes files rather than
+#' object slots, and requires a separately installed Java executable plus a
+#' downloaded MSigDB collection. Its input is a ranked `.rnk` file, typically
+#' built from marker results. For per-cell scoring of a signature against a
+#' Giotto object, see [runSpatialEnrich()] and the feature set enrichment
+#' family instead.
 #' @param dryrun do a dry run, default TRUE.
 #' @param path_to_GSEA path to GSEA command line executable, e.g. gsea-XXX.jar.
 #' See details (1.) for more information.
@@ -48,6 +58,22 @@
 #' For more information on parameter conventions,
 #' please reference GSEA's documentation here:
 #' https://www.gsea-msigdb.org/gsea/doc/GSEAUserGuideTEXT.htm#_Syntax
+#' @md
+#' @seealso [runSpatialEnrich()] for per-cell signature scoring on a giotto
+#' object, which is a different operation despite the similar name.
+#' @examples
+#' # Requires a separately installed GSEA executable and an MSigDB collection,
+#' # so this cannot run in an example. `dryrun = TRUE` (the default) prints the
+#' # command that would be issued rather than running it.
+#' \dontrun{
+#' doFeatureSetEnrichment(
+#'     dryrun = TRUE,
+#'     path_to_GSEA = "~/GSEA_4.3.2/gsea-cli.sh",
+#'     GSEA_dataset = "~/msigdb/h.all.v2023.1.Hs.symbols.gmt",
+#'     GSEA_ranked_file = "~/my_markers.rnk",
+#'     output_folder = tempdir()
+#' )
+#' }
 #' @export
 doFeatureSetEnrichment <- function(
         dryrun = TRUE,

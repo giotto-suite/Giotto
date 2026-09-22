@@ -99,6 +99,20 @@ adjustGiottoMatrix <- function(gobject,
     )
 
 
+    # Alignment guard -- limma::removeBatchEffect pairs `batch` and
+    # `covariates` with the columns of `x` by position. Expression and cell
+    # metadata are fetched through independent accessors, and the object
+    # model neither guarantees a shared cell order nor restores one, so key
+    # the metadata onto the expression cell axis before pulling columns off
+    # it. Without this, a cell can be corrected against another cell's batch
+    # and the result looks entirely normal.
+    ord <- match(colnames(expr_data[]), cell_metadata$cell_ID)
+    if (anyNA(ord)) {
+        stop("[adjustGiottoMatrix] expression matrix columns and ",
+            "cell_metadata cell_IDs do not all match", call. = FALSE)
+    }
+    cell_metadata <- cell_metadata[ord, ]
+
     # batch columns
     if (!is.null(batch_columns)) {
         batch_column_1 <- cell_metadata[[batch_columns[1]]]
