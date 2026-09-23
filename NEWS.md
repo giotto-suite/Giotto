@@ -15,6 +15,27 @@ say 4.3.0. The `findGiniMarkers()` / `findMarkers()` gini-threshold renames
 keep `when = "4.2.4"` — they are on `suite_dev` too, and will ship from there
 under that version.
 
+
+
+## bug fixes
+- `getDendrogramSplits()` returned a wrong set of splits whenever two merges of
+  the cluster dendrogram shared a height. The internal node walk located each
+  node by matching its height against a list it never removed split nodes from,
+  so a tie made it re-select a node it had already split: that split was
+  emitted twice and its true sibling never at all. The result still had
+  `k - 1` rows, so nothing errored. It now walks `hclust$merge` directly, which
+  also fixes two latent problems on the same code path — heights were assumed
+  to increase with merge order, which `"centroid"` and `"median"` linkage
+  violate, and the candidate-list index advanced past entries the list had
+  compacted away. **Results change** on any dataset with tied merge heights,
+  which near-duplicate clusters readily produce.
+- `getDendrogramSplits()` no longer prints one line per merge by default.
+
+## changes
+- `getDendrogramSplits()` returns `node_h` as a numeric column rather than a
+  list column, and `nodeID` as the `hclust$merge` row index rather than a row
+  counter, so per-node results can be joined back to the tree.
+
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr
   output (`.zarr.zip` archives and unzipped `.zarr` trees): `filetype` accepts
