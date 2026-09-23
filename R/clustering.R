@@ -3850,108 +3850,60 @@ mergeClusters <- function(
 
 
 
-#' @title Split dendrogram in two
-#' @name .split_dendrogram_in_two
-#' @description Merge selected clusters based on pairwise correlation scores
-#' and size of cluster.
-#' @param dend dendrogram object
-#' @returns list of two dendrograms and height of node
-#' @keywords internal
-.split_dendrogram_in_two <- function(dend) {
-    top_height <- attributes(dend)$height
-    divided_leaves_labels <- dendextend::cut_lower_fun(dend, h = top_height)
-
-    # this works for both numericala nd character leave names
-    all_leaves <- dendextend::get_leaves_attr(dend = dend, attribute = "label")
-    selected_labels_ind_1 <- all_leaves %in% divided_leaves_labels[[1]]
-    selected_labels_ind_2 <- all_leaves %in% divided_leaves_labels[[2]]
-    numerical_leaves <- unlist(dend)
-    names(numerical_leaves) <- all_leaves
-
-    dend_1 <- dendextend::find_dendrogram(
-        dend = dend,
-        selected_labels = names(numerical_leaves[selected_labels_ind_1])
-    )
-    dend_2 <- dendextend::find_dendrogram(
-        dend = dend,
-        selected_labels = names(numerical_leaves[selected_labels_ind_2])
-    )
-
-    return(list(theight = top_height, dend1 = dend_1, dend2 = dend_2))
-}
 
 
 
 #' @title Node clusters
 #' @name .node_clusters
-#' @description Merge selected clusters based on pairwise correlation scores
-#' and size of cluster.
-#' @param hclus_obj hclus object
-#' @param verbose be verbose
-#' @returns list of splitted dendrogram nodes from high to low node height
+#' @description Enumerate the two leaf sets either side of every internal node
+#' of a hierarchical clustering.
+#' @param hclus_obj hclust object
+#' @param verbose unused, kept for backward compatibility
+#' @returns list whose second element holds one entry per internal node, each
+#' with the node height, the leaf labels on each side, and the `merge` row the
+#' node corresponds to. Ordered from high to low node height.
+#' @details
+#' Walks `hclust$merge` directly rather than repeatedly locating a node by its
+#' height in a growing list of dendrograms. The height-matching approach this
+#' replaced was wrong in three ways, all silent: a node was never removed from
+#' the candidate list once split, so with **tied merge heights**
+#' `which.min()` re-selected the same node and emitted its split twice while
+#' the true sibling was never split; heights were assumed to increase with
+#' merge order, which `"centroid"` and `"median"` linkage violate; and the
+#' list index advanced by two per iteration while the list was compacted in
+#' place. Row count was `k - 1` either way, so none of it surfaced as an error.
 #' @keywords internal
 .node_clusters <- function(hclus_obj, verbose = TRUE) {
-    heights <- sort(hclus_obj[["height"]], decreasing = TRUE)
-    mydend <- stats::as.dendrogram(hclus_obj)
+    merge_mat <- hclus_obj[["merge"]]
+    heights <- hclus_obj[["height"]]
+    labels <- hclus_obj[["labels"]]
+    if (is.null(labels)) labels <- as.character(seq_len(nrow(merge_mat) + 1L))
 
-
-    result_list <- list()
-    j <- 1
-
-    dend_list <- list()
-    i <- 1
-    dend_list[[i]] <- mydend
-
-    ## create split at each height ##
-    for (n_height in heights) {
-        if (verbose == TRUE) cat("height ", n_height, "\n")
-
-        # only use dendrogram objects
-        ind <- lapply(dend_list, FUN = function(x) is(x, "dendrogram"))
-        dend_list <- dend_list[unlist(ind)]
-
-        # check which heights are available
-        available_h <- as.numeric(unlist(lapply(
-            dend_list,
-            FUN = function(x) attributes(x)$height
-        )))
-
-        # get dendrogram associated with height and split in two
-        select_dend_ind <- which.min(abs(available_h - n_height))
-        select_dend <- dend_list[[select_dend_ind]]
-        tempres <- .split_dendrogram_in_two(dend = select_dend)
-
-        # find leave labels
-        toph <- tempres[[1]]
-        first_group <- dendextend::get_leaves_attr(
-            tempres[[2]],
-            attribute = "label"
+    # In `merge`, a negative entry is a leaf (by index) and a positive entry is
+    # an earlier merge row, so the leaf set under one side is a plain recursion.
+    leaves_of <- function(node) {
+        if (node < 0L) {
+            return(labels[-node])
+        }
+        c(
+            leaves_of(merge_mat[node, 1L]),
+            leaves_of(merge_mat[node, 2L])
         )
-        second_group <- dendextend::get_leaves_attr(
-            tempres[[3]],
-            attribute = "label"
-        )
-
-        result_list[[j]] <- list(
-            "height" = toph,
-            "first" = first_group,
-            "sec" = second_group
-        )
-        j <- j + 1
-
-
-
-        ## add dendrograms to list
-        ind <- lapply(tempres, FUN = function(x) is(x, "dendrogram"))
-        tempres_dend <- tempres[unlist(ind)]
-
-        dend_list[[i + 1]] <- tempres_dend[[1]]
-        dend_list[[i + 2]] <- tempres_dend[[2]]
-
-        i <- i + 2
     }
 
-    return(list(dend_list, result_list))
+    ord <- order(heights, decreasing = TRUE)
+    result_list <- lapply(ord, function(i) {
+        list(
+            "height" = heights[[i]],
+            "first" = leaves_of(merge_mat[i, 1L]),
+            "sec" = leaves_of(merge_mat[i, 2L]),
+            "node" = i
+        )
+    })
+
+    # First element was a list of dendrogram objects that no caller read; the
+    # shape is kept so the return contract does not change.
+    return(list(NULL, result_list))
 }
 
 
@@ -4005,9 +3957,6 @@ getDendrogramSplits <- function(
         feat_type = feat_type
     )
 
-    # package check for dendextend
-    package_check(pkg_name = "dendextend", repository = "CRAN")
-
     # data.table variables
     nodeID <- NULL
 
@@ -4052,11 +4001,17 @@ getDendrogramSplits <- function(
 
     splitList <- .node_clusters(hclus_obj = corclus, verbose = verbose)
 
-    splitDT <- data.table::as.data.table(t_flex(
-        data.table::as.data.table(splitList[[2]])
-    ))
-    colnames(splitDT) <- c("node_h", "tree_1", "tree_2")
-    splitDT[, nodeID := paste0("node_", seq_len(.N))]
+    # Built column by column rather than transposed out of a ragged
+    # `as.data.table(list)`: that route made every column a list, including the
+    # height, and left `nodeID` as a row counter with no relationship to the
+    # tree. `node_h` is now numeric and `nodeID` is the `merge` row, so a
+    # per-node result can be joined back to the clustering it came from.
+    splitDT <- data.table::data.table(
+        node_h = vapply(nodes, function(x) x[["height"]], numeric(1L)),
+        tree_1 = lapply(nodes, function(x) x[["first"]]),
+        tree_2 = lapply(nodes, function(x) x[["sec"]]),
+        nodeID = vapply(nodes, function(x) x[["node"]], integer(1L))
+    )
 
     return(splitDT)
 }
