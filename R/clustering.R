@@ -4017,6 +4017,271 @@ calculateClusterTree <- function(gobject,
 
 
 
+#' @title annotateClusterTree
+#' @name annotateClusterTree
+#' @description Write cluster-tree annotations onto a giotto object at one or
+#' more levels of granularity, from a single set of labels.
+#' @param gobject giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param tree an `hclust` over the clusters, from [calculateClusterTree()]
+#' @param labels the annotation, as a list with `clusters` (one label per leaf)
+#' and optionally `nodes` (one label per internal node). Both may be named
+#' character vectors or `data.frame`s; see details.
+#' @param cluster_column name of the cell metadata column holding the clusters
+#' @param k,h granularity, passed to [stats::cutree()]. Either may be a vector,
+#' giving one annotation column per value. `k = NULL, h = NULL` writes the leaf
+#' labels unchanged.
+#' @param name names for the columns written. Defaults to `cell_types_k<k>` /
+#' `cell_types_h<h>`, or `cell_types` for the leaf level.
+#' @param ... passed to [GiottoClass::annotateGiotto()]
+#' @returns the giotto object, with one cell metadata column per requested level
+#' @details
+#' A tree annotated at every node can be read at any depth without asking the
+#' annotator again: cutting it at `k` groups and naming each group is pure tree
+#' arithmetic. That is what this does, so a user can compare a coarse and a fine
+#' labelling of the same cells side by side.
+#'
+#' @section Resolving a label for a group:
+#' An annotator will not always name every node, and a partially labelled tree
+#' still has to produce a column with no holes in it. Each group takes the first
+#' of these that resolves:
+#'
+#' 1. the label of the group's own root node
+#' 2. the leaf's own label, when the group is a single cluster
+#' 3. the nearest **labelled ancestor** -- a coarser name is always true of a
+#'    subset, so this is a widening, not a guess
+#' 4. the majority label among the group's leaves
+#'
+#' The order of 2 and 3 is load-bearing. No internal node spans a single leaf,
+#' so at the finest cut every group is a singleton with no node of its own; if
+#' the ancestor search came first, the finest level would come back coarser
+#' than the leaf labels it was built from.
+#' @seealso [calculateClusterTree()], [writeClusterTreeQuery()],
+#' [GiottoVisuals::plotClusterTree()]
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' labs <- list(clusters = stats::setNames(
+#'     paste("type", tree$labels), tree$labels
+#' ))
+#' g <- annotateClusterTree(g,
+#'     tree = tree, labels = labs,
+#'     cluster_column = "leiden_clus", k = c(2, 4)
+#' )
+#' pDataDT(g)
+#' @export
+annotateClusterTree <- function(gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        tree,
+        labels,
+        cluster_column,
+        k = NULL,
+        h = NULL,
+        name = NULL,
+        ...) {
+    if (!inherits(tree, "hclust")) {
+        stop("[annotateClusterTree] `tree` must be an `hclust`, as returned ",
+            "by `calculateClusterTree()`. Got: ",
+            paste(class(tree), collapse = "/"), ".", call. = FALSE)
+    }
+    .check_tree_granularity(tree, k, h, "annotateClusterTree")
+
+    leaf_lab <- .tree_label_vector(labels$clusters, tree$labels,
+        what = "clusters")
+    node_lab <- if (!is.null(labels$nodes)) {
+        .tree_label_vector(labels$nodes,
+            as.character(seq_len(nrow(tree$merge))), what = "nodes",
+            complete = FALSE)
+    } else {
+        stats::setNames(character(0L), character(0L))
+    }
+
+    levels_req <- c(
+        if (!is.null(k)) stats::setNames(as.list(k), paste0("k", k)),
+        if (!is.null(h)) stats::setNames(as.list(h), paste0("h", h))
+    )
+    if (!length(levels_req)) {
+        levels_req <- list(leaf = NULL)
+    }
+    if (!is.null(name) && length(name) != length(levels_req)) {
+        stop("[annotateClusterTree] `name` must give one name per requested ",
+            "level: ", length(levels_req), " expected, ", length(name),
+            " given.", call. = FALSE)
+    }
+
+    for (i in seq_along(levels_req)) {
+        tag <- names(levels_req)[i]
+        val <- levels_req[[i]]
+        vec <- if (identical(tag, "leaf")) {
+            leaf_lab
+        } else if (startsWith(tag, "k")) {
+            .tree_group_labels(tree, leaf_lab, node_lab,
+                grp = stats::cutree(tree, k = val))
+        } else {
+            .tree_group_labels(tree, leaf_lab, node_lab,
+                grp = stats::cutree(tree, h = val))
+        }
+        col <- if (!is.null(name)) {
+            name[i]
+        } else if (identical(tag, "leaf")) {
+            "cell_types"
+        } else {
+            paste0("cell_types_", tag)
+        }
+        gobject <- GiottoClass::annotateGiotto(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            annotation_vector = vec, cluster_column = cluster_column,
+            name = col, ...
+        )
+    }
+    gobject
+}
+
+
+
+# `stats::cutree()` refuses a `k` beyond the leaf count and an `h` outside the
+# tree, but says so in its own terms -- "elements of 'k' must be between 1 and
+# n" names neither the argument the user passed nor the tree they passed it
+# for. Shared by the Giotto side; GiottoVisuals carries its own copy for the
+# same reason it carries its own label resolver.
+#' @keywords internal
+#' @noRd
+.check_tree_granularity <- function(tree, k = NULL, h = NULL, where) {
+    n <- length(tree$labels)
+    if (!is.null(k)) {
+        if (!is.numeric(k) || anyNA(k)) {
+            stop("[", where, "] `k` must be numeric and not NA.",
+                call. = FALSE)
+        }
+        bad <- k[k < 1 | k > n]
+        if (length(bad)) {
+            stop("[", where, "] `k` must be between 1 and the number of ",
+                "clusters in the tree (", n, "). Got: ",
+                paste(unique(bad), collapse = ", "), ".", call. = FALSE)
+        }
+    }
+    if (!is.null(h)) {
+        if (!is.numeric(h) || anyNA(h)) {
+            stop("[", where, "] `h` must be numeric and not NA.",
+                call. = FALSE)
+        }
+        rng <- range(tree$height)
+        bad <- h[h < 0]
+        if (length(bad)) {
+            stop("[", where, "] `h` must not be negative. Got: ",
+                paste(unique(bad), collapse = ", "), ".", call. = FALSE)
+        }
+        # above the root every leaf is one group, which cutree handles; warn
+        # rather than refuse, since it is a degenerate answer and not an error
+        if (any(h > rng[2L])) {
+            warning("[", where, "] `h` above the root height (",
+                signif(rng[2L], 3), ") puts every cluster in one group.",
+                call. = FALSE)
+        }
+    }
+    invisible(TRUE)
+}
+
+# Accept either a named vector or a two-column table for the labels, so a
+# caller can hand over `fromJSON()` output without reshaping it first.
+#' @keywords internal
+#' @noRd
+.tree_label_vector <- function(x, ids, what, complete = TRUE) {
+    if (is.null(x)) {
+        stop("[annotateClusterTree] `labels$", what, "` is required.",
+            call. = FALSE)
+    }
+    if (is.data.frame(x)) {
+        key <- intersect(c("cluster", "node", "id"), names(x))[1L]
+        val <- intersect(c("cell_type", "label", "name"), names(x))[1L]
+        if (is.na(key) || is.na(val)) {
+            stop("[annotateClusterTree] `labels$", what, "` as a table needs ",
+                "an id column (cluster/node/id) and a label column ",
+                "(cell_type/label/name). Got: ",
+                paste(names(x), collapse = ", "), ".", call. = FALSE)
+        }
+        x <- stats::setNames(as.character(x[[val]]), as.character(x[[key]]))
+    }
+    x <- stats::setNames(as.character(x), as.character(names(x)))
+    if (isTRUE(complete)) {
+        miss <- setdiff(ids, names(x))
+        if (length(miss)) {
+            stop("[annotateClusterTree] `labels$", what, "` is missing ",
+                length(miss), " of ", length(ids), ": ",
+                paste(utils::head(miss, 5L), collapse = ", "),
+                if (length(miss) > 5L) ", ..." else "", call. = FALSE)
+        }
+    }
+    x
+}
+
+
+# One label per cut group, by the resolution order documented on
+# `annotateClusterTree()`. Returns a vector named by leaf, ready for
+# `annotateGiotto()`.
+#' @keywords internal
+#' @noRd
+.tree_group_labels <- function(tree, leaf_lab, node_lab, grp) {
+    leaves_of <- function(node) {
+        if (node < 0L) return(tree$labels[-node])
+        c(leaves_of(tree$merge[node, 1L]), leaves_of(tree$merge[node, 2L]))
+    }
+    # merge row -> its leaf set, so a group can be matched to the node that
+    # spans exactly it, and to every node that contains it
+    sets <- lapply(seq_len(nrow(tree$merge)),
+        function(i) sort(leaves_of(i)))
+    keys <- vapply(sets, paste, character(1L), collapse = "\r")
+
+    out <- character(0L)
+    for (gi in unique(grp)) {
+        members <- sort(names(grp)[grp == gi])
+        lab <- NA_character_
+
+        # 1. the node spanning exactly this group
+        # `[[` on a named vector *errors* for an absent name rather than
+        # returning NULL, so the membership test has to come first -- `%null%`
+        # never gets a chance to run.
+        hit <- match(paste(members, collapse = "\r"), keys)
+        if (!is.na(hit) && as.character(hit) %in% names(node_lab)) {
+            lab <- node_lab[[as.character(hit)]]
+        }
+
+        # 2. a group of one leaf is that leaf. This has to come before the
+        #    ancestor search: no internal node spans a single leaf, so a
+        #    singleton would otherwise inherit a clade name and the finest
+        #    level would come back coarser than the labels it was built from.
+        if (is.na(lab) && length(members) == 1L &&
+                members %in% names(leaf_lab)) {
+            lab <- leaf_lab[[members]]
+        }
+
+        # 3. nearest labelled ancestor: the smallest labelled node that
+        #    contains every member
+        if (is.na(lab) && length(node_lab)) {
+            contains <- vapply(sets, function(s) all(members %in% s),
+                logical(1L))
+            cand <- which(contains & as.character(seq_along(sets)) %in%
+                names(node_lab))
+            if (length(cand)) {
+                lab <- node_lab[[as.character(cand[which.min(
+                    lengths(sets)[cand])])]]
+            }
+        }
+
+        # 4. otherwise the leaves themselves decide
+        if (is.na(lab)) {
+            lv <- leaf_lab[members]
+            lab <- names(sort(table(lv), decreasing = TRUE))[1L]
+        }
+        out[members] <- lab
+    }
+    out[tree$labels]
+}
+
+
 #' @title getDendrogramSplits
 #' @name getDendrogramSplits
 #' @description Split dendrogram at each node and keep the leave (label)

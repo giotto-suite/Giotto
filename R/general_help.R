@@ -358,6 +358,291 @@ rank_binarize_wrapper <- function(
 
 ## chatgpt queries ####
 
+#' @title writeClusterTreeQuery
+#' @name writeClusterTreeQuery
+#' @description Build the annotation query for a cluster tree: the tree itself,
+#' the markers separating the two sides of every branch, and the per-cluster
+#' markers with a specificity flag.
+#' @param gobject giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param expression_values feature expression values to use. Consulted only
+#' for evidence layers this function has to compute itself; one supplied by the
+#' caller was already built on some choice of values.
+#' @param cluster_column name of the cell metadata column holding the clusters
+#' @param tree an `hclust` over the clusters, from [calculateClusterTree()]
+#' @param splits the node table for `tree`, from [getDendrogramSplits()].
+#' Derived from `tree` when not supplied.
+#' @param markers one-vs-all marker table, from [findMarkers_one_vs_all()].
+#' Computed when not supplied.
+#' @param gini_markers gini marker table, from [findGiniMarkers_one_vs_all()].
+#' Computed when not supplied; supplies the specificity flag.
+#' @param node_markers output of [findNodeMarkers()]. Computed when not
+#' supplied.
+#' @param context named list of whatever is known about the sample --
+#' `tissue`, `disease`, `assay`, anything else. Rendered as `Name: value`
+#' lines at the top of the query.
+#' @param margin_cut detection margin, in percentage points, below which a
+#' cluster is flagged as having no feature of its own
+#' @param top_markers,top_gini,top_node how many genes to list per cluster and
+#' per branch side
+#' @param file_name optional path to write the query to. The text is returned
+#' either way.
+#' @returns the query, as a character vector, invisibly
+#' @details
+#' Runs no LLM. It assembles the text to hand to one, exactly as
+#' [writeChatGPTqueryDEG()] does for a flat marker list.
+#'
+#' What it adds over a flat list is structure. The query asks for a label at
+#' **every internal node** as well as every leaf, and a node's label must name
+#' the clade beneath it rather than describe the split. That is what lets
+#' [annotateClusterTree()] cut the answer at any granularity afterwards without
+#' asking the model again.
+#' @seealso [calculateClusterTree()], [findNodeMarkers()],
+#' [annotateClusterTree()]
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' q <- writeClusterTreeQuery(g,
+#'     cluster_column = "leiden_clus", tree = tree,
+#'     context = list(tissue = "mouse brain")
+#' )
+#' head(q, 20)
+#' @export
+writeClusterTreeQuery <- function(gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        tree,
+        splits = NULL,
+        markers = NULL,
+        gini_markers = NULL,
+        node_markers = NULL,
+        context = list(),
+        margin_cut = 25,
+        top_markers = 20L,
+        top_gini = 5L,
+        top_node = 10L,
+        file_name = NULL) {
+    # data.table variables
+    cluster <- feats <- detection_margin <- comb_score <- nodeID <- NULL
+    side <- pi <- logFC <- p.value <- NULL
+
+    if (!inherits(tree, "hclust")) {
+        stop("[writeClusterTreeQuery] `tree` must be an `hclust`, as returned ",
+            "by `calculateClusterTree()`. Got: ",
+            paste(class(tree), collapse = "/"), ".", call. = FALSE)
+    }
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+    )
+    values <- match.arg(
+        expression_values,
+        unique(c("normalized", "scaled", "custom", expression_values))
+    )
+
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = TRUE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[writeClusterTreeQuery] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    clus <- as.character(cell_meta[[cluster_column]])
+    lvls <- tree$labels
+    ncell <- vapply(lvls, function(k) sum(clus == k), integer(1L))
+
+    # Each evidence layer is computed only if the caller did not bring it. The
+    # message is deliberate: these are full passes over the expression values,
+    # and a caller who already has them should not pay for them twice.
+    if (is.null(splits)) {
+        splits <- getDendrogramSplits(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column, tree = tree,
+            show_dend = FALSE, verbose = FALSE
+        )
+    }
+    if (is.null(markers)) {
+        vmsg(.v = TRUE, "computing one-vs-all markers")
+        markers <- findMarkers_one_vs_all(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column, method = "scran",
+            min_feats = 10, verbose = FALSE
+        )
+    }
+    if (is.null(gini_markers)) {
+        vmsg(.v = TRUE, "computing gini markers")
+        gini_markers <- findGiniMarkers_one_vs_all(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column, min_feats = 10, verbose = FALSE
+        )
+    }
+    if (is.null(node_markers)) {
+        vmsg(.v = TRUE, "computing node markers")
+        node_markers <- findNodeMarkers(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column, tree = tree, splits = splits,
+            method = "scran", verbose = FALSE
+        )
+    }
+    markers <- data.table::as.data.table(markers)
+    gini_markers <- data.table::as.data.table(gini_markers)
+
+    spec <- gini_markers[, list(
+        margin = max(detection_margin),
+        best_gene = feats[which.max(detection_margin)]
+    ), by = cluster]
+
+    P <- character(0L)
+    add <- function(...) P <<- c(P, sprintf(...))
+    .genes <- function(x) paste(x, collapse = ", ")
+
+    add("# Cell type annotation task"); add("")
+    for (nm in names(context)) {
+        add("%s: %s", nm, paste(as.character(context[[nm]]), collapse = ", "))
+    }
+    add("%s cells in %d transcriptional clusters.",
+        format(length(clus), big.mark = ","), length(lvls))
+    add("Fix broad lineages at the TOP of the tree first, then refine downward")
+    add("to one cell type per cluster."); add("")
+
+    add("## 1. Cluster tree (root first; indentation = depth)"); add("")
+    .render <- function(nd, depth) {
+        if (stats::is.leaf(nd)) {
+            lab <- attr(nd, "label")
+            add("%s- cluster %s (%s cells)", strrep("  ", depth), lab,
+                format(ncell[[lab]], big.mark = ","))
+        } else {
+            add("%snode %s (height %.3f)", strrep("  ", depth),
+                attr(nd, "nodeID") %null% "", attr(nd, "height"))
+            for (i in seq_along(nd)) .render(nd[[i]], depth + 1L)
+        }
+    }
+    .render(.label_dend_nodes(tree), 0L); add("")
+
+    add("## 2. Markers at each split"); add("")
+    add("Left branch versus right: what separates these siblings. A gene that")
+    add("is uninformative at the root can be decisive deeper in the tree.")
+    add("")
+    mk_node <- data.table::as.data.table(node_markers$markers)
+    if (!"pi" %in% names(mk_node)) {
+        mk_node[, "pi" := logFC *
+            -log10(pmax(p.value, .Machine$double.xmin))]
+    }
+    nodes <- data.table::as.data.table(node_markers$nodes)
+    weak <- nodes$n_strong < stats::quantile(nodes$n_strong, 0.2, na.rm = TRUE)
+    for (i in seq_len(nrow(nodes))) {
+        nid <- nodes$nodeID[i]
+        add("### Node %s%s", nid, if (isTRUE(weak[i])) "  [WEAK SPLIT]" else "")
+        add("left  = clusters %s", nodes$left[i])
+        add("right = clusters %s", nodes$right[i])
+        add("separating genes: %s", nodes$n_strong[i])
+        d <- mk_node[nodeID == nid]
+        add("up in LEFT : %s",
+            .genes(utils::head(d[side == "left"][order(-pi)]$feats, top_node)))
+        add("up in RIGHT: %s",
+            .genes(utils::head(d[side == "right"][order(pi)]$feats, top_node)))
+        if (isTRUE(weak[i])) {
+            add("NOTE: among the weakest splits here. Merge candidate.")
+        }
+        add("")
+    }
+
+    add("## 3. Per-cluster markers"); add("")
+    add("LOW SPECIFICITY means no gene is detected in at least %g percentage",
+        margin_cut)
+    add("points more of this cluster's cells than of any other single")
+    add("cluster's -- a fragment or a cell state rather than a distinct type.")
+    add("")
+    cc <- attr(tree, "cor_matrix")
+    if (!is.null(cc)) diag(cc) <- -Inf
+    for (cl in lvls) {
+        sp <- spec[cluster == cl]
+        low <- nrow(sp) > 0L && sp$margin[1L] < margin_cut
+        add("### Cluster %s (%s cells)%s", cl,
+            format(ncell[[cl]], big.mark = ","),
+            if (low) "  [LOW SPECIFICITY]" else "")
+        if (!is.null(cc)) {
+            add("most correlated cluster: %s (r = %.3f)",
+                colnames(cc)[which.max(cc[cl, ])], max(cc[cl, ]))
+        }
+        if (nrow(sp) > 0L) {
+            add("best detection margin: %s, %+.0f points",
+                sp$best_gene[1L], sp$margin[1L])
+        }
+        add("markers    : %s",
+            .genes(utils::head(markers[cluster == cl]$feats, top_markers)))
+        add("gini markers: %s", .genes(utils::head(
+            gini_markers[cluster == cl][order(-comb_score)]$feats, top_gini)))
+        add("")
+    }
+
+    add("## 4. Required output"); add("")
+    add("Return ONLY a JSON object, no prose around it:"); add("")
+    add('{ "nodes":    [ {"node": <int>, "short": "<tag>",')
+    add('                 "label": "<name for the clade BELOW this node>"} ],')
+    add('  "clusters": [ {"cluster": "<id>", "cell_type": "<one type>",')
+    add('                 "confidence": "high"|"medium"|"low",')
+    add('                 "markers": ["<genes you used>"],')
+    add('                 "merge_with": "<cluster id or null>"} ] }'); add("")
+    add("Rules:")
+    add("- EXACTLY ONE cell type per cluster; all %d clusters must appear.",
+        length(lvls))
+    add("- EVERY internal node must appear in `nodes`, all %d of them.",
+        nrow(nodes))
+    add("- A node's `label` names the group of clusters BENEATH it, as a cell")
+    add("  population (\"myeloid\", \"luminal epithelium\"). It is not a")
+    add("  description of the split and must not name both sides.")
+    add("- Cite only genes listed above.")
+    add("- A leaf label must be consistent with the labels above it.")
+    add("- Suggest a merge where a split is weak or specificity is low.")
+
+    if (!is.null(file_name)) writeLines(P, file_name)
+    invisible(P)
+}
+
+
+# `stats::as.dendrogram()` drops the merge-row identity, but the query has to
+# name nodes in the same terms `findNodeMarkers()` and `getDendrogramSplits()`
+# report them, or the answer cannot be joined back. Walk the merge matrix and
+# stamp each internal node with its row.
+#' @keywords internal
+#' @noRd
+.label_dend_nodes <- function(hc) {
+    dend <- stats::as.dendrogram(hc)
+    # leaves under each merge row, so a subtree can be recognised by its label
+    # set rather than by traversal order
+    leaves_of <- function(node) {
+        if (node < 0L) return(hc$labels[-node])
+        c(leaves_of(hc$merge[node, 1L]), leaves_of(hc$merge[node, 2L]))
+    }
+    key <- vapply(seq_len(nrow(hc$merge)),
+        function(i) paste(sort(leaves_of(i)), collapse = "\r"), character(1L))
+
+    stamp <- function(nd) {
+        if (stats::is.leaf(nd)) return(nd)
+        labs <- paste(sort(unlist(stats::dendrapply(nd, function(x) {
+            if (stats::is.leaf(x)) attr(x, "label") else NULL
+        }))), collapse = "\r")
+        hit <- match(labs, key)
+        if (!is.na(hit)) attr(nd, "nodeID") <- hit
+        for (i in seq_along(nd)) nd[[i]] <- stamp(nd[[i]])
+        nd
+    }
+    stamp(dend)
+}
+
+
 #' @title writeChatGPTqueryDEG
 #' @name writeChatGPTqueryDEG
 #' @description This function writes a query as a .txt file that can be used

@@ -37,12 +37,67 @@ under that version.
   counter, so per-node results can be joined back to the tree.
 
 ## new
+- `writeClusterTreeQuery()` builds the annotation query for a cluster tree: the
+  tree as an indented outline, the markers separating each branch, and the
+  per-cluster markers with a specificity flag. `context` is a free-form named
+  list (`tissue`, `disease`, `assay`, ...) rendered into the header. Evidence
+  the caller does not supply is computed for them. It runs no LLM, like
+  `writeChatGPTqueryDEG()`, and returns the text invisibly rather than only
+  writing a file.
+
+  The query asks for a label at **every internal node**, naming the clade
+  beneath it rather than describing the split. That is what makes the answer
+  cuttable afterwards without asking the model again.
+
+- `annotateClusterTree()` writes that answer onto the object at one or more
+  granularities. `k` / `h` mirror `doHclust()` and each value produces its own
+  annotation column, so a coarse and a fine labelling of the same cells can be
+  compared directly. It delegates the metadata write to
+  `GiottoClass::annotateGiotto()`.
+
+  A real answer names only some nodes, so each group takes the first label that
+  resolves: its own node; the leaf itself when the group is a single cluster;
+  the nearest labelled ancestor; the majority leaf label. The middle two are in
+  that order deliberately -- no internal node spans a single leaf, so at the
+  finest cut an ancestor-first search returns labels coarser than the leaves it
+  started from.
+
+- `findScranMarkers_one_vs_all()` (and so `findMarkers_one_vs_all(method =
+  "scran")`) reports a `pi` column -- `logFC * -log10(p.value)`, effect size
+  times significance -- and returns each cluster's block ordered by it. The
+  p-value is floored at `.Machine$double.xmin` first: the strongest markers
+  underflow to exactly 0, and a table sorted on the resulting `Inf` is ordered
+  by whichever gene underflowed first. `ranking` is unchanged; it gates the
+  `min_feats` rescue and is not presentational. **Row order changes** for
+  callers that relied on the previous, undocumented order.
+
+- `findNodeMarkers()` runs differential expression at every branch point of a
+  cluster tree, rather than only between the leaf clusters. Each internal node
+  compares the clusters on one side of the merge against those on the other, so
+  the markers it returns are **conditional**: a gene that says nothing at the
+  root can be decisive deeper in the tree. Takes a tree from
+  `calculateClusterTree()` and the splits from `getDendrogramSplits()`, and
+  returns `$markers` keyed by `nodeID` and `side` plus a `$nodes` summary
+  carrying each node's height, cluster membership and count of separating
+  genes.
+
+  Any `findMarkers()` method works, because a node comparison is a
+  `(group_1, group_2)` relabelling and nothing about that is method-specific.
+  Where the statistic is a function of **additive** per-group accumulators the
+  work is shared instead: `"scran"` (`sum`, `sumsq`, `n`) and `"gini"` (`sum`,
+  `nnz`, `n`) take one grouped pass over the values and combine it per node by
+  arithmetic, while `"mast"` -- and anything else needing the per-cell values --
+  falls back to one pass per node. On 169,528 cells and 36 clusters the pooled
+  route runs the 35 nodes in 5.2 s against ~35 s delegated for `"scran"`, and
+  15.4 s against ~70 s for `"gini"`; it is sub-linear in node count, since only
+  the pooling grows.
+
 - `calculateClusterTree()` builds the cluster tree as a plain `hclust`, with
   the correlation matrix and the settings used attached as attributes, so
   `cutree()`, `as.dendrogram()`, `ggdendro` and `ape` all work on it unchanged.
-  `getDendrogramSplits()` takes it as `tree`, and
-  `GiottoVisuals::showClusterDendrogram()` plots it — one tree behind both,
-  instead of each rebuilding its own and being free to disagree.
+  `getDendrogramSplits()` and `findNodeMarkers()` take it as `tree`, and
+  `GiottoVisuals::showClusterDendrogram()` plots it — one tree behind all
+  three, instead of three rebuilds free to disagree.
 
   The pseudobulk comes from `analyzeData(featStatsParam, groups = )`, one pass
   on any backend including a disk-backed store, where `calculateMetaTable()`
@@ -51,6 +106,15 @@ under that version.
   before the correlation is taken, because ward linkage breaks near-ties by
   index and a lexically-ordered column gave 3 differing splits out of 35 on
   that dataset.
+- `findGiniMarkers()` and `findGiniMarkers_one_vs_all()` gain a
+  `detection_margin` column: per (feature, cluster), how many percentage points
+  more of that cluster's cells detect the feature than of the next-highest
+  **single** cluster's. Unlike the gini coefficients it contrasts against one
+  other cluster rather than the pooled remainder, so it does not inherit the
+  `N - n_k` pooling term that makes those coefficients track cluster size; and
+  unlike `comb_score` it is not rescaled within cluster, so `max()` per cluster
+  is a meaningful "does this cluster have a feature of its own". Intended for
+  spotting overclustered fragments.
 
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr
