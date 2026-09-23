@@ -18,6 +18,40 @@ under that version.
 
 
 ## bug fixes
+- **`runUMAP()` was not reproducible**, despite carrying `set_seed = TRUE` and
+  `seed_number = 1234`. uwot ran its own approximate neighbour search, and its
+  HNSW index build races on insertion order — a C++ thread interleaving the R
+  RNG cannot reach, so the seed could never have covered it. Two runs on a
+  169,528-cell Atera section gave embeddings differing by a Procrustes RMSE of
+  7.3%, with kNN preservation 0.76–0.80. The new `nn_engine` argument defaults
+  to `"giotto"`: the neighbour graph comes from Giotto rather than from uwot's
+  own search, and is handed over as `nn_method` so uwot runs no search at all.
+  Where `createNearestNetwork()` has already run, that is the **stored** kNN
+  (see the GiottoClass note on `keep_knn`), so the embedding and the partition
+  are built from one search rather than from two that happen to agree;
+  otherwise one is built with `GiottoClass::hnswKNN()`, whose index build is
+  single-threaded. Neither depends on a seed. `"annoy"` instead pins uwot to a
+  backend whose trees are built from the R RNG and whose threading covers only
+  the search, also reproducible in-process and across processes; `"uwot"`
+  restores the old behaviour.
+
+  On that section, reusing the stored graph costs **5.9s against the old
+  behaviour's 6.8s** — reproducible and slightly faster, because recovering
+  the kNN takes 0.9s where repeating the search takes 13.8s. Without a stored
+  graph to reuse the same call is 19.6s, and `"annoy"` is 16.6s. **Results
+  change**: UMAP coordinates differ from previous versions. Nothing downstream
+  consumed the embedding — clustering runs on the sNN graph — so this moves
+  figures, not analyses. Threading is not given up: `n_threads` still drives
+  the smooth-kNN root find and, under `batch = TRUE`, the SGD, both
+  reproducible at any thread count.
+- **`runIntegratedUMAP()` built its embedding on the wrong graph.** It passed
+  `dbscan::kNN()` output to uwot as `nn_method` unchanged, but `dbscan::kNN()`
+  removes self-matches while uwot requires each cell to be its own first
+  neighbour and drops column 1 when fitting the local connectivity offset. The
+  integrated UMAP was therefore built from `k - 1` neighbours with the nearest
+  one discarded, against a `log2(k)` target that assumed otherwise. uwot
+  validates neither the self column nor the ordering, so it ran without error.
+  It now goes through `GiottoClass::nnToUwot()`. **Results change.**
 - `getDendrogramSplits()` returned a wrong set of splits whenever two merges of
   the cluster dendrogram shared a height. The internal node walk located each
   node by matching its height against a list it never removed split nodes from,
@@ -32,6 +66,22 @@ under that version.
 - `getDendrogramSplits()` no longer prints one line per merge by default.
 
 ## changes
+- `runUMAP()` gains `nn_engine`, defaulting to `"giotto"`: where the neighbour
+  graph comes from. It reuses the kNN `createNearestNetwork()` stored when one
+  is available, and builds one otherwise. `"uwot"` restores uwot's own choice,
+  and any of uwot's backend names — `"fnn"`, `"annoy"`, `"hnsw"`,
+  `"nndescent"` — selects that backend directly, so all of them are reachable
+  through one argument rather than through `nn_method` in `...`. They are not
+  equally reproducible: `"annoy"` builds its trees from the R RNG and threads
+  only the search, so repeated calls agree bit for bit, while `"hnsw"` threads
+  the index build and does not.
+- `runUMAP()` gains `nn_network_to_use` and `network_name`, spelled as
+  `doLeidenCluster()` spells them, naming the stored network to reuse.
+  `network_name = NULL` derives `<nn_network_to_use>.<dim_reduction_to_use>`.
+  An object can hold several kNN networks — one per reduction, or at different
+  `k` — so the graph is looked up by name and never guessed at: a derived name
+  that is absent falls back to building one and says so, while a name given
+  explicitly and not found is an error rather than a quiet substitution.
 - `getDendrogramSplits()` returns `node_h` as a numeric column rather than a
   list column, and `nodeID` as the `hclust$merge` row index rather than a row
   counter, so per-node results can be joined back to the tree.

@@ -565,13 +565,22 @@ runIntegratedUMAP <- function(
 
 
     #### using nn_network pre-calculation
+    #
+    # The stored graph comes from dbscan::kNN(), which REMOVES self-matches,
+    # while uwot requires each observation to be its own first neighbor and
+    # drops column 1 unconditionally when fitting the local connectivity
+    # offset. Handing the stored matrices over unchanged therefore discarded
+    # every cell's true nearest neighbor and fit rho against a shifted
+    # distance set -- silently, because uwot validates neither the self
+    # column nor the ordering. nnToUwot() adds the self entry back.
+    #
+    # This changes the integrated embedding. It was wrong before.
     GiottoUtils::local_seed(seed)
     integrated_umap <- uwot::umap(
         X = theta_weighted,
         n_neighbors = k,
-        nn_method = list(
-            idx = nn_network_id,
-            dist = nn_network_dist
+        nn_method = GiottoClass::nnToUwot(
+            list(id = nn_network_id, dist = nn_network_dist)
         ),
         spread = spread,
         min_dist = min_dist,
