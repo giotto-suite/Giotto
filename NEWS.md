@@ -36,6 +36,22 @@ under that version.
   list column, and `nodeID` as the `hclust$merge` row index rather than a row
   counter, so per-node results can be joined back to the tree.
 
+## new
+- `calculateClusterTree()` builds the cluster tree as a plain `hclust`, with
+  the correlation matrix and the settings used attached as attributes, so
+  `cutree()`, `as.dendrogram()`, `ggdendro` and `ape` all work on it unchanged.
+  `getDendrogramSplits()` takes it as `tree`, and
+  `GiottoVisuals::showClusterDendrogram()` plots it — one tree behind both,
+  instead of each rebuilding its own and being free to disagree.
+
+  The pseudobulk comes from `analyzeData(featStatsParam, groups = )`, one pass
+  on any backend including a disk-backed store, where `calculateMetaTable()`
+  loops one `rowMeans` per cluster: 2.3 s against 18.0 s for 36 clusters on
+  169,528 cells, agreeing to 2.7e-15. Cluster labels are ordered naturally
+  before the correlation is taken, because ward linkage breaks near-ties by
+  index and a lexically-ordered column gave 3 differing splits out of 35 on
+  that dataset.
+
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr
   output (`.zarr.zip` archives and unzipped `.zarr` trees): `filetype` accepts
