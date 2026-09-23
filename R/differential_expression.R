@@ -835,7 +835,7 @@ findScranMarkers_one_vs_all <- function(
                 selected_table[, "ranking" := rank(-logFC)]
 
                 # data.table variables
-                p.value <- ranking <- NULL
+                p.value <- ranking <- pi <- NULL
 
                 # `logFC` names both this function's argument and a column of
                 # `selected_table`, and inside `i` the column wins -- so
@@ -848,6 +848,19 @@ findScranMarkers_one_vs_all <- function(
                     (p.value <= pval & logFC >= logFC_thresh) |
                         (ranking <= min_feats)
                 ]
+
+                # pi score: effect size times significance, the ranking most
+                # callers actually want. `ranking` stays as it is -- it gates
+                # the `min_feats` rescue above, so it is load-bearing rather
+                # than presentational.
+                #
+                # The `pmax` is not defensive dressing: the strongest markers
+                # underflow to `p.value == 0`, and `-log10(0)` is `Inf`, which
+                # would order the table by whichever gene happened to underflow
+                # first rather than by effect size.
+                selected_table[, "pi" := logFC *
+                    -log10(pmax(p.value, .Machine$double.xmin))]
+                data.table::setorder(selected_table, -pi)
 
                 pb(message = c("cluster ", clus_i, "/", length(uniq_clusters)))
                 return(selected_table)

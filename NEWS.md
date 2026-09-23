@@ -37,6 +37,15 @@ under that version.
   counter, so per-node results can be joined back to the tree.
 
 ## new
+- `findScranMarkers_one_vs_all()` (and so `findMarkers_one_vs_all(method =
+  "scran")`) reports a `pi` column -- `logFC * -log10(p.value)`, effect size
+  times significance -- and returns each cluster's block ordered by it. The
+  p-value is floored at `.Machine$double.xmin` first: the strongest markers
+  underflow to exactly 0, and a table sorted on the resulting `Inf` is ordered
+  by whichever gene underflowed first. `ranking` is unchanged; it gates the
+  `min_feats` rescue and is not presentational. **Row order changes** for
+  callers that relied on the previous, undocumented order.
+
 - `findNodeMarkers()` runs differential expression at every branch point of a
   cluster tree, rather than only between the leaf clusters. Each internal node
   compares the clusters on one side of the merge against those on the other, so
