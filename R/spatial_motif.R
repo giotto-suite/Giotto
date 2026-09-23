@@ -115,6 +115,9 @@ setMethod(
     "analyzeData", signature(x = "igraph", param = "smotifParam"),
     function(x, param, cell_type = NULL, strata = NULL, anchored_on = NULL,
     ...) {
+        if (isTRUE(param$set_seed)) {
+            GiottoUtils::local_seed(seed = param$seed_number)
+        }
         package_check("smotif", repository = "github:drieslab/smotif")
         if (is.null(cell_type)) {
             .gstop("cell_type labels are required")
@@ -145,7 +148,6 @@ setMethod(
                 sample_id = "s"
             )
         )
-        if (isTRUE(param$set_seed)) set.seed(param$seed_number)
         smotif::motif_enrichment(
             sg,
             size = param$size,
