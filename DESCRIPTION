@@ -113,8 +113,7 @@ Suggests:
     tidygraph,
     trendsceek,
     testthat (>= 3.0.0),
-    rmarkdown,
-    withr
+    rmarkdown
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
