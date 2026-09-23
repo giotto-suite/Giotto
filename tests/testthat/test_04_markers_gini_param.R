@@ -89,7 +89,7 @@ test_that("the column contract is stated, not incidental", {
     expect_named(analyzeData(EX, .gp(), groups = GRP), c(
         "feats", "cluster", "expression", "expression_gini",
         "detection", "detection_gini", "expression_rank",
-        "detection_rank", "comb_score", "comb_rank"
+        "detection_rank", "comb_score", "comb_rank", "detection_margin"
     ))
 })
 

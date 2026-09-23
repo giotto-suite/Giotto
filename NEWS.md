@@ -51,6 +51,15 @@ under that version.
   before the correlation is taken, because ward linkage breaks near-ties by
   index and a lexically-ordered column gave 3 differing splits out of 35 on
   that dataset.
+- `findGiniMarkers()` and `findGiniMarkers_one_vs_all()` gain a
+  `detection_margin` column: per (feature, cluster), how many percentage points
+  more of that cluster's cells detect the feature than of the next-highest
+  **single** cluster's. Unlike the gini coefficients it contrasts against one
+  other cluster rather than the pooled remainder, so it does not inherit the
+  `N - n_k` pooling term that makes those coefficients track cluster size; and
+  unlike `comb_score` it is not rescaled within cluster, so `max()` per cluster
+  is a meaningful "does this cluster have a feature of its own". Intended for
+  spotting overclustered fragments.
 
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr

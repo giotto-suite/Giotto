@@ -135,6 +135,31 @@ NULL
 #' explicitly; `comparison = "one_vs_rest"` does **not** switch them for you.
 #' @md
 #' @family marker detection parameters
+#' @section detection_margin:
+#'
+#' Both comparisons also return a `detection_margin` column: per (feature,
+#' group), how many percentage points more of that group's cells detect the
+#' feature than of the next-highest **single** group's.
+#'
+#' \deqn{\LARGE \mathrm{margin}(g,k) = d_{gk} - \max_{j \neq k} d_{gj}}
+#'
+#' It answers a different question from the coefficients beside it. The gini
+#' columns rank features *within* a group; this measures whether a group has any
+#' feature of its own at all, which is what distinguishes a real population from
+#' an overclustered fragment. Two properties make it comparable across groups
+#' where `comb_score` is not: the contrast is against one other group rather
+#' than the pooled remainder, so it does not inherit the \eqn{N - n_k} term that
+#' makes the one-vs-rest coefficients fall as a group grows; and it is not
+#' rescaled within group, so `max(detection_margin)` per group means the same
+#' thing in every group.
+#'
+#' It is measured in percentage points and is negative where another group
+#' detects the feature more often. A value of zero for a group's best feature
+#' means no feature is more detected there than everywhere else.
+#'
+#' Defaults here are [findGiniMarkers()]'s. [findGiniMarkers_one_vs_all()]
+#' passes `min_expression = 0.5`, `min_detection = 0.5` and `min_feats = 4`
+#' explicitly; `comparison = "one_vs_rest"` does **not** switch them for you.
 #' @seealso [analyze_param], [markersParam()], [findGiniMarkers()],
 #'   [featStatsParam-class]
 #' @returns marker detection results
@@ -1141,26 +1166,92 @@ setMethod("analyzeData",
         stats = c("sum", "nnz")
     )
 
-    if (identical(param$comparison %null% "pairwise", "one_vs_rest")) {
-        return(.markers_one_vs_rest_gini(st, param, verbose = verbose))
-    }
-    .gini_score_dt(
+    comparison <- param$comparison %null% "pairwise"
+
+    # Detection margin, computed here because this is the only point both
+    # branches share the COMPLETE feats x all-clusters table. One-vs-rest
+    # collapses `st` to two columns per group -- selected vs pooled remainder --
+    # so a margin taken downstream of that branch would contrast against the
+    # rest rather than against the next-highest group, which is the whole
+    # difference between this statistic and the gini coefficients.
+    margin_dt <- .detection_margin_dt(st)
+
+    res <- if (identical(comparison, "one_vs_rest")) {
+        .markers_one_vs_rest_gini(st, param, verbose = verbose)
+    } else {
+        .gini_score_dt(
         data.table::data.table(
-            feats = st$feats,
-            cluster = st$group,
-            expression = st$mean_expr,
-            detection = st$perc_cells / 100
-        ),
-        min_length = param$min_length,
-        min_expression = param$min_expression,
-        min_detection = param$min_detection,
-        min_expression_gini = param$min_expression_gini,
-        min_detection_gini = param$min_detection_gini,
-        rank_score = param$rank_score,
-        min_feats = param$min_feats
-    )
+                feats = st$feats,
+                cluster = st$group,
+                expression = st$mean_expr,
+                detection = st$perc_cells / 100
+            ),
+            min_length = param$min_length,
+            min_expression = param$min_expression,
+            min_detection = param$min_detection,
+            min_expression_gini = param$min_expression_gini,
+            min_detection_gini = param$min_detection_gini,
+            rank_score = param$rank_score,
+            min_feats = param$min_feats
+        )
+    }
+
+    # Both branches return the same ten columns keyed by (feats, cluster), so
+    # one join serves both. It lands after `comb_rank` -- `.gini_score_dt()`'s
+    # `setcolorder()` names a subset and is not touched by a column added here.
+    res[margin_dt,
+        on = c("feats", "cluster"),
+        "detection_margin" := i.detection_margin]
+    res[]
 }
 
+
+# Per (feature, group), how many percentage points more of this group's cells
+# detect the feature than of the next-highest SINGLE group's.
+#
+# Unlike the gini coefficients this contrasts against one other group rather
+# than the pooled remainder, which is what keeps it free of group size: pooling
+# divides by `N - n_k`, so as a group grows its own detection falls while the
+# remainder's rises. Unlike `comb_score` it is not rescaled within group, so a
+# value means the same thing in every column and `max()` per group is a
+# meaningful "does this group have a feature of its own".
+#
+# `st` must be the complete cross product, groups slowest with feats cycling
+# within -- which `featStatsParam`'s grouped path guarantees.
+.detection_margin_dt <- function(st) {
+    # data.table variables
+    detection_margin <- NULL
+
+    lvls <- unique(st$group)
+    n_feats <- length(unique(st$feats))
+    if (length(lvls) < 2L) {
+        # A margin is a contrast against another group; with one group there is
+        # nothing to contrast against. NA rather than 0, which would read as
+        # "measured, and not specific".
+        return(data.table::data.table(
+            feats = st$feats, cluster = st$group,
+            detection_margin = NA_real_
+        ))
+    }
+
+    pct <- matrix(st$perc_cells, nrow = n_feats)
+    top <- max.col(pct, ties.method = "first")
+    best <- pct[cbind(seq_len(n_feats), top)]
+    # second-highest per row: mask the winner, take the max of what is left
+    masked <- pct
+    masked[cbind(seq_len(n_feats), top)] <- -Inf
+    second <- suppressWarnings(apply(masked, 1L, max))
+
+    # every column contrasts against the row max, except the column holding it,
+    # which contrasts against the runner-up
+    marg <- pct - best
+    marg[cbind(seq_len(n_feats), top)] <- best - second
+
+    data.table::data.table(
+        feats = st$feats, cluster = st$group,
+        detection_margin = as.vector(marg)
+    )
+}
 
 # One table per group, each scoring that group against the pooled remainder.
 #
