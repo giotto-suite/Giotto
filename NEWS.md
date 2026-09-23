@@ -37,12 +37,33 @@ under that version.
   counter, so per-node results can be joined back to the tree.
 
 ## new
+- `findNodeMarkers()` runs differential expression at every branch point of a
+  cluster tree, rather than only between the leaf clusters. Each internal node
+  compares the clusters on one side of the merge against those on the other, so
+  the markers it returns are **conditional**: a gene that says nothing at the
+  root can be decisive deeper in the tree. Takes a tree from
+  `calculateClusterTree()` and the splits from `getDendrogramSplits()`, and
+  returns `$markers` keyed by `nodeID` and `side` plus a `$nodes` summary
+  carrying each node's height, cluster membership and count of separating
+  genes.
+
+  Any `findMarkers()` method works, because a node comparison is a
+  `(group_1, group_2)` relabelling and nothing about that is method-specific.
+  Where the statistic is a function of **additive** per-group accumulators the
+  work is shared instead: `"scran"` (`sum`, `sumsq`, `n`) and `"gini"` (`sum`,
+  `nnz`, `n`) take one grouped pass over the values and combine it per node by
+  arithmetic, while `"mast"` -- and anything else needing the per-cell values --
+  falls back to one pass per node. On 169,528 cells and 36 clusters the pooled
+  route runs the 35 nodes in 5.2 s against ~35 s delegated for `"scran"`, and
+  15.4 s against ~70 s for `"gini"`; it is sub-linear in node count, since only
+  the pooling grows.
+
 - `calculateClusterTree()` builds the cluster tree as a plain `hclust`, with
   the correlation matrix and the settings used attached as attributes, so
   `cutree()`, `as.dendrogram()`, `ggdendro` and `ape` all work on it unchanged.
-  `getDendrogramSplits()` takes it as `tree`, and
-  `GiottoVisuals::showClusterDendrogram()` plots it — one tree behind both,
-  instead of each rebuilding its own and being free to disagree.
+  `getDendrogramSplits()` and `findNodeMarkers()` take it as `tree`, and
+  `GiottoVisuals::showClusterDendrogram()` plots it — one tree behind all
+  three, instead of three rebuilds free to disagree.
 
   The pseudobulk comes from `analyzeData(featStatsParam, groups = )`, one pass
   on any backend including a disk-backed store, where `calculateMetaTable()`

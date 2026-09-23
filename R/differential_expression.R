@@ -130,11 +130,6 @@ NULL
 #' The gates are OR'd with `min_feats`, so tightening them shrinks the result
 #' toward `min_feats` per group and never below it.
 #'
-#' Defaults here are [findGiniMarkers()]'s. [findGiniMarkers_one_vs_all()]
-#' passes `min_expression = 0.5`, `min_detection = 0.5` and `min_feats = 4`
-#' explicitly; `comparison = "one_vs_rest"` does **not** switch them for you.
-#' @md
-#' @family marker detection parameters
 #' @section detection_margin:
 #'
 #' Both comparisons also return a `detection_margin` column: per (feature,
@@ -160,6 +155,8 @@ NULL
 #' Defaults here are [findGiniMarkers()]'s. [findGiniMarkers_one_vs_all()]
 #' passes `min_expression = 0.5`, `min_detection = 0.5` and `min_feats = 4`
 #' explicitly; `comparison = "one_vs_rest"` does **not** switch them for you.
+#' @md
+#' @family marker detection parameters
 #' @seealso [analyze_param], [markersParam()], [findGiniMarkers()],
 #'   [featStatsParam-class]
 #' @returns marker detection results
@@ -191,6 +188,71 @@ markersParam <- function(method = "scran", ...) {
     )
 }
 
+# Validate `sets`, the per-node group membership a `comparison = "nodes"` sweep
+# runs over.
+#
+# One entry per node, named by node id, each `list(left = , right = )` naming
+# groups present in the `groups` vector the verb is called with. Membership is
+# given as group names rather than cell assignments on purpose: the accumulators
+# behind every poolable statistic are additive across groups, so one pass keyed
+# by the original clusters serves every node, and each node is then arithmetic
+# over a choice of columns. Passing per-node cell labels instead would force one
+# pass per node, which is the cost this comparison exists to avoid.
+#' @keywords internal
+#' @noRd
+.markers_check_sets <- function(comparison, sets) {
+    if (!identical(comparison, "nodes")) {
+        if (!is.null(sets)) {
+            stop("[markersParam] `sets` applies only to ",
+                "`comparison = \"nodes\"`.", call. = FALSE)
+        }
+        return(NULL)
+    }
+    if (!is.list(sets) || !length(sets)) {
+        stop("[markersParam] `comparison = \"nodes\"` needs `sets`: a list ",
+            "with one entry per node, each `list(left = , right = )` naming ",
+            "the groups on each side.", call. = FALSE)
+    }
+    if (is.null(names(sets)) || anyDuplicated(names(sets)) ||
+            any(!nzchar(names(sets)))) {
+        stop("[markersParam] `sets` must be named, uniquely -- the names ",
+            "become the node ids the results are keyed by.", call. = FALSE)
+    }
+    for (nm in names(sets)) {
+        s <- sets[[nm]]
+        if (!is.list(s) || !all(c("left", "right") %in% names(s))) {
+            stop("[markersParam] `sets[[\"", nm, "\"]]` must be a list with ",
+                "`left` and `right`.", call. = FALSE)
+        }
+        if (!length(s$left) || !length(s$right)) {
+            stop("[markersParam] `sets[[\"", nm, "\"]]` has an empty side; ",
+                "a comparison needs groups on both.", call. = FALSE)
+        }
+        if (length(intersect(s$left, s$right))) {
+            stop("[markersParam] `sets[[\"", nm, "\"]]` has groups on both ",
+                "sides: ", paste(intersect(s$left, s$right), collapse = ", "),
+                call. = FALSE)
+        }
+    }
+    lapply(sets, function(s) {
+        list(left = as.character(s$left), right = as.character(s$right))
+    })
+}
+
+
+# Default names for the two sides of a node, matching what
+# `findGiniMarkers(group_1 = , group_2 = )` would have produced for the same
+# membership, so a pooled result and a delegated one are keyed alike.
+#' @keywords internal
+#' @noRd
+.markers_side_names <- function(set) {
+    c(
+        left = paste0(mixedsort(set$left), collapse = "_"),
+        right = paste0(mixedsort(set$right), collapse = "_")
+    )
+}
+
+
 #' @keywords internal
 #' @noRd
 .markers_param_scran <- function(...) {
@@ -198,6 +260,7 @@ markersParam <- function(method = "scran", ...) {
     p$test_type <- p$test_type %null% "t"
     p$pval_type <- p$pval_type %null% "any"
     p$comparison <- p$comparison %null% "pairwise"
+    p$sets <- .markers_check_sets(p$comparison, p$sets)
     p$direction <- p$direction %null% "any"
     p$lfc <- as.numeric(p$lfc %null% 0)
     p$std_lfc <- isTRUE(p$std_lfc)
@@ -212,6 +275,7 @@ markersParam <- function(method = "scran", ...) {
 .markers_param_gini <- function(...) {
     p <- new("giniMarkersParam", param = list(...))
     p$comparison <- p$comparison %null% "pairwise"
+    p$sets <- .markers_check_sets(p$comparison, p$sets)
     p$min_expression <- as.numeric(p$min_expression %null% 0.2)
     p$min_detection <- as.numeric(p$min_detection %null% 0.2)
     p$min_expression_gini <- as.numeric(p$min_expression_gini %null% -Inf)
@@ -283,11 +347,69 @@ setMethod("analyzeData",
     # positional against the columns of `x` unless named by cell ID
     groups <- .align_groups(x, groups)
 
-    if (identical(param$comparison %null% "pairwise", "one_vs_rest")) {
+    comparison <- param$comparison %null% "pairwise"
+    if (identical(comparison, "one_vs_rest")) {
         return(.markers_one_vs_rest_scran(x, groups, param))
+    }
+    if (identical(comparison, "nodes")) {
+        return(.markers_nodes_scran(x, groups, param))
     }
     do.call(scran::findMarkers,
         c(list(x = x, groups = groups), .markers_scran_args(param)))
+}
+
+
+# One scran call per node, each comparing the node's two sides.
+#
+# In memory this stays a loop for the same reason `.markers_one_vs_rest_scran()`
+# does: scran exposes no way to inject precomputed moments, so sharing a single
+# pass here would mean transcribing its statistics. The loop is cheap because
+# the matrix is already resident -- it is the disk backend, where every pass is
+# I/O, that pools instead (`GiottoDisk:::.pe_markers_nodes()`).
+#
+# Returns one table per node, left versus right. The mirrored host is not
+# returned: in a two-group test it is the same numbers with `logFC` negated, so
+# which side a feature favours is the sign.
+#' @keywords internal
+#' @noRd
+.markers_nodes_scran <- function(x, groups, param) {
+    package_check(pkg_name = "S4Vectors", repository = "Bioc")
+    sets <- param$sets
+    lvls <- unique(as.character(groups))
+    .markers_sets_present(sets, lvls, "analyzeData(scranMarkersParam)")
+
+    args <- .markers_scran_args(param)
+    # Named positionally, matching the streaming backend: nothing downstream
+    # reads these -- the result is keyed by node, `.scran_pair_cols()` matches
+    # `logFC.` by prefix, and the side a feature favours is the sign.
+    out <- lapply(names(sets), function(nm) {
+        s <- sets[[nm]]
+        g <- rep(NA_character_, length(groups))
+        g[as.character(groups) %in% s$left] <- "left"
+        g[as.character(groups) %in% s$right] <- "right"
+        keep <- !is.na(g)
+        res <- do.call(scran::findMarkers,
+            c(list(x = x[, keep, drop = FALSE], groups = g[keep]), args))
+        res[["left"]]
+    })
+    names(out) <- names(sets)
+    S4Vectors::SimpleList(out)
+}
+
+
+# Every group a node names must exist in the pass the moments came from,
+# otherwise the pooling would silently drop a side.
+#' @keywords internal
+#' @noRd
+.markers_sets_present <- function(sets, lvls, where) {
+    miss <- setdiff(unique(unlist(lapply(sets, function(s) {
+        c(s$left, s$right)
+    }))), lvls)
+    if (length(miss)) {
+        stop("[", where, "] `sets` names groups absent from `groups`: ",
+            paste(sort(miss), collapse = ", "), call. = FALSE)
+    }
+    invisible(TRUE)
 }
 
 
@@ -303,8 +425,10 @@ setMethod("analyzeData",
         std_lfc = "std.lfc", min_prop = "min.prop",
         log_p = "log.p", full_stats = "full.stats"
     )
-    # Not scran arguments: `comparison` selects which sweep this method runs.
+    # Not scran arguments: `comparison` selects which sweep this method runs,
+    # and `sets` carries that sweep's per-node membership.
     p[["comparison"]] <- NULL
+    p[["sets"]] <- NULL
 
     # `std.lfc` is t-test only -- `pairwiseWilcox()` and `pairwiseBinom()` do
     # not take it, and an effect size expressed in pooled standard deviations
@@ -1168,19 +1292,28 @@ setMethod("analyzeData",
 
     comparison <- param$comparison %null% "pairwise"
 
+    # A node sweep is keyed by node, not by cluster, so it returns before the
+    # per-cluster tail below -- including before the detection margin, which it
+    # would only discard: the margin contrasts a cluster against the
+    # next-highest single cluster, and the two sides of a node are pooled
+    # groups rather than clusters.
+    if (identical(comparison, "nodes")) {
+        return(.markers_nodes_gini(st, param))
+    }
+
     # Detection margin, computed here because this is the only point both
-    # branches share the COMPLETE feats x all-clusters table. One-vs-rest
-    # collapses `st` to two columns per group -- selected vs pooled remainder --
-    # so a margin taken downstream of that branch would contrast against the
-    # rest rather than against the next-highest group, which is the whole
-    # difference between this statistic and the gini coefficients.
+    # remaining branches share the COMPLETE feats x all-clusters table.
+    # One-vs-rest collapses `st` to two columns per group -- selected vs pooled
+    # remainder -- so a margin taken downstream of that branch would contrast
+    # against the rest rather than against the next-highest group, which is the
+    # whole difference between this statistic and the gini coefficients.
     margin_dt <- .detection_margin_dt(st)
 
     res <- if (identical(comparison, "one_vs_rest")) {
         .markers_one_vs_rest_gini(st, param, verbose = verbose)
     } else {
         .gini_score_dt(
-        data.table::data.table(
+            data.table::data.table(
                 feats = st$feats,
                 cluster = st$group,
                 expression = st$mean_expr,
@@ -1252,6 +1385,7 @@ setMethod("analyzeData",
         detection_margin = as.vector(marg)
     )
 }
+
 
 # One table per group, each scoring that group against the pooled remainder.
 #
@@ -1334,6 +1468,67 @@ setMethod("analyzeData",
     })
 
     do.call("rbind", result_list)
+}
+
+
+# One table per node, each scoring the node's two sides against each other.
+#
+# Takes the grouped statistics rather than the store, exactly as
+# `.markers_one_vs_rest_gini()` does, and for the same reason: `total_expr` and
+# `nr_cells` are additive, so each side is a row-sum over its own columns and
+# the whole sweep costs one scan rather than one per node.
+#
+# This sits in Giotto rather than in a backend because `.markers_gini()` reaches
+# its values through `analyzeData(featStatsParam)` -- so this single
+# implementation gives the in-memory and the disk-backed paths the same fast
+# route, with no backend-specific code at all.
+#' @keywords internal
+#' @noRd
+.markers_nodes_gini <- function(st, param) {
+    sets <- param$sets
+    lvls <- unique(as.character(st$group))
+    .markers_sets_present(sets, lvls, "analyzeData(giniMarkersParam)")
+
+    n_feats <- length(unique(st$feats))
+    feat_ids <- st$feats[seq_len(n_feats)]
+    # groups vary slowest with feats cycling within, so these unroll directly
+    sums <- matrix(st$total_expr, nrow = n_feats, dimnames = list(NULL, lvls))
+    nnz <- matrix(as.numeric(st$nr_cells), nrow = n_feats,
+        dimnames = list(NULL, lvls))
+    n_k <- st$n_cells[seq(1L, by = n_feats, length.out = length(lvls))]
+    names(n_k) <- lvls
+
+    out <- lapply(names(sets), function(nm) {
+        s <- sets[[nm]]
+        nms <- .markers_side_names(s)
+        n_l <- sum(n_k[s$left])
+        n_r <- sum(n_k[s$right])
+        markers <- .gini_score_dt(
+            data.table::data.table(
+                feats = rep(feat_ids, 2L),
+                cluster = rep(c(nms[["left"]], nms[["right"]]),
+                    each = n_feats),
+                expression = c(
+                    rowSums(sums[, s$left, drop = FALSE]) / n_l,
+                    rowSums(sums[, s$right, drop = FALSE]) / n_r
+                ),
+                detection = c(
+                    rowSums(nnz[, s$left, drop = FALSE]) / n_l,
+                    rowSums(nnz[, s$right, drop = FALSE]) / n_r
+                )
+            ),
+            min_length = param$min_length,
+            min_expression = param$min_expression,
+            min_detection = param$min_detection,
+            min_expression_gini = param$min_expression_gini,
+            min_detection_gini = param$min_detection_gini,
+            rank_score = param$rank_score,
+            min_feats = param$min_feats
+        )
+        markers
+    })
+    names(out) <- names(sets)
+    out
 }
 
 
@@ -2179,6 +2374,323 @@ findMarkers <- function(
     }
 
     return(markers_result)
+}
+
+
+#' @title findNodeMarkers
+#' @name findNodeMarkers
+#' @description Differential expression at every branch point of a cluster
+#' tree: at each internal node, the clusters on the left are compared against
+#' the clusters on the right.
+#' @param gobject giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param expression_values feature expression values to use
+#' @param cluster_column name of the cell metadata column holding the clusters
+#' @param tree an `hclust` over the clusters, as returned by
+#' [calculateClusterTree()]. Built from `gobject` when not supplied.
+#' @param splits the node table for `tree`, as returned by
+#' [getDendrogramSplits()]. Derived from `tree` when not supplied.
+#' @param cor,distance correlation score and linkage used to build the tree.
+#' Consulted only when `tree` is not supplied; a tree passed in already has
+#' its own, recorded in its `params` attribute.
+#' @param method method used for the comparison at each node. `"scran"` and
+#' `"gini"` take the pooled route described below; `"mast"` is delegated.
+#' @param lfc_cut,fdr_cut thresholds counting toward `n_strong`
+#' @param min_expression gini: minimum per-side mean expression
+#' @param min_detection gini: minimum fraction of a side's cells with
+#' expression above `detection_threshold`
+#' @param min_expression_gini gini: minimum gini coefficient of expression.
+#' `-Inf` (default) disables it.
+#' @param min_detection_gini gini: minimum gini coefficient of detection.
+#' `-Inf` (default) disables it.
+#' @param detection_threshold gini: expression value above which a cell counts
+#' as expressing a feature
+#' @param min_length gini: pad the per-side vector to this length before taking
+#' the gini coefficient. `0` (the default) never pads.
+#' @param rank_score gini: keep a feature when its side is within this rank for
+#' both `expression` and `detection`. `Inf` (default) disables it.
+#' @param min_feats gini: minimum features to keep per side
+#' @param verbose be verbose
+#' @param ... passed to the underlying marker method
+#' @returns a list of two data.tables:
+#' * `markers` --- one row per (node, feature), with `nodeID`, `side`
+#'   (`"left"` or `"right"`) and the method's own statistic columns
+#' * `nodes` --- one row per node, with `nodeID`, `node_h`, the `left` and
+#'   `right` cluster membership, and `n_strong`
+#' @details
+#' Markers at a node are **conditional**: they are what separates two sibling
+#' branches, so a feature that says nothing at the root can be decisive deeper
+#' in the tree. That is the layer a flat one-vs-all marker list cannot express.
+#'
+#' `nodeID` is the `tree$merge` row, so results join back to the tree.
+#'
+#' @section Cost:
+#' A node comparison is a two-group test between unions of clusters, so
+#' `findMarkers(group_1 = , group_2 = )` would answer it directly --- at one
+#' pass over the expression values per node.
+#'
+#' Instead, where the statistic allows it, this runs **one** pass keyed by the
+#' original clusters and derives every node from it by arithmetic. That works
+#' whenever the statistic is a function of per-group accumulators that are
+#' additive across groups:
+#'
+#' | method | accumulators | pooled |
+#' | --- | --- | --- |
+#' | `"scran"` (Welch t) | `sum`, `sumsq`, `n` | yes |
+#' | `"gini"` | `sum`, `nnz`, `n` | yes |
+#' | `"mast"` | a per-cell model fit | no --- one call per node |
+#'
+#' A statistic needing a global ordering along the feature axis --- a rank,
+#' a median, Wilcoxon --- cannot pool either, and would be delegated the same
+#' way. The choice is made from the method, so nothing is silently
+#' approximated: a delegated method returns the same numbers, more slowly.
+#' @seealso [calculateClusterTree()], [getDendrogramSplits()], [findMarkers()]
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' res <- findNodeMarkers(g, cluster_column = "leiden_clus")
+#' res$nodes
+#' head(res$markers)
+#' @export
+findNodeMarkers <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        tree = NULL,
+        splits = NULL,
+        cor = c("pearson", "spearman"),
+        distance = "ward.D",
+        method = c("scran", "gini", "mast"),
+        lfc_cut = 0.25,
+        fdr_cut = 0.01,
+        # gini. Defaulted to `findMarkers()`'s values rather than
+        # `markersParam()`'s, so that a node comparison filters exactly as the
+        # equivalent `findMarkers(group_1 =, group_2 =)` call would. The param
+        # constructor's own defaults are looser (0.2 / 0.2, `min_feats` 5) and
+        # inheriting them silently made node markers a different statistic from
+        # the pairwise markers they are meant to match.
+        min_expression = 0.5,
+        min_detection = 0.5,
+        min_expression_gini = -Inf,
+        min_detection_gini = -Inf,
+        detection_threshold = 0,
+        min_length = 0,
+        rank_score = Inf,
+        min_feats = 4,
+        verbose = TRUE,
+        ...) {
+    # data.table variables
+    nodeID <- side <- logFC <- FDR <- cluster <- NULL
+
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+    )
+    values <- match.arg(
+        expression_values,
+        unique(c("normalized", "scaled", "custom", expression_values))
+    )
+    method <- match.arg(method, choices = c("scran", "gini", "mast"))
+
+    cor <- match.arg(cor, c("pearson", "spearman"))
+
+    # `cor` and `distance` shape the tree, so they are only consulted when one
+    # is built here. Passing `tree =` makes them inert -- that tree already has
+    # its own, recorded in its `params` attribute.
+    if (is.null(tree)) {
+        tree <- calculateClusterTree(
+            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values, cluster_column = cluster_column,
+            cor = cor, distance = distance
+        )
+    }
+    if (!inherits(tree, "hclust")) {
+        stop("[findNodeMarkers] `tree` must be an `hclust`, as returned by ",
+            "`calculateClusterTree()`. Got: ",
+            paste(class(tree), collapse = "/"), ".", call. = FALSE)
+    }
+    if (is.null(splits)) {
+        splits <- getDendrogramSplits(
+            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values, cluster_column = cluster_column,
+            tree = tree, show_dend = FALSE, verbose = FALSE
+        )
+    }
+
+    sets <- stats::setNames(
+        lapply(seq_len(nrow(splits)), function(i) {
+            list(left = splits$tree_1[[i]], right = splits$tree_2[[i]])
+        }),
+        as.character(splits$nodeID)
+    )
+
+    # The gini arguments are named on this signature, so they travel as named
+    # arguments rather than through `...`; `scran` would reject them.
+    gini_args <- if (identical(method, "gini")) {
+        list(min_expression = min_expression, min_detection = min_detection,
+            min_expression_gini = min_expression_gini,
+            min_detection_gini = min_detection_gini,
+            detection_threshold = detection_threshold,
+            min_length = min_length, rank_score = rank_score,
+            min_feats = min_feats)
+    } else {
+        list()
+    }
+
+    mk <- if (identical(method, "mast")) {
+        .node_markers_delegated(gobject, spat_unit, feat_type, values,
+            cluster_column, sets, method, verbose = verbose, ...)
+    } else {
+        do.call(.node_markers_pooled, c(
+            list(gobject, spat_unit, feat_type, values, cluster_column,
+                sets, method),
+            gini_args, list(...)
+        ))
+    }
+
+    # `n_strong` per node, on whichever columns the method reports. gini has no
+    # p-value, so there is nothing to threshold and the count is left NA rather
+    # than invented from the gini coefficients.
+    nodes <- data.table::data.table(
+        nodeID = splits$nodeID,
+        node_h = splits$node_h,
+        left = vapply(sets, function(s) {
+            paste(mixedsort(s$left), collapse = ",")
+        }, ""),
+        right = vapply(sets, function(s) {
+            paste(mixedsort(s$right), collapse = ",")
+        }, "")
+    )
+    if (all(c("logFC", "FDR") %in% names(mk))) {
+        strong <- mk[abs(logFC) > lfc_cut & FDR < fdr_cut,
+            .(n_strong = .N), by = nodeID]
+        nodes[strong, on = "nodeID", "n_strong" := i.n_strong]
+        nodes[is.na(n_strong), "n_strong" := 0L]
+    } else {
+        nodes[, "n_strong" := NA_integer_]
+    }
+
+    list(markers = mk[], nodes = nodes[])
+}
+
+
+# The pooled route: one `analyzeData()` call carrying every node, so the
+# statistic pass happens once.
+#' @keywords internal
+#' @noRd
+.node_markers_pooled <- function(gobject, spat_unit, feat_type, values,
+    cluster_column, sets, method, ...) {
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = TRUE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[findNodeMarkers] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    expr <- getExpression(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        values = values, output = "matrix"
+    )
+    # named, so the verb matches on cell ID rather than position
+    groups <- stats::setNames(
+        as.character(cell_meta[[cluster_column]]), cell_meta[["cell_ID"]]
+    )
+
+    res <- analyzeData(
+        x = expr,
+        param = markersParam(method = method, comparison = "nodes",
+            sets = sets, ...),
+        groups = groups
+    )
+    .node_markers_bind(res, sets, method)
+}
+
+
+# The delegated route: one `findMarkers()` call per node. Same numbers, one
+# pass over the values each.
+#' @keywords internal
+#' @noRd
+.node_markers_delegated <- function(gobject, spat_unit, feat_type, values,
+    cluster_column, sets, method, verbose = TRUE, ...) {
+    res <- lapply(names(sets), function(nm) {
+        s <- sets[[nm]]
+        nms <- .markers_side_names(s)
+        out <- findMarkers(
+            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values, cluster_column = cluster_column,
+            method = method,
+            group_1 = s$left, group_2 = s$right,
+            group_1_name = nms[["left"]], group_2_name = nms[["right"]],
+            ...
+        )
+        # scran and mast return one table per group; keep the left host, the
+        # right being its mirror
+        if (is.list(out) && !data.table::is.data.table(out)) {
+            out <- out[[1L]]
+        }
+        out
+    })
+    names(res) <- names(sets)
+    .node_markers_bind(res, sets, method)
+}
+
+
+# Normalize whatever the method returned into one table keyed by node and side.
+#' @keywords internal
+#' @noRd
+.node_markers_bind <- function(res, sets, method) {
+    # data.table variables
+    cluster <- NULL
+
+    out <- data.table::rbindlist(lapply(names(res), function(nm) {
+        r <- res[[nm]]
+        dt <- if (data.table::is.data.table(r)) {
+            data.table::copy(r)
+        } else {
+            .markers_result_dt(r, cluster = nm)
+        }
+        if (!identical(method, "gini")) dt <- .scran_pair_cols(dt)
+        nms <- .markers_side_names(sets[[nm]])
+        # gini keys its rows by the pooled side name; the tests report one
+        # table for the left host, where the sign of logFC names the side
+        dt[, "side" := if (identical(method, "gini")) {
+            data.table::fifelse(
+                as.character(cluster) == nms[["left"]], "left", "right")
+        } else if ("logFC" %in% names(dt)) {
+            data.table::fifelse(dt[["logFC"]] > 0, "left", "right")
+        } else {
+            NA_character_
+        }]
+        if ("cluster" %in% names(dt)) dt[, "cluster" := NULL]
+        dt[, "nodeID" := as.integer(nm)]
+        dt
+    }), fill = TRUE)
+    data.table::setcolorder(
+        out, intersect(c("nodeID", "side", "feats"), names(out))
+    )
+    out
+}
+
+
+# scran reports a two-group comparison as `summary.logFC` plus one
+# `logFC.<other group>`. Both say the same thing with only two groups, so the
+# summary is dropped and the pairwise column takes the plain name --- the same
+# normalization `findScranMarkers_one_vs_all()` performs, so a node table and a
+# one-vs-all table carry the same column names.
+#' @keywords internal
+#' @noRd
+.scran_pair_cols <- function(dt) {
+    drop <- grep("^summary\\.", names(dt), value = TRUE)
+    if (length(drop)) dt[, (drop) := NULL]
+    lfc <- grep("^logFC\\.", names(dt), value = TRUE)
+    if (length(lfc) == 1L) data.table::setnames(dt, lfc, "logFC")
+    dt
 }
 
 
