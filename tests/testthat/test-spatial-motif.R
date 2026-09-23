@@ -180,75 +180,79 @@ test_that("size 2 motifs agree with the pairwise proximity counts", {
 test_that("a disk-backed network gives the same answer as an in-memory one", {
     skip_if_not_installed("GiottoDisk")
     skip_if_not_installed("smotif")
-    withr::local_options(giotto.check_valid = FALSE)
-    dir <- file.path(withr::local_tempdir(), "proj")
-    g <- .backed_gobject(dir)
+    gwith_options(list(giotto.check_valid = FALSE), {
+        dir <- file.path(tempdir(),
+            paste0("motif_proj_", basename(tempfile())))
+        g <- .backed_gobject(dir)
 
-    net <- GiottoClass::getSpatialNetwork(g,
-        name = "Delaunay_network", output = "spatialNetworkObj"
-    )[]
-    expect_true(inherits(net, "dataStore"))
+        net <- GiottoClass::getSpatialNetwork(g,
+            name = "Delaunay_network", output = "spatialNetworkObj"
+        )[]
+        expect_true(inherits(net, "dataStore"))
 
-    disk <- cellProximityMotifs(g,
-        cluster_column = "ct", size = 3L, n_perm = 49L
-    )
+        disk <- cellProximityMotifs(g,
+            cluster_column = "ct", size = 3L, n_perm = 49L
+        )
 
-    # the same data, unbacked
-    meta <- GiottoClass::pDataDT(g)
-    locs <- GiottoClass::getSpatialLocations(g, output = "data.table")
-    m <- matrix(1, nrow = 2L, ncol = nrow(locs),
-        dimnames = list(c("g1", "g2"), locs$cell_ID)
-    )
-    g2 <- GiottoClass::createGiottoObject(expression = m, spatial_locs = locs)
-    g2 <- GiottoClass::addCellMetadata(g2,
-        new_metadata = data.frame(cell_ID = meta$cell_ID, ct = meta$ct),
-        by_column = TRUE, column_cell_ID = "cell_ID"
-    )
-    g2 <- GiottoClass::createSpatialNetwork(g2,
-        method = "Delaunay", name = "Delaunay_network"
-    )
-    mem <- cellProximityMotifs(g2,
-        cluster_column = "ct", size = 3L, n_perm = 49L
-    )
+        # the same data, unbacked
+        meta <- GiottoClass::pDataDT(g)
+        locs <- GiottoClass::getSpatialLocations(g, output = "data.table")
+        m <- matrix(1, nrow = 2L, ncol = nrow(locs),
+            dimnames = list(c("g1", "g2"), locs$cell_ID)
+        )
+        g2 <- GiottoClass::createGiottoObject(expression = m, spatial_locs = locs)
+        g2 <- GiottoClass::addCellMetadata(g2,
+            new_metadata = data.frame(cell_ID = meta$cell_ID, ct = meta$ct),
+            by_column = TRUE, column_cell_ID = "cell_ID"
+        )
+        g2 <- GiottoClass::createSpatialNetwork(g2,
+            method = "Delaunay", name = "Delaunay_network"
+        )
+        mem <- cellProximityMotifs(g2,
+            cluster_column = "ct", size = 3L, n_perm = 49L
+        )
 
-    expect_identical(attr(disk, "n_instances"), attr(mem, "n_instances"))
-    expect_setequal(disk$motif_id, mem$motif_id)
-    j <- merge(
-        disk[, list(motif_id, a = observed)],
-        mem[, list(motif_id, b = observed)],
-        by = "motif_id"
-    )
-    expect_equal(j$a, j$b)
+        expect_identical(attr(disk, "n_instances"), attr(mem, "n_instances"))
+        expect_setequal(disk$motif_id, mem$motif_id)
+        j <- merge(
+            disk[, list(motif_id, a = observed)],
+            mem[, list(motif_id, b = observed)],
+            by = "motif_id"
+        )
+        expect_equal(j$a, j$b)
+    })
 })
 
 test_that("the direct-parquet fast path declines a subsetted store", {
     skip_if_not_installed("GiottoDisk")
     skip_if_not_installed("smotifrs")
-    withr::local_options(giotto.check_valid = FALSE)
-    dir <- file.path(withr::local_tempdir(), "proj")
-    g <- .backed_gobject(dir)
+    gwith_options(list(giotto.check_valid = FALSE), {
+        dir <- file.path(tempdir(),
+            paste0("motif_proj_", basename(tempfile())))
+        g <- .backed_gobject(dir)
 
-    # a clean store can be read straight from disk
-    expect_false(is.null(
-        .motif_edge_store_paths(g, "cell", "Delaunay_network")
-    ))
+        # a clean store can be read straight from disk
+        expect_false(is.null(
+            .motif_edge_store_paths(g, "cell", "Delaunay_network")
+        ))
 
-    # a subsetted one carries pending ops the parquet files do not reflect,
-    # so the fast path must refuse it rather than analyse the whole network
-    sn <- GiottoClass::getSpatialNetwork(g,
-        name = "Delaunay_network", output = "spatialNetworkObj"
-    )
-    ids <- GiottoClass::pDataDT(g)$cell_ID[1:40]
-    sn[] <- sn[][ids]
-    g2 <- GiottoClass::setSpatialNetwork(g, sn, verbose = FALSE)
-    expect_gt(length(methods::slot(GiottoClass::getSpatialNetwork(g2,
-        name = "Delaunay_network", output = "spatialNetworkObj"
-    )[], "ops")), 0L)
-    expect_null(.motif_edge_store_paths(g2, "cell", "Delaunay_network"))
+        # a subsetted one carries pending ops the parquet files do not reflect,
+        # so the fast path must refuse it rather than analyse the whole network
+        sn <- GiottoClass::getSpatialNetwork(g,
+            name = "Delaunay_network", output = "spatialNetworkObj"
+        )
+        ids <- GiottoClass::pDataDT(g)$cell_ID[1:40]
+        sn[] <- sn[][ids]
+        g2 <- GiottoClass::setSpatialNetwork(g, sn, verbose = FALSE)
+        expect_gt(length(methods::slot(GiottoClass::getSpatialNetwork(g2,
+            name = "Delaunay_network", output = "spatialNetworkObj"
+        )[], "ops")), 0L)
+        expect_null(.motif_edge_store_paths(g2, "cell", "Delaunay_network"))
 
-    # and the subset is still analysable, through the ordinary path
-    skip_if_not_installed("smotif")
-    r <- cellProximityMotifs(g2, cluster_column = "ct", size = 3L, n_perm = 19L)
-    expect_gt(nrow(r), 0L)
-    expect_lt(attr(r, "n_instances"), 1e5)
+        # and the subset is still analysable, through the ordinary path
+        skip_if_not_installed("smotif")
+        r <- cellProximityMotifs(g2, cluster_column = "ct", size = 3L, n_perm = 19L)
+        expect_gt(nrow(r), 0L)
+        expect_lt(attr(r, "n_instances"), 1e5)
+    })
 })
