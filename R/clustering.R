@@ -3850,9 +3850,6 @@ mergeClusters <- function(
 
 
 
-
-
-
 #' @title Node clusters
 #' @name .node_clusters
 #' @description Enumerate the two leaf sets either side of every internal node
@@ -3908,6 +3905,118 @@ mergeClusters <- function(
 
 
 
+#' @title calculateClusterTree
+#' @name calculateClusterTree
+#' @description Hierarchically cluster the clusters, by correlating their mean
+#' expression profiles.
+#' @param gobject giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param expression_values expression values to use
+#' @param cluster_column name of the cell metadata column holding the clusters
+#' @param feats optional character vector of features to restrict the
+#' correlation to. Highly variable features are a common choice; `NULL` uses
+#' every feature.
+#' @param cor correlation score to calculate distance
+#' @param distance distance method to use for hierarchical clustering
+#' @returns an `hclust` whose leaf labels are the cluster labels, carrying the
+#' correlation matrix and the settings used as the attributes `"cor_matrix"`
+#' and `"params"`.
+#' @details
+#' The per-cluster means come from `analyzeData(x, analyzeParam("feat_stats"),
+#' groups =)`, which is one pass over the expression values on any backend,
+#' including a disk-backed store. [GiottoClass::calculateMetaTable()] computes
+#' the same statistic with one pass per cluster.
+#'
+#' A plain `hclust` is returned rather than a new class so that
+#' [stats::cutree()], [stats::as.dendrogram()], `ggdendro`, `dendextend` and
+#' `ape` all work on it unchanged.
+#'
+#' Cluster labels are ordered naturally before the correlation is taken. This
+#' matters more than it looks: ward linkage breaks near-ties by index, so
+#' correlating the same profiles in lexical order (`"1"`, `"10"`, ..., `"2"`)
+#' rather than natural order can yield a measurably different tree.
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' plot(tree)
+#' getDendrogramSplits(g, cluster_column = "leiden_clus", tree = tree)
+#' @export
+calculateClusterTree <- function(gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        feats = NULL,
+        cor = c("pearson", "spearman"),
+        distance = "ward.D") {
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+    )
+    values <- match.arg(
+        expression_values,
+        unique(c("normalized", "scaled", "custom", expression_values))
+    )
+    cor <- match.arg(cor, c("pearson", "spearman"))
+
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = TRUE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[calculateClusterTree] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    groups <- stats::setNames(
+        as.character(cell_meta[[cluster_column]]), cell_meta[["cell_ID"]]
+    )
+
+    expr <- getExpression(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        values = values, output = "exprObj"
+    )[]
+    st <- GiottoClass::analyzeData(
+        expr, analyzeParam("feat_stats"),
+        groups = groups, stats = "sum"
+    )
+    st <- data.table::as.data.table(st)
+
+    # Natural, not lexical: see details.
+    lvls <- GiottoUtils::mixedsort(unique(as.character(st$group)))
+    n_feats <- length(unique(st$feats))
+    mat <- matrix(st$mean_expr, nrow = n_feats,
+        dimnames = list(unique(st$feats), unique(as.character(st$group)))
+    )[, lvls, drop = FALSE]
+
+    if (!is.null(feats)) {
+        keep <- intersect(feats, rownames(mat))
+        if (!length(keep)) {
+            stop("[calculateClusterTree] none of `feats` are present.",
+                call. = FALSE)
+        }
+        mat <- mat[keep, , drop = FALSE]
+    }
+
+    cormatrix <- cor_flex(x = mat, method = cor)
+    corclus <- stats::hclust(
+        d = stats::as.dist(1 - cormatrix, diag = TRUE, upper = TRUE),
+        method = distance
+    )
+    attr(corclus, "cor_matrix") <- cormatrix
+    attr(corclus, "params") <- list(
+        spat_unit = spat_unit, feat_type = feat_type,
+        expression_values = values, cluster_column = cluster_column,
+        cor = cor, distance = distance, n_feats = nrow(mat)
+    )
+    corclus
+}
+
+
+
 #' @title getDendrogramSplits
 #' @name getDendrogramSplits
 #' @description Split dendrogram at each node and keep the leave (label)
@@ -3922,13 +4031,43 @@ mergeClusters <- function(
 #' @param h height of horizontal lines to plot
 #' @param h_color color of horizontal lines
 #' @param show_dend show dendrogram
+#' @param tree optional `hclust` from [calculateClusterTree()]. When supplied
+#' the tree is not rebuilt, so the splits, the dendrogram plot and any other
+#' consumer can share one.
 #' @param verbose be verbose
-#' @returns data.table object
-#' @details Creates a data.table with three columns and each row represents a
-#' node in the dendrogram. For each node the height of the node is given
-#' together with the two subdendrograms. This information can be used to
-#' determine in a hierarchical manner differentially expressed marker genes at
-#' each node.
+#' @returns `data.table` with one row per internal node, ordered from highest
+#' node to lowest: `node_h` (numeric height), `tree_1` and `tree_2` (list
+#' columns of cluster labels either side of the split), and `nodeID` (the
+#' `hclust$merge` row the node corresponds to).
+#' @details Creates a data.table where each row represents a node in the
+#' dendrogram. For each node the height of the node is given together with the
+#' two subdendrograms. This information can be used to determine in a
+#' hierarchical manner differentially expressed marker genes at each node.
+#'
+#' `nodeID` is the `merge` row index, so per-node results join back to the
+#' clustering. It was previously a row counter (`"node_1"`, `"node_2"`, ...)
+#' with no defined relationship to the tree.
+#'
+#' `tree_1` and `tree_2` are **list columns** of cluster labels, so feeding a
+#' node to a marker function needs `unlist()`:
+#'
+#' ```
+#' splits <- getDendrogramSplits(g, cluster_column = "leiden_clus")
+#' findScranMarkers(g,
+#'     cluster_column = "leiden_clus",
+#'     group_1 = unlist(splits[1]$tree_1),
+#'     group_2 = unlist(splits[1]$tree_2)
+#' )
+#' ```
+#'
+#' Looping that over the rows gives differential expression at every node. Each
+#' call reads only the cells under its own node, so the total work is roughly
+#' the tree depth times one pass rather than one pass per node.
+#'
+#' The tree itself is built by [calculateClusterTree()]. Pass one in as `tree`
+#' to reuse the same tree across the splits, the dendrogram plot and any
+#' per-node analysis, instead of rebuilding it here.
+#'
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
@@ -3945,6 +4084,7 @@ getDendrogramSplits <- function(
         h = NULL,
         h_color = "red",
         show_dend = TRUE,
+        tree = NULL,
         verbose = TRUE) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
@@ -3966,40 +4106,39 @@ getDendrogramSplits <- function(
         unique(c("normalized", "scaled", "custom", expression_values))
     )
 
-    # create average expression matrix per cluster
-    metatable <- calculateMetaTable(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        expression_values = values,
-        metadata_cols = cluster_column
-    )
-    dcast_metatable <- data.table::dcast.data.table(
-        metatable,
-        formula = variable ~ uniq_ID, value.var = "value"
-    )
-    testmatrix <- dt_to_matrix(x = dcast_metatable)
-
-    # correlation
-    cormatrix <- cor_flex(x = testmatrix, method = cor)
-    cordist <- stats::as.dist(1 - cormatrix, diag = TRUE, upper = TRUE)
-    corclus <- stats::hclust(d = cordist, method = distance)
-
-    cordend <- stats::as.dendrogram(object = corclus)
-
+    # The tree is the only thing this function needs. Building it is
+    # `calculateClusterTree()`'s job, which also owns the cluster-ordering
+    # invariant the correlation depends on; pass one in to reuse it across the
+    # splits, the dendrogram plot and anything else, instead of each caller
+    # rebuilding it from the expression values.
+    if (is.null(tree)) {
+        tree <- calculateClusterTree(
+            gobject = gobject,
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column,
+            cor = cor,
+            distance = distance
+        )
+    }
+    if (!inherits(tree, "hclust")) {
+        stop("[getDendrogramSplits] `tree` must be an `hclust`, as returned ",
+            "by `calculateClusterTree()`. Got: ",
+            paste(class(tree), collapse = "/"), ".", call. = FALSE)
+    }
+    corclus <- tree
+    cordend <- stats::as.dendrogram(corclus)
 
     if (show_dend == TRUE) {
-        # plot dendrogram
         plot(cordend)
-
-        # add horizontal lines
         if (!is.null(h)) {
             abline(h = h, col = h_color)
         }
     }
 
-
     splitList <- .node_clusters(hclus_obj = corclus, verbose = verbose)
+    nodes <- splitList[[2]]
 
     # Built column by column rather than transposed out of a ragged
     # `as.data.table(list)`: that route made every column a list, including the
