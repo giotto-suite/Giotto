@@ -37,6 +37,31 @@ under that version.
   counter, so per-node results can be joined back to the tree.
 
 ## new
+- `writeClusterTreeQuery()` builds the annotation query for a cluster tree: the
+  tree as an indented outline, the markers separating each branch, and the
+  per-cluster markers with a specificity flag. `context` is a free-form named
+  list (`tissue`, `disease`, `assay`, ...) rendered into the header. Evidence
+  the caller does not supply is computed for them. It runs no LLM, like
+  `writeChatGPTqueryDEG()`, and returns the text invisibly rather than only
+  writing a file.
+
+  The query asks for a label at **every internal node**, naming the clade
+  beneath it rather than describing the split. That is what makes the answer
+  cuttable afterwards without asking the model again.
+
+- `annotateClusterTree()` writes that answer onto the object at one or more
+  granularities. `k` / `h` mirror `doHclust()` and each value produces its own
+  annotation column, so a coarse and a fine labelling of the same cells can be
+  compared directly. It delegates the metadata write to
+  `GiottoClass::annotateGiotto()`.
+
+  A real answer names only some nodes, so each group takes the first label that
+  resolves: its own node; the leaf itself when the group is a single cluster;
+  the nearest labelled ancestor; the majority leaf label. The middle two are in
+  that order deliberately -- no internal node spans a single leaf, so at the
+  finest cut an ancestor-first search returns labels coarser than the leaves it
+  started from.
+
 - `findScranMarkers_one_vs_all()` (and so `findMarkers_one_vs_all(method =
   "scran")`) reports a `pi` column -- `logFC * -log10(p.value)`, effect size
   times significance -- and returns each cluster's block ordered by it. The
