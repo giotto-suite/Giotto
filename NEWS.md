@@ -10,6 +10,7 @@
 * gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
 ## New
+* `runReconST()` selects a gene panel from a scRNA-seq reference and annotates a spatial Giotto object in one call. Environment installation and optional file-based export/result-loading helpers are also available.
 * gini `min_expression_gini` and `min_detection_gini` gate the gini coefficients themselves, defaulting to `-Inf`. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 * gini `min_length` pads the per-cluster vector so coefficients compare across runs with different cluster counts. Defaults to `0`, no padding. Replaces the unused `extended_gini_fun()`.
 
