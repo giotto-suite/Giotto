@@ -3919,14 +3919,17 @@ mergeClusters <- function(
 #' every feature.
 #' @param cor correlation score to calculate distance
 #' @param distance distance method to use for hierarchical clustering
+#' @param view optional `character(1)` naming a slotted view. The tree is
+#' built from the cells that survive it: the per-cluster means are taken over
+#' those cells only, and a cluster with none left is not a leaf.
 #' @returns an `hclust` whose leaf labels are the cluster labels, carrying the
 #' correlation matrix and the settings used as the attributes `"cor_matrix"`
 #' and `"params"`.
 #' @details
 #' The per-cluster means come from `analyzeData(x, analyzeParam("feat_stats"),
 #' groups =)`, which is one pass over the expression values on any backend,
-#' including a disk-backed store. [GiottoClass::calculateMetaTable()] computes
-#' the same statistic with one pass per cluster.
+#' including a disk-backed store. [GiottoClass::calculateMetaTable()] takes
+#' its per-group means through the same call.
 #'
 #' A plain `hclust` is returned rather than a new class so that
 #' [stats::cutree()], [stats::as.dendrogram()], `ggdendro`, `dendextend` and
@@ -3950,13 +3953,23 @@ calculateClusterTree <- function(gobject,
         cluster_column,
         feats = NULL,
         cor = c("pearson", "spearman"),
-        distance = "ward.D") {
+        distance = "ward.D",
+        view = NULL) {
     spat_unit <- set_default_spat_unit(
         gobject = gobject, spat_unit = spat_unit
     )
     feat_type <- set_default_feat_type(
         gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
     )
+    # One resolver pass over the two slots read below, rather than one per
+    # getter
+    if (!is.null(view)) {
+        checkmate::assert_string(view, .var.name = "view")
+        gobject <- GiottoClass::resolveRecipe(gobject,
+            view = view, slots = c("cell_metadata", "expression"),
+            spat_unit = spat_unit, feat_type = feat_type
+        )
+    }
     values <- match.arg(
         expression_values,
         unique(c("normalized", "scaled", "custom", expression_values))
@@ -4010,7 +4023,7 @@ calculateClusterTree <- function(gobject,
     attr(corclus, "params") <- list(
         spat_unit = spat_unit, feat_type = feat_type,
         expression_values = values, cluster_column = cluster_column,
-        cor = cor, distance = distance, n_feats = nrow(mat)
+        cor = cor, distance = distance, n_feats = nrow(mat), view = view
     )
     corclus
 }

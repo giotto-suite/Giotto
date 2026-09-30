@@ -46,8 +46,8 @@ expression profiles.
 \details{
 The per-cluster means come from `analyzeData(x, analyzeParam("feat_stats"),
 groups =)`, which is one pass over the expression values on any backend,
-including a disk-backed store. [GiottoClass::calculateMetaTable()] computes
-the same statistic with one pass per cluster.
+including a disk-backed store. [GiottoClass::calculateMetaTable()] takes
+its per-group means through the same call.
 
 A plain `hclust` is returned rather than a new class so that
 [stats::cutree()], [stats::as.dendrogram()], `ggdendro`, `dendextend` and

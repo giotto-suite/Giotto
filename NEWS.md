@@ -66,6 +66,10 @@ under that version.
 - `getDendrogramSplits()` no longer prints one line per merge by default.
 
 ## changes
+- `calculateClusterTree()` gains `view =`. The tree is built from the cells
+  that survive the view: per-cluster means are taken over those cells only,
+  and a cluster with none left is not a leaf. The view is recorded in the
+  tree's `params` attribute.
 - `allMatrix`, `featStatsParam`, `cellStatsParam` and the `analyzeData()`
   methods for the two stats params now live in GiottoClass (>= 0.7.4), which
   Giotto requires. `analyzeParam("feat_stats")` / `analyzeParam("cell_stats")`
