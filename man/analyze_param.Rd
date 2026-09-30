@@ -8,8 +8,6 @@
 \alias{markersParam}
 \alias{analyze_param}
 \alias{analyzeParam}
-\alias{featStatsParam-class}
-\alias{cellStatsParam-class}
 \alias{covGroupsParam-class}
 \alias{covLoessParam-class}
 \alias{varParam-class}

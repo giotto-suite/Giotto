@@ -784,8 +784,8 @@ setClass("binarizeThreshParam", contains = "threshParam")
 #' @exportClass minmaxThreshParam
 setClass("minmaxThreshParam", contains = "threshParam")
 
-# allMatrix signature ####
-setClassUnion("allMatrix", members = c("matrix", "Matrix"))
+# `allMatrix` is defined in GiottoClass, with the load hook that adds
+# DelayedArray and BPCells' IterableMatrix to it.
 
 
 

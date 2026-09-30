@@ -66,6 +66,11 @@ under that version.
 - `getDendrogramSplits()` no longer prints one line per merge by default.
 
 ## changes
+- `allMatrix`, `featStatsParam`, `cellStatsParam` and the `analyzeData()`
+  methods for the two stats params now live in GiottoClass (>= 0.7.4), which
+  Giotto requires. `analyzeParam("feat_stats")` / `analyzeParam("cell_stats")`
+  build them as before, and results are unchanged. Packages that imported
+  these classes from Giotto should import them from GiottoClass.
 - `runUMAP()` gains `nn_engine`, defaulting to `"giotto"`: where the neighbour
   graph comes from. It reuses the kNN `createNearestNetwork()` stored when one
   is available, and builds one otherwise. `"uwot"` restores uwot's own choice,

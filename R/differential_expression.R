@@ -345,7 +345,7 @@ setMethod("analyzeData",
             "assignment per cell.", call. = FALSE)
     }
     # positional against the columns of `x` unless named by cell ID
-    groups <- .align_groups(x, groups)
+    groups <- align_groups(x, groups)
 
     comparison <- param$comparison %null% "pairwise"
     if (identical(comparison, "one_vs_rest")) {

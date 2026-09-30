@@ -27,7 +27,7 @@ BugReports: https://github.com/giotto-suite/Giotto/issues
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.5.0)
+    GiottoClass (>= 0.7.4)
 Imports:
     BiocParallel,
     BiocSingular,
@@ -127,12 +127,12 @@ Collate:
     'package_imports.R'
     'normalize.R'
     'clustering.R'
+    'convenience_xenium.R'
+    'convenience_atera.R'
     'convenience_cosmx.R'
     'convenience_general.R'
     'convenience_stereoseq.r'
     'convenience_visiumHD.R'
-    'convenience_xenium.R'
-    'convenience_atera.R'
     'cross_section.R'
     'dd.R'
     'differential_expression.R'
