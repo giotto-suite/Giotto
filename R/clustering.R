@@ -3919,18 +3919,36 @@ mergeClusters <- function(
 #' every feature.
 #' @param cor correlation score to calculate distance
 #' @param distance distance method to use for hierarchical clustering
-#' @returns an `hclust` whose leaf labels are the cluster labels, carrying the
-#' correlation matrix and the settings used as the attributes `"cor_matrix"`
-#' and `"params"`.
+#' @param view optional `character(1)` naming a slotted view. The tree is
+#' built from the cells that survive it: the per-cluster means are taken over
+#' those cells only, and a cluster with none left is not a leaf.
+#' @returns a `giottoTree`: an `hclust` whose leaf labels are the cluster
+#' labels, recording the settings it was built from (`spat_unit`, `feat_type`,
+#' `expression_values`, `cluster_column`, `view`, ...) as the attribute
+#' `"params"`, and the correlation matrix as `"cor_matrix"`.
 #' @details
 #' The per-cluster means come from `analyzeData(x, analyzeParam("feat_stats"),
 #' groups =)`, which is one pass over the expression values on any backend,
-#' including a disk-backed store. [GiottoClass::calculateMetaTable()] computes
-#' the same statistic with one pass per cluster.
+#' including a disk-backed store. [GiottoClass::calculateMetaTable()] takes
+#' its per-group means through the same call.
 #'
-#' A plain `hclust` is returned rather than a new class so that
-#' [stats::cutree()], [stats::as.dendrogram()], `ggdendro`, `dendextend` and
-#' `ape` all work on it unchanged.
+#' @section giottoTree:
+#' The class is `c("giottoTree", "hclust")`, so [stats::cutree()],
+#' [stats::as.dendrogram()], `plot()`, `ggdendro`, `dendextend` and `ape` all
+#' treat it as the `hclust` it is.
+#'
+#' A tree is the grouping: which clusters sit on each side of each split.
+#' Functions that analyse along it ([findClusterTreeMarkers()],
+#' [writeClusterTreeQuery()], [annotateClusterTree()]) take their defaults for
+#' `cluster_column`, `spat_unit`, `feat_type`, `expression_values` and `view`
+#' from the recorded settings. Which data they use is still the caller's
+#' choice: an explicit argument always wins, with a warning when it differs
+#' from what the tree recorded, since the results then describe different data
+#' than the splits. A plain `hclust` from elsewhere works too, with those
+#' arguments passed explicitly.
+#'
+#' `as.data.frame()` / `data.table::as.data.table()` on a `giottoTree` give one
+#' row per split; see [as.data.frame.giottoTree()].
 #'
 #' Cluster labels are ordered naturally before the correlation is taken. This
 #' matters more than it looks: ward linkage breaks near-ties by index, so
@@ -3941,7 +3959,7 @@ mergeClusters <- function(
 #'
 #' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
 #' plot(tree)
-#' getDendrogramSplits(g, cluster_column = "leiden_clus", tree = tree)
+#' data.table::as.data.table(tree)
 #' @export
 calculateClusterTree <- function(gobject,
         spat_unit = NULL,
@@ -3950,13 +3968,15 @@ calculateClusterTree <- function(gobject,
         cluster_column,
         feats = NULL,
         cor = c("pearson", "spearman"),
-        distance = "ward.D") {
+        distance = "ward.D",
+        view = NULL) {
     spat_unit <- set_default_spat_unit(
         gobject = gobject, spat_unit = spat_unit
     )
     feat_type <- set_default_feat_type(
         gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
     )
+    gobject <- .tree_resolve_view(gobject, view, spat_unit, feat_type)
     values <- match.arg(
         expression_values,
         unique(c("normalized", "scaled", "custom", expression_values))
@@ -4010,9 +4030,126 @@ calculateClusterTree <- function(gobject,
     attr(corclus, "params") <- list(
         spat_unit = spat_unit, feat_type = feat_type,
         expression_values = values, cluster_column = cluster_column,
-        cor = cor, distance = distance, n_feats = nrow(mat)
+        cor = cor, distance = distance, n_feats = nrow(mat), view = view
     )
+    class(corclus) <- c("giottoTree", class(corclus))
     corclus
+}
+
+
+# giottoTree ####
+
+#' @title Splits of a cluster tree as a table
+#' @name as.data.frame.giottoTree
+#' @aliases as.data.table.giottoTree
+#' @description One row per split (internal node) of a tree from
+#' [calculateClusterTree()], root first:
+#' * `nodeID` --- the `tree$merge` row. The same node numbering
+#'   [findClusterTreeMarkers()], [writeClusterTreeQuery()] and
+#'   [annotateClusterTree()] (`labels$nodes`) use.
+#' * `node_h` --- the height of the join
+#' * `left`, `right` --- the clusters on each side, as character vectors
+#' @param x a `giottoTree`
+#' @param ... ignored
+#' @returns a `data.frame`, or a `data.table` from `as.data.table()`
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' data.table::as.data.table(tree)
+#' @export
+as.data.frame.giottoTree <- function(x, ...) {
+    as.data.frame(.tree_splits(x))
+}
+
+#' @rdname as.data.frame.giottoTree
+#' @exportS3Method data.table::as.data.table
+as.data.table.giottoTree <- function(x, ...) {
+    .tree_splits(x)
+}
+
+# The tree's merge table with each side resolved to cluster labels.
+.tree_splits <- function(tree) {
+    nodes <- .node_clusters(hclus_obj = tree, verbose = FALSE)[[2]]
+    data.table::data.table(
+        nodeID = vapply(nodes, function(x) x[["node"]], integer(1L)),
+        node_h = vapply(nodes, function(x) x[["height"]], numeric(1L)),
+        left = lapply(nodes, function(x) x[["first"]]),
+        right = lapply(nodes, function(x) x[["sec"]])
+    )
+}
+
+# Defaults a consumer takes from a tree's recorded settings. The tree is the
+# grouping; what is compared along it stays the caller's choice, so an explicit
+# argument always wins -- but it is flagged when it differs from the tree,
+# because the result then describes different data than the splits. A plain
+# `hclust` records nothing, so its consumers rely on explicit arguments.
+.tree_context <- function(tree, args, supplied, site) {
+    if (!inherits(tree, "hclust")) {
+        stop(sprintf("[%s] `tree` must be an `hclust`, as returned by `calculateClusterTree()`. Got: %s.",
+            site, paste(class(tree), collapse = "/")), call. = FALSE)
+    }
+    rec <- if (inherits(tree, "giottoTree")) attr(tree, "params") else NULL
+    fmt <- function(x) paste0("\"", paste(x, collapse = ", "), "\"")
+    for (nm in names(args)) {
+        if (!nm %in% names(rec)) next
+        if (isTRUE(supplied[[nm]])) {
+            if (identical(as.character(args[[nm]]), as.character(rec[[nm]]))) next
+            was <- if (is.null(rec[[nm]])) {
+                sprintf("the tree was built with no `%s`", nm)
+            } else {
+                sprintf("the tree was built with `%s = %s`", nm, fmt(rec[[nm]]))
+            }
+            warning(sprintf("[%s] using `%s = %s`, but %s; the results describe different data than the tree's splits.",
+                site, nm, fmt(args[[nm]]), was), call. = FALSE)
+        } else if (!is.null(rec[[nm]])) {
+            args[[nm]] <- rec[[nm]]
+            if (identical(nm, "view")) {
+                vmsg(.v = TRUE, sprintf("[%s] using view %s recorded on the tree",
+                    site, fmt(rec[[nm]])))
+            }
+        }
+    }
+    args
+}
+
+.tree_need_column <- function(cluster_column, site) {
+    if (is.null(cluster_column)) {
+        stop(sprintf("[%s] `cluster_column` is needed: pass it, or use a tree from `calculateClusterTree()`, which records one.",
+            site), call. = FALSE)
+    }
+    cluster_column
+}
+
+# One resolver pass over the two slots a tree consumer reads.
+.tree_resolve_view <- function(gobject, view, spat_unit, feat_type) {
+    if (is.null(view)) {
+        return(gobject)
+    }
+    checkmate::assert_string(view, .var.name = "view")
+    GiottoClass::resolveRecipe(gobject,
+        view = view, slots = c("cell_metadata", "expression"),
+        spat_unit = spat_unit, feat_type = feat_type
+    )
+}
+
+# A tree from another clustering, or another view, would otherwise flow
+# through silently: a leaf with no cells counts as empty and a cluster with no
+# leaf is skipped. `all_clusters = FALSE` allows clusters without a leaf, for
+# consumers that label every cell of a column a tree only partly covers.
+.check_tree_leaves <- function(tree, clusters, site, all_clusters = TRUE) {
+    clusters <- unique(as.character(clusters[!is.na(clusters)]))
+    no_leaf <- if (all_clusters) setdiff(clusters, tree$labels) else character()
+    no_cells <- setdiff(tree$labels, clusters)
+    if (!length(no_leaf) && !length(no_cells)) {
+        return(invisible(TRUE))
+    }
+    stop(sprintf("[%s] `tree` leaves do not match the clusters in the data.%s%s\nWas the tree built from another clustering, or under a different view?",
+        site,
+        if (length(no_leaf)) paste0("\n  clusters with no leaf: ",
+            paste(mixedsort(no_leaf), collapse = ", ")) else "",
+        if (length(no_cells)) paste0("\n  leaves with no cells: ",
+            paste(mixedsort(no_cells), collapse = ", ")) else ""
+    ), call. = FALSE)
 }
 
 
@@ -4022,13 +4159,14 @@ calculateClusterTree <- function(gobject,
 #' @description Write cluster-tree annotations onto a giotto object at one or
 #' more levels of granularity, from a single set of labels.
 #' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param tree an `hclust` over the clusters, from [calculateClusterTree()]
+#' @param tree a `giottoTree` from [calculateClusterTree()], or any `hclust`
+#' over the clusters
 #' @param labels the annotation, as a list with `clusters` (one label per leaf)
 #' and optionally `nodes` (one label per internal node). Both may be named
 #' character vectors or `data.frame`s; see details.
-#' @param cluster_column name of the cell metadata column holding the clusters
+#' @param spat_unit,feat_type,cluster_column default to those recorded on a
+#' `giottoTree`; see the giottoTree section of [calculateClusterTree()].
+#' `cluster_column` is required for a plain `hclust`.
 #' @param k,h granularity, passed to [stats::cutree()]. Either may be a vector,
 #' giving one annotation column per value. `k = NULL, h = NULL` writes the leaf
 #' labels unchanged.
@@ -4073,21 +4211,45 @@ calculateClusterTree <- function(gobject,
 #' pDataDT(g)
 #' @export
 annotateClusterTree <- function(gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
         tree,
         labels,
-        cluster_column,
+        spat_unit = NULL,
+        feat_type = NULL,
+        cluster_column = NULL,
         k = NULL,
         h = NULL,
         name = NULL,
         ...) {
-    if (!inherits(tree, "hclust")) {
-        stop("[annotateClusterTree] `tree` must be an `hclust`, as returned ",
-            "by `calculateClusterTree()`. Got: ",
-            paste(class(tree), collapse = "/"), ".", call. = FALSE)
+    site <- "annotateClusterTree"
+    ctx <- .tree_context(tree,
+        args = list(spat_unit = spat_unit, feat_type = feat_type,
+            cluster_column = cluster_column),
+        supplied = c(spat_unit = !is.null(spat_unit),
+            feat_type = !is.null(feat_type),
+            cluster_column = !is.null(cluster_column)),
+        site = site
+    )
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = ctx$spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = ctx$feat_type
+    )
+    cluster_column <- .tree_need_column(ctx$cluster_column, site)
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = FALSE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[annotateClusterTree] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
     }
-    .check_tree_granularity(tree, k, h, "annotateClusterTree")
+    # every cell is labelled through the column, so clusters the tree does not
+    # cover (outside the view it was built under, say) are allowed; a leaf
+    # with no cells is not
+    .check_tree_leaves(tree, cell_meta[[cluster_column]], site,
+        all_clusters = FALSE)
+    .check_tree_granularity(tree, k, h, site)
 
     leaf_lab <- .tree_label_vector(labels$clusters, tree$labels,
         what = "clusters")
@@ -4284,8 +4446,10 @@ annotateClusterTree <- function(gobject,
 
 #' @title getDendrogramSplits
 #' @name getDendrogramSplits
-#' @description Split dendrogram at each node and keep the leave (label)
-#' information.
+#' @description Deprecated. Build the tree with [calculateClusterTree()]; then
+#' `data.table::as.data.table(tree)` gives the same table (with `left` /
+#' `right` for `tree_1` / `tree_2`), and `plot(tree)` draws it. See
+#' [as.data.frame.giottoTree()].
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
@@ -4296,47 +4460,11 @@ annotateClusterTree <- function(gobject,
 #' @param h height of horizontal lines to plot
 #' @param h_color color of horizontal lines
 #' @param show_dend show dendrogram
-#' @param tree optional `hclust` from [calculateClusterTree()]. When supplied
-#' the tree is not rebuilt, so the splits, the dendrogram plot and any other
-#' consumer can share one.
+#' @param tree optional `hclust` from [calculateClusterTree()]
 #' @param verbose be verbose
 #' @returns `data.table` with one row per internal node, ordered from highest
-#' node to lowest: `node_h` (numeric height), `tree_1` and `tree_2` (list
-#' columns of cluster labels either side of the split), and `nodeID` (the
-#' `hclust$merge` row the node corresponds to).
-#' @details Creates a data.table where each row represents a node in the
-#' dendrogram. For each node the height of the node is given together with the
-#' two subdendrograms. This information can be used to determine in a
-#' hierarchical manner differentially expressed marker genes at each node.
-#'
-#' `nodeID` is the `merge` row index, so per-node results join back to the
-#' clustering. It was previously a row counter (`"node_1"`, `"node_2"`, ...)
-#' with no defined relationship to the tree.
-#'
-#' `tree_1` and `tree_2` are **list columns** of cluster labels, so feeding a
-#' node to a marker function needs `unlist()`:
-#'
-#' ```
-#' splits <- getDendrogramSplits(g, cluster_column = "leiden_clus")
-#' findScranMarkers(g,
-#'     cluster_column = "leiden_clus",
-#'     group_1 = unlist(splits[1]$tree_1),
-#'     group_2 = unlist(splits[1]$tree_2)
-#' )
-#' ```
-#'
-#' Looping that over the rows gives differential expression at every node. Each
-#' call reads only the cells under its own node, so the total work is roughly
-#' the tree depth times one pass rather than one pass per node.
-#'
-#' The tree itself is built by [calculateClusterTree()]. Pass one in as `tree`
-#' to reuse the same tree across the splits, the dendrogram plot and any
-#' per-node analysis, instead of rebuilding it here.
-#'
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' getDendrogramSplits(g, cluster_column = "leiden_clus")
+#' node to lowest: `node_h`, `tree_1` and `tree_2` (list columns of cluster
+#' labels either side of the split), and `nodeID` (the `hclust$merge` row).
 #' @export
 getDendrogramSplits <- function(
         gobject,
@@ -4351,6 +4479,12 @@ getDendrogramSplits <- function(
         show_dend = TRUE,
         tree = NULL,
         verbose = TRUE) {
+    deprecate_soft("4.3.0", "getDendrogramSplits()",
+        "data.table::as.data.table()",
+        details = paste0("Build the tree with `calculateClusterTree()`; ",
+            "`as.data.table(tree)` gives the same table, with `left` / ",
+            "`right` for `tree_1` / `tree_2`. Plot it with `plot(tree)`.")
+    )
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,

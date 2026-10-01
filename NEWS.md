@@ -66,6 +66,29 @@ under that version.
 - `getDendrogramSplits()` no longer prints one line per merge by default.
 
 ## changes
+- **`calculateClusterTree()` returns a `giottoTree`**, class
+  `c("giottoTree", "hclust")`: still an `hclust` to `cutree()`,
+  `as.dendrogram()`, `plot()` and the rest, now recording the
+  `cluster_column`, `spat_unit`, `feat_type`, `expression_values` and `view`
+  it was built from. Functions that analyse along a tree take those as their
+  defaults; an explicit argument always wins, with a warning when it differs
+  from the tree's, since the results then describe different data than the
+  splits. A plain `hclust` works with the arguments passed explicitly. A tree
+  whose leaves do not match the clusters in the data is an error rather than
+  silently empty or skipped groups.
+  `as.data.frame()` / `data.table::as.data.table()` on a `giottoTree` give one
+  row per split (`nodeID`, `node_h`, `left`, `right`).
+- `findNodeMarkers()` is renamed **`findClusterTreeMarkers()`**. It requires a
+  tree and no longer builds one (`cor`, `distance` and `splits` are removed),
+  and gains `view =`. `writeClusterTreeQuery()` likewise drops `splits` and
+  gains `view =`. In both, and in `annotateClusterTree()`, `tree` is now the
+  second argument and `cluster_column` defaults to the tree's.
+- `getDendrogramSplits()` is deprecated in favour of
+  `data.table::as.data.table(tree)`; it still returns its old table.
+- `calculateClusterTree()` gains `view =`. The tree is built from the cells
+  that survive the view: per-cluster means are taken over those cells only,
+  and a cluster with none left is not a leaf. The view is recorded in the
+  tree's `params` attribute.
 - `allMatrix`, `featStatsParam`, `cellStatsParam` and the `analyzeData()`
   methods for the two stats params now live in GiottoClass (>= 0.7.4), which
   Giotto requires. `analyzeParam("feat_stats")` / `analyzeParam("cell_stats")`

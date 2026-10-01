@@ -2445,23 +2445,20 @@ findMarkers <- function(
 }
 
 
-#' @title findNodeMarkers
-#' @name findNodeMarkers
-#' @description Differential expression at every branch point of a cluster
-#' tree: at each internal node, the clusters on the left are compared against
-#' the clusters on the right.
+#' @title findClusterTreeMarkers
+#' @name findClusterTreeMarkers
+#' @description Differential expression at every split of a cluster tree: at
+#' each internal node, the clusters on the left are compared against the
+#' clusters on the right.
 #' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param expression_values feature expression values to use
-#' @param cluster_column name of the cell metadata column holding the clusters
-#' @param tree an `hclust` over the clusters, as returned by
-#' [calculateClusterTree()]. Built from `gobject` when not supplied.
-#' @param splits the node table for `tree`, as returned by
-#' [getDendrogramSplits()]. Derived from `tree` when not supplied.
-#' @param cor,distance correlation score and linkage used to build the tree.
-#' Consulted only when `tree` is not supplied; a tree passed in already has
-#' its own, recorded in its `params` attribute.
+#' @param tree a `giottoTree` from [calculateClusterTree()], or any `hclust`
+#' over the clusters. It sets the grouping; the cells and values compared are
+#' set by the arguments below.
+#' @param spat_unit,feat_type,expression_values,cluster_column,view default to
+#' those recorded on a `giottoTree`; see the giottoTree section of
+#' [calculateClusterTree()]. An explicit value overrides the tree's, with a
+#' warning when they differ. `cluster_column` is required for a plain `hclust`.
+#' `view` names a slotted view: only the cells that survive it are compared.
 #' @param method method used for the comparison at each node. `"scran"` and
 #' `"gini"` take the pooled route described below; `"mast"` is delegated.
 #' @param lfc_cut,fdr_cut thresholds counting toward `n_strong`
@@ -2491,7 +2488,8 @@ findMarkers <- function(
 #' branches, so a feature that says nothing at the root can be decisive deeper
 #' in the tree. That is the layer a flat one-vs-all marker list cannot express.
 #'
-#' `nodeID` is the `tree$merge` row, so results join back to the tree.
+#' `nodeID` is the `tree$merge` row, so results join back to the tree and to
+#' `data.table::as.data.table(tree)`.
 #'
 #' @section Cost:
 #' A node comparison is a two-group test between unions of clusters, so
@@ -2513,24 +2511,23 @@ findMarkers <- function(
 #' a median, Wilcoxon --- cannot pool either, and would be delegated the same
 #' way. The choice is made from the method, so nothing is silently
 #' approximated: a delegated method returns the same numbers, more slowly.
-#' @seealso [calculateClusterTree()], [getDendrogramSplits()], [findMarkers()]
+#' @seealso [calculateClusterTree()], [findMarkers()]
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
-#' res <- findNodeMarkers(g, cluster_column = "leiden_clus")
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' res <- findClusterTreeMarkers(g, tree)
 #' res$nodes
 #' head(res$markers)
 #' @export
-findNodeMarkers <- function(
+findClusterTreeMarkers <- function(
         gobject,
+        tree,
         spat_unit = NULL,
         feat_type = NULL,
         expression_values = c("normalized", "scaled", "custom"),
-        cluster_column,
-        tree = NULL,
-        splits = NULL,
-        cor = c("pearson", "spearman"),
-        distance = "ward.D",
+        cluster_column = NULL,
+        view = NULL,
         method = c("scran", "gini", "mast"),
         lfc_cut = 0.25,
         fdr_cut = 0.01,
@@ -2550,52 +2547,31 @@ findNodeMarkers <- function(
         min_feats = 4,
         verbose = TRUE,
         ...) {
-    # data.table variables
-    nodeID <- side <- logFC <- FDR <- cluster <- NULL
-
+    site <- "findClusterTreeMarkers"
+    ctx <- .tree_context(tree,
+        args = list(spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = expression_values,
+            cluster_column = cluster_column, view = view),
+        supplied = c(spat_unit = !is.null(spat_unit),
+            feat_type = !is.null(feat_type),
+            expression_values = !missing(expression_values),
+            cluster_column = !is.null(cluster_column),
+            view = !is.null(view)),
+        site = site
+    )
     spat_unit <- set_default_spat_unit(
-        gobject = gobject, spat_unit = spat_unit
+        gobject = gobject, spat_unit = ctx$spat_unit
     )
     feat_type <- set_default_feat_type(
-        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+        gobject = gobject, spat_unit = spat_unit, feat_type = ctx$feat_type
     )
     values <- match.arg(
-        expression_values,
-        unique(c("normalized", "scaled", "custom", expression_values))
+        ctx$expression_values,
+        unique(c("normalized", "scaled", "custom", ctx$expression_values))
     )
+    cluster_column <- .tree_need_column(ctx$cluster_column, site)
     method <- match.arg(method, choices = c("scran", "gini", "mast"))
-
-    cor <- match.arg(cor, c("pearson", "spearman"))
-
-    # `cor` and `distance` shape the tree, so they are only consulted when one
-    # is built here. Passing `tree =` makes them inert -- that tree already has
-    # its own, recorded in its `params` attribute.
-    if (is.null(tree)) {
-        tree <- calculateClusterTree(
-            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type,
-            expression_values = values, cluster_column = cluster_column,
-            cor = cor, distance = distance
-        )
-    }
-    if (!inherits(tree, "hclust")) {
-        stop("[findNodeMarkers] `tree` must be an `hclust`, as returned by ",
-            "`calculateClusterTree()`. Got: ",
-            paste(class(tree), collapse = "/"), ".", call. = FALSE)
-    }
-    if (is.null(splits)) {
-        splits <- getDendrogramSplits(
-            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type,
-            expression_values = values, cluster_column = cluster_column,
-            tree = tree, show_dend = FALSE, verbose = FALSE
-        )
-    }
-
-    sets <- stats::setNames(
-        lapply(seq_len(nrow(splits)), function(i) {
-            list(left = splits$tree_1[[i]], right = splits$tree_2[[i]])
-        }),
-        as.character(splits$nodeID)
-    )
+    gobject <- .tree_resolve_view(gobject, ctx$view, spat_unit, feat_type)
 
     # The gini arguments are named on this signature, so they travel as named
     # arguments rather than through `...`; `scran` would reject them.
@@ -2609,6 +2585,40 @@ findNodeMarkers <- function(
     } else {
         list()
     }
+    .cluster_tree_markers(gobject, tree, spat_unit, feat_type, values,
+        cluster_column, method, lfc_cut, fdr_cut, gini_args,
+        verbose = verbose, ...
+    )
+}
+
+
+# The statistics, on an already-resolved object and context. Split from
+# `findClusterTreeMarkers()` so callers that resolved the tree's defaults and
+# view themselves (`writeClusterTreeQuery()`) do not have them re-applied.
+.cluster_tree_markers <- function(gobject, tree, spat_unit, feat_type, values,
+    cluster_column, method, lfc_cut, fdr_cut, gini_args = list(),
+    verbose = TRUE, ...) {
+    # data.table variables
+    nodeID <- side <- logFC <- FDR <- cluster <- NULL
+
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = FALSE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[findClusterTreeMarkers] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    .check_tree_leaves(tree, cell_meta[[cluster_column]],
+        "findClusterTreeMarkers")
+
+    splits <- .tree_splits(tree)
+    sets <- stats::setNames(
+        lapply(seq_len(nrow(splits)), function(i) {
+            list(left = splits$left[[i]], right = splits$right[[i]])
+        }),
+        as.character(splits$nodeID)
+    )
 
     mk <- if (identical(method, "mast")) {
         .node_markers_delegated(gobject, spat_unit, feat_type, values,
@@ -2658,7 +2668,7 @@ findNodeMarkers <- function(
         output = "data.table", copy_obj = TRUE
     )
     if (!cluster_column %in% colnames(cell_meta)) {
-        stop("[findNodeMarkers] `", cluster_column,
+        stop("[findClusterTreeMarkers] `", cluster_column,
             "` is not a cell metadata column.", call. = FALSE)
     }
     expr <- getExpression(gobject,
