@@ -66,6 +66,9 @@ under that version.
 - `getDendrogramSplits()` no longer prints one line per merge by default.
 
 ## changes
+- A `giottoTree` records the features it was built from as `params$feats`
+  (`NULL` when every feature was used), so a consumer recomputing over the
+  same features can default to them.
 - **`calculateClusterTree()` returns a `giottoTree`**, class
   `c("giottoTree", "hclust")`: still an `hclust` to `cutree()`,
   `as.dendrogram()`, `plot()` and the rest, now recording the

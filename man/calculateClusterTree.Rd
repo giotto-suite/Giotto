@@ -42,8 +42,9 @@ those cells only, and a cluster with none left is not a leaf.}
 \value{
 a `giottoTree`: an `hclust` whose leaf labels are the cluster
 labels, recording the settings it was built from (`spat_unit`, `feat_type`,
-`expression_values`, `cluster_column`, `view`, ...) as the attribute
-`"params"`, and the correlation matrix as `"cor_matrix"`.
+`expression_values`, `cluster_column`, `view`, `feats`, ...) as the attribute
+`"params"`, and the correlation matrix as `"cor_matrix"`. `feats` is `NULL`
+when every feature was used, and otherwise the features actually present.
 }
 \description{
 Hierarchically cluster the clusters, by correlating their mean
