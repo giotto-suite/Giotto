@@ -4071,6 +4071,64 @@ as.data.table.giottoTree <- function(x, ...) {
     .tree_splits(x)
 }
 
+#' @title Plot a cluster tree
+#' @name plot.giottoTree
+#' @description Draw a tree from [calculateClusterTree()], either as the tree
+#' itself or as the correlation matrix it was built from.
+#' @param x a `giottoTree`
+#' @param what `"tree"` (default) draws the dendrogram with the base `hclust`
+#' method. `"heatmap"` draws the correlation matrix recorded on the tree, in
+#' leaf order, with the tree's branches on both axes.
+#' @param ... passed to the base `hclust` plot method (e.g. `hang = -1`), or
+#' to `ComplexHeatmap::Heatmap()`
+#' @returns invisibly: `x` for `"tree"`, the `Heatmap` object for `"heatmap"`
+#' @details
+#' The heatmap shows the matrix **the branches were built from**, so the two
+#' always agree. It describes the tree, not whatever object is current: to see
+#' correlations recomputed from an object in a tree's order, use
+#' `GiottoVisuals::showClusterHeatmap(cluster_custom_order =
+#' tree$labels[tree$order])`, which draws no branches.
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' plot(tree, hang = -1)
+#' plot(tree, what = "heatmap")
+#' @method plot giottoTree
+#' @export
+plot.giottoTree <- function(x, what = c("tree", "heatmap"), ...) {
+    what <- match.arg(what)
+    if (identical(what, "tree")) {
+        # the plain hclust method, without `what` reaching its graphics args
+        y <- x
+        class(y) <- setdiff(class(x), "giottoTree")
+        graphics::plot(y, ...)
+        return(invisible(x))
+    }
+
+    cm <- attr(x, "cor_matrix")
+    if (is.null(cm)) {
+        stop("[plot.giottoTree] this tree carries no correlation matrix. ",
+            "To draw correlations from an object in its order, use ",
+            "`GiottoVisuals::showClusterHeatmap(cluster_custom_order = ",
+            "tree$labels[tree$order])`.", call. = FALSE)
+    }
+    package_check(pkg_name = "ComplexHeatmap", repository = "Bioc")
+    p <- attr(x, "params")
+    title <- sprintf("%s correlation of cluster means%s",
+        p$cor %null% "", if (is.null(p$n_feats)) "" else
+            sprintf(", %d features", p$n_feats))
+    hm <- ComplexHeatmap::Heatmap(
+        matrix = cm[x$labels, x$labels, drop = FALSE],
+        cluster_rows = x,
+        cluster_columns = x,
+        name = "r",
+        column_title = trimws(title),
+        ...
+    )
+    ComplexHeatmap::draw(hm)
+    invisible(hm)
+}
+
 # The tree's merge table with each side resolved to cluster labels.
 .tree_splits <- function(tree) {
     nodes <- .node_clusters(hclus_obj = tree, verbose = FALSE)[[2]]
