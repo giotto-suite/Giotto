@@ -134,3 +134,13 @@ test_that("a tree from another clustering is refused", {
     expect_error(findClusterTreeMarkers(g2, tree, method = "gini"),
         "clusters with no leaf: 7.*leaves with no cells: 6")
 })
+
+test_that("the tree records which features it was built from", {
+    g <- .gt_gobject()
+    expect_null(attr(.gt_tree(g), "params")$feats)
+    # only features present are recorded, in the order the matrix used them
+    want <- c("g3", "g1", "nope", "g7")
+    tree <- .gt_tree(g, feats = want)
+    expect_setequal(attr(tree, "params")$feats, c("g1", "g3", "g7"))
+    expect_identical(attr(tree, "params")$n_feats, 3L)
+})

@@ -3924,8 +3924,9 @@ mergeClusters <- function(
 #' those cells only, and a cluster with none left is not a leaf.
 #' @returns a `giottoTree`: an `hclust` whose leaf labels are the cluster
 #' labels, recording the settings it was built from (`spat_unit`, `feat_type`,
-#' `expression_values`, `cluster_column`, `view`, ...) as the attribute
-#' `"params"`, and the correlation matrix as `"cor_matrix"`.
+#' `expression_values`, `cluster_column`, `view`, `feats`, ...) as the attribute
+#' `"params"`, and the correlation matrix as `"cor_matrix"`. `feats` is `NULL`
+#' when every feature was used, and otherwise the features actually present.
 #' @details
 #' The per-cluster means come from `analyzeData(x, analyzeParam("feat_stats"),
 #' groups =)`, which is one pass over the expression values on any backend,
@@ -4030,7 +4031,10 @@ calculateClusterTree <- function(gobject,
     attr(corclus, "params") <- list(
         spat_unit = spat_unit, feat_type = feat_type,
         expression_values = values, cluster_column = cluster_column,
-        cor = cor, distance = distance, n_feats = nrow(mat), view = view
+        cor = cor, distance = distance, n_feats = nrow(mat), view = view,
+        # `NULL` means every feature; otherwise the ones actually used, so a
+        # consumer recomputing over the same features can default to them
+        feats = if (is.null(feats)) NULL else rownames(mat)
     )
     class(corclus) <- c("giottoTree", class(corclus))
     corclus
