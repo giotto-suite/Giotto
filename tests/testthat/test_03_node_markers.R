@@ -1,6 +1,6 @@
 # Differential expression at every branch point of a cluster tree.
 #
-# `findNodeMarkers()` has two routes to the same answer: a pooled one, which
+# `findClusterTreeMarkers()` has two routes to the same answer: a pooled one, which
 # takes a single grouped statistic pass and combines the accumulators per node,
 # and a delegated one, which calls `findMarkers(group_1 =, group_2 =)` once per
 # node. The pooled route is the fast path and the delegated route is the
@@ -47,16 +47,14 @@
 }
 
 
-test_that("findNodeMarkers returns markers and a per-node summary", {
+test_that("findClusterTreeMarkers returns markers and a per-node summary", {
     skip_if_not_installed("scran")
     fx <- .nm_gobject()
     tree <- .nm_tree(fx$gobject)
-    splits <- getDendrogramSplits(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, show_dend = FALSE,
-        verbose = FALSE)
+    splits <- data.table::as.data.table(tree)
 
-    res <- findNodeMarkers(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, splits = splits,
+    res <- findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", tree = tree,
         method = "scran", verbose = FALSE)
 
     expect_named(res, c("markers", "nodes"))
@@ -76,7 +74,7 @@ test_that("findNodeMarkers returns markers and a per-node summary", {
 
     # the two sides of each node are disjoint and partition that subtree
     for (i in seq_len(nrow(splits))) {
-        expect_length(intersect(splits$tree_1[[i]], splits$tree_2[[i]]), 0L)
+        expect_length(intersect(splits$left[[i]], splits$right[[i]]), 0L)
     }
 })
 
@@ -85,16 +83,14 @@ test_that("pooled scran node markers equal the delegated findMarkers call", {
     skip_if_not_installed("scran")
     fx <- .nm_gobject()
     tree <- .nm_tree(fx$gobject)
-    splits <- getDendrogramSplits(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, show_dend = FALSE,
-        verbose = FALSE)
-    pooled <- findNodeMarkers(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, splits = splits,
+    splits <- data.table::as.data.table(tree)
+    pooled <- findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", tree = tree,
         method = "scran", verbose = FALSE)
 
     for (i in seq_len(nrow(splits))) {
-        L <- splits$tree_1[[i]]
-        R <- splits$tree_2[[i]]
+        L <- splits$left[[i]]
+        R <- splits$right[[i]]
         nid <- splits$nodeID[i]
         deleg <- findMarkers(fx$gobject, cluster_column = "clus",
             expression_values = "raw", method = "scran",
@@ -119,16 +115,14 @@ test_that("pooled scran node markers equal the delegated findMarkers call", {
 test_that("pooled gini node markers equal the delegated findMarkers call", {
     fx <- .nm_gobject()
     tree <- .nm_tree(fx$gobject)
-    splits <- getDendrogramSplits(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, show_dend = FALSE,
-        verbose = FALSE)
-    pooled <- findNodeMarkers(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, splits = splits,
+    splits <- data.table::as.data.table(tree)
+    pooled <- findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", tree = tree,
         method = "gini")
 
     for (i in seq_len(nrow(splits))) {
-        L <- splits$tree_1[[i]]
-        R <- splits$tree_2[[i]]
+        L <- splits$left[[i]]
+        R <- splits$right[[i]]
         nid <- splits$nodeID[i]
         lname <- paste0(L, collapse = "_")
         deleg <- data.table::as.data.table(findMarkers(fx$gobject,
@@ -166,16 +160,16 @@ test_that("gini node markers use findMarkers defaults, not markersParam's", {
     tree <- .nm_tree(fx$gobject)
 
     # the defaults on the signature
-    f <- formals(findNodeMarkers)
+    f <- formals(findClusterTreeMarkers)
     expect_identical(eval(f$min_expression), 0.5)
     expect_identical(eval(f$min_detection), 0.5)
     expect_identical(eval(f$min_feats), 4)
 
     # and they must actually reach the statistic: a looser threshold has to
     # return at least as many rows as the default one
-    tight <- findNodeMarkers(fx$gobject, cluster_column = "clus",
+    tight <- findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
         expression_values = "raw", tree = tree, method = "gini")
-    loose <- findNodeMarkers(fx$gobject, cluster_column = "clus",
+    loose <- findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
         expression_values = "raw", tree = tree, method = "gini",
         min_expression = 0.2, min_detection = 0.2, min_feats = 5)
     expect_gte(nrow(loose$markers), nrow(tight$markers))
@@ -186,18 +180,16 @@ test_that("node markers match scran::findMarkers on a relabelled matrix", {
     skip_if_not_installed("scran")
     fx <- .nm_gobject()
     tree <- .nm_tree(fx$gobject)
-    splits <- getDendrogramSplits(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, show_dend = FALSE,
-        verbose = FALSE)
-    pooled <- findNodeMarkers(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, splits = splits,
+    splits <- data.table::as.data.table(tree)
+    pooled <- findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", tree = tree,
         method = "scran", verbose = FALSE)
 
     # ground truth from outside the suite: relabel the cells of one node and
     # hand the matrix straight to scran, sharing no code with the implementation
     i <- which.max(splits$node_h)
-    L <- splits$tree_1[[i]]
-    R <- splits$tree_2[[i]]
+    L <- splits$left[[i]]
+    R <- splits$right[[i]]
     keep <- fx$clus %in% c(L, R)
     lab <- ifelse(fx$clus[keep] %in% L, "L", "R")
     ref <- scran::findMarkers(as.matrix(fx$mat[, keep, drop = FALSE]),
@@ -217,29 +209,21 @@ test_that("node markers match scran::findMarkers on a relabelled matrix", {
 })
 
 
-test_that("findNodeMarkers builds its own tree and splits when not given them", {
-    skip_if_not_installed("scran")
+test_that("findClusterTreeMarkers needs a tree, and does not build one", {
     fx <- .nm_gobject()
-
-    # `cor` / `distance` must reach the tree this builds for itself, or the
-    # auto path silently uses a different linkage from the explicit one
-    auto <- findNodeMarkers(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", cor = "pearson", distance = "average",
-        method = "scran", verbose = FALSE)
-    tree <- .nm_tree(fx$gobject)
-    given <- findNodeMarkers(fx$gobject, cluster_column = "clus",
-        expression_values = "raw", tree = tree, method = "scran",
-        verbose = FALSE)
-
-    expect_identical(auto$nodes$nodeID, given$nodes$nodeID)
-    expect_equal(auto$nodes$node_h, given$nodes$node_h, tolerance = 1e-12)
+    # trees come from `calculateClusterTree()` only, so markers and
+    # annotations cannot end up on two different trees
+    expect_error(findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", method = "scran"), "tree")
+    expect_false(any(c("cor", "distance", "splits") %in%
+        names(formals(findClusterTreeMarkers))))
 })
 
 
-test_that("findNodeMarkers rejects a tree that is not an hclust", {
+test_that("findClusterTreeMarkers rejects a tree that is not an hclust", {
     fx <- .nm_gobject()
     expect_error(
-        findNodeMarkers(fx$gobject, cluster_column = "clus",
+        findClusterTreeMarkers(fx$gobject, cluster_column = "clus",
             expression_values = "raw", tree = list(a = 1), method = "scran"),
         "must be an `hclust`"
     )

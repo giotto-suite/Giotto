@@ -6,12 +6,12 @@
 \usage{
 writeClusterTreeQuery(
   gobject,
+  tree,
   spat_unit = NULL,
   feat_type = NULL,
   expression_values = c("normalized", "scaled", "custom"),
-  cluster_column,
-  tree,
-  splits = NULL,
+  cluster_column = NULL,
+  view = NULL,
   markers = NULL,
   gini_markers = NULL,
   node_markers = NULL,
@@ -26,20 +26,15 @@ writeClusterTreeQuery(
 \arguments{
 \item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
+\item{tree}{a `giottoTree` from [calculateClusterTree()], or any `hclust`
+over the clusters}
 
-\item{feat_type}{feature type}
-
-\item{expression_values}{feature expression values to use. Consulted only
-for evidence layers this function has to compute itself; one supplied by the
-caller was already built on some choice of values.}
-
-\item{cluster_column}{name of the cell metadata column holding the clusters}
-
-\item{tree}{an `hclust` over the clusters, from [calculateClusterTree()]}
-
-\item{splits}{the node table for `tree`, from [getDendrogramSplits()].
-Derived from `tree` when not supplied.}
+\item{spat_unit, feat_type, expression_values, cluster_column, view}{default to
+those recorded on a `giottoTree`; see the giottoTree section of
+[calculateClusterTree()]. An explicit value overrides the tree's, with a
+warning when they differ. `cluster_column` is required for a plain `hclust`.
+`expression_values` and `view` apply only to the evidence layers this
+function computes itself: cell counts and any marker table not supplied.}
 
 \item{markers}{one-vs-all marker table, from [findMarkers_one_vs_all()].
 Computed when not supplied.}
@@ -47,8 +42,8 @@ Computed when not supplied.}
 \item{gini_markers}{gini marker table, from [findGiniMarkers_one_vs_all()].
 Computed when not supplied; supplies the specificity flag.}
 
-\item{node_markers}{output of [findNodeMarkers()]. Computed when not
-supplied.}
+\item{node_markers}{output of [findClusterTreeMarkers()]. Computed when
+not supplied.}
 
 \item{context}{named list of whatever is known about the sample --
 `tissue`, `disease`, `assay`, anything else. Rendered as `Name: value`
@@ -85,13 +80,12 @@ asking the model again.
 g <- GiottoData::loadGiottoMini("visium")
 
 tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
-q <- writeClusterTreeQuery(g,
-    cluster_column = "leiden_clus", tree = tree,
+q <- writeClusterTreeQuery(g, tree,
     context = list(tissue = "mouse brain")
 )
 head(q, 20)
 }
 \seealso{
-[calculateClusterTree()], [findNodeMarkers()],
+[calculateClusterTree()], [findClusterTreeMarkers()],
 [annotateClusterTree()]
 }

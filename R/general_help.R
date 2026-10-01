@@ -364,21 +364,20 @@ rank_binarize_wrapper <- function(
 #' the markers separating the two sides of every branch, and the per-cluster
 #' markers with a specificity flag.
 #' @param gobject giotto object
-#' @param spat_unit spatial unit
-#' @param feat_type feature type
-#' @param expression_values feature expression values to use. Consulted only
-#' for evidence layers this function has to compute itself; one supplied by the
-#' caller was already built on some choice of values.
-#' @param cluster_column name of the cell metadata column holding the clusters
-#' @param tree an `hclust` over the clusters, from [calculateClusterTree()]
-#' @param splits the node table for `tree`, from [getDendrogramSplits()].
-#' Derived from `tree` when not supplied.
+#' @param tree a `giottoTree` from [calculateClusterTree()], or any `hclust`
+#' over the clusters
+#' @param spat_unit,feat_type,expression_values,cluster_column,view default to
+#' those recorded on a `giottoTree`; see the giottoTree section of
+#' [calculateClusterTree()]. An explicit value overrides the tree's, with a
+#' warning when they differ. `cluster_column` is required for a plain `hclust`.
+#' `expression_values` and `view` apply only to the evidence layers this
+#' function computes itself: cell counts and any marker table not supplied.
 #' @param markers one-vs-all marker table, from [findMarkers_one_vs_all()].
 #' Computed when not supplied.
 #' @param gini_markers gini marker table, from [findGiniMarkers_one_vs_all()].
 #' Computed when not supplied; supplies the specificity flag.
-#' @param node_markers output of [findNodeMarkers()]. Computed when not
-#' supplied.
+#' @param node_markers output of [findClusterTreeMarkers()]. Computed when
+#' not supplied.
 #' @param context named list of whatever is known about the sample --
 #' `tissue`, `disease`, `assay`, anything else. Rendered as `Name: value`
 #' lines at the top of the query.
@@ -398,25 +397,24 @@ rank_binarize_wrapper <- function(
 #' the clade beneath it rather than describe the split. That is what lets
 #' [annotateClusterTree()] cut the answer at any granularity afterwards without
 #' asking the model again.
-#' @seealso [calculateClusterTree()], [findNodeMarkers()],
+#' @seealso [calculateClusterTree()], [findClusterTreeMarkers()],
 #' [annotateClusterTree()]
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
 #' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
-#' q <- writeClusterTreeQuery(g,
-#'     cluster_column = "leiden_clus", tree = tree,
+#' q <- writeClusterTreeQuery(g, tree,
 #'     context = list(tissue = "mouse brain")
 #' )
 #' head(q, 20)
 #' @export
 writeClusterTreeQuery <- function(gobject,
+        tree,
         spat_unit = NULL,
         feat_type = NULL,
         expression_values = c("normalized", "scaled", "custom"),
-        cluster_column,
-        tree,
-        splits = NULL,
+        cluster_column = NULL,
+        view = NULL,
         markers = NULL,
         gini_markers = NULL,
         node_markers = NULL,
@@ -430,21 +428,30 @@ writeClusterTreeQuery <- function(gobject,
     cluster <- feats <- detection_margin <- comb_score <- nodeID <- NULL
     side <- pi <- logFC <- p.value <- NULL
 
-    if (!inherits(tree, "hclust")) {
-        stop("[writeClusterTreeQuery] `tree` must be an `hclust`, as returned ",
-            "by `calculateClusterTree()`. Got: ",
-            paste(class(tree), collapse = "/"), ".", call. = FALSE)
-    }
+    site <- "writeClusterTreeQuery"
+    ctx <- .tree_context(tree,
+        args = list(spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = expression_values,
+            cluster_column = cluster_column, view = view),
+        supplied = c(spat_unit = !is.null(spat_unit),
+            feat_type = !is.null(feat_type),
+            expression_values = !missing(expression_values),
+            cluster_column = !is.null(cluster_column),
+            view = !is.null(view)),
+        site = site
+    )
     spat_unit <- set_default_spat_unit(
-        gobject = gobject, spat_unit = spat_unit
+        gobject = gobject, spat_unit = ctx$spat_unit
     )
     feat_type <- set_default_feat_type(
-        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+        gobject = gobject, spat_unit = spat_unit, feat_type = ctx$feat_type
     )
     values <- match.arg(
-        expression_values,
-        unique(c("normalized", "scaled", "custom", expression_values))
+        ctx$expression_values,
+        unique(c("normalized", "scaled", "custom", ctx$expression_values))
     )
+    cluster_column <- .tree_need_column(ctx$cluster_column, site)
+    gobject <- .tree_resolve_view(gobject, ctx$view, spat_unit, feat_type)
 
     cell_meta <- getCellMetadata(gobject,
         spat_unit = spat_unit, feat_type = feat_type,
@@ -454,6 +461,7 @@ writeClusterTreeQuery <- function(gobject,
         stop("[writeClusterTreeQuery] `", cluster_column,
             "` is not a cell metadata column.", call. = FALSE)
     }
+    .check_tree_leaves(tree, cell_meta[[cluster_column]], site)
     clus <- as.character(cell_meta[[cluster_column]])
     lvls <- tree$labels
     ncell <- vapply(lvls, function(k) sum(clus == k), integer(1L))
@@ -461,14 +469,6 @@ writeClusterTreeQuery <- function(gobject,
     # Each evidence layer is computed only if the caller did not bring it. The
     # message is deliberate: these are full passes over the expression values,
     # and a caller who already has them should not pay for them twice.
-    if (is.null(splits)) {
-        splits <- getDendrogramSplits(gobject,
-            spat_unit = spat_unit, feat_type = feat_type,
-            expression_values = values,
-            cluster_column = cluster_column, tree = tree,
-            show_dend = FALSE, verbose = FALSE
-        )
-    }
     if (is.null(markers)) {
         vmsg(.v = TRUE, "computing one-vs-all markers")
         markers <- findMarkers_one_vs_all(gobject,
@@ -488,11 +488,12 @@ writeClusterTreeQuery <- function(gobject,
     }
     if (is.null(node_markers)) {
         vmsg(.v = TRUE, "computing node markers")
-        node_markers <- findNodeMarkers(gobject,
-            spat_unit = spat_unit, feat_type = feat_type,
-            expression_values = values,
-            cluster_column = cluster_column, tree = tree, splits = splits,
-            method = "scran", verbose = FALSE
+        # the worker, not the exported function: the tree's defaults and
+        # the view are already resolved above and must not be re-applied
+        node_markers <- .cluster_tree_markers(gobject, tree,
+            spat_unit, feat_type, values, cluster_column,
+            method = "scran", lfc_cut = 0.25, fdr_cut = 0.01,
+            verbose = FALSE
         )
     }
     markers <- data.table::as.data.table(markers)
@@ -528,7 +529,7 @@ writeClusterTreeQuery <- function(gobject,
             for (i in seq_along(nd)) .render(nd[[i]], depth + 1L)
         }
     }
-    .render(.label_dend_nodes(tree), 0L); add("")
+    .render(.label_tree_nodes(tree), 0L); add("")
 
     add("## 2. Markers at each split"); add("")
     add("Left branch versus right: what separates these siblings. A gene that")
@@ -613,12 +614,12 @@ writeClusterTreeQuery <- function(gobject,
 
 
 # `stats::as.dendrogram()` drops the merge-row identity, but the query has to
-# name nodes in the same terms `findNodeMarkers()` and `getDendrogramSplits()`
+# name nodes in the same terms `findClusterTreeMarkers()` and `as.data.table(tree)`
 # report them, or the answer cannot be joined back. Walk the merge matrix and
 # stamp each internal node with its row.
 #' @keywords internal
 #' @noRd
-.label_dend_nodes <- function(hc) {
+.label_tree_nodes <- function(hc) {
     dend <- stats::as.dendrogram(hc)
     # leaves under each merge row, so a subtree can be recognised by its label
     # set rather than by traversal order

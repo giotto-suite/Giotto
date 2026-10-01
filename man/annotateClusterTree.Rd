@@ -6,11 +6,11 @@
 \usage{
 annotateClusterTree(
   gobject,
-  spat_unit = NULL,
-  feat_type = NULL,
   tree,
   labels,
-  cluster_column,
+  spat_unit = NULL,
+  feat_type = NULL,
+  cluster_column = NULL,
   k = NULL,
   h = NULL,
   name = NULL,
@@ -20,17 +20,16 @@ annotateClusterTree(
 \arguments{
 \item{gobject}{giotto object}
 
-\item{spat_unit}{spatial unit}
-
-\item{feat_type}{feature type}
-
-\item{tree}{an `hclust` over the clusters, from [calculateClusterTree()]}
+\item{tree}{a `giottoTree` from [calculateClusterTree()], or any `hclust`
+over the clusters}
 
 \item{labels}{the annotation, as a list with `clusters` (one label per leaf)
 and optionally `nodes` (one label per internal node). Both may be named
 character vectors or `data.frame`s; see details.}
 
-\item{cluster_column}{name of the cell metadata column holding the clusters}
+\item{spat_unit, feat_type, cluster_column}{default to those recorded on a
+`giottoTree`; see the giottoTree section of [calculateClusterTree()].
+`cluster_column` is required for a plain `hclust`.}
 
 \item{k, h}{granularity, passed to [stats::cutree()]. Either may be a vector,
 giving one annotation column per value. `k = NULL, h = NULL` writes the leaf
