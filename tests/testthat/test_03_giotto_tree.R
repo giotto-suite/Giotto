@@ -144,3 +144,27 @@ test_that("the tree records which features it was built from", {
     expect_setequal(attr(tree, "params")$feats, c("g1", "g3", "g7"))
     expect_identical(attr(tree, "params")$n_feats, 3L)
 })
+
+test_that("plot(tree) draws the tree, and what = 'heatmap' its own matrix", {
+    skip_if_not_installed("ComplexHeatmap")
+    g <- .gt_gobject()
+    tree <- .gt_tree(g)
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+
+    expect_no_warning(expect_identical(plot(tree, hang = -1), tree))
+
+    hm <- plot(tree, what = "heatmap")
+    expect_s4_class(hm, "Heatmap")
+    # the matrix the branches were built from, so the two cannot disagree
+    expect_identical(hm@matrix,
+        attr(tree, "cor_matrix")[tree$labels, tree$labels])
+    expect_identical(hm@row_dend_param$obj$merge, tree$merge)
+})
+
+test_that("a tree without its matrix says where to go instead", {
+    g <- .gt_gobject()
+    tree <- .gt_tree(g)
+    attr(tree, "cor_matrix") <- NULL
+    expect_error(plot(tree, what = "heatmap"), "cluster_custom_order")
+})

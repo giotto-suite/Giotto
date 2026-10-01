@@ -69,6 +69,10 @@ under that version.
 - A `giottoTree` records the features it was built from as `params$feats`
   (`NULL` when every feature was used), so a consumer recomputing over the
   same features can default to them.
+- `plot()` on a `giottoTree` gains `what = c("tree", "heatmap")`. `"tree"`
+  is the plain `hclust` plot, as before. `"heatmap"` draws the correlation
+  matrix the tree was built from, in leaf order with its branches on both
+  axes, so the colours and branches always agree.
 - **`calculateClusterTree()` returns a `giottoTree`**, class
   `c("giottoTree", "hclust")`: still an `hclust` to `cutree()`,
   `as.dendrogram()`, `plot()` and the rest, now recording the
