@@ -149,10 +149,10 @@ test_that("size 2 motifs agree with the pairwise proximity counts", {
 #
 # As of GiottoClass 0.6.0 the @network slot is polymorphic: an igraph, or a
 # GiottoDisk dataStore on a backed project. ADR 0004 asks every new consumer to
-# owe that branch. The router passes a store through to the engine only when
-# the store's package has a method for it; otherwise it is read into an igraph.
-# Either way a *subsetted* store must be analysed as the subset, not as the
-# whole network its files on disk still hold.
+# owe that branch. The router passes the store to the engine as it is held, and
+# the store's package supplies the methods that read it. A *subsetted* store
+# must be analysed as the subset, not as the whole network its files on disk
+# still hold.
 
 .backed_gobject <- function(dir, n = 200L, seed = 5L) {
     set.seed(seed)
@@ -223,7 +223,7 @@ test_that("a disk-backed network gives the same answer as an in-memory one", {
     })
 })
 
-test_that("a backed network reaches the engine as a store only with a method", {
+test_that("a backed network reaches the engine as a store", {
     skip_if_not_installed("GiottoDisk")
     gwith_options(list(giotto.check_valid = FALSE), {
         dir <- file.path(tempdir(),
@@ -234,12 +234,8 @@ test_that("a backed network reaches the engine as a store only with a method", {
         )[]
         p <- methods::new("fakeMotifParam")
 
-        # no method for the store: read into an igraph, as before
-        net <- .motif_network_carrier(g, "cell", "Delaunay_network", p)
-        expect_true(inherits(net, "igraph"))
-
-        # a method for the store: it arrives as itself, with labels named by
-        # node ID so the method can realign them to its own node order
+        # the store arrives as itself, with labels named by node ID so the
+        # method can realign them to its own node order
         seen <- new.env()
         setMethod(
             "analyzeData",
@@ -256,8 +252,6 @@ test_that("a backed network reaches the engine as a store only with a method", {
             where = globalenv()
         ), add = TRUE)
 
-        net <- .motif_network_carrier(g, "cell", "Delaunay_network", p)
-        expect_true(inherits(net, "dataStore"))
         res <- analyzeData(g, p, cluster_column = "ct")
         expect_true(inherits(seen$x, "dataStore"))
         expect_setequal(names(seen$cell_type), GiottoClass::spatIDs(store))

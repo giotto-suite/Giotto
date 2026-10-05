@@ -14,9 +14,8 @@
 # smotif exists; the router, the result contract and the plots do not.
 #
 # The router hands over the network carrier as it is held -- an igraph, or a
-# backed store -- so the package that owns a carrier can resolve "auto" to an
-# engine that reads it in place, as GiottoDisk does for its edge store. A
-# carrier with no method of its own for the param is read into an igraph.
+# backed store -- so the package that owns a carrier supplies the methods that
+# read it, as GiottoDisk does for its edge store.
 
 
 # classes ####
@@ -31,10 +30,9 @@
 #' A backend supplies a concrete subclass and an `analyzeData` method on it.
 #' The method receives the network carrier, plus the cell type labels named by
 #' node ID, and must return the result contract described in
-#' [cellProximityMotifs()]. The carrier is an `igraph` whose vertex names are
-#' cell IDs, unless the network is backed and the package owning its class
-#' registers a method for the param; otherwise a backed network is read into
-#' an `igraph` first.
+#' [cellProximityMotifs()]. The carrier is what the spatial network holds: an
+#' `igraph` whose vertex names are cell IDs, or a backed store, whose methods
+#' come from the package that owns its class.
 #' @param method engine to use. `"auto"` picks the best available:
 #'   \pkg{smotif} when installed.
 #' @param size motif size: 2, 3 or 4.
@@ -180,7 +178,7 @@ setMethod(
 #' @param strata_column optional cell metadata column to stratify the null by
 #' @param anchored_on optional character vector of cell IDs
 #' @param x a `giotto` object, or a network carrier (an `igraph`, or a backed
-#'   store whose package registers a method)
+#'   store)
 #' @param cell_type cell type labels, one per node, named by node ID
 #'   (carrier methods only)
 #' @param strata optional strata, one per node, named by node ID (carrier
@@ -213,9 +211,10 @@ setMethod(
             ))
         }
 
-        net <- .motif_network_carrier(x, spat_unit, spatial_network_name,
-            param = param
-        )
+        net <- getSpatialNetwork(x,
+            spat_unit = spat_unit, name = spatial_network_name,
+            output = "spatialNetworkObj", verbose = FALSE
+        )[]
         vids <- spatIDs(net)
         if (!length(vids)) {
             .gstop(
@@ -279,32 +278,6 @@ setMethod(
         output = "spatialNetworkObj", verbose = FALSE
     )
     igraph::as.igraph(sn)
-}
-
-# The network as it is held -- an igraph, or a backed store -- for the router
-# to dispatch on. A carrier passes through only when its owning package has an
-# `analyzeData` method for it and this param; one that would land on the
-# catch-all is read into an igraph instead, so a backed network still works
-# when its package has no motif engine (or predates this contract).
-#' @keywords internal
-#' @noRd
-.motif_network_carrier <- function(gobject, spat_unit, name, param) {
-    sn <- getSpatialNetwork(gobject,
-        spat_unit = spat_unit, name = name,
-        output = "spatialNetworkObj", verbose = FALSE
-    )
-    net <- sn[]
-    if (inherits(net, "igraph")) {
-        return(net)
-    }
-    m <- methods::selectMethod("analyzeData",
-        signature(x = class(net)[[1L]], param = class(param)[[1L]]),
-        optional = TRUE
-    )
-    if (is.null(m) || identical(as.character(m@defined)[[1L]], "ANY")) {
-        return(igraph::as.igraph(sn))
-    }
-    net
 }
 
 # The contract every engine must satisfy. Checked here rather than trusted, so
