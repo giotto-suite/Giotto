@@ -105,6 +105,7 @@ Suggests:
     SingleCellExperiment,
     smfishHmrf,
     smotif,
+    smotifrs,
     SPARK,
     SpatialExperiment,
     spdep,
@@ -117,8 +118,7 @@ Suggests:
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
-    giotto-suite/GiottoVisuals,
-    drieslab/smotif
+    giotto-suite/GiottoVisuals
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
