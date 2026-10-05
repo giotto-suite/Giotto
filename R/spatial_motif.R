@@ -90,13 +90,14 @@ motifParam <- function(method = "auto",
 }
 
 
-# analyzeData(<igraph>, autoMotifParam) ####
+# analyzeData(<ANY>, autoMotifParam) ####
 
 # The "auto" sentinel resolves to a concrete engine from what is installed,
-# then dispatches. Same shape as pcaParam("auto").
+# then dispatches again on the carrier. Keyed on ANY because the choice of
+# engine does not depend on the carrier; which method runs it does.
 #' @rdname motif_param
 setMethod(
-    "analyzeData", signature(x = "igraph", param = "autoMotifParam"),
+    "analyzeData", signature(x = "ANY", param = "autoMotifParam"),
     function(x, param, ...) {
         if (!requireNamespace("smotif", quietly = TRUE)) {
             .gstop(

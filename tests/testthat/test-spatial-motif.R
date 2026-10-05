@@ -154,6 +154,11 @@ test_that("size 2 motifs agree with the pairwise proximity counts", {
 # must be analysed as the subset, not as the whole network its files on disk
 # still hold.
 
+.smotif_streams <- function() {
+    requireNamespace("smotif", quietly = TRUE) &&
+        "motif_enrichment_stream" %in% getNamespaceExports("smotif")
+}
+
 .backed_gobject <- function(dir, n = 200L, seed = 5L) {
     set.seed(seed)
     locs <- data.table::data.table(
@@ -180,6 +185,7 @@ test_that("size 2 motifs agree with the pairwise proximity counts", {
 test_that("a disk-backed network gives the same answer as an in-memory one", {
     skip_if_not_installed("GiottoDisk")
     skip_if_not_installed("smotif")
+    skip_if_not(.smotif_streams(), "smotif has no motif_enrichment_stream()")
     gwith_options(list(giotto.check_valid = FALSE), {
         dir <- file.path(tempdir(),
             paste0("motif_proj_", basename(tempfile())))
@@ -267,6 +273,7 @@ test_that("a backed network reaches the engine as a store", {
 test_that("a subsetted backed network is analysed as the subset", {
     skip_if_not_installed("GiottoDisk")
     skip_if_not_installed("smotif")
+    skip_if_not(.smotif_streams(), "smotif has no motif_enrichment_stream()")
     gwith_options(list(giotto.check_valid = FALSE), {
         dir <- file.path(tempdir(),
             paste0("motif_proj_", basename(tempfile())))
