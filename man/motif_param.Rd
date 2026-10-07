@@ -55,11 +55,14 @@ is enriched beyond what its constituent pairs already explain.}
 
 \item{...}{further engine-specific arguments.}
 
-\item{x}{a `giotto` object or an `igraph`}
+\item{x}{a `giotto` object, or a network carrier (an `igraph`, or a backed
+store)}
 
-\item{cell_type}{cell type labels, one per vertex (igraph method only)}
+\item{cell_type}{cell type labels, one per node, named by node ID
+(carrier methods only)}
 
-\item{strata}{optional strata, one per vertex (igraph method only)}
+\item{strata}{optional strata, one per node, named by node ID (carrier
+methods only)}
 
 \item{anchored_on}{optional character vector of cell IDs}
 
@@ -80,7 +83,9 @@ VIRTUAL contract; concrete subclasses select an engine. `motifParam()` is
 the factory.
 
 A backend supplies a concrete subclass and an `analyzeData` method on it.
-The method receives an `igraph` whose vertex names are cell IDs, plus the
-cell type labels, and must return the result contract described in
-[cellProximityMotifs()].
+The method receives the network carrier, plus the cell type labels named by
+node ID, and must return the result contract described in
+[cellProximityMotifs()]. The carrier is what the spatial network holds: an
+`igraph` whose vertex names are cell IDs, or a backed store, whose methods
+come from the package that owns its class.
 }

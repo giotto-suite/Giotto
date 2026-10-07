@@ -12,6 +12,10 @@
 # arrangement `pcaParam` has, where GiottoDisk supplies `gramEigenPcaParam`
 # from outside this package. Only the `smotifParam` method below knows that
 # smotif exists; the router, the result contract and the plots do not.
+#
+# The router hands over the network carrier as it is held -- an igraph, or a
+# backed store -- so the package that owns a carrier supplies the methods that
+# read it, as GiottoDisk does for its edge store.
 
 
 # classes ####
@@ -24,9 +28,11 @@
 #' the factory.
 #'
 #' A backend supplies a concrete subclass and an `analyzeData` method on it.
-#' The method receives an `igraph` whose vertex names are cell IDs, plus the
-#' cell type labels, and must return the result contract described in
-#' [cellProximityMotifs()].
+#' The method receives the network carrier, plus the cell type labels named by
+#' node ID, and must return the result contract described in
+#' [cellProximityMotifs()]. The carrier is what the spatial network holds: an
+#' `igraph` whose vertex names are cell IDs, or a backed store, whose methods
+#' come from the package that owns its class.
 #' @param method engine to use. `"auto"` picks the best available:
 #'   \pkg{smotif} when installed.
 #' @param size motif size: 2, 3 or 4.
@@ -84,13 +90,14 @@ motifParam <- function(method = "auto",
 }
 
 
-# analyzeData(<igraph>, autoMotifParam) ####
+# analyzeData(<ANY>, autoMotifParam) ####
 
 # The "auto" sentinel resolves to a concrete engine from what is installed,
-# then dispatches. Same shape as pcaParam("auto").
+# then dispatches again on the carrier. Keyed on ANY because the choice of
+# engine does not depend on the carrier; which method runs it does.
 #' @rdname motif_param
 setMethod(
-    "analyzeData", signature(x = "igraph", param = "autoMotifParam"),
+    "analyzeData", signature(x = "ANY", param = "autoMotifParam"),
     function(x, param, ...) {
         if (!requireNamespace("smotif", quietly = TRUE)) {
             .gstop(
@@ -171,9 +178,12 @@ setMethod(
 #' @param cluster_column cell metadata column holding cell type labels
 #' @param strata_column optional cell metadata column to stratify the null by
 #' @param anchored_on optional character vector of cell IDs
-#' @param x a `giotto` object or an `igraph`
-#' @param cell_type cell type labels, one per vertex (igraph method only)
-#' @param strata optional strata, one per vertex (igraph method only)
+#' @param x a `giotto` object, or a network carrier (an `igraph`, or a backed
+#'   store)
+#' @param cell_type cell type labels, one per node, named by node ID
+#'   (carrier methods only)
+#' @param strata optional strata, one per node, named by node ID (carrier
+#'   methods only)
 setMethod(
     "analyzeData", signature(x = "giotto", param = "motifParam"),
     function(x, param,
@@ -202,34 +212,20 @@ setMethod(
             ))
         }
 
-        # Fast path: a disk-backed network with nothing pending can be read
-        # straight from parquet in the backend, skipping the igraph
-        # materialization entirely. Anything else -- a subset store, another
-        # engine, an in-memory network -- goes the ordinary way.
-        store <- .motif_edge_store_paths(x, spat_unit, spatial_network_name)
-        if (!is.null(store) && is.null(strata_column) &&
-            is.null(anchored_on) && is(param, "smotifParam") &&
-            param$null %in% c("label", "conditional")) {
-            order_dt <- smotif::store_node_order(store$nodes)
-            lab <- .motif_align(meta, order_dt$node_id, cluster_column)
-            res <- smotif::motif_enrichment_store(
-                nodes_path = store$nodes, edges_path = store$edges,
-                cell_type = lab, size = param$size, n_perm = param$n_perm,
-                seed = as.integer(param$seed_number), null = param$null, ...
-            )
-            .motif_check_contract(res)
-            return(res)
-        }
-
-        ig <- .motif_network_as_igraph(x, spat_unit, spatial_network_name)
-        vids <- igraph::V(ig)$name
-        if (is.null(vids)) {
+        net <- getSpatialNetwork(x,
+            spat_unit = spat_unit, name = spatial_network_name,
+            output = "spatialNetworkObj", verbose = FALSE
+        )[]
+        vids <- spatIDs(net)
+        if (!length(vids)) {
             .gstop(
                 "the spatial network has no vertex names, so its nodes",
                 "cannot be matched to cell metadata"
             )
         }
-        lab <- .motif_align(meta, vids, cluster_column)
+        # Named, so a carrier method that reads its nodes in another order
+        # can realign by ID rather than trusting position.
+        lab <- stats::setNames(.motif_align(meta, vids, cluster_column), vids)
         strata <- NULL
         if (!is.null(strata_column)) {
             if (!strata_column %in% colnames(meta)) {
@@ -238,10 +234,12 @@ setMethod(
                     strata_column
                 ))
             }
-            strata <- .motif_align(meta, vids, strata_column)
+            strata <- stats::setNames(
+                .motif_align(meta, vids, strata_column), vids
+            )
         }
 
-        res <- analyzeData(ig, param,
+        res <- analyzeData(net, param,
             cell_type = lab, strata = strata,
             anchored_on = anchored_on, ...
         )
@@ -281,40 +279,6 @@ setMethod(
         output = "spatialNetworkObj", verbose = FALSE
     )
     igraph::as.igraph(sn)
-}
-
-# Paths to a parquetEdgeStore's parquet files, or NULL when the network is not
-# one, when ops are pending on it (the files on disk do not reflect a pending
-# subset), or when the backend that reads them is absent.
-#' @keywords internal
-#' @noRd
-.motif_edge_store_paths <- function(gobject, spat_unit, name) {
-    if (!requireNamespace("smotif", quietly = TRUE) ||
-        !requireNamespace("smotifrs", quietly = TRUE)) {
-        return(NULL)
-    }
-    sn <- try(
-        getSpatialNetwork(gobject,
-            spat_unit = spat_unit, name = name,
-            output = "spatialNetworkObj", verbose = FALSE
-        ),
-        silent = TRUE
-    )
-    if (inherits(sn, "try-error")) return(NULL)
-    net <- sn[]
-    if (!inherits(net, "parquetEdgeStore")) return(NULL)
-    if (length(methods::slot(net, "ops")) > 0L) return(NULL)
-    root <- methods::slot(net, "path")
-    nodes <- list.files(file.path(root, "nodes"), "[.]parquet$",
-        full.names = TRUE
-    )
-    edges <- list.files(file.path(root, "edges"), "[.]parquet$",
-        full.names = TRUE
-    )
-    # one file per subdir today; hive-partitioned writes are a future change
-    # on the GiottoDisk side, and this path must not silently read only part
-    if (length(nodes) != 1L || length(edges) != 1L) return(NULL)
-    list(nodes = nodes, edges = edges)
 }
 
 # The contract every engine must satisfy. Checked here rather than trusted, so

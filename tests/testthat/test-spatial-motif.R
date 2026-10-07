@@ -149,10 +149,15 @@ test_that("size 2 motifs agree with the pairwise proximity counts", {
 #
 # As of GiottoClass 0.6.0 the @network slot is polymorphic: an igraph, or a
 # GiottoDisk dataStore on a backed project. ADR 0004 asks every new consumer to
-# owe that branch. There is also a fast path that reads the store's parquet
-# directly, and the trap it has to avoid is a *subsetted* store -- its pending
-# ops are not reflected in the files on disk, so reading them raw would
-# silently analyse the whole network instead of the subset.
+# owe that branch. The router passes the store to the engine as it is held, and
+# the store's package supplies the methods that read it. A *subsetted* store
+# must be analysed as the subset, not as the whole network its files on disk
+# still hold.
+
+.smotif_streams <- function() {
+    requireNamespace("smotif", quietly = TRUE) &&
+        "motif_enrichment_stream" %in% getNamespaceExports("smotif")
+}
 
 .backed_gobject <- function(dir, n = 200L, seed = 5L) {
     set.seed(seed)
@@ -180,6 +185,7 @@ test_that("size 2 motifs agree with the pairwise proximity counts", {
 test_that("a disk-backed network gives the same answer as an in-memory one", {
     skip_if_not_installed("GiottoDisk")
     skip_if_not_installed("smotif")
+    skip_if_not(.smotif_streams(), "smotif has no motif_enrichment_stream()")
     gwith_options(list(giotto.check_valid = FALSE), {
         dir <- file.path(tempdir(),
             paste0("motif_proj_", basename(tempfile())))
@@ -223,21 +229,59 @@ test_that("a disk-backed network gives the same answer as an in-memory one", {
     })
 })
 
-test_that("the direct-parquet fast path declines a subsetted store", {
+test_that("a backed network reaches the engine as a store", {
     skip_if_not_installed("GiottoDisk")
-    skip_if_not_installed("smotifrs")
     gwith_options(list(giotto.check_valid = FALSE), {
         dir <- file.path(tempdir(),
             paste0("motif_proj_", basename(tempfile())))
         g <- .backed_gobject(dir)
+        store <- GiottoClass::getSpatialNetwork(g,
+            name = "Delaunay_network", output = "spatialNetworkObj"
+        )[]
+        p <- methods::new("fakeMotifParam")
 
-        # a clean store can be read straight from disk
-        expect_false(is.null(
-            .motif_edge_store_paths(g, "cell", "Delaunay_network")
-        ))
+        # the store arrives as itself, with labels named by node ID so the
+        # method can realign them to its own node order
+        seen <- new.env()
+        setMethod(
+            "analyzeData",
+            signature(x = class(store)[[1L]], param = "fakeMotifParam"),
+            where = globalenv(),
+            definition = function(x, param, cell_type = NULL, ...) {
+                seen$x <- x
+                seen$cell_type <- cell_type
+                analyzeData(igraph::as.igraph(x), param, ...)
+            }
+        )
+        on.exit(methods::removeMethod("analyzeData",
+            signature(class(store)[[1L]], "fakeMotifParam"),
+            where = globalenv()
+        ), add = TRUE)
 
-        # a subsetted one carries pending ops the parquet files do not reflect,
-        # so the fast path must refuse it rather than analyse the whole network
+        res <- analyzeData(g, p, cluster_column = "ct")
+        expect_true(inherits(seen$x, "dataStore"))
+        expect_setequal(names(seen$cell_type), GiottoClass::spatIDs(store))
+        meta <- GiottoClass::pDataDT(g)
+        expect_identical(
+            unname(seen$cell_type),
+            meta$ct[match(names(seen$cell_type), meta$cell_ID)]
+        )
+        expect_true(.motif_check_contract(res))
+    })
+})
+
+test_that("a subsetted backed network is analysed as the subset", {
+    skip_if_not_installed("GiottoDisk")
+    skip_if_not_installed("smotif")
+    skip_if_not(.smotif_streams(), "smotif has no motif_enrichment_stream()")
+    gwith_options(list(giotto.check_valid = FALSE), {
+        dir <- file.path(tempdir(),
+            paste0("motif_proj_", basename(tempfile())))
+        g <- .backed_gobject(dir)
+        full <- cellProximityMotifs(g,
+            cluster_column = "ct", size = 3L, n_perm = 19L
+        )
+
         sn <- GiottoClass::getSpatialNetwork(g,
             name = "Delaunay_network", output = "spatialNetworkObj"
         )
@@ -247,12 +291,9 @@ test_that("the direct-parquet fast path declines a subsetted store", {
         expect_gt(length(methods::slot(GiottoClass::getSpatialNetwork(g2,
             name = "Delaunay_network", output = "spatialNetworkObj"
         )[], "ops")), 0L)
-        expect_null(.motif_edge_store_paths(g2, "cell", "Delaunay_network"))
 
-        # and the subset is still analysable, through the ordinary path
-        skip_if_not_installed("smotif")
         r <- cellProximityMotifs(g2, cluster_column = "ct", size = 3L, n_perm = 19L)
         expect_gt(nrow(r), 0L)
-        expect_lt(attr(r, "n_instances"), 1e5)
+        expect_lt(attr(r, "n_instances"), attr(full, "n_instances"))
     })
 })
