@@ -1,4 +1,14 @@
-# Giotto 4.3.0 (in development)
+# Giotto 4.3.1 (in development)
+
+Version-only bump. The multicellular motif layer -- `cellProximityMotifs()`,
+`motifParam` and its subclasses, and `analyzeData()` handing a backed network
+to the method registered for its class -- is listed under 4.3.0 below but
+landed on `gsource` after it had moved to 4.3.0, so a 4.3.0 install may predate
+it. Downstream packages that import the motif param classes, or provide an
+`analyzeData()` method for a backed network carrier, should require
+`Giotto (>= 4.3.1)`.
+
+# Giotto 4.3.0
 
 `gsource` moves to its own minor line. It was previously 4.2.4 against
 `suite_dev`'s 4.2.3, so the two shared a minor version and a downstream package
