@@ -1,4 +1,18 @@
-# Giotto 4.3.1 (in development)
+# Giotto 4.3.2 (in development)
+
+## bug fixes
+
+- Clustering runs on a `giottoMulti`. `clusterData()` for a `BlusterParam` or
+  an `NNClusParam` was defined for `giotto` only. It now dispatches on `gAny`,
+  so `doLeidenCluster()` and `clusterData(<multi>, clusterParam(...))`
+  cluster the multi's joint expression, dimension reduction or
+  nearest-neighbor network, and write the result to its joint cell metadata.
+  Requires GiottoClass >= 0.7.9, which exports `gAny`.
+- `addStatistics()` on a `giottoMulti` computes `"area"` per sample. It
+  failed reading polygons from the multi, which holds none; each sample's
+  polygons are measured and joined to the multi's cells as `sample::cell_ID`.
+
+# Giotto 4.3.1
 
 Version-only bump. The multicellular motif layer -- `cellProximityMotifs()`,
 `motifParam` and its subclasses, and `analyzeData()` handing a backed network
