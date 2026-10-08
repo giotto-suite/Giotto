@@ -136,13 +136,18 @@ setMethod(
 #' @param poly_pref character. Either "csv" (default) or "mask". Which format of
 #' data to load as polygon info. "csv" will use vector polygons from the
 #' `polygons.csv`. "mask" will load the mask images from `CellLabels` directory.
+#' @param version character. Version of CosMx output. Current selections are
+#' either "default", "v6", and "legacy" (for the NSCLC dataset).
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
 #' @details
 #' Loading functions are generated after the `cosmx_dir` is added.
 #' Transcripts, expression, and metadata loading are all expected to be done
 #' from the top level of the directory. Loading of polys, and any image sets
 #' are expected to be from specific subdirectories containing only those
 #' images for the set of FOVs.
-#' @returns CosmxReader object
+#' @returns `CosmxReader` object, or `CosMxDiskReader` when `backend` is set
 #' @examples
 #' # Create a `CosmxReader` object
 #' reader <- importCosMx()
@@ -182,7 +187,24 @@ setMethod(
 #' }
 #' @export
 importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
-    micron = FALSE, px2um = 0.12028, poly_pref = "mask") {
+    micron = FALSE, px2um = 0.12028, poly_pref = "mask",
+    version = "default", backend = NULL) {
+    if (!is.null(backend)) {
+        package_check(
+            "GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk"
+        )
+        return(GiottoDisk::importCosMxDisk(
+            cosmx_dir = cosmx_dir,
+            backend = backend,
+            slide = slide,
+            fovs = fovs,
+            version = version,
+            micron = micron,
+            px2um = px2um,
+            poly_pref = poly_pref
+        ))
+    }
     # get params
     a <- list(Class = "CosmxReader")
     if (!is.null(cosmx_dir)) {
@@ -1339,6 +1361,14 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' transcript detections
 #' @param poly_pref character. "mask" or "csv". Determines whether to load in
 #' the polygons from the mask images (default) or the csv polygons file.
+#' @param poly_read_fun Optional function applied to the polygons file as it is
+#' read, for repairing a vendor export in flight. Requires a `backend`: the
+#' in-memory reader has no polygon read hook.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, the `giotto`
+#' object is created as a managed on-disk project; see [importCosMx()].
+#' Polygons are then read from the `polygons.csv` file (`poly_pref = "csv"`);
+#' mask polygons (`CellLabels`) are not supported on this path.
 #' @param image_negative_y Optional logical. Whether images are assumed to map
 #' to positive or negative y values before fov shifts are applied. Affects
 #' images (and polygons generated from masks). This overrides any settings from
@@ -1444,6 +1474,7 @@ createGiottoCosMxObject <- function(
         load_cellmeta = TRUE,
         load_transcripts = TRUE,
         poly_pref = "mask",
+        poly_read_fun = NULL,
         image_negative_y = NULL,
         
         # optional filepaths
@@ -1455,6 +1486,7 @@ createGiottoCosMxObject <- function(
         cores = determine_cores(),
         verbose = NULL,
         instructions = NULL,
+        backend = NULL,
         
         # deprecated params
         remove_unvalid_polygons = deprecated(), # not used
@@ -1486,40 +1518,43 @@ createGiottoCosMxObject <- function(
         fovs = FOVs,
         slide = slide,
         poly_pref = poly_pref,
+        version = version,
+        backend = backend,
         ...)
-    x$version <- version
+    if (is.null(backend)) x$version <- version
     if (!is.null(fov_shifts_path)) {
         checkmate::assert_file_exists(fov_shifts_path)
         x$offsets <- data.table::fread(fov_shifts_path)
     }
     
-    # gobject creation args setup
+    # the in-memory reader has no polygon read hook
+    if (!is.null(poly_read_fun) && is.null(backend)) {
+        stop("[createGiottoCosMxObject] `poly_read_fun` needs a `backend`: ",
+             "the in-memory reader has no polygon read hook.", call. = FALSE)
+    }
+
+    # directly passed. The disk reader's create_gobject mirrors the
+    # in-memory signature, so both readers take the same arguments.
     load_args <- list(
         feat_type = feat_type,
         split_keyword = split_keyword,
         load_images = load_images,
+        image_negative_y = image_negative_y,
         load_expression = load_expression,
         load_cellmeta = load_cellmeta,
         load_transcripts = load_transcripts,
-        image_negative_y = image_negative_y,
         instructions = instructions,
         cores = cores,
         verbose = verbose
     )
-    # pass optional paths if provided
-    if (!is.null(transcript_path)) {
-        load_args$transcript_path <- transcript_path
-    }
-    if (!is.null(cell_labels_dir)) {
-        load_args$cell_labels_dir <- cell_labels_dir
-    }
-    if (!is.null(expression_path)) {
-        load_args$expression_path <- expression_path
-    }
-    if (!is.null(metadata_path)) {
-        load_args$metadata_path <- metadata_path
-    }
-    
+
+    # only passed if not null
+    if (!is.null(transcript_path)) load_args$transcript_path <- transcript_path
+    if (!is.null(cell_labels_dir)) load_args$cell_labels_dir <- cell_labels_dir
+    if (!is.null(expression_path)) load_args$expression_path <- expression_path
+    if (!is.null(metadata_path)) load_args$metadata_path <- metadata_path
+    if (!is.null(poly_read_fun)) load_args$poly_read_fun <- poly_read_fun
+
     do.call(x$create_gobject, load_args)
 }
 

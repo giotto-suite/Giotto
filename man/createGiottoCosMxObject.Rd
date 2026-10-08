@@ -16,6 +16,7 @@ createGiottoCosMxObject(
   load_cellmeta = TRUE,
   load_transcripts = TRUE,
   poly_pref = "mask",
+  poly_read_fun = NULL,
   image_negative_y = NULL,
   fov_shifts_path = NULL,
   transcript_path = NULL,
@@ -25,6 +26,7 @@ createGiottoCosMxObject(
   cores = determine_cores(),
   verbose = NULL,
   instructions = NULL,
+  backend = NULL,
   remove_unvalid_polygons = deprecated(),
   data_to_use = deprecated(),
   remove_background_polygon = deprecated(),
@@ -68,6 +70,10 @@ transcript detections}
 \item{poly_pref}{character. "mask" or "csv". Determines whether to load in
 the polygons from the mask images (default) or the csv polygons file.}
 
+\item{poly_read_fun}{Optional function applied to the polygons file as it is
+read, for repairing a vendor export in flight. Requires a \code{backend}: the
+in-memory reader has no polygon read hook.}
+
 \item{image_negative_y}{Optional logical. Whether images are assumed to map
 to positive or negative y values before fov shifts are applied. Affects
 images (and polygons generated from masks). This overrides any settings from
@@ -91,6 +97,12 @@ images to load as polygons.}
 
 \item{instructions}{list of instructions or output result
 from \code{\link[GiottoClass]{createGiottoInstructions}}}
+
+\item{backend}{(optional) a \code{gsource}-inheriting project backend (typically
+produced by \code{GiottoDisk::sourceCreate()}). When provided, the \code{giotto}
+object is created as a managed on-disk project; see \code{\link[=importCosMx]{importCosMx()}}.
+Polygons are then read from the \code{polygons.csv} file (\code{poly_pref = "csv"});
+mask polygons (\code{CellLabels}) are not supported on this path.}
 
 \item{remove_unvalid_polygons}{deprecated. Now always done}
 

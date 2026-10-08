@@ -4,6 +4,12 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
 
 ## new
+- `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
+  `createGiottoCosMxObject(backend =)` creates the `giotto` object as a
+  managed on-disk project from the same arguments: polygons from the
+  `polygons.csv`, the expression matrix, cell metadata, transcripts and
+  images. `poly_read_fun` repairs a vendor polygon export as it is read; it
+  needs a `backend`.
 - `importMerscope()` creates a `MerscopeReader` with `load_transcripts()`,
   `load_polys()`, `load_expression()`, `load_cellmeta()`, `load_spatlocs()`,
   `load_image()` and `create_gobject()` for Vizgen MERSCOPE region
