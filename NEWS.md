@@ -46,6 +46,9 @@ Requires GiottoClass 0.8.0.
   as a cell missing from that matrix, with a warning naming it.
 
 ## bug fixes
+- Clustering runs on a `giottoMulti`: `doLeidenCluster()` and
+  `clusterData()` write clusters to the multi's joint cell metadata.
+- `addStatistics()` on a `giottoMulti` computes polygon area per sample.
 - CosMx images and label masks of AtoMx exports, whose file names pad the
   FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
   ("No images found matching fov [F033]"). The digits are now read from the
