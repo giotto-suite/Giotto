@@ -144,6 +144,39 @@ test_that("an explicitly named network that is absent is an error", {
     )
 })
 
+test_that("by default the stored kNN sets n_neighbors, so no graph is rebuilt", {
+    skip_if_not_installed("uwot")
+    skip_if_not_installed("RcppHNSW")
+    rlang::local_options(lifecycle_verbosity = "quiet")
+    expect_null(formals(runUMAP)$n_neighbors)
+
+    # an sNN build keeps the kNN it came from, at createNearestNetwork's k
+    gs <- createNearestNetwork(g, dimensions_to_use = 1:10, k = 12,
+                               verbose = FALSE)
+    expect_message(runUMAP(gs, name = "u_snn", verbose = TRUE),
+                   "using the stored kNN 'kNN.pca' \\(12 neighbours")
+
+    # narrower requests reuse a prefix; wider ones build a graph that size
+    expect_message(runUMAP(gs, name = "u_narrow", n_neighbors = 8,
+                           verbose = TRUE),
+                   "using the stored kNN 'kNN.pca' \\(7 neighbours")
+    expect_message(runUMAP(gs, name = "u_wide", n_neighbors = 20,
+                           verbose = TRUE),
+                   "has 12 neighbours per cell, n_neighbors = 20 needs 19")
+})
+
+test_that("with no stored kNN the built graph matches createNearestNetwork", {
+    skip_if_not_installed("uwot")
+    skip_if_not_installed("RcppHNSW")
+    rlang::local_options(lifecycle_verbosity = "quiet")
+    g0 <- g
+    g0@nn_network <- NULL
+    expect_identical(.umap_default_n_neighbors,
+        as.integer(formals(GiottoClass::createNearestNetwork)$k) + 1L)
+    expect_message(runUMAP(g0, name = "u_none", verbose = TRUE),
+                   "no kNN network named 'kNN.pca'")
+})
+
 test_that("uwot's own backends are reachable through nn_engine", {
     skip_if_not_installed("uwot")
     rlang::local_options(lifecycle_verbosity = "quiet")

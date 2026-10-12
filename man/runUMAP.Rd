@@ -16,7 +16,7 @@ runUMAP(
   name = NULL,
   feats_to_use = NULL,
   return_gobject = TRUE,
-  n_neighbors = 40,
+  n_neighbors = NULL,
   n_components = 2,
   n_epochs = NULL,
   min_dist = 0.05,
@@ -59,7 +59,13 @@ runUMAP(
 
 \item{return_gobject}{logical: return giotto object (default = TRUE)}
 
-\item{n_neighbors}{UMAP param: number of neighbors}
+\item{n_neighbors}{UMAP param: number of neighbors, counting the cell
+itself. `NULL` (default) takes it from the stored kNN reused under
+`nn_engine = "giotto"` (its `k + 1`), so no second graph is built, and
+falls back to `31` -- the `k = 30` graph
+[GiottoClass::createNearestNetwork()] builds by default, plus the cell
+itself -- when there is none to reuse or another `nn_engine` is used. A
+value wider than the stored kNN builds a new graph of that size.}
 
 \item{n_components}{UMAP param: number of components}
 
