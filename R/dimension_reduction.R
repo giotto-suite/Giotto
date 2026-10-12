@@ -2488,7 +2488,13 @@ runNMF <- function(gobject,
 #' @param name arbitrary name for UMAP run
 #' @param feats_to_use if dim_reduction_to_use = NULL, which features to use
 #' @param return_gobject logical: return giotto object (default = TRUE)
-#' @param n_neighbors UMAP param: number of neighbors
+#' @param n_neighbors UMAP param: number of neighbors, counting the cell
+#'   itself. `NULL` (default) takes it from the stored kNN reused under
+#'   `nn_engine = "giotto"` (its `k + 1`), so no second graph is built, and
+#'   falls back to `31` -- the `k = 30` graph
+#'   [GiottoClass::createNearestNetwork()] builds by default, plus the cell
+#'   itself -- when there is none to reuse or another `nn_engine` is used. A
+#'   value wider than the stored kNN builds a new graph of that size.
 #' @param n_components UMAP param: number of components
 #' @param n_epochs UMAP param: number of epochs. `NULL` (default) scales with
 #'   the number of observations embedded: `200` above 50,000, otherwise uwot's
@@ -2598,7 +2604,7 @@ runUMAP <- function(gobject,
     name = NULL,
     feats_to_use = NULL,
     return_gobject = TRUE,
-    n_neighbors = 40,
+    n_neighbors = NULL,
     n_components = 2,
     n_epochs = NULL,
     min_dist = 0.05,
@@ -2810,6 +2816,11 @@ runUMAP <- function(gobject,
                  "Pass `nn_engine = \"uwot\"` to supply your own.",
                  call. = FALSE)
         }
+        # NULL means "as wide as the stored kNN"; with nothing stored to
+        # reuse, as wide as the graph createNearestNetwork() builds.
+        if (!identical(nn_engine, "giotto")) {
+            n_neighbors <- n_neighbors %null% .umap_default_n_neighbors
+        }
         if (!nn_engine %in% c("giotto", "uwot")) {
             # Any other value names one of uwot's own backends and is passed
             # straight through. They are not equally reproducible: "annoy"
@@ -2843,12 +2854,14 @@ runUMAP <- function(gobject,
                 # n_neighbors keeps its meaning: uwot ignores the argument
                 # when handed a graph and reads the size off its width.
                 # `.umap_stored_knn()` has already said why it fell through.
+                n_neighbors <- n_neighbors %null% .umap_default_n_neighbors
                 nn <- GiottoClass::hnswKNN(
                     x = as.matrix(matrix_to_use),
                     k = as.integer(n_neighbors) - 1L,
                     n_threads = n_threads
                 )
             }
+            n_neighbors <- nn$k + 1L
             dots$nn_method <- GiottoClass::nnToUwot(nn)
         }
 
@@ -3958,6 +3971,11 @@ runIterativeLSI <- function(
 }
 #-------------------------------------------------------------------------------
 
+# runUMAP()'s n_neighbors when it builds its own graph: the k = 30 kNN that
+# createNearestNetwork() builds by default, plus the cell itself (uwot counts
+# it), so a graph built here is the size the network step would have built.
+.umap_default_n_neighbors <- 31L
+
 # Recover a named stored kNN and return it in `kNN`/`NN` shape, or NULL when
 # it cannot be used -- in which case the caller builds one.
 #
@@ -3968,9 +3986,10 @@ runIterativeLSI <- function(
 # the caller never chose.
 #
 # Usable means: the same cells, uniform degree, and at least
-# `n_neighbors - 1` neighbours each. A stored graph with fewer neighbours than
-# asked for is NOT quietly accepted -- embedding on a narrower neighbourhood
-# than the caller requested is a different analysis. `required = TRUE` (the
+# `n_neighbors - 1` neighbours each; `n_neighbors = NULL` takes every stored
+# neighbour, so any usable graph is reused. A stored graph with fewer
+# neighbours than asked for is NOT quietly accepted -- embedding on a narrower
+# neighbourhood than the caller requested is a different analysis. `required = TRUE` (the
 # caller named the network explicitly) turns every miss into an error, since
 # an explicit request that cannot be honoured is worth stopping for.
 .umap_stored_knn <- function(gobject, spat_unit, feat_type, cell_ids,
@@ -4029,15 +4048,16 @@ runIterativeLSI <- function(
 
     counts <- e[, .N, by = "f"]
     k_have <- counts$N[[1L]]
-    k_want <- as.integer(n_neighbors) - 1L
+    # NULL: as wide as the stored graph, which is then reused in full.
+    k_want <- if (is.null(n_neighbors)) k_have else as.integer(n_neighbors) - 1L
     if (nrow(counts) != length(cell_ids) || any(counts$N != k_have)) {
         return(.miss(sprintf("'%s' does not cover every cell evenly",
                              network_name)))
     }
     if (k_have < k_want) {
         return(.miss(sprintf(
-            "'%s' has %d neighbours per cell, %d are needed",
-            network_name, k_have, k_want)))
+            "'%s' has %d neighbours per cell, n_neighbors = %d needs %d",
+            network_name, k_have, k_want + 1L, k_want)))
     }
 
     # `setorder` leaves rows grouped by `f` ascending, and `f` covers every
