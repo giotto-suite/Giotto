@@ -1993,490 +1993,6 @@ spatialAutoCorLocal <- function(
 ## spatial deconvolution functions ####
 
 
-#' @title enrich_deconvolution
-#' @description Rui to fill in
-#' @returns matrix
-#' @keywords internal
-enrich_deconvolution <- function(
-        expr,
-        log_expr,
-        cluster_info,
-        ct_exp,
-        cutoff) {
-    ##### generate enrich 0/1 matrix based on expression matrix
-    ct_exp <- ct_exp[rowSums(ct_exp) > 0, , drop = FALSE]
-    enrich_matrix <- matrix(0, nrow = dim(ct_exp)[1], ncol = dim(ct_exp)[2])
-    rowmax_col <- Rfast::rowMaxs(ct_exp)
-    for (i in seq_along(rowmax_col)) {
-        enrich_matrix[i, rowmax_col[i]] <- 1
-    }
-    colsum_ct_binary <- colSums(enrich_matrix)
-    for (i in seq_along(colsum_ct_binary)) {
-        if (colsum_ct_binary[i] <= 2) {
-            rank <- rank(-ct_exp[, i])
-            enrich_matrix[rank <= 2, i] <- 1
-        }
-    }
-    rownames(enrich_matrix) <- rownames(ct_exp)
-    colnames(enrich_matrix) <- colnames(ct_exp)
-
-    ##### page enrich
-    enrich_result <- enrich_analysis(log_expr, enrich_matrix)
-    ##### initialize dwls matrix
-    dwls_results <- matrix(0, nrow = dim(enrich_matrix)[2], ncol = dim(expr)[2])
-    rownames(dwls_results) <- colnames(enrich_matrix)
-    colnames(dwls_results) <- colnames(expr)
-    cluster_sort <- mixedsort(unique(cluster_info))
-    cluster_info <- cluster_info
-    for (i in seq_along(cluster_sort)) {
-        cluster_i_enrich <- enrich_result[
-            , which(cluster_info == cluster_sort[i])
-        ]
-        row_i_max <- Rfast::rowMaxs(cluster_i_enrich, value = TRUE)
-        ct <- rownames(enrich_result)[which(row_i_max > cutoff)]
-        if (length(ct) < 2) {
-            sort_rank <- sort(row_i_max, decreasing = TRUE)
-            ct <- rownames(enrich_result)[which(row_i_max >= sort_rank[2])]
-        }
-        ct_gene <- c()
-        for (j in seq_along(ct)) {
-            sig_gene_j <- rownames(enrich_matrix)[
-                which(enrich_matrix[, ct[j]] == 1)
-            ]
-            ct_gene <- c(ct_gene, sig_gene_j)
-        }
-        uniq_ct_gene <- intersect(rownames(expr), unique(ct_gene))
-        select_sig_exp <- ct_exp[uniq_ct_gene, ct, drop = FALSE]
-        cluster_i_cell <- which(cluster_info == cluster_sort[i])
-        cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell, drop = FALSE]
-
-        cluster_i_dwls <- optimize_deconvolute_dwls(
-            cluster_cell_exp, select_sig_exp
-        )
-        dwls_results[ct, cluster_i_cell] <- cluster_i_dwls
-    }
-    ##### remove negative values
-    for (i in dim(dwls_results)[1]) {
-        negtive_index <- which(dwls_results[i, ] < 0)
-        dwls_results[i, negtive_index] <- 0
-        ####* fixed a typo, with "==" the negative values weren't removed
-    }
-    return(dwls_results)
-}
-
-
-#' @title spot_deconvolution
-#' @description Rui to fill in
-#' @returns matrix
-#' @keywords internal
-spot_deconvolution <- function(
-        expr,
-        cluster_info,
-        ct_exp,
-        binary_matrix) {
-    ##### generate enrich 0/1 matrix based on expression matrix
-    enrich_matrix <- matrix(0, nrow = dim(ct_exp)[1], ncol = dim(ct_exp)[2])
-    rowmax_col <- Rfast::rowMaxs(ct_exp)
-    for (i in seq_along(rowmax_col)) {
-        enrich_matrix[i, rowmax_col[i]] <- 1
-    }
-    rownames(enrich_matrix) <- rownames(ct_exp)
-    colnames(enrich_matrix) <- colnames(ct_exp)
-
-    cluster_sort <- mixedsort(unique(cluster_info))
-    #### initialize dwls matrix
-    dwls_results <- matrix(0, nrow = dim(ct_exp)[2], ncol = dim(expr)[2])
-    rownames(dwls_results) <- colnames(ct_exp)
-    colnames(dwls_results) <- colnames(expr)
-
-    for (i in seq_along(cluster_sort)) {
-        cluster_i_matrix <- binary_matrix[
-            , which(cluster_info == cluster_sort[i])
-        ]
-        row_i_max <- Rfast::rowMaxs(cluster_i_matrix, value = TRUE)
-        ct_i <- rownames(cluster_i_matrix)[which(row_i_max == 1)]
-        ######## calculate proportion based on binarized deconvolution
-        ######## results at first step
-        if (length(ct_i) == 1) {
-            dwls_results[ct_i[1], which(cluster_info == cluster_sort[i])] == 1
-        } else {
-            ct_gene <- c()
-            for (j in seq_along(ct_i)) {
-                sig_gene_j <- rownames(enrich_matrix)[
-                    which(enrich_matrix[, ct_i[j]] == 1)
-                ]
-                ct_gene <- c(ct_gene, sig_gene_j)
-            }
-            uniq_ct_gene <- intersect(rownames(expr), unique(ct_gene))
-            select_sig_exp <- ct_exp[uniq_ct_gene, ct_i, drop = FALSE]
-            cluster_i_cell <- which(cluster_info == cluster_sort[i])
-            cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell, drop = FALSE]
-            ###### calculate
-            ###### overlap signature with spatial genes
-            all_exp <- Matrix::rowMeans(cluster_cell_exp)
-            solution_all_exp <- solve_OLS_internal(select_sig_exp, all_exp)
-            constant_J <- find_dampening_constant(
-                select_sig_exp, all_exp, solution_all_exp
-            )
-            ###### deconvolution for each spot
-            for (k in seq_len(dim(cluster_cell_exp)[2])) {
-                B <- Matrix::as.matrix(cluster_cell_exp[, k])
-                ct_spot_k <- rownames(cluster_i_matrix)[
-                    which(cluster_i_matrix[, k] == 1)
-                ]
-                if (sum(B) == 0 || length(ct_spot_k) == 0) {
-                    ####* must include the case where all genes are 0
-                    dwls_results[, colnames(cluster_cell_exp)[k]] <- NA
-                    ####* will produce NAs for some spots in the output
-                    next ####* no need to look into this spot any more
-                }
-                if (length(ct_spot_k) == 1) {
-                    dwls_results[
-                        ct_spot_k[1], colnames(cluster_cell_exp)[k]
-                    ] <- 1
-                } else {
-                    ct_k_gene <- c()
-                    for (m in seq_along(ct_spot_k)) {
-                        sig_gene_k <- rownames(enrich_matrix)[which(
-                            enrich_matrix[, ct_spot_k[m]] == 1
-                        )]
-                        ct_k_gene <- c(ct_k_gene, sig_gene_k)
-                    }
-                    uniq_ct_k_gene <- intersect(
-                        rownames(ct_exp), unique(ct_k_gene)
-                    )
-                    S_k <- Matrix::as.matrix(ct_exp[uniq_ct_k_gene, ct_spot_k])
-                    if (sum(B[uniq_ct_k_gene, ]) == 0) {
-                        ####* must include the case all genes are 0
-                        dwls_results[, colnames(cluster_cell_exp)[k]] <- NA
-                        ####* will produce NAs for some spots in the output
-                    } else {
-                        solDWLS <- optimize_solveDampenedWLS(S_k, B[
-                            uniq_ct_k_gene,
-                        ], constant_J)
-                        dwls_results[
-                            names(solDWLS),
-                            colnames(cluster_cell_exp)[k]
-                        ] <- solDWLS
-                    }
-                }
-            }
-        }
-    }
-    ##### remove negative values
-    for (i in dim(dwls_results)[1]) {
-        negtive_index <- which(dwls_results[i, ] < 0)
-        dwls_results[i, negtive_index] <- 0
-    }
-    return(dwls_results)
-}
-
-
-
-#' @title cluster_enrich_analysis
-#' @description Rui to fill in
-#' @returns enrichment values
-#' @keywords internal
-cluster_enrich_analysis <- function(
-        exp_matrix,
-        cluster_info,
-        enrich_sig_matrix) {
-    uniq_cluster <- mixedsort(unique(cluster_info))
-    if (length(uniq_cluster) == 1) {
-        stop("Only one cluster identified, need at least two.")
-    }
-    cluster_exp <- NULL
-    for (i in uniq_cluster) {
-        cluster_exp <- cbind(
-            cluster_exp,
-            (apply(
-                exp_matrix, 1,
-                function(y) mean(y[which(cluster_info == i)])
-            ))
-        )
-    }
-    log_cluster_exp <- log2(cluster_exp + 1)
-    colnames(log_cluster_exp) <- uniq_cluster
-    cluster_enrich <- enrich_analysis(log_cluster_exp, enrich_sig_matrix)
-    return(cluster_enrich)
-}
-
-
-#' @title enrich_analysis
-#' @description Rui to fill in
-#' @returns enrichment matrix
-#' @keywords internal
-enrich_analysis <- function(
-        expr_values,
-        sign_matrix) {
-    # output enrichment
-    # only continue with genes present in both datasets
-    interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
-    filterSig <- sign_matrix[interGene, ]
-    signames <- rownames(filterSig)[which(filterSig[, 1] == 1)]
-    # calculate mean gene expression
-    # mean_gene_expr = rowMeans(expr_values)
-    mean_gene_expr <- log2(Matrix::rowMeans(2^expr_values - 1, dims = 1) + 1)
-    geneFold <- expr_values - mean_gene_expr
-    # calculate sample/spot mean and sd
-    cellColMean <- apply(geneFold, 2, mean)
-    cellColSd <- apply(geneFold, 2, stats::sd)
-
-    # get enrichment scores
-    enrichment <- matrix(
-        data = NA, nrow = dim(filterSig)[2], ncol = length(cellColMean)
-    )
-    for (i in seq_len(dim(filterSig)[2])) {
-        signames <- rownames(filterSig)[which(filterSig[, i] == 1)]
-        sigColMean <- apply(geneFold[signames, ], 2, mean)
-        m <- length(signames)
-        vectorX <- NULL
-        for (j in (seq_along(cellColMean))) {
-            Sm <- sigColMean[j]
-            u <- cellColMean[j]
-            sigma <- cellColSd[j]
-            zscore <- (Sm - u) * m^(1 / 2) / sigma
-            vectorX <- append(vectorX, zscore)
-        }
-        enrichment[i, ] <- vectorX
-    }
-    rownames(enrichment) <- colnames(filterSig)
-    colnames(enrichment) <- names(cellColMean)
-    return(enrichment)
-}
-
-
-
-#' @title optimize_deconvolute_dwls
-#' @description Rui to fill in
-#' @returns matrix
-#' @keywords internal
-optimize_deconvolute_dwls <- function(
-        exp,
-        Signature) {
-    ###### overlap signature with spatial genes
-    Genes <- intersect(rownames(Signature), rownames(exp))
-    S <- Signature[Genes, ]
-    S <- Matrix::as.matrix(S)
-    Bulk <- Matrix::as.matrix(exp)
-    subBulk <- Bulk[Genes, ]
-    allCounts_DWLS <- NULL
-    all_exp <- Matrix::rowMeans(exp)
-
-    solution_all_exp <- solve_OLS_internal(S, all_exp[Genes])
-
-    constant_J <- find_dampening_constant(S, all_exp[Genes], solution_all_exp)
-    for (j in seq_len(dim(subBulk)[2])) {
-        B <- subBulk[, j]
-        if (sum(B) > 0) {
-            solDWLS <- optimize_solveDampenedWLS(S, B, constant_J)
-        } else {
-            # solDWLS <- rep(0, length(B))  ####*  wrong dimension,
-            # causes warnings
-            solDWLS <- rep(0, ncol(S)) ####* corrected dim
-            # names(solDWLS) <- names(B)  ####*  wrong dim name
-            names(solDWLS) <- colnames(S) ####* corrected dim name
-        }
-        allCounts_DWLS <- cbind(allCounts_DWLS, solDWLS)
-    }
-    colnames(allCounts_DWLS) <- colnames(exp)
-    return(allCounts_DWLS)
-}
-
-
-#' @title optimize_solveDampenedWLS
-#' @returns numeric
-#' @keywords internal
-optimize_solveDampenedWLS <- function(
-        S,
-        B,
-        constant_J) {
-    # first solve OLS, use this solution to find a starting point for the
-    # weights
-    solution <- solve_OLS_internal(S, B)
-    # now use dampened WLS, iterate weights until convergence
-    iterations <- 0
-    changes <- c()
-    # find dampening constant for weights using cross-validation
-    j <- constant_J
-    change <- 1
-
-    while (change > .01 & iterations < 1000) {
-        newsolution <- solve_dampened_WLSj(S, B, solution, j)
-        # decrease step size for convergence
-        solutionAverage <- rowMeans(cbind(
-            newsolution,
-            matrix(solution,
-                nrow = length(solution),
-                ncol = 4
-            )
-        ))
-        change <- norm(Matrix::as.matrix(solutionAverage - solution))
-        solution <- solutionAverage
-        iterations <- iterations + 1
-        changes <- c(changes, change)
-    }
-
-
-    return(solution / sum(solution))
-}
-
-
-#' @title find_dampening_constant
-#' @description find a dampening constant for the weights using cross-validation
-#' @returns numeric
-#' @keywords internal
-find_dampening_constant <- function(
-        S,
-        B,
-        goldStandard) {
-    solutionsSd <- NULL
-
-    # goldStandard is used to define the weights
-    sol <- goldStandard
-    ws <- as.vector((1 / (S %*% sol))^2)
-    wsScaled <- ws / min(ws)
-    wsScaledMinusInf <- wsScaled
-
-    # ignore infinite weights
-    if (max(wsScaled) == "Inf") {
-        wsScaledMinusInf <- wsScaled[-which(wsScaled == "Inf")]
-    }
-
-    # try multiple values of the dampening constant (multiplier)
-    # for each, calculate the variance of the dampened weighted solution for
-    # a subset of genes
-    for (j in seq_len(ceiling(log2(max(wsScaledMinusInf))))) {
-        multiplier <- 1 * 2^(j - 1)
-        wsDampened <- wsScaled
-        wsDampened[which(wsScaled > multiplier)] <- multiplier
-        solutions <- NULL
-        seeds <- seq_len(100)
-        for (i in seq_len(100)) {
-            GiottoUtils::local_seed(seeds[i]) # make nondeterministic
-            subset <- sample(length(ws), size = length(ws) * 0.5)
-            # randomly select half of gene set
-
-            # solve dampened weighted least squares for subset
-            fit <- stats::lm(
-                B[subset] ~ -1 + S[subset, , drop = FALSE],
-                weights = wsDampened[subset]
-            )
-            sol <- fit$coef * sum(goldStandard) / sum(fit$coef)
-            solutions <- cbind(solutions, sol)
-        }
-        solutionsSd <- cbind(solutionsSd, apply(solutions, 1, stats::sd))
-    }
-
-    # choose dampening constant that results in least cross-validation variance
-    j <- which.min(colMeans(solutionsSd^2))
-    return(j)
-}
-
-
-#' @title solve_OLS_internal
-#' @description basic functions for dwls
-#' @returns numeric
-#' @keywords internal
-solve_OLS_internal <- function(
-        S,
-        B) {
-    D <- t(S) %*% S
-    d <- t(S) %*% B
-    A <- cbind(diag(dim(S)[2]))
-    bzero <- c(rep(0, dim(S)[2]))
-
-
-    out <- tryCatch(
-        expr = {
-            quadprog::solve.QP(
-                Dmat = D,
-                dvec = d,
-                Amat = A,
-                bvec = bzero
-            )$solution
-        },
-        error = function(cond) {
-            message("Original error message:")
-            message(cond)
-
-            message("Will try to fix error with Matrix::nearPD()")
-            return(NULL)
-        }
-    )
-
-
-    if (is.null(out)) {
-        D <- Matrix::nearPD(D)
-        D <- as.matrix(D$mat)
-
-        out <- tryCatch(
-            expr = {
-                quadprog::solve.QP(
-                    Dmat = D,
-                    dvec = d,
-                    Amat = A,
-                    bvec = bzero
-                )$solution
-            },
-            error = function(cond) {
-                message("Original error message:")
-                message(cond)
-
-                message("nearPD() did not fix the error")
-                return(NULL)
-            }
-        )
-
-        if (is.null(out)) {
-            stop("Errors could not be fixed")
-        } else {
-            names(out) <- colnames(S)
-        }
-    } else {
-        names(out) <- colnames(S)
-    }
-
-    return(out)
-}
-
-#
-#' @title solve_dampened_WLSj
-#' @description solve WLS given a dampening constant
-#' @returns matrix
-#' @keywords internal
-solve_dampened_WLSj <- function(
-        S,
-        B,
-        goldStandard,
-        j) {
-    multiplier <- 1 * 2^(j - 1)
-    sol <- goldStandard
-    ws <- as.vector((1 / (S %*% sol))^2)
-    wsScaled <- ws / min(ws)
-    wsDampened <- wsScaled
-    wsDampened[which(wsScaled > multiplier)] <- multiplier
-    W <- diag(wsDampened)
-    D <- t(S) %*% W %*% S
-    d <- t(S) %*% W %*% B
-    A <- cbind(diag(dim(S)[2]))
-    bzero <- c(rep(0, dim(S)[2]))
-    sc <- norm(D, "2")
-
-    D_positive_definite <- Matrix::nearPD(x = D / sc)
-
-    solution <- quadprog::solve.QP(
-        Dmat = as.matrix(D_positive_definite$mat),
-        dvec = d / sc,
-        Amat = A,
-        bvec = bzero
-    )$solution
-
-    names(solution) <- colnames(S)
-    return(solution)
-}
-
-
 #' @title Estimate cell type proportions with spatialDWLS
 #' @description Estimate what fraction of each spatial position is made up of
 #' each cell type, given a mean-expression reference from single-cell data.
@@ -2484,7 +2000,17 @@ solve_dampened_WLSj <- function(
 #' composition: the values for a position sum to one.
 #' @inheritParams signature_analysis_params
 #' @inheritParams deconvolution_params
+#' @param na_as_zero logical. Positions with no signal on the signature
+#' features cannot be solved and are `NA` by default; `TRUE` returns them as
+#' 0 instead.
+#' @param BPPARAM a `BiocParallelParam` used for the per-position solves.
+#' `NULL` (default) uses `getOption("giotto.bpparam")` when that is a parallel
+#' param and runs serially otherwise.
 #' @returns giotto object or deconvolution results
+#' @details
+#' The work is done by [analyzeData()] with a [deconvParam()], dispatched on
+#' the expression object, so a disk-backed expression store can supply its
+#' own streaming implementation.
 #' @md
 #' @family spatial deconvolution
 #' @seealso \url{https://github.com/dtsoucas/DWLS} for the \emph{DWLS} bulk
@@ -2516,16 +2042,11 @@ runDWLSDeconv <- function(
         n_cell = 50,
         cutoff = 2,
         name = NULL,
-        return_gobject = TRUE) {
-    # verify if optional package is installed
-    package_check(pkg_name = "quadprog", repository = "CRAN")
-    package_check(pkg_name = "Rfast", repository = "CRAN")
-
-    ## check parameters ##
+        return_gobject = TRUE,
+        na_as_zero = FALSE,
+        BPPARAM = NULL) {
     if (is.null(name)) name <- "DWLS"
 
-
-    # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
         spat_unit = spat_unit
@@ -2535,11 +2056,39 @@ runDWLSDeconv <- function(
         spat_unit = spat_unit,
         feat_type = feat_type
     )
-
     values <- match.arg(
         expression_values,
         unique(c("normalized", "scaled", "custom", expression_values))
     )
+
+    # Keyed by cell_ID rather than handed over positionally: expression and
+    # metadata come from independent accessors and need not share an order.
+    cell_metadata <- pDataDT(gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type
+    )
+    if (!cluster_column %in% colnames(cell_metadata)) {
+        stop("cluster column not found")
+    }
+    clusters <- stats::setNames(
+        cell_metadata[[cluster_column]], cell_metadata$cell_ID
+    )
+
+    param <- deconvParam("DWLS",
+        logbase = logbase,
+        n_cell = n_cell,
+        cutoff = cutoff,
+        na_as_zero = na_as_zero,
+        BPPARAM = BPPARAM
+    )
+    misc <- list(
+        expr_values_used = expression_values,
+        logbase = logbase,
+        cluster_column_used = cluster_column,
+        number_of_cells_per_spot = n_cell,
+        used_cut_off = cutoff
+    )
+
     expr_values <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -2548,118 +2097,49 @@ runDWLSDeconv <- function(
         output = "exprObj"
     )
 
-    # #transform expression data to no log data
-    nolog_expr <- logbase^(expr_values[]) - 1
-
-    # cluster column
-    cell_metadata <- pDataDT(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-    if (!cluster_column %in% colnames(cell_metadata)) {
-        stop("cluster column not found")
-    }
-
-    # Alignment guard -- enrich_deconvolution / spot_deconvolution take the
-    # cluster vector positionally against the expression columns. Same
-    # independent-accessor problem as the other two: key the metadata onto
-    # the expression cell axis before pulling the column off it.
-    ord <- match(colnames(expr_values[]), cell_metadata$cell_ID)
-    if (anyNA(ord)) {
-        stop("[runDWLSDeconv] expression matrix columns and cell_metadata ",
-            "cell_IDs do not all match", call. = FALSE)
-    }
-    cell_metadata <- cell_metadata[ord, ]
-
-    cluster <- cell_metadata[[cluster_column]]
-
-
-    ##### getting overlapped gene lists
-    sign_matrix <- as.matrix(sign_matrix)
-    intersect_gene <- intersect(rownames(sign_matrix), rownames(nolog_expr))
-    filter_Sig <- sign_matrix[intersect_gene, ]
-    filter_expr <- nolog_expr[intersect_gene, ]
-    filter_log_expr <- expr_values[][intersect_gene, ]
-
-    ##### first round spatial deconvolution ##spot or cluster
-    enrich_spot_proportion <- enrich_deconvolution(
-        expr = filter_expr,
-        log_expr = filter_log_expr,
-        cluster_info = cluster,
-        ct_exp = filter_Sig,
-        cutoff = cutoff
+    # Dispatched on the expression object: a disk-backed store arrives intact
+    # and routes to its own streaming method.
+    res <- analyzeData(
+        x = expr_values[], param = param,
+        sign_matrix = sign_matrix, cell_clusters = clusters
     )
 
-    #### re-deconvolution based on spatial resolution
-    resolution <- (1 / n_cell)
-    binarize_proportion <- ifelse(enrich_spot_proportion >= resolution, 1, 0)
-    spot_proportion <- spot_deconvolution(
-        expr = filter_expr,
-        cluster_info = cluster,
-        ct_exp = filter_Sig,
-        binary_matrix = binarize_proportion
-    )
-    deconvolutionDT <- data.table::data.table(
-        cell_ID = colnames(spot_proportion)
-    )
-    deconvolutionDT <- cbind(
-        deconvolutionDT, data.table::as.data.table(t(spot_proportion))
-    )
-
-    # create spatial enrichment object
     enrObj <- createSpatEnrObj(
         name = name,
         method = "DWLS",
-        enrichment_data =deconvolutionDT,
+        enrichment_data = res,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = expr_values@provenance,
-        misc = list(
-            expr_values_used = expression_values,
-            logbase = logbase,
-            cluster_column_used = cluster_column,
-            number_of_cells_per_spot = n_cell,
-            used_cut_off = cutoff
-        )
+        misc = misc
     )
 
-    ## return object or results ##
-    if (return_gobject == TRUE) {
-        spenr_names <- list_spatial_enrichments_names(gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type
-        )
-
-        if (name %in% spenr_names) {
-            cat(name, " has already been used, will be overwritten")
-        }
-
-        ## update parameters used ##
-        parameters_list <- gobject@parameters
-        number_of_rounds <- length(parameters_list)
-        update_name <- paste0(number_of_rounds, "_spatial_deconvolution")
-
-        # parameters to include
-        parameters_list[[update_name]] <- c(
-            "method used" = "DWLS",
-            "deconvolution name" = name,
-            "expression values" = expression_values,
-            "logbase" = logbase,
-            "cluster column used" = cluster_column,
-            "number of cells per spot" = n_cell,
-            "used cut off" = cutoff
-        )
-
-        gobject@parameters <- parameters_list
-
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- setGiotto(gobject, enrObj)
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-        return(gobject)
-    } else {
+    if (!isTRUE(return_gobject)) {
         return(enrObj)
     }
+
+    spenr_names <- list_spatial_enrichments_names(gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type
+    )
+    if (name %in% spenr_names) {
+        cat(name, " has already been used, will be overwritten")
+    }
+
+    parameters_list <- gobject@parameters
+    update_name <- paste0(length(parameters_list), "_spatial_deconvolution")
+    parameters_list[[update_name]] <- c(
+        "method used" = "DWLS",
+        "deconvolution name" = name,
+        "expression values" = expression_values,
+        "logbase" = logbase,
+        "cluster column used" = cluster_column,
+        "number of cells per spot" = n_cell,
+        "used cut off" = cutoff
+    )
+    gobject@parameters <- parameters_list
+
+    setGiotto(gobject, enrObj)
 }
 
 
@@ -2671,6 +2151,7 @@ runDWLSDeconv <- function(
 #' argument is forwarded to the chosen method.
 #' @inheritParams signature_analysis_params
 #' @inheritParams deconvolution_params
+#' @inheritParams runDWLSDeconv
 #' @param deconv_method method to use for deconvolution
 #' @returns giotto object or deconvolution results
 #' @md
@@ -2703,7 +2184,9 @@ runSpatialDeconv <- function(
         n_cell = 50,
         cutoff = 2,
         name = NULL,
-        return_gobject = TRUE) {
+        return_gobject = TRUE,
+        na_as_zero = FALSE,
+        BPPARAM = NULL) {
     deconv_method <- match.arg(deconv_method, choices = c("DWLS"))
 
 
@@ -2719,7 +2202,9 @@ runSpatialDeconv <- function(
             n_cell = n_cell,
             cutoff = cutoff,
             name = name,
-            return_gobject = return_gobject
+            return_gobject = return_gobject,
+            na_as_zero = na_as_zero,
+            BPPARAM = BPPARAM
         )
     }
 
