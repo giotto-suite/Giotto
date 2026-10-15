@@ -25,6 +25,16 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   cutoff.
 
 ## bug fixes
+- Visium HD (`importVisiumHD()` and its wrappers):
+  - `load_transcripts = TRUE` at 8 or 16 um no longer leaves the bins with
+    empty cell metadata.
+  - cell metadata rows follow the expression barcodes instead of arrow scan
+    order;
+  - a direct `.h5` or matrix-market `expression_path` loads;
+  - an `.h5` source gives the `rna` feat_type as an mtx one does;
+  - the class default `feature_id_type` is `"symbol"`, the value it accepts.
+- `get10Xmatrix_h5(gene_ids = "symbols", split_by_type = FALSE)` returns gene
+  symbols; it returned Ensembl IDs.
 - `runDWLSDeconv()`: a cluster with a single candidate cell type in the spot
   round now assigns that type proportion 1; it was left at 0 (an `==` where an
   assignment was meant). On a simulation with single-type niches and
@@ -49,18 +59,6 @@ landed on `gsource` after it had moved to 4.3.0, so a 4.3.0 install may predate
 it. Downstream packages that import the motif param classes, or provide an
 `analyzeData()` method for a backed network carrier, should require
 `Giotto (>= 4.3.1)`.
-
-## bug fixes
-- Visium HD (`importVisiumHD()` and its wrappers):
-  - `load_transcripts = TRUE` at 8 or 16 um no longer leaves the bins with
-    empty cell metadata.
-  - cell metadata rows follow the expression barcodes instead of arrow scan
-    order;
-  - a direct `.h5` or matrix-market `expression_path` loads;
-  - an `.h5` source gives the `rna` feat_type as an mtx one does;
-  - the class default `feature_id_type` is `"symbol"`, the value it accepts.
-- `get10Xmatrix_h5(gene_ids = "symbols", split_by_type = FALSE)` returns gene
-  symbols; it returned Ensembl IDs.
 
 # Giotto 4.3.0
 
