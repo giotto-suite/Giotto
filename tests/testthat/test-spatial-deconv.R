@@ -1,16 +1,23 @@
-# Characterization tests for DWLS deconvolution.
+# Tests for Giotto's DWLS wrapper.
 #
-# These pin what runDWLSDeconv() and makeSignMatrixDWLS() produce *today*,
-# before deconvolution is split into its own param family. Nothing here asserts
-# the numbers are right -- only that they do not change. There was no test file
-# for DWLS at all, and the enrichment round showed what that costs: four live
-# bugs sat in the sibling functions unnoticed, one of which meant
-# runRankEnrich() could not be called.
+# The algorithm is the spatialDWLS package (drieslab/spatialDWLS); its own
+# tests cover the solver on synthetic data (single-type clusters, NA spots,
+# RNG state, parallel = serial, sparse = dense, windows). What is tested here
+# is Giotto's side: the param, the verb, the gobject plumbing and the
+# functions that read the stored result.
 #
-# Deliberately small: 120 cells and 100 signature genes runs in ~8 s. DWLS
-# optimizes per cell, so the full mini object takes ~20 s for no extra coverage.
+# The pinned values were re-pinned when the solver was rewritten. The rewrite
+# reproduces the previous solver to ~1e-14 on this fixture and on the whole
+# mini object. The pins changed only because the earlier ones predate
+# f8fa23b5, which keyed the clusters to the expression columns: on this subset
+# 118 of 120 cells had been solved against another cell's cluster.
+#
+# Deliberately small: 120 cells and 100 signature genes, about half a second.
 
-skip_if_no_mini <- function() skip_if_not_installed("GiottoData")
+skip_if_no_mini <- function() {
+    skip_if_not_installed("GiottoData")
+    skip_if_not_installed("spatialDWLS")
+}
 
 .deconv_fixture <- function(n_cells = 120L, n_genes = 100L, seed = 1L) {
     gwith_options(list(giotto.use_conda = FALSE, giotto.verbose = FALSE,
@@ -53,7 +60,7 @@ test_that("makeSignMatrixDWLS builds a mean-expression reference", {
 })
 
 
-test_that("runDWLSDeconv output is unchanged", {
+test_that("runDWLSDeconv output is pinned", {
     skip_if_no_mini()
     f <- .deconv_fixture()
 
@@ -71,11 +78,11 @@ test_that("runDWLSDeconv output is unchanged", {
     dt <- res[]
     expect_identical(nrow(dt), 120L)
     expect_setequal(names(dt), c("cell_ID", "1", "2", "5"))
-    expect_equal(head(dt[["2"]], 3), c(0.976896, 0.000000, 1.000000),
+    expect_equal(head(dt[["2"]], 3), c(0.128027, 0.082551, 1.000000),
                  tolerance = 1e-5)
-    expect_equal(head(dt[["5"]], 3), c(0.023104, 0.854972, 0.000000),
+    expect_equal(head(dt[["5"]], 3), c(0.047666, 0.615664, 0.000000),
                  tolerance = 1e-5)
-    expect_equal(head(dt[["1"]], 3), c(0.000000, 0.145028, 0.000000),
+    expect_equal(head(dt[["1"]], 3), c(0.824307, 0.301786, 0.000000),
                  tolerance = 1e-5)
 })
 
@@ -138,4 +145,93 @@ test_that("runSpatialDeconv routes to the same result as the direct call", {
                             cluster_column = "leiden_clus",
                             return_gobject = FALSE)
     expect_equal(via[], direct[])
+})
+
+
+test_that("analyzeData() on a matrix matches the giotto wrapper", {
+    skip_if_no_mini()
+    f <- .deconv_fixture()
+
+    expr <- GiottoClass::getExpression(f$g, values = "normalized",
+                                       output = "matrix")
+    clus <- stats::setNames(f$md$leiden_clus, f$md$cell_ID)
+    verb <- analyzeData(expr, deconvParam("DWLS"),
+        sign_matrix = f$sm, cell_clusters = clus)
+    wrapped <- runDWLSDeconv(f$g, sign_matrix = f$sm,
+                             cluster_column = "leiden_clus",
+                             return_gobject = FALSE)[]
+    data.table::setcolorder(verb, names(wrapped))
+    expect_equal(verb, wrapped, ignore_attr = TRUE)
+})
+
+
+test_that("the param reaches the engine, and giotto.bpparam is honoured", {
+    skip_if_not_installed("spatialDWLS")
+    skip_if_not_installed("BiocParallel")
+
+    seen <- NULL
+    local_mocked_bindings(
+        dwls = function(expr, sign_matrix, clusters, ...) {
+            seen <<- list(...)
+            prop <- matrix(1 / 2, 2, ncol(expr),
+                dimnames = list(c("A", "B"), colnames(expr)))
+            prop
+        },
+        .package = "spatialDWLS"
+    )
+    expr <- matrix(1, 3, 4, dimnames = list(paste0("g", 1:3),
+        paste0("s", 1:4)))
+    sig <- matrix(1, 3, 2, dimnames = list(paste0("g", 1:3), c("A", "B")))
+
+    bp <- BiocParallel::SnowParam(2)
+    old <- options(giotto.bpparam = bp)
+    on.exit(options(old), add = TRUE)
+    res <- analyzeData(expr, deconvParam("DWLS", n_cell = 7, cutoff = 1.5,
+        logbase = 10, na_as_zero = TRUE, chunk_size = 9L),
+        sign_matrix = sig, cell_clusters = rep("k", 4))
+
+    expect_identical(seen$n_cell, 7)
+    expect_identical(seen$cutoff, 1.5)
+    expect_identical(seen$logbase, 10)
+    expect_true(seen$na_as_zero)
+    expect_identical(seen$chunk_size, 9L)
+    expect_identical(seen$BPPARAM, bp)
+
+    # an explicit BPPARAM wins over the session option
+    serial <- BiocParallel::SerialParam()
+    analyzeData(expr, deconvParam("DWLS", BPPARAM = serial),
+        sign_matrix = sig, cell_clusters = rep("k", 4))
+    expect_identical(seen$BPPARAM, serial)
+
+    # the engine's matrix comes back as the enrichment contract
+    expect_s3_class(res, "data.table")
+    expect_identical(names(res), c("cell_ID", "A", "B"))
+    expect_identical(res$cell_ID, paste0("s", 1:4))
+})
+
+
+test_that("deconvParam validates its inputs", {
+    expect_s4_class(deconvParam(), "dwlsDeconvParam")
+    expect_error(deconvParam("DWLS", BPPARAM = "two"), "BiocParallelParam")
+    expect_identical(deconvParam("dwls", n_cell = 10)$n_cell, 10)
+    expect_error(deconvParam("DWLS", n_cell = 0), "n_cell")
+    expect_error(deconvParam("DWLS", n_cell = c(5, 10)), "n_cell")
+    expect_error(deconvParam("RCTD"))
+})
+
+
+test_that("the spot interaction functions read the stored result", {
+    skip_if_no_mini()
+    f <- .deconv_fixture()
+    g <- runDWLSDeconv(f$g, sign_matrix = f$sm, cluster_column = "leiden_clus")
+
+    # cellProximityEnrichmentSpots() used to drop the first column, assuming
+    # it was cell_ID; the stored enrichment keeps cell_ID last.
+    res <- cellProximityEnrichmentSpots(g, cells_in_spot = 5,
+        number_of_simulations = 5)
+    expect_s3_class(res$enrichm_res, "data.table")
+    expect_gt(nrow(res$enrichm_res), 0L)
+
+    pred <- featExpDWLS(g, ave_celltype_exp = f$sm)
+    expect_identical(dim(pred), c(nrow(f$sm), 120L))
 })

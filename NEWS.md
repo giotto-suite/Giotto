@@ -1,4 +1,46 @@
-# Giotto 4.3.1 (in development)
+# Giotto 4.3.2 (in development)
+
+spatialDWLS moves to its own package,
+[spatialDWLS](https://github.com/drieslab/spatialDWLS) (drieslab), which
+Giotto now suggests, the way the motif layer suggests smotif.
+`runDWLSDeconv()` and `runSpatialDeconv()` keep their arguments and call it;
+install it with `remotes::install_github("drieslab/spatialDWLS")`.
+Downstream packages that import `dwlsDeconvParam` or provide an
+`analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
+
+## new
+- `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
+  verb, the sibling of `enrichParam()`. Dispatching on the expression object
+  lets a disk-backed store (GiottoDisk) supply its own streaming method.
+- `runDWLSDeconv()` / `runSpatialDeconv()` gain `BPPARAM` (per-spot solves in
+  parallel; defaults to `getOption("giotto.bpparam")`) and `na_as_zero`.
+
+## changes
+- DWLS is 12-22x faster on 600-20,000 spots serially. Results match 4.3.1 to
+  ~1e-15 except for the fixes below.
+- `quadprog` and `Rfast` are no longer suggested; spatialDWLS brings
+  `quadprog`.
+- The `cutoff` argument is documented as what it is: the PAGE z-score a cell
+  type must reach in a cluster to be a candidate there, not an expression
+  cutoff.
+
+## bug fixes
+- `runDWLSDeconv()`: a cluster with a single candidate cell type in the spot
+  round now assigns that type proportion 1; it was left at 0 (an `==` where an
+  assignment was meant). On a simulation with single-type niches and
+  `n_cell = 5` this lowers the RMSE against the true proportions from 0.167 to
+  0.045. With the default `n_cell = 50` it rarely triggers.
+- `runDWLSDeconv()`: small negative values from the constrained solver are
+  clipped for every cell type, not only the last one.
+- `runDWLSDeconv()` no longer leaves the session's random number generator in
+  a fixed state.
+- `cellProximityEnrichmentSpots()` selects the cell type columns by name. It
+  dropped the first column assuming it was `cell_ID`, which the stored result
+  keeps last, and failed with "non-numeric argument to binary operator".
+- `test-spatial-deconv.R`: the pinned DWLS values predated f8fa23b5 (cluster
+  keyed to the expression columns) and failed on `gsource`; they are re-pinned.
+
+# Giotto 4.3.1
 
 Version-only bump. The multicellular motif layer -- `cellProximityMotifs()`,
 `motifParam` and its subclasses, and `analyzeData()` handing a backed network
