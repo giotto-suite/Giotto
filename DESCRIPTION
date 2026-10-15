@@ -85,12 +85,10 @@ Suggests:
     networkD3,
     pheatmap,
     plotly,
-    quadprog,
     harmony,
     R.utils,
     RcppHNSW,
     remotes,
-    Rfast,
     rlang,
     rhdf5,
     rnndescent,
@@ -106,6 +104,7 @@ Suggests:
     smfishHmrf,
     smotif,
     smotifrs,
+    spatialDWLS,
     SPARK,
     SpatialExperiment,
     spdep,
@@ -118,7 +117,8 @@ Suggests:
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
-    giotto-suite/GiottoVisuals
+    giotto-suite/GiottoVisuals,
+    drieslab/spatialDWLS
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
@@ -135,6 +135,7 @@ Collate:
     'convenience_visiumHD.R'
     'cross_section.R'
     'dd.R'
+    'deconv-param.R'
     'differential_expression.R'
     'dimension_reduction.R'
     'enrich-param.R'
