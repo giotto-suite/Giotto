@@ -28,7 +28,7 @@ setClass(
     prototype = list(
         bin = 8L,
         expression_source = "raw",
-        feature_id_type = "symbols",
+        feature_id_type = "symbol",
         tissue_only = FALSE,
         barcodes = NULL,
         array_subset_row = NULL,
@@ -771,8 +771,6 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
                 res <- do.call(funs$load_transcripts, 
                                args = c(tx_params, scalef_params, mat_params))
                 tx_list <- res$gpoints
-                # extract and update barcodes
-                barcodes <- spatIDs(res$tissue_positions)
                 rm(res) # cleanup
             }
             
@@ -1201,6 +1199,14 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     }
     vmsg(.v = verbose, .is_debug = TRUE, path)
     
+    # segmented (cell) or binned output, from the output dir or tar name, or
+    # from the matrix name when the path points at the matrix itself
+    agg_type <- if (grepl("segmented|feature_cell_matrix", basename(path))) {
+        "seg"
+    } else {
+        "bin"
+    }
+
     # determine expression source
     expression_path <- NULL
     if ((.is_tar(path) || checkmate::test_directory_exists(path)) &&
@@ -1209,7 +1215,6 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         # - `expression_source` param not needed in other cases
         if (is.null(expression_source)) expression_source <- "raw" # default
         
-        agg_type <- ifelse(grepl("segmented", basename(path)), "seg", "bin")
         expression_source <- paste(expression_source, agg_type, sep = "_")
         
         expression_path <- switch(expression_source,
@@ -1247,6 +1252,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         stop("[VisiumHD] unrecognized expression matrix format", call. = FALSE)
     }
     if (!is.list(m)) m <- list(rna = m)
+    names(m) <- .tenx_feat_type_names(names(m))
     
     # `m` may be a list depending on split_by_type and the data contained.
     lapply(names(m), function(feat_type) {
@@ -1779,7 +1785,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     }
     
     vmsg(.v = verbose, "building tessellated polygons ...")
-    vmsg(.v = verbose, .is_debug = TRUE, path)
+    vmsg(.v = verbose, .is_debug = TRUE, tissue_positions_path)
 
     tp_params <- untar_params
     tp_params$path <- tissue_positions_path
@@ -1840,6 +1846,10 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         dplyr::select(c("cell_ID" = "barcode", "in_tissue", "array_col", "array_row")) |>
         dplyr::collect() |>
         data.table::as.data.table()
+    # arrow scan order is not stable; follow `barcodes`
+    if (!is.null(barcodes)) {
+        cx_dt <- cx_dt[match(barcodes, cx_dt$cell_ID, nomatch = 0L)]
+    }
 
     su <- sprintf("bin%03d", as.integer(bin))
     createCellMetaObj(cx_dt,
@@ -1889,7 +1899,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     }
     
     vmsg(.v = verbose, "creating point detections ...")
-    vmsg(.v = verbose, .is_debug = TRUE, path)
+    vmsg(.v = verbose, .is_debug = TRUE, expr_path, tissue_positions_path)
 
     # common params
     untar_params$outdir <- outdir

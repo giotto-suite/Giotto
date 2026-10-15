@@ -1142,6 +1142,14 @@ get10Xmatrix_h5 <- function(
 
         return(result_list)
     } else {
+        # gene symbols, as the split branch gives them
+        if (gene_ids == "symbols") {
+            expr_rows <- features_dt$feature_type %in%
+                c("Gene Expression", "Protein Expression")
+            rn <- rownames(sparsemat)
+            rn[expr_rows] <- features_dt$uniq_name[expr_rows]
+            rownames(sparsemat) <- rn
+        }
         if (isTRUE(remove_zero_rows)) {
             rowsums_result <- rowSums_flex(sparsemat)
             rowsums_bool <- rowsums_result != 0
@@ -1150,6 +1158,25 @@ get10Xmatrix_h5 <- function(
 
         return(list("Gene Expression" = sparsemat))
     }
+}
+
+# 10x feature classes (`features/feature_type`, features.tsv column 3) to
+# Giotto feat_type names. Shared by the 10x readers.
+.tenx_feat_type_names <- function(x) {
+    map <- c(
+        "Gene Expression" = "rna",
+        "Protein Expression" = "protein",
+        "Negative Control Codeword" = "NegControlCodeword",
+        "Negative Control Probe" = "NegControlProbe",
+        "Blank Codeword" = "UnassignedCodeword", # from legacy Xenium pipeline
+        "Genomic Control" = "GenomicControl",
+        "Unassigned Codeword" = "UnassignedCodeword",
+        "Deprecated Codeword" = "DeprecatedCodeword"
+    )
+    hit <- x %in% names(map)
+    x[hit] <- map[x[hit]]
+    # spaces make feat types harder to read
+    gsub(" ", "_", x)
 }
 
 #' read10xAffineImage
