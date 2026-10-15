@@ -1412,19 +1412,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     fname <- "rna"
     if (length(names(ex_list)) > 1L) fname <- names(ex_list)
 
-    # specific feat type naming updates
-    fname[fname == "Gene Expression"] <- "rna"
-    fname[fname == "Protein Expression"] <- "protein"
-    fname[fname == "Negative Control Codeword"] <- "NegControlCodeword"
-    fname[fname == "Negative Control Probe"] <- "NegControlProbe"
-    fname[fname == "Blank Codeword"] <- "UnassignedCodeword" # from legacy Xenium pipeline
-    fname[fname == "Genomic Control"] <- "GenomicControl"
-    fname[fname == "Unassigned Codeword"] <- "UnassignedCodeword"
-    fname[fname == "Deprecated Codeword"] <- "DeprecatedCodeword"
-
-    # catch for " " characters in feat type
-    # (no major reason for doing this. spaces just make it harder to read)
-    fname <- gsub(" ", "_", fname)
+    fname <- .tenx_feat_type_names(fname)
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
