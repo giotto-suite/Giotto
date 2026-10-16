@@ -2358,6 +2358,8 @@ normalizeGiotto <- function(gobject,
 histThreshold <- function(value, count, upper = value,
     method = c("kmeans", "rank"), percentage_rank = 30) {
     method <- match.arg(method)
+    # doubles: products of counts overflow integers past ~46k values
+    count <- as.numeric(count)
     keep <- count > 0
     value <- value[keep]
     count <- count[keep]

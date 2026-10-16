@@ -76,3 +76,9 @@ test_that("a raster takes \"kmeans\" as its otsu default and refuses rank", {
     expect_error(processData(r, thresholdParam("binarize", threshold = "rank")),
                  "raster")
 })
+
+test_that("histThreshold takes integer counts past the integer range", {
+    n <- c(90000L, 6000L, 4000L)
+    expect_silent(t <- histThreshold(c(0, 1, 5), n))
+    expect_equal(t, histThreshold(c(0, 1, 5), as.numeric(n)))
+})
