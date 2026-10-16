@@ -67,3 +67,17 @@ test_that("load_expression extracts a bin tar that is not extracted yet", {
     ex <- .q(rd$load_expression(verbose = FALSE))
     expect_identical(spatIDs(ex[[1L]]), .fx$grid[, unique(bc8)])
 })
+
+test_that("micron = TRUE works with the detected (directory) paths", {
+    g <- .q(importVisiumHD(.bo, bin = 8)$create_gobject(micron = TRUE,
+        load_image = FALSE, verbose = FALSE))
+    mpp <- jsonlite::read_json(file.path(.bo, "square_008um", "spatial",
+        "scalefactors_json.json"))$microns_per_pixel
+    tp <- arrow::read_parquet(file.path(.bo, "square_008um", "spatial",
+        "tissue_positions.parquet"))
+    sl <- getSpatialLocations(g, spat_unit = "bin008", output = "data.table")
+    sl <- sl[match(tp$barcode, cell_ID)]
+    expect_equal(sl$sdimx, tp$pxl_col_in_fullres * mpp)
+    expect_equal(sl$sdimy, -tp$pxl_row_in_fullres * mpp)
+})
+

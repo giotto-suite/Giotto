@@ -35,6 +35,8 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   - the class default `feature_id_type` is `"symbol"`, the value it accepts.
   - `load_expression()` on a `NNNum_outputs.tar` that is not extracted yet
     extracts it; it errored unless the spatial loaders had run first.
+  - `micron = TRUE` works with the detected paths; it required
+    `scalefactors_path` to be a file, so it errored unless one was given.
 - `get10Xmatrix_h5(gene_ids = "symbols", split_by_type = FALSE)` returns gene
   symbols; it returned Ensembl IDs.
 - `runDWLSDeconv()`: a cluster with a single candidate cell type in the spot

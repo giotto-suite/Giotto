@@ -1400,7 +1400,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     
     # get micron info if needed
     if (micron) {
-        if (!checkmate::test_file_exists(scalefactors_path)) {
+        # a bin output directory or its tar is resolved below, as a json is
+        if (is.null(scalefactors_path) || !file.exists(scalefactors_path)) {
             stop("[VisiumHD] if micron = TRUE, scalefactors_path must be filepath to scalefactors_json.json or the bin output h5 or its exported data.")
         }
         json_info <- .visiumhd_scalefactors(scalefactors_path, 
