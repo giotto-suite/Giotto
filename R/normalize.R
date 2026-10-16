@@ -650,15 +650,29 @@ NULL
 #' Binarize values to 0 and 1 based on a minimal value. For matrices, the
 #' default threshold is 0. For rasters, the default is a value determined
 #' through sampled (5e5 pixels) otsu.
-#' 
+#'
+#' For matrices the threshold can also differ per feature (row): give one
+#' value per row, or a rule that picks each row's threshold from its values.
+#' Rules see a feature's zeros, stored or not:
+#' * `"kmeans"` — the split minimising the within-group sum of squares (exact
+#'   1-D 2-means, the Otsu split), see [histThreshold()].
+#' * `"rank"` — the top `percentage_rank` percent of cells by value, ties at
+#'   their average rank.
+#'
 #' @section params:
-#' 
+#'
 #' \tabular{ll}{
-#'   `threshold` \tab numeric (optional) Values above or equal to the threshold
-#'   will be set to 1. Below will be set to 0. If not provided, defaults to 0
-#'   for matrices and a value determined by otsu for rasters. \cr
+#'   `threshold` \tab numeric or character (optional) Values above the
+#'   threshold will be set to 1 (rasters: above or equal). Below will be set
+#'   to 0. One value, one value per row, or `"kmeans"` / `"rank"`. If not
+#'   provided, defaults to 0 for matrices and a value determined by otsu for
+#'   rasters (which is also what `"kmeans"` means for a raster). \cr
+#'   `percentage_rank` \tab numeric (default = 30) percentage of cells called
+#'   on per feature by `threshold = "rank"` \cr
+#'   `n_bins` \tab integer (default = 1024) histogram bins per feature for
+#'   backends that stream values instead of holding them \cr
 #'   `drop0` \tab logical (only for `dgCMatrix`, default = FALSE) Whether to
-#'   run [Matrix::drop0] after binarization 
+#'   run [Matrix::drop0] after binarization
 #' }
 #' @returns binarizeThreshParam
 #' @examples
@@ -1162,14 +1176,16 @@ setMethod("processData",
 setMethod("processData",
     signature(x = "allMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
-        threshold <- param$threshold %null% 0
+        threshold <- .binarize_threshold(x, param)
+        # a per-row vector recycles down the columns, i.e. row-wise
         (x > threshold) * 1L # coerce to integer
     }
 )
 setMethod("processData",
     signature(x = "dgCMatrix", param = "binarizeThreshParam"),
     function(x, param, ...) {
-        threshold <- param$threshold %null% 0
+        threshold <- .binarize_threshold(x, param)
+        if (length(threshold) > 1L) threshold <- threshold[x@i + 1L]
         # direct @x manipulation is ~2x faster than callNextMethod (allMatrix path)
         bool <- x@x > threshold
         drop0 <- param$drop0 %null% FALSE
@@ -1183,8 +1199,11 @@ setMethod("processData",
     signature(x = "SpatRaster", param = "binarizeThreshParam"),
     function(x, param, ...) {
         lyrnames <- names(x)
-        if (is.null(param$threshold)) {
+        if (is.null(param$threshold) || identical(param$threshold, "kmeans")) {
             threshold <- .otsu(x)
+        } else if (is.character(param$threshold)) {
+            stop("[binarize] a raster takes a number or \"kmeans\" (otsu) ",
+                "as `threshold`.", call. = FALSE)
         } else {
             threshold <- param$threshold
         }
@@ -1660,6 +1679,15 @@ normalizeGiotto <- function(gobject,
 .thresh_param_binarize <- function(...) {
     p <- new("binarizeThreshParam", param = list(...))
     p$threshold <- p$threshold %null% NULL
+    thr <- p$threshold
+    if (is.character(thr)) {
+        p$threshold <- match.arg(thr, c("kmeans", "rank"))
+        p$percentage_rank <- p$percentage_rank %null% 30
+        checkmate::assert_number(p$percentage_rank, lower = 0, upper = 100)
+    } else {
+        checkmate::assert_numeric(thr, any.missing = FALSE, null.ok = TRUE)
+    }
+    p$n_bins <- p$n_bins %null% 1024L
     p
 }
 .thresh_param_minmax <- function(...) {
@@ -2299,45 +2327,105 @@ normalizeGiotto <- function(gobject,
     # create histogram
     h <- hist(vals, breaks = seq(min(vals), max(vals), length.out = nbins + 1),
               plot = FALSE)
-    counts <- h$counts
-    breaks <- h$breaks
+    histThreshold(h$mids, h$counts, upper = h$breaks[-1], method = "kmeans")
+}
 
-    # Calculate the normalized histogram (probability distribution)
-    p <- counts / sum(counts)
-    
-    # initialize vars
-    max_variance <- 0
-    optimal_idx <- 0
-    # Cumulative sum of probabilities
-    cum_sum <- cumsum(p)
-    # Cumulative mean
-    cum_mean <- cumsum(p * seq_along(p) * (breaks[2] - breaks[1])) / cum_sum
-    # Global mean
-    global_mean <- sum(p * seq_along(p) * (breaks[2] - breaks[1]))
-    
-    # For each possible threshold, calculate between-class variance
-    for (i in 1:(length(p) - 1)) {
-        # Weight of background class
-        w0 <- cum_sum[i]
-        # Weight of foreground class
-        w1 <- 1 - w0
-        # If one of the classes is empty, skip this threshold
-        if (w0 <= 0 || w1 <= 0) {
-            next
+#' @title Threshold from a value histogram
+#' @name histThreshold
+#' @description
+#' The on/off threshold of one feature from the histogram of its values:
+#' values above the returned threshold are on. Works on exact values (each
+#' distinct value its own bin) and on binned values alike, so a backend that
+#' holds the values and one that streams a binned histogram make the same
+#' call.
+#' @param value numeric. Representative value of each bin (its midpoint, or
+#'   the value itself for an exact histogram), ascending. Zeros, stored or
+#'   not, belong in a bin of their own with value 0.
+#' @param count numeric. Number of values in each bin.
+#' @param upper numeric. Upper edge of each bin; the threshold is always one
+#'   of these. Defaults to `value`, which is right for an exact histogram.
+#' @param method `"kmeans"`: the split that maximises the between-group sum
+#'   of squares (exact 1-D 2-means; Otsu's method). `"rank"`: the top
+#'   `percentage_rank` percent of values, ties at their average rank.
+#' @param percentage_rank numeric. Percentage of values called on by
+#'   `method = "rank"`.
+#' @returns numeric(1). `Inf` when nothing can be on (fewer than two
+#'   non-empty bins, or no value inside the rank cut); `-Inf` when everything
+#'   is.
+#' @examples
+#' histThreshold(c(0, 1, 2, 8, 9), c(10, 3, 2, 4, 1), method = "kmeans")
+#' @export
+histThreshold <- function(value, count, upper = value,
+    method = c("kmeans", "rank"), percentage_rank = 30) {
+    method <- match.arg(method)
+    keep <- count > 0
+    value <- value[keep]
+    count <- count[keep]
+    upper <- upper[keep]
+    if (length(value) < 2L) return(Inf)
+    switch(method,
+        kmeans = .hist_2means(value, count, upper),
+        rank = .hist_rank(count, upper, percentage_rank)
+    )
+}
+
+# Otsu: maximise the between-class sum of squares w0 w1 (m0 - m1)^2 over the
+# split points. The first maximum wins, so a run of empty bins resolves to the
+# lowest edge.
+.hist_2means <- function(value, count, upper) {
+    w0 <- cumsum(count)
+    s0 <- cumsum(count * value)
+    n <- length(value)
+    W <- w0[n]
+    S <- s0[n]
+    w0 <- w0[-n]
+    s0 <- s0[-n]
+    w1 <- W - w0
+    between <- w0 * w1 * (s0 / w0 - (S - s0) / w1)^2
+    upper[which.max(between)]
+}
+
+# Values ranked from the top, ties at their average rank; on while the average
+# rank is within `percentage_rank` percent. Returns the upper edge of the
+# highest bin left off.
+.hist_rank <- function(count, upper, percentage_rank) {
+    n <- length(count)
+    max_rank <- sum(count) / 100 * percentage_rank
+    rc <- rev(count)
+    avg_rank <- rev(c(0, cumsum(rc)[-n]) + (rc + 1) / 2)
+    on <- which(avg_rank <= max_rank)
+    if (!length(on)) return(Inf)
+    first_on <- min(on)
+    if (first_on == 1L) return(-Inf)
+    upper[first_on - 1L]
+}
+
+# A binarizeThreshParam's threshold for a matrix: one value, or one per row.
+# A rule is solved per row on the row's exact histogram, zeros included.
+.binarize_threshold <- function(x, param) {
+    thr <- param$threshold %null% 0
+    if (!is.character(thr)) {
+        if (!length(thr) %in% c(1L, nrow(x))) {
+            stop("[binarize] `threshold` must be one value or one per row (",
+                nrow(x), ").", call. = FALSE)
         }
-        # Mean of background class
-        mean0 <- cum_mean[i]
-        # Mean of foreground class
-        mean1 <- (global_mean - w0 * mean0) / w1
-        # Calculate between-class variance
-        between_variance <- w0 * w1 * (mean0 - mean1)^2
-        # Update optimal threshold if current variance is greater
-        if (between_variance > max_variance) {
-            max_variance <- between_variance
-            optimal_idx <- i
-        }
+        return(as.numeric(thr))
     }
-    breaks[optimal_idx + 1]
+    pr <- param$percentage_rank %null% 30
+    N <- ncol(x)
+    # row-major: each row's stored values are one contiguous run
+    tx <- Matrix::t(methods::as(x, "CsparseMatrix"))
+    vapply(seq_len(nrow(x)), function(i) {
+        lo <- tx@p[i]
+        hi <- tx@p[i + 1L]
+        xi <- if (hi > lo) tx@x[(lo + 1L):hi] else numeric()
+        xi <- xi[xi != 0]
+        r <- rle(sort(xi))
+        v <- c(0, r$values)
+        n <- c(N - length(xi), r$lengths)
+        o <- order(v)
+        histThreshold(v[o], n[o], method = thr, percentage_rank = pr)
+    }, numeric(1L))
 }
 
 # detect image bitdepth
