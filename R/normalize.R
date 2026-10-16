@@ -2413,21 +2413,28 @@ histThreshold <- function(value, count, upper = value,
         }
         return(as.numeric(thr))
     }
+    v <- n <- NULL  # NSE
     pr <- param$percentage_rank %null% 30
     N <- ncol(x)
-    # row-major: each row's stored values are one contiguous run
+    G <- nrow(x)
+    # exact histogram of every row in one grouped pass: distinct nonzero
+    # values with their counts, plus each row's zeros (stored or not)
     tx <- Matrix::t(methods::as(x, "CsparseMatrix"))
-    vapply(seq_len(nrow(x)), function(i) {
-        lo <- tx@p[i]
-        hi <- tx@p[i + 1L]
-        xi <- if (hi > lo) tx@x[(lo + 1L):hi] else numeric()
-        xi <- xi[xi != 0]
-        r <- rle(sort(xi))
-        v <- c(0, r$values)
-        n <- c(N - length(xi), r$lengths)
-        o <- order(v)
-        histThreshold(v[o], n[o], method = thr, percentage_rank = pr)
-    }, numeric(1L))
+    h <- data.table::data.table(
+        g = rep.int(seq_len(G), diff(tx@p)), v = tx@x
+    )[v != 0, list(n = as.numeric(.N)), keyby = c("g", "v")]
+    zeros <- rep(as.numeric(N), G)
+    nnz <- h[, list(s = sum(n)), keyby = "g"]
+    zeros[nnz$g] <- N - nnz$s
+    h <- data.table::rbindlist(list(h,
+        data.table::data.table(g = seq_len(G), v = 0, n = zeros)))
+    data.table::setorderv(h, c("g", "v"))
+    rule <- thr
+    res <- h[, list(t = histThreshold(v, n, method = rule,
+        percentage_rank = pr)), by = "g"]
+    out <- rep(Inf, G)
+    out[res$g] <- res$t
+    out
 }
 
 # detect image bitdepth
