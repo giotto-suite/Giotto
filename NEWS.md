@@ -33,6 +33,8 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   - a direct `.h5` or matrix-market `expression_path` loads;
   - an `.h5` source gives the `rna` feat_type as an mtx one does;
   - the class default `feature_id_type` is `"symbol"`, the value it accepts.
+  - `load_expression()` on a `NNNum_outputs.tar` that is not extracted yet
+    extracts it; it errored unless the spatial loaders had run first.
 - `get10Xmatrix_h5(gene_ids = "symbols", split_by_type = FALSE)` returns gene
   symbols; it returned Ensembl IDs.
 - `runDWLSDeconv()`: a cluster with a single candidate cell type in the spot

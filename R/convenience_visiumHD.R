@@ -2077,9 +2077,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     
     # check if data already has been extracted
     # spatial may already be extracted separately from everything else
-    # set 2 as the default min
     data_info <- list.files(data_subdir, include.dirs = TRUE, recursive = FALSE)
-    if (setequal(data_info, "spatial")) force <- TRUE
+    if (!length(data_info) || setequal(data_info, "spatial")) force <- TRUE
     
     if (!force) return(data_subdir) # return early if no need to untar
     
