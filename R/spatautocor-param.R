@@ -1,0 +1,93 @@
+#' @include spatautocor-stats.R
+NULL
+
+# ============================================================================
+# Spatial autocorrelation parameter classes. A VIRTUAL spatAutoCorParam with
+# one concrete class per statistic, built by spatAutoCorParam(). Each runs as
+# a composition of building blocks -- thresholdParam("binarize") (binSpect
+# only), then GiottoClass's edgeStatsParam -- followed by the statistic in
+# spatautocor-stats.R, so a backend that implements those two blocks gets all
+# three statistics without code of its own.
+# ============================================================================
+
+#' @title Spatial autocorrelation parameter classes
+#' @name spatAutoCorParam-class
+#' @aliases moranParam-class gearyParam-class binSpectParam-class
+#' @description
+#' Parameter classes for spatial autocorrelation of features over a spatial
+#' network: `moranParam` (Moran's I), `gearyParam` (Geary's C) and
+#' `binSpectParam` (binSpect, a join count on binarized features). All extend
+#' the virtual `spatAutoCorParam`. Build them with [spatAutoCorParam()].
+#' @exportClass spatAutoCorParam
+setClass("spatAutoCorParam", contains = c("VIRTUAL", "analyzeParam"))
+
+#' @rdname spatAutoCorParam-class
+#' @exportClass moranParam
+setClass("moranParam", contains = "spatAutoCorParam")
+
+#' @rdname spatAutoCorParam-class
+#' @exportClass gearyParam
+setClass("gearyParam", contains = "spatAutoCorParam")
+
+#' @rdname spatAutoCorParam-class
+#' @exportClass binSpectParam
+setClass("binSpectParam", contains = "spatAutoCorParam")
+
+
+#' @title Spatial autocorrelation parameters
+#' @name spatAutoCorParam
+#' @description
+#' Settings for detecting spatially autocorrelated features over a spatial
+#' network. Significance comes from the randomisation null in closed form:
+#' the exact mean and variance of the statistic over all permutations of a
+#' feature's values across cells (Cliff and Ord 1981), so nothing is shuffled.
+#'
+#' * `"moran"` — Moran's I of each feature's values.
+#' * `"geary"` — Geary's C of each feature's values.
+#' * `"binspect"` — binSpect: each feature is binarized per cell (see
+#'   [threshold_binarize]) and tested with the black-black join
+#'   count, the number of edges with both ends on. This is Moran's I of the
+#'   binarized feature up to the network's degree variation, and the 2x2
+#'   table of edge types it summarises is the one binSpect has always used
+#'   (Dries et al. 2021); the odds ratio of that table is reported alongside.
+#' @param method one of `"moran"`, `"geary"`, `"binspect"`.
+#' @param weighted logical. Use the network's edge weights.
+#' @param adjust_method p-value adjustment, passed to [stats::p.adjust()].
+#' @param bin_method,percentage_rank binarization for `"binspect"`: the
+#'   `threshold` rule and `percentage_rank` of [threshold_binarize].
+#' @param ... additional named entries to attach to `@param`.
+#' @returns A concrete `spatAutoCorParam` subclass object.
+#' @references
+#' Cliff, A. D. and Ord, J. K. (1981). Spatial Processes: Models and
+#' Applications. Pion.
+#'
+#' Dries, R. et al. (2021). Giotto: a toolbox for integrative analysis and
+#' visualization of spatial expression data. Genome Biology 22, 78.
+#' @examples
+#' p <- spatAutoCorParam("moran")
+#' p_bin <- spatAutoCorParam("binspect", bin_method = "rank")
+#' @export
+spatAutoCorParam <- function(method = c("moran", "geary", "binspect"),
+    weighted = FALSE,
+    adjust_method = "fdr",
+    bin_method = c("kmeans", "rank"),
+    percentage_rank = 30,
+    ...) {
+    method <- match.arg(method, c("moran", "geary", "binspect"))
+    checkmate::assert_flag(weighted)
+    adjust_method <- match.arg(adjust_method, stats::p.adjust.methods)
+    cls <- switch(method,
+        moran = "moranParam",
+        geary = "gearyParam",
+        binspect = "binSpectParam"
+    )
+    p <- new(cls, param = list(...))
+    p$method <- method
+    p$weighted <- weighted
+    p$adjust_method <- adjust_method
+    if (identical(method, "binspect")) {
+        p$bin_method <- match.arg(bin_method, c("kmeans", "rank"))
+        p$percentage_rank <- percentage_rank
+    }
+    p
+}

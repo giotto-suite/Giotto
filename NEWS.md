@@ -9,6 +9,15 @@ Downstream packages that import `dwlsDeconvParam` or provide an
 `analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
 
 ## new
+- `thresholdParam("binarize")` takes a per-feature threshold on matrices: one
+  value per row, or the rule `"kmeans"` (exact 1-D 2-means, Otsu's split) or
+  `"rank"` (top `percentage_rank` percent). `histThreshold()` is that rule on
+  a value histogram, so a streaming backend makes the same call; the raster
+  Otsu threshold uses it too.
+- `spatAutoCorParam()`: Moran's I, Geary's C and binSpect's join count as
+  parameter classes, with significance from the closed-form randomisation
+  null instead of shuffling. The statistics are computed from GiottoClass's
+  `edgeStatsParam()` sums, so any backend providing those gets all three.
 - `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
   verb, the sibling of `enrichParam()`. Dispatching on the expression object
   lets a disk-backed store (GiottoDisk) supply its own streaming method.

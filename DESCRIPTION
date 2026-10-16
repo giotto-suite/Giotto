@@ -154,6 +154,8 @@ Collate:
     'poly_influence.R'
     'python_hmrf.R'
     'python_scrublet.R'
+    'spatautocor-stats.R'
+    'spatautocor-param.R'
     'spatial_clusters.R'
     'spatial_enrichment.R'
     'spatial_enrichment_visuals.R'
