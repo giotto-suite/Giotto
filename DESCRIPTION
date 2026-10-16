@@ -156,6 +156,7 @@ Collate:
     'python_scrublet.R'
     'spatautocor-stats.R'
     'spatautocor-param.R'
+    'spatautocor-methods.R'
     'spatial_clusters.R'
     'spatial_enrichment.R'
     'spatial_enrichment_visuals.R'

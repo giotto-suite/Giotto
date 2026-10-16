@@ -29,7 +29,7 @@ binSpect(
   hub_min_int = 3,
   get_av_expr = TRUE,
   get_high_expr = TRUE,
-  implementation = c("data.table", "simple", "matrix"),
+  implementation = c("data.table", "simple", "matrix", "fast"),
   group_size = "automatic",
   do_parallel = TRUE,
   cores = NA,
@@ -179,7 +179,13 @@ expressing cells}
 
 \item{get_high_expr}{calculate the number of high expressing cells  per gene}
 
-\item{implementation}{enrichment implementation (data.table, simple, matrix)}
+\item{implementation}{enrichment implementation (data.table, simple,
+matrix, fast). \code{"fast"} runs the sparse join-count test of
+\code{\link[=spatAutoCorParam]{spatAutoCorParam()}} (\code{method = "binspect"}): an exact 2-means or rank
+binarization and the closed-form randomisation null instead of a Fisher
+test on edges. It works on in-memory and GiottoDisk-backed objects, takes
+one network (\code{spatial_network_name}), and returns that method's columns.
+The kmeans tuning arguments do not apply to it.}
 
 \item{group_size}{number of genes to process together with data.table
 implementation (default = automatic)}

@@ -20,7 +20,7 @@ spatialAutoCorGlobal(
   wm_name = "spat_weights",
   node_values = NULL,
   weight_matrix = NULL,
-  test_method = c("none", "monte_carlo"),
+  test_method = c("none", "monte_carlo", "analytic"),
   mc_nsim = 99,
   cor_name = NULL,
   return_gobject = FALSE,
@@ -81,7 +81,10 @@ values}
 weight matrix}
 
 \item{test_method}{method to test values for significance (default is no
-testing)}
+testing). `"monte_carlo"` permutes the values `mc_nsim` times;
+`"analytic"` uses the closed-form randomisation null (the exact mean and
+variance over all permutations, Cliff and Ord 1981) and returns its
+one-sided p-value for positive autocorrelation (see [spatAutoCorParam()])}
 
 \item{mc_nsim}{when \code{test_method = 'monte_carlo'} this is number of
 simulations to perform}

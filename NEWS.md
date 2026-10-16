@@ -18,6 +18,13 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   parameter classes, with significance from the closed-form randomisation
   null instead of shuffling. The statistics are computed from GiottoClass's
   `edgeStatsParam()` sums, so any backend providing those gets all three.
+  `analyzeData()` runs them on a matrix, a GiottoDisk store or a `giotto`
+  object (`return_gobject = TRUE` adds the results to feature metadata).
+- `binSpect(implementation = "fast")` runs binSpect as that join-count test:
+  sparse throughout, exact 2-means or rank binarization, and works on
+  GiottoDisk-backed objects. The default implementation is unchanged.
+- `spatialAutoCorGlobal(test_method = "analytic")`: closed-form significance
+  for Moran's I and Geary's C in place of Monte Carlo permutations.
 - `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
   verb, the sibling of `enrichParam()`. Dispatching on the expression object
   lets a disk-backed store (GiottoDisk) supply its own streaming method.

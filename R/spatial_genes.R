@@ -689,7 +689,13 @@ NULL
 #' @param get_av_expr calculate the average expression per gene of the high
 #' expressing cells
 #' @param get_high_expr calculate the number of high expressing cells  per gene
-#' @param implementation enrichment implementation (data.table, simple, matrix)
+#' @param implementation enrichment implementation (data.table, simple,
+#' matrix, fast). `"fast"` runs the sparse join-count test of
+#' [spatAutoCorParam()] (`method = "binspect"`): an exact 2-means or rank
+#' binarization and the closed-form randomisation null instead of a Fisher
+#' test on edges. It works on in-memory and GiottoDisk-backed objects, takes
+#' one network (`spatial_network_name`), and returns that method's columns.
+#' The kmeans tuning arguments do not apply to it.
 #' @param group_size number of genes to process together with data.table
 #' implementation (default = automatic)
 #' @param do_parallel run calculations in parallel with mclapply
@@ -783,7 +789,7 @@ binSpect <- function(gobject,
     hub_min_int = 3,
     get_av_expr = TRUE,
     get_high_expr = TRUE,
-    implementation = c("data.table", "simple", "matrix"),
+    implementation = c("data.table", "simple", "matrix", "fast"),
     group_size = "automatic",
     do_parallel = TRUE,
     cores = NA,
@@ -807,6 +813,19 @@ binSpect <- function(gobject,
 
         seed <- set.seed
         set.seed <- NULL
+    }
+
+    implementation <- match.arg(implementation)
+    if (identical(implementation, "fast")) {
+        return(.binspect_fast(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            bin_method = bin_method, expression_values = expression_values,
+            subset_feats = subset_feats,
+            spatial_network_name = spatial_network_name,
+            spatial_network_k = spatial_network_k,
+            percentage_rank = percentage_rank, adjust_method = adjust_method,
+            return_gobject = return_gobject
+        ))
     }
 
     a <- get_args_list(keep = c(

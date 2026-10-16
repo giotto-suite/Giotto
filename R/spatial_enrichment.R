@@ -1242,7 +1242,10 @@ runSpatialEnrich <- function(
 #' @param weight_matrix alternative method of directly supplying a spatial
 #' weight matrix
 #' @param test_method method to test values for significance (default is no
-#' testing)
+#' testing). `"monte_carlo"` permutes the values `mc_nsim` times;
+#' `"analytic"` uses the closed-form randomisation null (the exact mean and
+#' variance over all permutations, Cliff and Ord 1981) and returns its
+#' one-sided p-value for positive autocorrelation (see [spatAutoCorParam()])
 #' @param verbose be verbose
 #' @returns spatial autocorrelation
 #' @description Find spatial autocorrelation. Note that
@@ -1299,14 +1302,15 @@ spatialAutoCorGlobal <- function(
         wm_name = "spat_weights",
         node_values = NULL,
         weight_matrix = NULL,
-        test_method = c("none", "monte_carlo"),
+        test_method = c("none", "monte_carlo", "analytic"),
         mc_nsim = 99,
         cor_name = NULL,
         return_gobject = FALSE,
         verbose = TRUE) {
     # 0. determine inputs
     method <- match.arg(method, choices = c("moran", "geary"))
-    test_method <- match.arg(test_method, choices = c("none", "monte_carlo"))
+    test_method <- match.arg(test_method,
+        choices = c("none", "monte_carlo", "analytic"))
     data_to_use <- match.arg(
         data_to_use,
         choices = c("expression", "cell_meta")
@@ -1407,15 +1411,27 @@ spatialAutoCorGlobal <- function(
 
 
     # 2. perform autocor
-    res_dt <- .run_spat_autocor_global(
-        use_values = use_values,
-        feats = feats,
-        weight_matrix = weight_matrix,
-        method = method,
-        test_method = test_method,
-        mc_nsim = mc_nsim,
-        cor_name = cor_name
-    )
+    if (test_method == "analytic") {
+        ac <- .spat_autocor_weights(
+            use_values = use_values, feats = feats,
+            weight_matrix = weight_matrix, method = method
+        )
+        res_dt <- data.table::data.table(
+            feat_ID = ac$feats, statistic = ac$statistic, p = ac$p.value
+        )
+        data.table::setnames(res_dt, c("statistic", "p"),
+            c(cor_name, paste0(cor_name, "_analytic")))
+    } else {
+        res_dt <- .run_spat_autocor_global(
+            use_values = use_values,
+            feats = feats,
+            weight_matrix = weight_matrix,
+            method = method,
+            test_method = test_method,
+            mc_nsim = mc_nsim,
+            cor_name = cor_name
+        )
+    }
 
     # return info
     if (isTRUE(return_gobject)) {
