@@ -8,6 +8,9 @@
 \usage{
 spatAutoCorParam(
   method = c("moran", "geary", "binspect"),
+  null = c("permutation", "covariate"),
+  covariate = "libsize",
+  n_groups = 10L,
   weighted = FALSE,
   adjust_method = "fdr",
   bin_method = c("kmeans", "rank"),
@@ -15,7 +18,7 @@ spatAutoCorParam(
   ...
 )
 
-\S4method{analyzeData}{ANY,spatAutoCorParam}(x, param, ..., network)
+\S4method{analyzeData}{ANY,spatAutoCorParam}(x, param, ..., network, groups = NULL)
 
 \S4method{analyzeData}{giotto,spatAutoCorParam}(
   x,
@@ -30,6 +33,23 @@ spatAutoCorParam(
 }
 \arguments{
 \item{method}{one of `"moran"`, `"geary"`, `"binspect"`.}
+
+\item{null}{`"permutation"` (default) or `"covariate"`. The covariate null
+asks whether a feature clusters beyond what a cell grouping explains:
+cells are grouped by `covariate`, and Moran's I is taken of each value
+minus its group's mean, or binSpect's join count is compared with cells
+switching on at their group's rate. Use it when something other than
+location -- sequencing depth, cell type -- varies across the tissue and
+would otherwise make many features look spatial. Not available for
+`"geary"`; binSpect needs an unweighted network.}
+
+\item{covariate}{for `null = "covariate"` on a `giotto` object: `"libsize"`
+(the cells' total raw counts) or a cell metadata column. A numeric
+covariate is cut into `n_groups` quantile groups; a categorical one is
+used as is. Matrix and store inputs take the grouping directly as
+`groups =`.}
+
+\item{n_groups}{number of quantile groups for a numeric covariate.}
 
 \item{weighted}{logical. Use the network's edge weights.}
 
@@ -48,6 +68,9 @@ spatAutoCorParam(
 \item{network}{the spatial network matching `x`: for a matrix, a
 `data.frame` of `from`, `to` (cell IDs) and optionally `weight`, or an
 `igraph`; for a GiottoDisk store, its `parquetEdgeStore`}
+
+\item{groups}{for `null = "covariate"` on a matrix or store: the cell
+grouping, one label per cell, named by cell ID}
 
 \item{spat_unit, feat_type}{spatial unit and feature type}
 
@@ -86,6 +109,7 @@ feature's values across cells (Cliff and Ord 1981), so nothing is shuffled.
 }
 \examples{
 p <- spatAutoCorParam("moran")
+p_cov <- spatAutoCorParam("moran", null = "covariate", covariate = "libsize")
 p_bin <- spatAutoCorParam("binspect", bin_method = "rank")
 }
 \references{

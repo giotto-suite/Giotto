@@ -123,3 +123,76 @@
     t <- rowMeans(tan((0.5 - p) * pi))
     0.5 - atan(t) / pi
 }
+
+
+# ---- conditioned on a cell grouping -----------------------------------------
+#
+# Both read the "grouped" attribute an edgeStatsParam result carries when it
+# was given `groups =` (library-size bins, cell types, ...). The grouping
+# stands in for whatever makes cells differ before space does -- sequencing
+# depth, composition -- so a feature only scores where it clusters beyond
+# what its groups explain.
+
+.autocor_grouped <- function(st) {
+    g <- attr(st, "grouped")
+    if (is.null(g)) {
+        stop("[spatial autocorrelation] a covariate null needs edge ",
+            "statistics computed with `groups =`.", call. = FALSE)
+    }
+    g
+}
+
+# Join count with each cell on independently, at its group's on-rate for the
+# feature, and the variance conditioned on each group's on-count (what a
+# within-group permutation holds fixed). Unweighted networks only.
+.joincount_covariate_test <- function(st) {
+    gr <- attr(st, "graph")
+    if (gr$sum_w != gr$n_edges || gr$sum_w2 != gr$n_edges) {
+        stop("[binSpect] the covariate null needs an unweighted network.",
+            call. = FALSE)
+    }
+    g <- .autocor_grouped(st)
+    nk <- g$n_cells
+    K <- length(nk)
+    Pi <- g$sum / rep(nk, each = nrow(g$sum))
+    D <- g$edges
+    E <- 0.5 * rowSums((Pi %*% D) * Pi)
+    v1 <- E - 0.5 * rowSums((Pi^2 %*% D) * Pi^2)
+    w <- Pi * (1 - Pi)
+    v2 <- numeric(nrow(Pi))
+    for (k in seq_len(K)) {
+        sq <- rowSums((Pi %*% g$paths[k, , ]) * Pi)
+        v2 <- v2 + w[, k] * (sq - as.numeric(Pi^2 %*% D[k, ]))
+    }
+    Dp <- Pi %*% t(D)
+    V <- v1 + v2 - rowSums(w * Dp^2 / rep(nk, each = nrow(Pi)))
+    BB <- st$edge_prod
+    out <- .autocor_result(st, BB, E, V, (BB - E) / sqrt(V))
+    out[, "n_on" := st$sum]
+    out[]
+}
+
+# Moran's I of each value minus its group's mean. The cross term is exact from
+# the contract: sum_e w (x_i - m_ki)(x_j - m_kj) = edge_prod
+# - sum_l m_l nbr_sum_l + 1/2 sum_kl m_k m_l edges_kl. Significance is the
+# randomisation null of the residuals.
+.moran_covariate_test <- function(st) {
+    g <- .autocor_grouped(st)
+    c0 <- .autocor_graph_constants(st)
+    N <- c0$N; S0 <- c0$S0; S1 <- c0$S1; S2 <- c0$S2
+    nk <- rep(g$n_cells, each = nrow(g$sum))
+    m <- g$sum / nk
+    m[!is.finite(m)] <- 0
+    z2 <- rowSums(g$sumsq - nk * m^2)
+    z4 <- rowSums(g$sum4 - 4 * m * g$sum3 + 6 * m^2 * g$sumsq - 3 * nk * m^4)
+    cross <- st$edge_prod - rowSums(m * g$nbr_sum) +
+        0.5 * rowSums((m %*% g$edges) * m)
+    I <- (N / S0) * 2 * cross / z2
+    EI <- -1 / (N - 1)
+    b2 <- N * z4 / z2^2
+    EI2 <- (N * ((N^2 - 3 * N + 3) * S1 - N * S2 + 3 * S0^2) -
+        b2 * ((N^2 - N) * S1 - 2 * N * S2 + 6 * S0^2)) /
+        ((N - 1) * (N - 2) * (N - 3) * S0^2)
+    V <- EI2 - EI^2
+    .autocor_result(st, I, EI, V, (I - EI) / sqrt(V))
+}

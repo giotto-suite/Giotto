@@ -51,6 +51,20 @@ setClass("binSpectParam", contains = "spatAutoCorParam")
 #'   table of edge types it summarises is the one binSpect has always used
 #'   (Dries et al. 2021); the odds ratio of that table is reported alongside.
 #' @param method one of `"moran"`, `"geary"`, `"binspect"`.
+#' @param null `"permutation"` (default) or `"covariate"`. The covariate null
+#'   asks whether a feature clusters beyond what a cell grouping explains:
+#'   cells are grouped by `covariate`, and Moran's I is taken of each value
+#'   minus its group's mean, or binSpect's join count is compared with cells
+#'   switching on at their group's rate. Use it when something other than
+#'   location -- sequencing depth, cell type -- varies across the tissue and
+#'   would otherwise make many features look spatial. Not available for
+#'   `"geary"`; binSpect needs an unweighted network.
+#' @param covariate for `null = "covariate"` on a `giotto` object: `"libsize"`
+#'   (the cells' total raw counts) or a cell metadata column. A numeric
+#'   covariate is cut into `n_groups` quantile groups; a categorical one is
+#'   used as is. Matrix and store inputs take the grouping directly as
+#'   `groups =`.
+#' @param n_groups number of quantile groups for a numeric covariate.
 #' @param weighted logical. Use the network's edge weights.
 #' @param adjust_method p-value adjustment, passed to [stats::p.adjust()].
 #' @param bin_method,percentage_rank binarization for `"binspect"`: the
@@ -65,15 +79,26 @@ setClass("binSpectParam", contains = "spatAutoCorParam")
 #' visualization of spatial expression data. Genome Biology 22, 78.
 #' @examples
 #' p <- spatAutoCorParam("moran")
+#' p_cov <- spatAutoCorParam("moran", null = "covariate", covariate = "libsize")
 #' p_bin <- spatAutoCorParam("binspect", bin_method = "rank")
 #' @export
 spatAutoCorParam <- function(method = c("moran", "geary", "binspect"),
+    null = c("permutation", "covariate"),
+    covariate = "libsize",
+    n_groups = 10L,
     weighted = FALSE,
     adjust_method = "fdr",
     bin_method = c("kmeans", "rank"),
     percentage_rank = 30,
     ...) {
     method <- match.arg(method, c("moran", "geary", "binspect"))
+    null <- match.arg(null, c("permutation", "covariate"))
+    if (null == "covariate" && method == "geary") {
+        stop("[spatAutoCorParam] the covariate null is available for ",
+            "\"moran\" and \"binspect\".", call. = FALSE)
+    }
+    checkmate::assert_string(covariate)
+    checkmate::assert_count(n_groups, positive = TRUE)
     checkmate::assert_flag(weighted)
     adjust_method <- match.arg(adjust_method, stats::p.adjust.methods)
     cls <- switch(method,
@@ -83,6 +108,11 @@ spatAutoCorParam <- function(method = c("moran", "geary", "binspect"),
     )
     p <- new(cls, param = list(...))
     p$method <- method
+    p$null <- null
+    if (null == "covariate") {
+        p$covariate <- covariate
+        p$n_groups <- as.integer(n_groups)
+    }
     p$weighted <- weighted
     p$adjust_method <- adjust_method
     if (identical(method, "binspect")) {

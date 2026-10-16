@@ -20,6 +20,8 @@ NULL
 #' @param network the spatial network matching `x`: for a matrix, a
 #'   `data.frame` of `from`, `to` (cell IDs) and optionally `weight`, or an
 #'   `igraph`; for a GiottoDisk store, its `parquetEdgeStore`
+#' @param groups for `null = "covariate"` on a matrix or store: the cell
+#'   grouping, one label per cell, named by cell ID
 #' @returns `analyzeData()`: a `data.table` with one row per feature, ordered
 #'   by decreasing `z`: `feats`, `statistic`, `expected`, `variance`, `z`,
 #'   `p.value`, `adj.p.value`; binSpect adds `n_on` (cells called on) and
@@ -30,14 +32,19 @@ NULL
 #' @export
 setMethod("analyzeData",
     signature(x = "ANY", param = "spatAutoCorParam"),
-    function(x, param, ..., network) {
+    function(x, param, ..., network, groups = NULL) {
+        covariate <- identical(param$null, "covariate")
+        if (covariate && is.null(groups)) {
+            stop("[spatial autocorrelation] null = \"covariate\" needs ",
+                "`groups`, one per cell.", call. = FALSE)
+        }
         if (is(param, "binSpectParam")) {
             x <- processData(x, thresholdParam("binarize",
                 threshold = param$bin_method,
                 percentage_rank = param$percentage_rank))
         }
         st <- analyzeData(x, edgeStatsParam(weighted = isTRUE(param$weighted)),
-            network = network)
+            network = network, groups = if (covariate) groups)
         .spat_autocor_finish(param, st)
     }
 )
@@ -68,7 +75,10 @@ setMethod("analyzeData",
             spat_unit = spat_unit, name = spatial_network_name,
             output = "spatialNetworkObj", verbose = FALSE
         )[]
-        res <- analyzeData(expr, param, network = net)
+        groups <- if (identical(param$null, "covariate")) {
+            .spat_autocor_groups(x, param, spat_unit, feat_type)
+        }
+        res <- analyzeData(expr, param, network = net, groups = groups)
         if (!isTRUE(return_gobject)) return(res)
 
         prefix <- param$method
@@ -87,12 +97,13 @@ setMethod("analyzeData",
 # statistic for the param class, adjusted p-values, ordered by evidence
 .spat_autocor_finish <- function(param, st) {
     z <- p.value <- NULL # NSE
+    covariate <- identical(param$null, "covariate")
     res <- if (is(param, "moranParam")) {
-        .moran_test(st)
+        if (covariate) .moran_covariate_test(st) else .moran_test(st)
     } else if (is(param, "gearyParam")) {
         .geary_test(st)
     } else {
-        .joincount_test(st)
+        if (covariate) .joincount_covariate_test(st) else .joincount_test(st)
     }
     res[, "adj.p.value" := stats::p.adjust(p.value,
         method = param$adjust_method %null% "fdr")]
@@ -155,4 +166,31 @@ setMethod("analyzeData",
         expression_values = expression_values[1L],
         spatial_network_name = spatial_network_name,
         return_gobject = return_gobject)
+}
+
+# The cell grouping a covariate null conditions on, named by cell ID:
+# library size (total raw counts) or a cell metadata column, a numeric one cut
+# into `n_groups` quantile groups.
+.spat_autocor_groups <- function(gobject, param, spat_unit, feat_type) {
+    cv <- param$covariate %null% "libsize"
+    if (identical(cv, "libsize")) {
+        raw <- getExpression(gobject, values = "raw", spat_unit = spat_unit,
+            feat_type = feat_type, output = "exprObj")[]
+        cs <- analyzeData(raw, new("cellStatsParam", param = list()))
+        v <- stats::setNames(cs$total_expr, cs$cells)
+    } else {
+        meta <- getCellMetadata(gobject, spat_unit = spat_unit,
+            feat_type = feat_type, output = "data.table")
+        if (!cv %in% names(meta)) {
+            stop("[spatial autocorrelation] covariate \"", cv, "\" is ",
+                "neither \"libsize\" nor a cell metadata column.",
+                call. = FALSE)
+        }
+        v <- stats::setNames(meta[[cv]], meta$cell_ID)
+    }
+    if (!is.numeric(v)) return(v)
+    br <- unique(stats::quantile(v, seq(0, 1, length.out = param$n_groups + 1L),
+        names = FALSE))
+    if (length(br) < 2L) return(stats::setNames(rep("all", length(v)), names(v)))
+    stats::setNames(cut(v, br, include.lowest = TRUE, labels = FALSE), names(v))
 }

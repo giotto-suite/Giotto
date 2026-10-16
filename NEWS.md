@@ -20,6 +20,9 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   `edgeStatsParam()` sums, so any backend providing those gets all three.
   `analyzeData()` runs them on a matrix, a GiottoDisk store or a `giotto`
   object (`return_gobject = TRUE` adds the results to feature metadata).
+  `null = "covariate"` conditions Moran's I and binSpect on a cell grouping
+  (library-size quantiles by default, or a cell metadata column), so genes
+  that only follow sequencing depth or composition stop scoring as spatial.
 - `binSpect(implementation = "fast")` runs binSpect as that join-count test:
   sparse throughout, exact 2-means or rank binarization, and works on
   GiottoDisk-backed objects. The default implementation is unchanged.
