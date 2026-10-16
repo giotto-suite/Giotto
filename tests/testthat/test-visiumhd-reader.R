@@ -58,3 +58,12 @@ test_that("debug messages name the paths they load", {
         file.path(.bo, "square_008um"), shape_size = 4, bin = 8,
         verbose = "debug")))
 })
+
+test_that("load_expression extracts a bin tar that is not extracted yet", {
+    bo <- withr::local_tempdir()
+    withr::with_dir(.bo, utils::tar(file.path(bo, "008um_outputs.tar"),
+                                    "square_008um"))
+    rd <- .q(importVisiumHD(bo, bin = 8))
+    ex <- .q(rd$load_expression(verbose = FALSE))
+    expect_identical(spatIDs(ex[[1L]]), .fx$grid[, unique(bc8)])
+})
