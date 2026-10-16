@@ -466,12 +466,14 @@ NULL
         hub_min_int = 3,
         verbose = TRUE) {
     # data.table variables
-    verbose <- feats <- p.value <- estimate <- adj.p.value <- score <- NULL
+    feats <- p.value <- estimate <- adj.p.value <- score <- NULL
 
-    # convert spatial network data.table to spatial matrix
+    # convert spatial network data.table to spatial matrix. An edge is 1
+    # whatever its distance, so edges between coincident cells (distance 0)
+    # are kept.
     dc_spat_network <- data.table::dcast.data.table(
-        spatial_network,
-        formula = to ~ from, value.var = "distance", fill = 0
+        data.table::copy(spatial_network)[, ".edge" := 1],
+        formula = to ~ from, value.var = ".edge", fill = 0
     )
     spat_mat <- dt_to_matrix(dc_spat_network)
     spat_mat[spat_mat > 0] <- 1
@@ -820,24 +822,33 @@ binSpect <- function(gobject,
     ))
 
     if (!is.null(spatial_network_k)) {
-        output <- do.call(binSpectMulti, args = c(a,
+        # list(), not c(): c() would flatten a vector or matrix argument
+        # into one argument per element
+        output <- do.call(binSpectMulti, args = c(a, list(
             gobject = gobject,
             spatial_network_k = spatial_network_k,
             knn_params = knn_params,
             summarize = summarize
-        ))
+        )))
     } else {
-        output <- do.call(binSpectSingle, args = c(a,
+        output <- do.call(binSpectSingle, args = c(a, list(
             gobject = gobject,
             spatial_network_name = spatial_network_name,
             bin_matrix = bin_matrix
-        ))
+        )))
     }
 
     if (isTRUE(return_gobject)) {
-        result_dt <- data.table::data.table(
-            feats = output$feats, pval = output$adj.p.value
-        )
+        # Multi returns list(combined, simple); simple holds one p per feature
+        result_dt <- if (!is.null(spatial_network_k)) {
+            data.table::data.table(
+                feats = output$simple$feats, pval = output$simple$p.val
+            )
+        } else {
+            data.table::data.table(
+                feats = output$feats, pval = output$adj.p.value
+            )
+        }
         data.table::setnames(result_dt, old = "pval", new = "binSpect.pval")
         gobject <- addFeatMetadata(
             gobject,
@@ -1224,7 +1235,7 @@ binSpectMulti <- function(
         knn_params = NULL,
         set.seed = deprecated(),
         seed = 1234,
-        summarize = c("adj.p.value", "p.value")) {
+        summarize = c("p.value", "adj.p.value")) {
     ## deprecated arguments
     if (is_present(set.seed) && !is.function(set.seed)) {
         deprecate_warn(
@@ -1260,7 +1271,7 @@ binSpectMulti <- function(
     bin_method <- match.arg(bin_method, choices = c("kmeans", "rank"))
 
     # summarization level
-    summarize <- match.arg(summarize, choices = c("adj.p.value", "p.value"))
+    summarize <- match.arg(summarize, choices = c("p.value", "adj.p.value"))
 
     ## bin method rank
     if (bin_method == "rank") {
@@ -1407,7 +1418,7 @@ binSpectMulti <- function(
     simple_result <- combined_result[, sum(log(get(summarize))), by = feats]
     simple_result[, V1 := V1 * -2]
     simple_result[, p.val := stats::pchisq(
-        q = V1, df = total_trials, log.p = FALSE, lower.tail = FALSE
+        q = V1, df = 2 * total_trials, log.p = FALSE, lower.tail = FALSE
     )]
 
     return(list(
@@ -1479,7 +1490,7 @@ binSpectMultiMatrix <- function(
         knn_params = NULL,
         set.seed = deprecated(),
         seed = 1234,
-        summarize = c("adj.p.value", "p.value")) {
+        summarize = c("p.value", "adj.p.value")) {
     if (is_present(set.seed) && !is.function(set.seed)) {
         deprecate_warn(
             when = "4.0.3",
@@ -1504,7 +1515,7 @@ binSpectMultiMatrix <- function(
     bin_method <- match.arg(bin_method, choices = c("kmeans", "rank"))
 
     # summarization level
-    summarize <- match.arg(summarize, choices = c("adj.p.value", "p.value"))
+    summarize <- match.arg(summarize, choices = c("p.value", "adj.p.value"))
 
 
     ## bin method rank
@@ -1610,7 +1621,7 @@ binSpectMultiMatrix <- function(
     simple_result <- combined_result[, sum(log(get(summarize))), by = feats]
     simple_result[, V1 := V1 * -2]
     simple_result[, p.val := stats::pchisq(
-        q = V1, df = total_trials, log.p = FALSE, lower.tail = FALSE
+        q = V1, df = 2 * total_trials, log.p = FALSE, lower.tail = FALSE
     )]
 
     return(list(

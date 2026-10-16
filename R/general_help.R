@@ -225,19 +225,24 @@ mygini_fun <- function(
         sample_nr = 200,
         seed = NULL) {
     length_x <- length(x)
-
-    vector_x <- sort(x)
-    first_set <- vector_x[seq_len(extreme_nr)]
-    last_set <- vector_x[(length_x - (extreme_nr - 1)):length_x]
-    random_set <- sample(
-        vector_x[(extreme_nr + 1):(length_x - extreme_nr)],
-        size = sample_nr
-    )
-    testset <- c(first_set, last_set, random_set)
-
+    # seeded before the subset is drawn, so the seed decides it
     if (!is.null(seed)) {
         on.exit(random_seed(), add = TRUE)
         GiottoUtils::local_seed(seed)
+    }
+
+    vector_x <- sort(x)
+    if (length_x < 2L * extreme_nr + sample_nr) {
+        # too few cells to subset: fit on all of them
+        testset <- vector_x
+    } else {
+        first_set <- vector_x[seq_len(extreme_nr)]
+        last_set <- vector_x[(length_x - (extreme_nr - 1)):length_x]
+        random_set <- sample(
+            vector_x[(extreme_nr + 1):(length_x - extreme_nr)],
+            size = sample_nr
+        )
+        testset <- c(first_set, last_set, random_set)
     }
     sel_gene_km_res <- ClusterR::KMeans_arma(
         data = as.matrix(testset),
@@ -293,17 +298,21 @@ kmeans_binarize_wrapper <- function(expr_values,
         choices = c("kmeans", "kmeans_arma", "kmeans_arma_subset")
     )
 
+    # a constant feature has no split; call it off rather than let kmeans fail
+    guard <- function(f) {
+        function(x, ...) if (length(unique(x)) < 2L) numeric(length(x)) else f(x, ...)
+    }
     bin_matrix <- switch(kmeans_algo,
         "kmeans" = t_flex(apply(
-            X = expr_values, MARGIN = 1, FUN = .kmeans_binarize,
+            X = expr_values, MARGIN = 1, FUN = guard(.kmeans_binarize),
             nstart = nstart, iter.max = iter_max, seed = seed
         )),
         "kmeans_arma" = t_flex(apply(
-            X = expr_values, MARGIN = 1, FUN = .kmeans_arma_binarize,
+            X = expr_values, MARGIN = 1, FUN = guard(.kmeans_arma_binarize),
             n_iter = iter_max, seed = seed
         )),
         "kmeans_arma_subset" = t_flex(apply(
-            X = expr_values, MARGIN = 1, FUN = .kmeans_arma_subset_binarize,
+            X = expr_values, MARGIN = 1, FUN = guard(.kmeans_arma_subset_binarize),
             n_iter = iter_max,
             extreme_nr = extreme_nr,
             sample_nr = sample_nr,
