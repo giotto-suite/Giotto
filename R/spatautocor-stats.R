@@ -41,7 +41,15 @@
     list(mean = m, z2 = z2, b2 = N * z4 / z2^2)
 }
 
+# A feature whose values do not vary over the cells (all zero, constant, or
+# binarized all on / all off) has no randomisation null: its variance is 0 or
+# undefined. It gets NA for z and p rather than NaN or a p of 1, and NA for a
+# statistic that is itself undefined (Moran's I is 0 / 0); a join count of 0
+# stays 0. p.adjust() leaves NA out of the count of tests.
 .autocor_result <- function(st, statistic, expected, variance, z) {
+    untestable <- !is.finite(z) | !is.finite(variance) | !(variance > 0)
+    z[untestable] <- NA_real_
+    statistic[!is.finite(statistic)] <- NA_real_
     data.table::data.table(
         feats = st$feats,
         statistic = statistic,
@@ -103,7 +111,7 @@
     EB <- 0.5 * S0 * p2
     V <- 0.25 * (S1 * p2 + (S2 - 2 * S1) * p3 + (S0^2 + S1 - S2) * p4) - EB^2
     out <- .autocor_result(st, BB, EB, V, (BB - EB) / sqrt(V))
-    use_pois <- EB < small & BB == round(BB)
+    use_pois <- !is.na(out$z) & EB < small & BB == round(BB)
     if (any(use_pois)) {
         out$p.value[use_pois] <- stats::ppois(BB[use_pois] - 1,
             EB[use_pois], lower.tail = FALSE)

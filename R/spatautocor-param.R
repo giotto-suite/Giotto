@@ -72,6 +72,12 @@ setClass("binSpectParam", contains = "spatAutoCorParam")
 #'   `threshold` rule and `percentage_rank` of [threshold_binarize].
 #' @param ... additional named entries to attach to `@param`.
 #' @returns A concrete `spatAutoCorParam` subclass object.
+#' @section Features that do not vary:
+#' A feature with the same value in every cell (all zero, or constant), or
+#' for binSpect one binarized all on or all off, has no randomisation null.
+#' Its `z`, `p.value` and `adj.p.value` are `NA`, as is a statistic that is
+#' undefined for it (Moran's I, Geary's C); it is left out of the p-value
+#' adjustment and sorts last.
 #' @references
 #' Cliff, A. D. and Ord, J. K. (1981). Spatial Processes: Models and
 #' Applications. Pion.

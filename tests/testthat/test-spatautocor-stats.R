@@ -93,3 +93,28 @@ test_that("spatAutoCorParam builds the concrete class per method", {
     expect_equal(p$percentage_rank, 20)
     expect_null(spatAutoCorParam("moran")$bin_method)
 })
+
+test_that("features that do not vary get NA, not NaN or p = 1", {
+    set.seed(1)
+    N <- 50L
+    ids <- paste0("c", seq_len(N))
+    m <- Matrix::Matrix(rbind(rpois(N, 3), 0, 5), sparse = TRUE) * 1
+    dimnames(m) <- list(c("ok", "zero", "const"), ids)
+    net <- data.frame(from = ids[-N], to = ids[-1])
+    grp <- stats::setNames(rep(c("a", "b"), length.out = N), ids)
+    for (p in list(spatAutoCorParam("moran"), spatAutoCorParam("geary"),
+                   spatAutoCorParam("binspect"),
+                   spatAutoCorParam("moran", null = "covariate"),
+                   spatAutoCorParam("binspect", null = "covariate"))) {
+        r <- analyzeData(m, p, network = net,
+                         groups = if (identical(p$null, "covariate")) grp)
+        bad <- r[feats %in% c("zero", "const")]
+        expect_true(all(is.na(bad$z)), label = p$method)
+        expect_true(all(is.na(bad$p.value)), label = p$method)
+        expect_true(all(is.na(bad$adj.p.value)), label = p$method)
+        expect_false(anyNA(r[feats == "ok", p.value]), label = p$method)
+        expect_identical(r$feats[1], "ok")
+    }
+    expect_equal(analyzeData(m, spatAutoCorParam("binspect"), network = net)[
+        feats == "zero", statistic], 0)
+})

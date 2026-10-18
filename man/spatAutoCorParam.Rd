@@ -108,6 +108,15 @@ feature's values across cells (Cliff and Ord 1981), so nothing is shuffled.
   table of edge types it summarises is the one binSpect has always used
   (Dries et al. 2021); the odds ratio of that table is reported alongside.
 }
+\section{Features that do not vary}{
+
+A feature with the same value in every cell (all zero, or constant), or
+for binSpect one binarized all on or all off, has no randomisation null.
+Its `z`, `p.value` and `adj.p.value` are `NA`, as is a statistic that is
+undefined for it (Moran's I, Geary's C); it is left out of the p-value
+adjustment and sorts last.
+}
+
 \examples{
 p <- spatAutoCorParam("moran")
 p_cov <- spatAutoCorParam("moran", null = "covariate", covariate = "libsize")
