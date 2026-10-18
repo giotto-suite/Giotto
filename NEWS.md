@@ -25,6 +25,19 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   cutoff.
 
 ## bug fixes
+- `binSpect()` with `spatial_network_k` failed before running (its network
+  sizes were split into separate arguments), and so did passing
+  `bin_matrix`; with `return_gobject = TRUE` it also wrote no p-values. All
+  three work.
+- `binSpectMulti()` combined p-values over `df = k` instead of `2k` in
+  Fisher's method, so its combined p-values were too small. It now also
+  combines unadjusted p-values by default (`summarize = "p.value"`), as
+  `binSpect()` already did.
+- binSpect's `"matrix"` implementation failed when run serially, and dropped
+  edges between cells at distance 0.
+- kmeans binarization calls a constant feature off instead of failing, and
+  `kmeans_algo = "kmeans_arma_subset"` draws its subset under the seed and
+  works with fewer cells than the subset size.
 - Visium HD (`importVisiumHD()` and its wrappers):
   - `load_transcripts = TRUE` at 8 or 16 um no longer leaves the bins with
     empty cell metadata.
