@@ -7,7 +7,7 @@
 \title{Spatial autocorrelation parameters}
 \usage{
 spatAutoCorParam(
-  method = c("moran", "geary", "binspect"),
+  method = c("moran", "geary", "binspect", "joincount"),
   null = c("permutation", "covariate"),
   covariate = "libsize",
   n_groups = 10L,
@@ -32,7 +32,8 @@ spatAutoCorParam(
 )
 }
 \arguments{
-\item{method}{one of `"moran"`, `"geary"`, `"binspect"`.}
+\item{method}{one of `"moran"`, `"geary"`, `"binspect"`; `"joincount"` is
+another name for `"binspect"` (the same test, the same result columns).}
 
 \item{null}{`"permutation"` (default) or `"covariate"`. The covariate null
 asks whether a feature clusters beyond what a cell grouping explains:

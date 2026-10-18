@@ -1222,7 +1222,7 @@ runSpatialEnrich <- function(
 
 
 #' @title Spatial autocorrelation
-#' @name spatialAutoCor
+#' @name spatialAutoCorGlobalLocal
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
@@ -1274,7 +1274,7 @@ NULL
 
 
 
-#' @describeIn spatialAutoCor Global autocorrelation (single value returned)
+#' @describeIn spatialAutoCorGlobalLocal Global autocorrelation (single value returned)
 #'
 #' @param mc_nsim when \code{test_method = 'monte_carlo'} this is number of
 #' simulations to perform
@@ -1457,7 +1457,7 @@ spatialAutoCorGlobal <- function(
 }
 
 
-#' @describeIn spatialAutoCor Local autocorrelation
+#' @describeIn spatialAutoCorGlobalLocal Local autocorrelation
 #' (values generated for each spatial ID)
 #'
 #' @param enrich_name name to assign local autocorrelation spatial enrichment

@@ -79,3 +79,17 @@ test_that("binSpect fast and the giotto method agree on a mini object", {
     expect_true(all(c("binSpect.pval", "binspect.z", "binspect.padj") %in% names(fm)))
     expect_equal(fm$binSpect.pval[match(res$feats, fm$feat_ID)], res$adj.p.value)
 })
+
+test_that("spatialAutoCor is the analyzeData call, and joincount is binspect", {
+    skip_if_not_installed("GiottoData")
+    g <- suppressMessages(suppressWarnings(
+        GiottoData::loadGiottoMini("visium", verbose = FALSE)))
+    expect_equal(spatialAutoCor(g, method = "moran", return_gobject = FALSE),
+                 analyzeData(g, spatAutoCorParam("moran")))
+    expect_equal(spatialAutoCor(g, method = "joincount", return_gobject = FALSE),
+                 spatialAutoCor(g, method = "binspect", return_gobject = FALSE))
+    expect_s4_class(spatAutoCorParam("joincount"), "binSpectParam")
+    g2 <- spatialAutoCor(g, method = "joincount")
+    fm <- getFeatureMetadata(g2, output = "data.table")
+    expect_true(all(c("binspect.z", "binspect.padj", "binSpect.pval") %in% names(fm)))
+})

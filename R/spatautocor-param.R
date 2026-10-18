@@ -50,7 +50,8 @@ setClass("binSpectParam", contains = "spatAutoCorParam")
 #'   binarized feature up to the network's degree variation, and the 2x2
 #'   table of edge types it summarises is the one binSpect has always used
 #'   (Dries et al. 2021); the odds ratio of that table is reported alongside.
-#' @param method one of `"moran"`, `"geary"`, `"binspect"`.
+#' @param method one of `"moran"`, `"geary"`, `"binspect"`; `"joincount"` is
+#'   another name for `"binspect"` (the same test, the same result columns).
 #' @param null `"permutation"` (default) or `"covariate"`. The covariate null
 #'   asks whether a feature clusters beyond what a cell grouping explains:
 #'   cells are grouped by `covariate`, and Moran's I is taken of each value
@@ -82,7 +83,7 @@ setClass("binSpectParam", contains = "spatAutoCorParam")
 #' p_cov <- spatAutoCorParam("moran", null = "covariate", covariate = "libsize")
 #' p_bin <- spatAutoCorParam("binspect", bin_method = "rank")
 #' @export
-spatAutoCorParam <- function(method = c("moran", "geary", "binspect"),
+spatAutoCorParam <- function(method = c("moran", "geary", "binspect", "joincount"),
     null = c("permutation", "covariate"),
     covariate = "libsize",
     n_groups = 10L,
@@ -91,7 +92,8 @@ spatAutoCorParam <- function(method = c("moran", "geary", "binspect"),
     bin_method = c("kmeans", "rank"),
     percentage_rank = 30,
     ...) {
-    method <- match.arg(method, c("moran", "geary", "binspect"))
+    method <- match.arg(method, c("moran", "geary", "binspect", "joincount"))
+    if (identical(method, "joincount")) method <- "binspect"
     null <- match.arg(null, c("permutation", "covariate"))
     if (null == "covariate" && method == "geary") {
         stop("[spatAutoCorParam] the covariate null is available for ",

@@ -23,6 +23,12 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   `null = "covariate"` conditions Moran's I and binSpect on a cell grouping
   (library-size quantiles by default, or a cell metadata column), so genes
   that only follow sequencing depth or composition stop scoring as spatial.
+- `spatialAutoCor()`: the one command for spatially autocorrelated features,
+  `method = "moran"`, `"geary"` or `"binspect"` (also `"joincount"`, the
+  same test), with `null = "permutation"` or `"covariate"`. It is a thin
+  wrapper over `analyzeData(gobject, spatAutoCorParam(...))`. The help topic
+  for `spatialAutoCorGlobal()` and `spatialAutoCorLocal()` is now
+  `spatialAutoCorGlobalLocal`.
 - `binSpect(implementation = "fast")` runs binSpect as that join-count test:
   sparse throughout, exact 2-means or rank binarization, and works on
   GiottoDisk-backed objects. The default implementation is unchanged.

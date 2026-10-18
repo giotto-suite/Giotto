@@ -194,3 +194,55 @@ setMethod("analyzeData",
     if (length(br) < 2L) return(stats::setNames(rep("all", length(v)), names(v)))
     stats::setNames(cut(v, br, include.lowest = TRUE, labels = FALSE), names(v))
 }
+
+
+#' @title Spatially autocorrelated features
+#' @name spatialAutoCor
+#' @description
+#' Tests every feature of a `giotto` object for spatial autocorrelation over a
+#' spatial network: Moran's I, Geary's C, or binSpect (the black-black join
+#' count on binarized features, also available as `"joincount"`). Significance
+#' is the closed-form randomisation null, or with `null = "covariate"` a null
+#' conditioned on a cell grouping such as library size. Runs on in-memory and
+#' GiottoDisk-backed objects alike; with GiottoKernels installed the edge
+#' sums run in compiled code. See [spatAutoCorParam()] for the methods.
+#' @param gobject a `giotto` object
+#' @inheritParams spatAutoCorParam
+#' @param spat_unit,feat_type spatial unit and feature type
+#' @param expression_values expression values to use
+#' @param spatial_network_name name of the spatial network to use
+#' @param return_gobject logical. Add the results to the feature metadata
+#'   (`<method>.z`, `<method>.p`, `<method>.padj`, plus `binSpect.pval` for
+#'   binSpect) and return the `giotto` object; otherwise return the table.
+#' @param ... further settings passed to [spatAutoCorParam()]: `weighted`,
+#'   `adjust_method`, `n_groups`, and for binSpect `bin_method` and
+#'   `percentage_rank`.
+#' @returns the `giotto` object, or with `return_gobject = FALSE` a
+#'   `data.table` with one row per feature ordered by decreasing `z`:
+#'   `feats`, `statistic`, `expected`, `variance`, `z`, `p.value`,
+#'   `adj.p.value` (binSpect adds `n_on` and `odds_ratio`).
+#' @seealso [spatAutoCorParam()], [binSpect()], and [spatialAutoCorGlobal()]
+#'   for a custom spatial weight matrix
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' res <- spatialAutoCor(g, method = "moran", return_gobject = FALSE)
+#' g <- spatialAutoCor(g, method = "joincount", null = "covariate")
+#' @export
+spatialAutoCor <- function(gobject,
+    method = c("moran", "geary", "binspect", "joincount"),
+    null = c("permutation", "covariate"),
+    covariate = "libsize",
+    spat_unit = NULL,
+    feat_type = NULL,
+    expression_values = "normalized",
+    spatial_network_name = "Delaunay_network",
+    return_gobject = TRUE,
+    ...) {
+    param <- spatAutoCorParam(method = method, null = null,
+        covariate = covariate, ...)
+    analyzeData(gobject, param,
+        spat_unit = spat_unit, feat_type = feat_type,
+        expression_values = expression_values,
+        spatial_network_name = spatial_network_name,
+        return_gobject = return_gobject)
+}
