@@ -28,6 +28,7 @@ spatAutoCorParam(
   feat_type = NULL,
   expression_values = "normalized",
   spatial_network_name = "Delaunay_network",
+  feats = NULL,
   return_gobject = FALSE
 )
 }
@@ -78,6 +79,10 @@ grouping, one label per cell, named by cell ID}
 \item{expression_values}{expression values to use}
 
 \item{spatial_network_name}{name of the spatial network to use}
+
+\item{feats}{optional feature IDs to test; `NULL` tests every feature.
+Each feature's statistic does not depend on the others, but the p-value
+adjustment counts only the features tested.}
 
 \item{return_gobject}{logical. Return the `giotto` object with the results
 in its feature metadata instead of the result table.}

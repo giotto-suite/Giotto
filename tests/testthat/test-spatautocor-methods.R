@@ -93,3 +93,34 @@ test_that("spatialAutoCor is the analyzeData call, and joincount is binspect", {
     fm <- getFeatureMetadata(g2, output = "data.table")
     expect_true(all(c("binspect.z", "binspect.padj", "binSpect.pval") %in% names(fm)))
 })
+
+test_that("binSpect defaults to the fast path and falls back for legacy arguments", {
+    skip_if_not_installed("GiottoData")
+    g <- suppressMessages(suppressWarnings(
+        GiottoData::loadGiottoMini("visium", verbose = FALSE)))
+    fast <- binSpect(g, verbose = FALSE)
+    expect_equal(fast, spatialAutoCor(g, method = "binspect",
+                                      return_gobject = FALSE))
+    legacy <- binSpect(g, implementation = "data.table", verbose = FALSE)
+    expect_true(all(c("p.value", "estimate", "score") %in% names(legacy)))
+    expect_message(hub <- binSpect(g, calc_hub = TRUE, verbose = TRUE),
+                   "legacy implementation")
+    expect_true("score" %in% names(hub))
+})
+
+test_that("subset_feats and feats test a subset with each feature's own statistic", {
+    skip_if_not_installed("GiottoData")
+    g <- suppressMessages(suppressWarnings(
+        GiottoData::loadGiottoMini("visium", verbose = FALSE)))
+    full <- binSpect(g, verbose = FALSE)
+    some <- full$feats[c(3, 10, 50, 200)]
+    sub <- binSpect(g, subset_feats = some, verbose = FALSE)
+    expect_setequal(sub$feats, some)
+    ref <- full[match(sub$feats, full$feats)]
+    expect_equal(sub$statistic, ref$statistic)
+    expect_equal(sub$z, ref$z)
+    expect_equal(spatialAutoCor(g, "moran", feats = some, return_gobject = FALSE)$feats |> sort(),
+                 sort(some))
+    expect_error(spatialAutoCor(g, "moran", feats = "nope", return_gobject = FALSE),
+                 "none of `feats`")
+})

@@ -53,6 +53,9 @@ setMethod("analyzeData",
 #' @param spat_unit,feat_type spatial unit and feature type
 #' @param expression_values expression values to use
 #' @param spatial_network_name name of the spatial network to use
+#' @param feats optional feature IDs to test; `NULL` tests every feature.
+#'   Each feature's statistic does not depend on the others, but the p-value
+#'   adjustment counts only the features tested.
 #' @param return_gobject logical. Return the `giotto` object with the results
 #'   in its feature metadata instead of the result table.
 #' @export
@@ -62,6 +65,7 @@ setMethod("analyzeData",
     spat_unit = NULL, feat_type = NULL,
     expression_values = "normalized",
     spatial_network_name = "Delaunay_network",
+    feats = NULL,
     return_gobject = FALSE) {
         spat_unit <- set_default_spat_unit(gobject = x, spat_unit = spat_unit)
         feat_type <- set_default_feat_type(
@@ -78,6 +82,7 @@ setMethod("analyzeData",
         groups <- if (identical(param$null, "covariate")) {
             .spat_autocor_groups(x, param, spat_unit, feat_type)
         }
+        expr <- .spat_autocor_feats(expr, feats)
         res <- analyzeData(expr, param, network = net, groups = groups)
         if (!isTRUE(return_gobject)) return(res)
 
@@ -153,10 +158,6 @@ setMethod("analyzeData",
             "build the kNN network and pass its spatial_network_name.",
             call. = FALSE)
     }
-    if (!is.null(subset_feats)) {
-        stop("[binSpect] implementation = \"fast\" tests every feature; ",
-            "subset the result instead of `subset_feats`.", call. = FALSE)
-    }
     param <- spatAutoCorParam("binspect",
         bin_method = bin_method[1L],
         percentage_rank = percentage_rank,
@@ -165,7 +166,20 @@ setMethod("analyzeData",
         spat_unit = spat_unit, feat_type = feat_type,
         expression_values = expression_values[1L],
         spatial_network_name = spatial_network_name,
+        feats = subset_feats,
         return_gobject = return_gobject)
+}
+
+# The rows of `expr` (a matrix or an expression store) for `feats`, in the
+# store's order; NULL keeps them all.
+.spat_autocor_feats <- function(expr, feats) {
+    if (is.null(feats)) return(expr)
+    pos <- which(rownames(expr) %in% feats)
+    if (!length(pos)) {
+        stop("[spatial autocorrelation] none of `feats` are features of ",
+            "the expression values.", call. = FALSE)
+    }
+    if (inherits(expr, c("matrix", "Matrix"))) expr[pos, , drop = FALSE] else expr[pos, ]
 }
 
 # The cell grouping a covariate null conditions on, named by cell ID:
@@ -236,6 +250,7 @@ spatialAutoCor <- function(gobject,
     feat_type = NULL,
     expression_values = "normalized",
     spatial_network_name = "Delaunay_network",
+    feats = NULL,
     return_gobject = TRUE,
     ...) {
     param <- spatAutoCorParam(method = method, null = null,
@@ -244,5 +259,6 @@ spatialAutoCor <- function(gobject,
         spat_unit = spat_unit, feat_type = feat_type,
         expression_values = expression_values,
         spatial_network_name = spatial_network_name,
+        feats = feats,
         return_gobject = return_gobject)
 }

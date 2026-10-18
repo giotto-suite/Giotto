@@ -41,6 +41,18 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   parallel; defaults to `getOption("giotto.bpparam")`) and `na_as_zero`.
 
 ## changes
+- `binSpect()` now runs the fast join-count test by default
+  (`implementation = "fast"`, as in `spatialAutoCor(method = "binspect")`).
+  Its p-values come from the randomisation null instead of a Fisher test that
+  treated edges as independent, so they are calibrated and far fewer genes
+  reach p ~ 0; the result has `statistic`, `z`, `p.value`, `adj.p.value`,
+  `n_on` and `odds_ratio`, ordered by `z` (legacy `estimate` is `odds_ratio`,
+  `high_expr` is `n_on`). `binSpect.pval` is still written, so HMRF works,
+  but fewer genes pass its 0.01 cut. `implementation = "data.table"` restores
+  the old results exactly; `spatial_network_k`, `bin_matrix`,
+  `calc_hub = TRUE`, `do_fisher_test = FALSE` and a non-default
+  `kmeans_algo` select it automatically, with a message. `subset_feats` now
+  works on the fast path, and `spatialAutoCor()` gains `feats`.
 - DWLS is 12-22x faster on 600-20,000 spots serially. Results match 4.3.1 to
   ~1e-15 except for the fixes below.
 - `quadprog` and `Rfast` are no longer suggested; spatialDWLS brings
