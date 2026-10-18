@@ -691,7 +691,18 @@ NULL
 #' @param get_av_expr calculate the average expression per gene of the high
 #' expressing cells
 #' @param get_high_expr calculate the number of high expressing cells  per gene
-#' @param implementation enrichment implementation (data.table, simple, matrix)
+#' @param implementation `"fast"` (default), or a legacy implementation:
+#' `"data.table"`, `"simple"` or `"matrix"`. `"fast"` runs the join-count
+#' test of [spatialAutoCor()] (`method = "binspect"`): an exact 2-means or
+#' rank binarization and the closed-form randomisation null instead of a
+#' Fisher test on edges, on in-memory and GiottoDisk-backed objects. Its
+#' result has `statistic`, `z`, `p.value`, `adj.p.value`, `n_on` and
+#' `odds_ratio`, ordered by `z`. The kmeans tuning arguments do not apply to
+#' it. `spatial_network_k`, `bin_matrix`, `calc_hub = TRUE`,
+#' `do_fisher_test = FALSE` and a non-default `kmeans_algo` need a legacy
+#' implementation, so with any of them binSpect uses `"data.table"` and says
+#' so. The legacy implementations return `p.value`, `estimate`, `score`,
+#' `av_expr` and `high_expr`.
 #' @param group_size number of genes to process together with data.table
 #' implementation (default = automatic)
 #' @param do_parallel run calculations in parallel with mclapply
@@ -785,7 +796,7 @@ binSpect <- function(gobject,
     hub_min_int = 3,
     get_av_expr = TRUE,
     get_high_expr = TRUE,
-    implementation = c("data.table", "simple", "matrix"),
+    implementation = c("fast", "data.table", "simple", "matrix"),
     group_size = "automatic",
     do_parallel = TRUE,
     cores = NA,
@@ -809,6 +820,37 @@ binSpect <- function(gobject,
 
         seed <- set.seed
         set.seed <- NULL
+    }
+
+    implementation <- match.arg(implementation)
+    if (identical(implementation, "fast")) {
+        # arguments only the legacy implementations honour: keep old calls
+        # working by taking that path, and say so
+        legacy_args <- c(
+            spatial_network_k = !is.null(spatial_network_k),
+            bin_matrix = !is.null(bin_matrix),
+            calc_hub = isTRUE(calc_hub),
+            do_fisher_test = isFALSE(do_fisher_test),
+            kmeans_algo = !missing(kmeans_algo) && !identical(kmeans_algo[1L], "kmeans")
+        )
+        if (any(legacy_args)) {
+            vmsg(.v = verbose, "binSpect: ",
+                paste(names(legacy_args)[legacy_args], collapse = ", "),
+                " needs the legacy implementation; using implementation = ",
+                "\"data.table\"")
+            implementation <- "data.table"
+        }
+    }
+    if (identical(implementation, "fast")) {
+        return(.binspect_fast(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            bin_method = bin_method, expression_values = expression_values,
+            subset_feats = subset_feats,
+            spatial_network_name = spatial_network_name,
+            spatial_network_k = spatial_network_k,
+            percentage_rank = percentage_rank, adjust_method = adjust_method,
+            return_gobject = return_gobject
+        ))
     }
 
     a <- get_args_list(keep = c(

@@ -29,7 +29,7 @@ binSpect(
   hub_min_int = 3,
   get_av_expr = TRUE,
   get_high_expr = TRUE,
-  implementation = c("data.table", "simple", "matrix"),
+  implementation = c("fast", "data.table", "simple", "matrix"),
   group_size = "automatic",
   do_parallel = TRUE,
   cores = NA,
@@ -179,7 +179,18 @@ expressing cells}
 
 \item{get_high_expr}{calculate the number of high expressing cells  per gene}
 
-\item{implementation}{enrichment implementation (data.table, simple, matrix)}
+\item{implementation}{\code{"fast"} (default), or a legacy implementation:
+\code{"data.table"}, \code{"simple"} or \code{"matrix"}. \code{"fast"} runs the join-count
+test of \code{\link[=spatialAutoCor]{spatialAutoCor()}} (\code{method = "binspect"}): an exact 2-means or
+rank binarization and the closed-form randomisation null instead of a
+Fisher test on edges, on in-memory and GiottoDisk-backed objects. Its
+result has \code{statistic}, \code{z}, \code{p.value}, \code{adj.p.value}, \code{n_on} and
+\code{odds_ratio}, ordered by \code{z}. The kmeans tuning arguments do not apply to
+it. \code{spatial_network_k}, \code{bin_matrix}, \code{calc_hub = TRUE},
+\code{do_fisher_test = FALSE} and a non-default \code{kmeans_algo} need a legacy
+implementation, so with any of them binSpect uses \code{"data.table"} and says
+so. The legacy implementations return \code{p.value}, \code{estimate}, \code{score},
+\code{av_expr} and \code{high_expr}.}
 
 \item{group_size}{number of genes to process together with data.table
 implementation (default = automatic)}

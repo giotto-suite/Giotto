@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.3.2
+Version: 4.3.3
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -27,7 +27,7 @@ BugReports: https://github.com/giotto-suite/Giotto/issues
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.7.4)
+    GiottoClass (>= 0.7.14)
 Imports:
     BiocParallel,
     BiocSingular,
@@ -154,6 +154,9 @@ Collate:
     'poly_influence.R'
     'python_hmrf.R'
     'python_scrublet.R'
+    'spatautocor-stats.R'
+    'spatautocor-param.R'
+    'spatautocor-methods.R'
     'spatial_clusters.R'
     'spatial_enrichment.R'
     'spatial_enrichment_visuals.R'
