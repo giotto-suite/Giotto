@@ -1,12 +1,8 @@
-# Giotto 4.3.2 (in development)
+# Giotto 4.3.3 (in development)
 
-spatialDWLS moves to its own package,
-[spatialDWLS](https://github.com/drieslab/spatialDWLS) (drieslab), which
-Giotto now suggests, the way the motif layer suggests smotif.
-`runDWLSDeconv()` and `runSpatialDeconv()` keep their arguments and call it;
-install it with `remotes::install_github("drieslab/spatialDWLS")`.
-Downstream packages that import `dwlsDeconvParam` or provide an
-`analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
+Downstream packages that import `spatAutoCorParam`, `histThreshold()` or
+provide an `analyzeData()` method for `edgeStatsParam` should require
+`Giotto (>= 4.3.3)`.
 
 ## new
 - `thresholdParam("binarize")` takes a per-feature threshold on matrices: one
@@ -31,14 +27,9 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   `spatialAutoCorGlobalLocal`.
 - `binSpect(implementation = "fast")` runs binSpect as that join-count test:
   sparse throughout, exact 2-means or rank binarization, and works on
-  GiottoDisk-backed objects. The default implementation is unchanged.
+  GiottoDisk-backed objects.
 - `spatialAutoCorGlobal(test_method = "analytic")`: closed-form significance
   for Moran's I and Geary's C in place of Monte Carlo permutations.
-- `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
-  verb, the sibling of `enrichParam()`. Dispatching on the expression object
-  lets a disk-backed store (GiottoDisk) supply its own streaming method.
-- `runDWLSDeconv()` / `runSpatialDeconv()` gain `BPPARAM` (per-spot solves in
-  parallel; defaults to `getOption("giotto.bpparam")`) and `na_as_zero`.
 
 ## changes
 - `binSpect()` now runs the fast join-count test by default
@@ -53,6 +44,25 @@ Downstream packages that import `dwlsDeconvParam` or provide an
   `calc_hub = TRUE`, `do_fisher_test = FALSE` and a non-default
   `kmeans_algo` select it automatically, with a message. `subset_feats` now
   works on the fast path, and `spatialAutoCor()` gains `feats`.
+
+# Giotto 4.3.2
+
+spatialDWLS moves to its own package,
+[spatialDWLS](https://github.com/drieslab/spatialDWLS) (drieslab), which
+Giotto now suggests, the way the motif layer suggests smotif.
+`runDWLSDeconv()` and `runSpatialDeconv()` keep their arguments and call it;
+install it with `remotes::install_github("drieslab/spatialDWLS")`.
+Downstream packages that import `dwlsDeconvParam` or provide an
+`analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
+
+## new
+- `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
+  verb, the sibling of `enrichParam()`. Dispatching on the expression object
+  lets a disk-backed store (GiottoDisk) supply its own streaming method.
+- `runDWLSDeconv()` / `runSpatialDeconv()` gain `BPPARAM` (per-spot solves in
+  parallel; defaults to `getOption("giotto.bpparam")`) and `na_as_zero`.
+
+## changes
 - DWLS is 12-22x faster on 600-20,000 spots serially. Results match 4.3.1 to
   ~1e-15 except for the fixes below.
 - `quadprog` and `Rfast` are no longer suggested; spatialDWLS brings
