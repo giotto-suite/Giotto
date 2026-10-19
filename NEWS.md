@@ -1,4 +1,32 @@
-# Giotto 4.3.3 (in development)
+# Giotto 4.3.4 (in development)
+
+## new
+- `spatialCoexpression()`: spatial co-expression modules in one command.
+  Expression is smoothed over a spatial network, the features are
+  correlated on the smoothed values and clustered into modules, and each
+  module gets a score per cell. Modules are written to the feature metadata
+  and the scores as a spatial enrichment. It is built from
+  `spatialSmoothParam()`, `featCorParam()` and `createMetafeats()`, so it
+  runs on any backend that provides those. `heatmapCoexpression()` plots
+  the correlation by module.
+
+## breaking changes
+- Removed `detectSpatialCorFeats()`, `detectSpatialCorFeatsMatrix()`,
+  `clusterSpatialCorFeats()`, `clusterSpatialCorGenes()`,
+  `showSpatialCorFeats()`, `showSpatialCorGenes()`, `rankSpatialCorGroups()`,
+  `heatmSpatialCorFeats()` and `getBalancedSpatCoexpressionFeats()`; use
+  `spatialCoexpression()` and `heatmapCoexpression()`. The `"grid"` method,
+  which failed on a giotto object, is gone.
+
+## bug fixes
+- Network smoothing for spatial co-expression averaged each cell only with
+  the neighbours stored as `from` for it, about half of them on undirected
+  networks; it now uses every neighbour.
+- `initHMRF_V2(use_metagene = TRUE)` failed when building the metagene
+  matrix. Its metagenes now use the genes most correlated with their module
+  instead of the first genes by name.
+
+# Giotto 4.3.3
 
 Downstream packages that import `spatAutoCorParam`, `histThreshold()` or
 provide an `analyzeData()` method for `edgeStatsParam` should require
