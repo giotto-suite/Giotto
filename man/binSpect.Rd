@@ -129,7 +129,7 @@ binSpectMulti(
   knn_params = NULL,
   set.seed = deprecated(),
   seed = 1234,
-  summarize = c("adj.p.value", "p.value")
+  summarize = c("p.value", "adj.p.value")
 )
 }
 \arguments{
