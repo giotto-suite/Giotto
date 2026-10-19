@@ -7,7 +7,7 @@
 makeSignMatrixRank(
   sc_matrix,
   sc_cluster_ids,
-  ties_method = c("random", "max"),
+  ties_method = c("average", "random", "max"),
   gobject = NULL
 )
 }
@@ -17,7 +17,7 @@ makeSignMatrixRank(
 \item{sc_cluster_ids}{vector of cluster ids}
 
 \item{ties_method}{how to rank tied expression values, \code{"average"}
-(default) or \code{"max"}}
+(default) or \code{"max"}; \code{"random"} is also accepted here}
 
 \item{gobject}{giotto object. When given, only features present in both
 datasets are kept.}

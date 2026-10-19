@@ -38,8 +38,8 @@
 #'   \item{`output_enrichment`}{`"original"` (default) or `"zscore"`.}
 #'   \item{`p_value`}{logical. return p-values instead of scores.}
 #' }
-#' PAGE: `min_overlap_genes` (5), `include_depletion` (`FALSE`), `n_times`
-#' (1000), `max_block` (2e7), `verbose` (`TRUE`).
+#' PAGE: `min_overlap_genes` (5), `include_depletion` (`FALSE`),
+#' `verbose` (`TRUE`). Its p-values are exact, so it takes no `n_times`.
 #'
 #' rank: `ties_method` (`"average"`), `n_times` (1000), `rbp_p` (0.99),
 #' `num_agg` (100).
@@ -246,32 +246,90 @@ NULL
 #' @inheritParams enrichment_params
 #' @param ... unused. Declared because [analyzeData()] carries it, so an
 #'   engine registered from another package can accept its own arguments.
+#' @param reference per-feature reference level, named by feature. Computed
+#'   from `x` when `NULL`; supply it to score some cells against the
+#'   reference of all of them, as a disk-backed engine does window by window.
 #' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
     signature(x = "ANY", param = "pageEnrichParam"),
-    function(x, param, ..., sign_matrix) {
-        res <- .page_dt_method(
-            sign_matrix = sign_matrix,
-            expr_values = as.matrix(x),
-            min_overlap_genes = param$min_overlap_genes,
-            logbase = param$logbase,
-            reverse_log_scale = param$reverse_log_scale,
-            output_enrichment = param$output_enrichment,
-            p_value = param$p_value,
-            include_depletion = param$include_depletion,
-            n_times = param$n_times,
-            max_block = param$max_block,
-            verbose = param$verbose
+    function(x, param, ..., sign_matrix, reference = NULL) {
+        .enrich_check_contract(
+            .page_method(sign_matrix = sign_matrix, x = x, param = param,
+                         reference = reference),
+            "analyzeData(pageEnrichParam)"
         )
-        out <- data.table::as.data.table(res[["matrix"]])
-        # PAGE's long-form table is the one method-specific extra any caller
-        # has ever wanted; it rides along rather than widening the contract.
-        data.table::setattr(out, "detail", res[["DT"]])
-        .enrich_check_contract(out, "analyzeData(pageEnrichParam)")
     }
 )
+
+# PAGE: per cell, the mean fold change of each type's markers against the
+# cell's mean and sd over all features, z = (V - mean) * sqrt(k) / sd. Built
+# from per-cell moments and one product with the marker matrix, never a long
+# table or a dense fold-change matrix.
+#' @keywords internal
+#' @noRd
+.page_method <- function(sign_matrix, x, param, reference = NULL) {
+    mk <- .enrich_markers(sign_matrix, rownames(x))
+    k <- colSums(mk)
+    keep <- k > param$min_overlap_genes
+    if (any(!keep) && isTRUE(param$verbose)) {
+        for (t in names(k)[!keep]) {
+            message(t, " only has ", k[[t]],
+                " overlapping genes. Will be removed.")
+        }
+    }
+    if (!any(keep)) {
+        stop("[PAGE] no cell type has more than `min_overlap_genes` (",
+            param$min_overlap_genes, ") genes in the expression data.",
+            call. = FALSE)
+    }
+    mk <- mk[, keep, drop = FALSE]
+    k <- k[keep]
+
+    m <- .enrich_gene_reference(x, param$reverse_log_scale, param$logbase,
+        reference)
+    z <- matrix(NA_real_, ncol(x), ncol(mk),
+        dimnames = list(colnames(x), colnames(mk)))
+    for (j in .enrich_blocks(x)) {
+        xb <- x[, j, drop = FALSE]
+        z[j, ] <- .page_z(xb, m, mk, .enrich_cell_moments(xb, m))
+    }
+
+    out <- if (isTRUE(param$p_value)) {
+        .page_p(z, k, nrow(x), param$include_depletion)
+    } else if (param$output_enrichment == "zscore") {
+        scale(z)
+    } else {
+        z
+    }
+    .enrich_result(out, colnames(x))
+}
+
+# cells x types matrix of PAGE z-scores
+.page_z <- function(x, m, mk, mo) {
+    S <- Matrix::Matrix(mk * 1, sparse = TRUE)
+    g <- rownames(mk)
+    V <- as.matrix(Matrix::crossprod(S, x[g, , drop = FALSE])) -
+        as.numeric(Matrix::crossprod(S, m[g]))
+    V <- V / colSums(mk)
+    z <- t((t(V) - mo$mean) / mo$sd) * sqrt(colSums(mk))
+    t(z)
+}
+
+# p-values against PAGE's permutation null -- the type's markers replaced by
+# a random set of the same size k from all G features -- in closed form. For
+# a given cell a random set's z has mean 0 and variance exactly (G - k) / G
+# (the variance of a mean of k draws without replacement, over the sample sd
+# in z), which the permutations only estimated; the normal tail is then
+# taken as before.
+#' @keywords internal
+#' @noRd
+.page_p <- function(z, k, G, include_depletion) {
+    zz <- t(t(z) / sqrt((G - k) / G))
+    stats::pnorm(if (isTRUE(include_depletion)) abs(zz) else zz,
+        lower.tail = FALSE)
+}
 
 
 # rank ####
@@ -333,35 +391,30 @@ setMethod("analyzeData",
         ties_2 <- "max"
     }
     # else ties_1=ties_2 is equal to random
-    geneFold <- expr_values
-    geneFold <- sparseMatrixStats::rowRanks(geneFold, ties.method = ties_1)
-    rankFold <- t(sparseMatrixStats::colRanks(-geneFold, ties.method = ties_2))
-
-    rownames(rankFold) <- rownames(expr_values)
-    colnames(rankFold) <- colnames(expr_values)
-
-    for (i in seq_len(dim(sign_matrix)[2])) {
-        signames <- rownames(sign_matrix)[which(sign_matrix[, i] > 0)]
-        interGene <- intersect(signames, rownames(rankFold))
-        filterSig <- sign_matrix[interGene, ]
-        filterRankFold <- rankFold[interGene, ]
-
-        multiplyRank <- (filterRankFold * filterSig[, i])^(1 / 2)
-        rpb <- (1.0 - param$rbp_p) * (param$rbp_p^(multiplyRank - 1))
-
-        vectorX <- rep(NA, dim(filterRankFold)[2])
-        for (j in seq_len(dim(filterRankFold)[2])) {
-            toprpb <- sort(rpb[, j], decreasing = TRUE)
-            vectorX[j] <- sum(toprpb[seq_len(param$num_agg)])
+    # each feature ranked across all cells needs every cell at once; the
+    # within-cell ranks and the scores then go a block of cells at a time
+    geneFold <- .rank_rows(expr_values, ties_1)
+    sig <- lapply(seq_len(ncol(sign_matrix)), function(i) intersect(
+        rownames(sign_matrix)[sign_matrix[, i] > 0], rownames(geneFold)))
+    for (j in .enrich_blocks(geneFold)) {
+        rankFold <- t(sparseMatrixStats::colRanks(-geneFold[, j, drop = FALSE],
+            ties.method = ties_2))
+        rownames(rankFold) <- rownames(geneFold)
+        for (i in seq_along(sig)) {
+            enrichment[i, j] <- .rank_top_rbp(
+                rankFold[sig[[i]], , drop = FALSE] *
+                    sign_matrix[sig[[i]], i],
+                param$rbp_p, param$num_agg
+            )
         }
-        enrichment[i, ] <- vectorX
     }
 
     rownames(enrichment) <- colnames(sign_matrix)
-    colnames(enrichment) <- colnames(rankFold)
+    colnames(enrichment) <- colnames(expr_values)
     enrichment <- t(enrichment)
 
-    if (param$output_enrichment == "zscore") {
+    # p-values come from the unscaled scores; z-scoring is for scores only
+    if (param$output_enrichment == "zscore" && !isTRUE(param$p_value)) {
         enrichment <- scale(enrichment)
     }
 
@@ -380,6 +433,7 @@ setMethod("analyzeData",
         )
         no_p <- param
         no_p$p_value <- FALSE
+        no_p$output_enrichment <- "original"
         random_enr <- .rank_dt_method(
             sign_matrix = random_rank, expr_values = expr_values, param = no_p
         )
@@ -409,6 +463,25 @@ setMethod("analyzeData",
 }
 
 
+# Per cell (column), the sum of the `n` largest rank-biased scores
+# (1 - p) p^(sqrt(prod) - 1). The score falls as the rank product rises, so
+# the largest scores are those of the n smallest products: one column order
+# statistic and one masked sum per cell type, instead of a sort per cell.
+# Products tied at the cut have equal scores, so any of them may be counted.
+# NA when a column has fewer than `n` entries, as sum(sort(x)[1:n]) gives.
+#' @keywords internal
+#' @noRd
+.rank_top_rbp <- function(prod, p, n) {
+    prod <- as.matrix(prod)
+    if (nrow(prod) < n) return(rep(NA_real_, ncol(prod)))
+    rbp <- function(v) (1 - p) * p^(sqrt(v) - 1)
+    cut <- MatrixGenerics::colOrderStats(prod, which = n)
+    below <- prod < rep(cut, each = nrow(prod))
+    n_below <- colSums(below)
+    colSums(rbp(prod) * below) + (n - n_below) * rbp(cut)
+}
+
+
 # hypergeometric ####
 
 #' @title Hypergeometric enrichment
@@ -420,84 +493,153 @@ setMethod("analyzeData",
 #' @export
 setMethod("analyzeData",
     signature(x = "ANY", param = "hyperEnrichParam"),
-    function(x, param, ..., sign_matrix) {
+    function(x, param, ..., sign_matrix, reference = NULL) {
         .enrich_check_contract(
             .hyper_dt_method(sign_matrix = sign_matrix, expr_values = x,
-                             param = param),
+                             param = param, reference = reference),
             "analyzeData(hyperEnrichParam)"
         )
     }
 )
 
-# Lifted verbatim out of runHyperGeometricEnrich().
+# Per cell, the features whose fold change over their reference level is in
+# the top `top_percentage` percent are "expressed"; each type is then tested
+# for over-representation among them with the hypergeometric distribution,
+# P(X >= x), within the features of the sign matrix. Scores are -log10(p).
 #' @keywords internal
 #' @noRd
-.hyper_dt_method <- function(sign_matrix, expr_values, param) {
-    if (param$reverse_log_scale == TRUE) {
-        expr_values <- param$logbase^expr_values - 1
+.hyper_dt_method <- function(sign_matrix, expr_values, param,
+                             reference = NULL) {
+    x <- expr_values
+    mk <- .enrich_markers(sign_matrix, rownames(x))
+    m <- .enrich_gene_reference(x, param$reverse_log_scale, param$logbase,
+        reference)
+    n_t <- colSums(mk)
+    S <- mk * 1
+    # blocks of cells, so the dense fold changes are never held in full
+    p <- matrix(NA_real_, ncol(x), ncol(mk),
+        dimnames = list(colnames(x), colnames(mk)))
+    for (j in .enrich_blocks(x)) {
+        fc <- as.matrix(x[, j, drop = FALSE]) - m
+        cut <- MatrixGenerics::colQuantiles(fc,
+            probs = 1 - param$top_percentage / 100, type = 7L, drop = TRUE)
+        on <- t(t(fc[rownames(mk), , drop = FALSE]) > cut) * 1
+        hits <- crossprod(on, S)
+        k <- colSums(on)
+        p[j, ] <- stats::phyper(hits - 1, rep(n_t, each = length(j)),
+            rep(nrow(mk) - n_t, each = length(j)), k, lower.tail = FALSE)
     }
 
-    interGene <- intersect(rownames(expr_values), rownames(sign_matrix))
-    inter_sign_matrix <- sign_matrix[interGene, ]
+    out <- if (isTRUE(param$p_value)) {
+        p
+    } else if (param$output_enrichment == "zscore") {
+        scale(-log10(p))
+    } else {
+        -log10(p)
+    }
+    .enrich_result(out, colnames(x))
+}
 
-    aveExp <- log2(2 * (Matrix::rowMeans(2^(expr_values - 1), dims = 1)) + 1)
-    foldChange <- expr_values - aveExp
 
-    top_q <- 1 - param$top_percentage / 100
-    quantilecut <- apply(
-        foldChange, 2, stats::quantile, probs = top_q, na.rm = TRUE
-    )
-    expbinary <- t_flex(1 * t_flex(foldChange > quantilecut))
+# shared building blocks ####
 
-    markerGenes <- rownames(inter_sign_matrix)
-    expbinaryOverlap <- expbinary[markerGenes, ]
-    total <- length(markerGenes)
-    enrichment <- matrix(
-        data = NA,
-        nrow = dim(inter_sign_matrix)[2],
-        ncol = dim(expbinaryOverlap)[2]
-    )
+# Logical features x types matrix: a feature of `feats` marks a type when its
+# sign-matrix value is > 0. One convention for every method.
+#' @keywords internal
+#' @noRd
+.enrich_markers <- function(sign_matrix, feats) {
+    sm <- as.matrix(sign_matrix)
+    inter <- intersect(rownames(sm), feats)
+    sm[inter, , drop = FALSE] > 0
+}
 
-    for (i in seq_len(dim(inter_sign_matrix)[2])) {
-        signames <- rownames(inter_sign_matrix)[
-            which(inter_sign_matrix[, i] == 1)
-        ]
-        vectorX <- NULL
-        for (j in seq_len(dim(expbinaryOverlap)[2])) {
-            cellsiggene <- names(expbinaryOverlap[
-                which(expbinaryOverlap[, j] == 1), j
-            ])
-            x <- length(intersect(cellsiggene, signames))
-            m <- length(signames)
-            n <- total - m
-            k <- length(intersect(cellsiggene, markerGenes))
-            vectorX <- append(vectorX, 0 - log10(stats::phyper(
-                x, m, n, k, log.p = FALSE, lower.tail = FALSE
-            )))
+# base^x - 1 elementwise, undoing log(x + 1); a 0 stays 0, so a sparse
+# matrix stays sparse
+#' @keywords internal
+#' @noRd
+.enrich_unlog <- function(x, base) {
+    if (inherits(x, "dsparseMatrix") && methods::.hasSlot(x, "x")) {
+        x@x <- base^x@x - 1
+        return(x)
+    }
+    base^x - 1
+}
+
+# Each feature's reference level on the scale of `x`: with
+# reverse_log_scale, the mean of the de-logged values logged back in the
+# same base; otherwise the plain mean. Shared by PAGE and hypergeometric.
+#' @keywords internal
+#' @noRd
+.enrich_gene_reference <- function(x, reverse_log_scale, logbase,
+                                   reference = NULL) {
+    if (!is.null(reference)) {
+        if (is.null(names(reference)) ||
+            !all(rownames(x) %in% names(reference))) {
+            stop("`reference` must be named by feature and cover every ",
+                "feature of the expression values.", call. = FALSE)
         }
-        enrichment[i, ] <- vectorX
+        return(reference[rownames(x)])
     }
-
-    rownames(enrichment) <- colnames(inter_sign_matrix)
-    colnames(enrichment) <- colnames(expbinaryOverlap)
-    enrichment <- t(enrichment)
-
-    if (param$output_enrichment == "zscore") {
-        enrichment <- scale(enrichment)
+    if (isTRUE(reverse_log_scale)) {
+        log(Matrix::rowMeans(.enrich_unlog(x, logbase)) + 1, base = logbase)
+    } else {
+        Matrix::rowMeans(x)
     }
+}
 
-    enrichmentDT <- data.table::data.table(cell_ID = rownames(enrichment))
-    enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
-
-    if (isTRUE(param$p_value)) {
-        score_cols <- names(enrichmentDT)[
-            vapply(enrichmentDT, is.numeric, logical(1L))
-        ]
-        enrichmentDT[, (score_cols) := lapply(.SD, function(v) 10^(-v)),
-            .SDcols = score_cols]
+# Per-cell mean and sd of x - m over all features, from sums of x, x^2 and
+# m x, so a sparse x is never densified
+#' @keywords internal
+#' @noRd
+.enrich_cell_moments <- function(x, m) {
+    G <- nrow(x)
+    x2 <- if (inherits(x, "dsparseMatrix")) {
+        y <- x
+        y@x <- y@x^2
+        y
+    } else {
+        x^2
     }
+    s1 <- Matrix::colSums(x) - sum(m)
+    s2 <- Matrix::colSums(x2) - 2 * as.numeric(Matrix::crossprod(m, x)) +
+        sum(m^2)
+    mean <- s1 / G
+    list(mean = mean, sd = sqrt(pmax(s2 - G * mean^2, 0) / (G - 1)))
+}
 
-    enrichmentDT[]
+# Ranks of each row across columns, a block of rows at a time: only the
+# dense result is held, not the several full-size copies a one-shot
+# `sparseMatrixStats::rowRanks()` makes
+#' @keywords internal
+#' @noRd
+.rank_rows <- function(x, ties, values = 5e7) {
+    out <- matrix(0, nrow(x), ncol(x), dimnames = dimnames(x))
+    step <- max(1L, as.integer(values %/% max(1L, ncol(x))))
+    for (a in seq(1L, max(1L, nrow(x)), by = step)) {
+        r <- a:min(nrow(x), a + step - 1L)
+        out[r, ] <- MatrixGenerics::rowRanks(as.matrix(x[r, , drop = FALSE]),
+            ties.method = ties)
+    }
+    out
+}
+
+# Column (cell) index blocks of about `values` dense values each: the unit
+# every method computes in, so no step holds a dense features x cells copy
+#' @keywords internal
+#' @noRd
+.enrich_blocks <- function(x, values = 5e7) {
+    step <- max(1L, as.integer(values %/% max(1L, nrow(x))))
+    starts <- seq(1L, max(1L, ncol(x)), by = step)
+    lapply(starts, function(a) a:min(ncol(x), a + step - 1L))
+}
+
+# cells x types matrix -> the result contract, cells in expression order
+#' @keywords internal
+#' @noRd
+.enrich_result <- function(mat, cell_ids) {
+    mat <- as.matrix(mat)
+    out <- data.table::data.table(cell_ID = as.character(cell_ids))
+    cbind(out, data.table::as.data.table(unclass(mat)))[]
 }
 
 

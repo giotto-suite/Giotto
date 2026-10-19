@@ -1,4 +1,42 @@
-# Giotto 4.3.4 (in development)
+# Giotto 4.3.5 (in development)
+
+Downstream packages that stream PAGE (GiottoDisk) should require
+`Giotto (>= 4.3.5)` so both backends compute the same scores.
+
+## breaking changes
+- `runPAGEEnrich(return_gobject = FALSE)` returns a `spatEnrObj`, as the
+  other enrichment methods do, instead of `list(DT =, matrix =)`.
+- Enrichment `p_value = TRUE` returns p-values for every method; PAGE
+  returned `-log10(p)`. They are computed from the unscaled scores, so
+  `output_enrichment = "zscore"` no longer distorts them.
+
+## changes
+- PAGE no longer densifies the expression or melts it into a long table: the
+  scores come from per-cell moments and one product with the marker matrix.
+- PAGE p-values are the permutation null in closed form instead of a
+  normal fit to sampled permutations; `n_times` is no longer used by PAGE.
+- All three methods work a block of cells at a time and no longer loop over
+  cells in R: much faster and with a bounded memory peak, most of all for
+  PAGE p-values and hypergeometric enrichment.
+- `analyzeData()` for PAGE and hypergeometric takes a `reference` level per
+  feature, so a disk-backed engine can score windows of cells against the
+  reference of all cells.
+
+## bug fixes
+- Hypergeometric enrichment scored every cell against other cells'
+  thresholds: the per-cell top-percentage cut was recycled down the
+  features. It also tested P(X > x) instead of P(X >= x), and a cell with a
+  single selected feature scored 0. Scores change.
+- PAGE and hypergeometric share one per-feature reference level, the mean of
+  the de-logged values logged back in the same base. PAGE logged it in base
+  e while the values are in `logbase`, and hypergeometric mixed linear and
+  log scales; PAGE scores shift slightly.
+- All enrichment methods count a feature as a marker where its sign-matrix
+  value is > 0, and return cells in the order of the expression matrix.
+- `makeSignMatrixRank()` ranks ties by `"average"` by default, as documented
+  and as `runRankEnrich()` does; it used `"random"`.
+
+# Giotto 4.3.4
 
 ## new
 - `spatialCoexpression()`: spatial co-expression modules in one command.

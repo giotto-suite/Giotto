@@ -42,8 +42,8 @@ Shared by all three:
 \item{\code{output_enrichment}}{\code{"original"} (default) or \code{"zscore"}.}
 \item{\code{p_value}}{logical. return p-values instead of scores.}
 }
-PAGE: \code{min_overlap_genes} (5), \code{include_depletion} (\code{FALSE}), \code{n_times}
-(1000), \code{max_block} (2e7), \code{verbose} (\code{TRUE}).
+PAGE: \code{min_overlap_genes} (5), \code{include_depletion} (\code{FALSE}),
+\code{verbose} (\code{TRUE}). Its p-values are exact, so it takes no \code{n_times}.
 
 rank: \code{ties_method} (\code{"average"}), \code{n_times} (1000), \code{rbp_p} (0.99),
 \code{num_agg} (100).

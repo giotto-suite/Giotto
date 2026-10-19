@@ -284,8 +284,9 @@ NULL
 
 #' Params documentation template: enrichment_params
 #' @name enrichment_params
-#' @param sign_matrix binary matrix of signature features (rows) by cell type
-#' or process (columns), 1 where the feature marks the type. Build one with
+#' @param sign_matrix matrix of signature features (rows) by cell type or
+#' process (columns); a feature marks a type where its value is > 0. Build one
+#' with
 #' \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.
 #' @param reverse_log_scale logical. Undo a log transform before averaging
 #' (default = TRUE).
@@ -293,7 +294,9 @@ NULL
 #' (default = 2).
 #' @param output_enrichment character. "original" (default) or "zscore", which
 #' standardizes the scores within each cell type.
-#' @param p_value logical. Calculate p-values (default = FALSE).
+#' @param p_value logical. Return p-values instead of scores (default =
+#' FALSE). They are computed from the unscaled scores, so `output_enrichment`
+#' applies to scores only.
 #' @md
 #' @returns spatial enrichment scores, one per cell per signature
 #' @keywords internal
