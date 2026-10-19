@@ -16,14 +16,14 @@
 #' @param sign_list list of feats in signature
 #' @param min_overlap_genes minimum number of overlapping features in
 #' `sign_matrix` required to calculate enrichment (PAGE)
-#' @param include_depletion also test for depletion, not enrichment only
-#' (default = FALSE)
+#' @param include_depletion test depletion as well as enrichment, on the
+#' absolute z-score (default = FALSE)
 #' @param n_times number of permutation iterations to calculate p-value
-#' @param max_block number of lines to process together (default = 20e6)
+#' @param max_block no longer used; kept so existing calls still run
 #' @param verbose be verbose
 #' @returns `matrix` (`makeSignMatrixPAGE()`) and
-#' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or
-#' `data.table` (`runPAGEEnrich(return_gobject = FALSE)`)
+#' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or a `spatEnrObj`
+#' (`runPAGEEnrich(return_gobject = FALSE)`)
 #' @details
 #' The enrichment Z score is calculated by using method (PAGE) from
 #' Kim SY et al., BMC bioinformatics, 2005 as \cr
@@ -284,7 +284,7 @@ makeSignMatrixDWLS <- function(
 #' @param sc_matrix matrix of single-cell RNAseq expression data
 #' @param sc_cluster_ids vector of cluster ids
 #' @param ties_method how to rank tied expression values, `"average"`
-#' (default) or `"max"`
+#' (default) or `"max"`; `"random"` is also accepted here
 #' @param gobject giotto object. When given, only features present in both
 #' datasets are kept.
 #' @returns matrix
@@ -311,7 +311,7 @@ makeSignMatrixDWLS <- function(
 makeSignMatrixRank <- function(
         sc_matrix,
         sc_cluster_ids,
-        ties_method = c("random", "max"),
+        ties_method = c("average", "random", "max"),
         gobject = NULL) {
     if (inherits(sc_matrix, "exprObj")) {
         sc_matrix <- sc_matrix[]
@@ -321,7 +321,8 @@ makeSignMatrixRank <- function(
     }
 
     # select ties_method
-    ties_method <- match.arg(ties_method, choices = c("random", "max"))
+    ties_method <- match.arg(ties_method,
+        choices = c("average", "random", "max"))
 
     # check input
     if (length(sc_cluster_ids) != ncol(sc_matrix)) {
@@ -389,330 +390,6 @@ makeSignMatrixRank <- function(
 ## spatial enrichment functions ####
 
 
-#' @title PAGE permutation
-#' @description creates permutation for the PAGEEnrich test
-#' @returns PAGEEnrich test
-#' @keywords internal
-.do_page_permutation <- function(
-        gobject,
-        sig_gene,
-        ntimes) {
-    # check available gene
-    available_ct <- c()
-    for (i in colnames(sig_gene)) {
-        gene_i <- rownames(sig_gene)[which(sig_gene[, i] == 1)]
-        overlap_i <- intersect(
-            gene_i, rownames(gobject@expression$rna$normalized)
-        )
-        if (length(overlap_i) <= 5) {
-            output <- paste0(
-                "Warning, ", i, " only has ", length(overlap_i),
-                " overlapped genes. Will remove it."
-            )
-        } else {
-            available_ct <- c(available_ct, i)
-        }
-    }
-    if (length(available_ct) == 1) {
-        stop("Only one cell type available.")
-    }
-    # only continue with genes present in both datasets
-    interGene <- intersect(
-        rownames(sig_gene), rownames(gobject@expression$rna$normalized)
-    )
-    sign_matrix <- sig_gene[interGene, available_ct]
-
-    ct_gene_counts <- NULL
-    for (i in seq_len(dim(sign_matrix)[2])) {
-        a <- length(which(sign_matrix[, i] == 1))
-        ct_gene_counts <- c(ct_gene_counts, a)
-    }
-    uniq_ct_gene_counts <- unique(ct_gene_counts)
-    background_mean_sd <- matrix(
-        data = NA, nrow = length(uniq_ct_gene_counts) + 1, ncol = 3
-    )
-    for (i in seq_along(uniq_ct_gene_counts)) {
-        gene_num <- uniq_ct_gene_counts[i]
-        all_sample_names <- NULL
-        all_sample_list <- NULL
-        for (j in seq_len(ntimes)) {
-            GiottoUtils::local_seed(j)
-            random_gene <- sample(rownames(
-                gobject@expression$rna$normalized
-            ), gene_num, replace = FALSE)
-            ct_name <- paste("ct", j, sep = "")
-            all_sample_names <- c(all_sample_names, ct_name)
-            all_sample_list <- c(all_sample_list, list(random_gene))
-        }
-        random_sig <- makeSignMatrixPAGE(all_sample_names, all_sample_list)
-        random_DT <- runPAGEEnrich(
-            gobject,
-            sign_matrix = random_sig,
-            p_value = FALSE
-        )
-        background <- unlist(random_DT[, 2:dim(random_DT)[2]])
-        df_row_name <- paste("gene_num_", uniq_ct_gene_counts[i], sep = "")
-        list_back_i <- c(df_row_name, mean(background), stats::sd(background))
-        background_mean_sd[i, ] <- list_back_i
-    }
-    background_mean_sd[length(uniq_ct_gene_counts) + 1, ] <- c("temp", "0", "1")
-    df_back <- data.frame(background_mean_sd, row.names = 1)
-    colnames(df_back) <- c("mean", "sd")
-    return(df_back)
-}
-
-
-
-
-
-#' @title PAGE data.table method
-#' @param expr_values matrix of expression values
-#' @returns data.table
-#' @keywords internal
-.page_dt_method <- function(
-        sign_matrix,
-        expr_values,
-        min_overlap_genes = 5,
-        logbase = 2,
-        reverse_log_scale = TRUE,
-        output_enrichment = c("original", "zscore"),
-        p_value = FALSE,
-        include_depletion = FALSE,
-        n_times = 1000,
-        max_block = 20e6,
-        verbose = TRUE) {
-    # data.table variables
-    Var1 <- value <- Var2 <- V1 <- marker <- nr_markers <- fc <- cell_ID <-
-        zscore <- colmean <- colSd <- pval <- NULL
-    mean_zscore <- sd_zscore <- pval_score <- NULL
-
-    # output enrichment
-    output_enrichment <- match.arg(
-        output_enrichment,
-        choices = c("original", "zscore")
-    )
-
-    ## identify available cell types
-    all_genes <- rownames(expr_values)
-    sign_matrix <- as.matrix(sign_matrix)
-    sign_matrix_DT <- melt_matrix(sign_matrix)
-    sign_matrix_DT <- sign_matrix_DT[Var1 %in% all_genes]
-    detected_DT <- sign_matrix_DT[, sum(value), by = Var2]
-
-    lost_cell_types_DT <- detected_DT[V1 <= min_overlap_genes]
-    if (nrow(lost_cell_types_DT) > 0) {
-        for (row in seq_len(nrow(lost_cell_types_DT))) {
-            output <- paste0(
-                "Warning, ", lost_cell_types_DT[row][["Var2"]], " only has ",
-                lost_cell_types_DT[row][["V1"]],
-                " overlapping genes. Will be removed."
-            )
-            if (verbose) print(output)
-        }
-    }
-    available_ct <- as.character(detected_DT[V1 > min_overlap_genes][["Var2"]])
-
-    if (length(available_ct) == 1) {
-        stop("Only one cell type available.")
-    }
-
-    # create subset of signature matrix
-    interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
-    filterSig <- sign_matrix[interGene, available_ct]
-
-    # create fold expression for each gene in each spot
-    # calculate mean gene expression
-    if (reverse_log_scale == TRUE) {
-        mean_gene_expr <- log(rowMeans(logbase^expr_values - 1, dims = 1) + 1)
-    } else {
-        mean_gene_expr <- rowMeans(expr_values)
-    }
-    geneFold <- expr_values - mean_gene_expr
-
-    # calculate sample/spot mean and sd
-    cellColMean <- colMeans(geneFold)
-    cellColSd <- apply(geneFold, 2, stats::sd)
-    cellColMeanSd <- data.table::data.table(
-        cell_ID = names(cellColMean),
-        colmean = cellColMean,
-        colSd = cellColSd
-    )
-
-    filterSig_DT <- melt_matrix(filterSig)
-    colnames(filterSig_DT) <- c("gene", "cell_type", "marker")
-    sub_ct_DT <- filterSig_DT[marker == 1]
-    sub_ct_DT[, nr_markers := .N, by = cell_type]
-
-    ## reshape gene fold-expression
-    geneFold_DT <- melt_matrix(geneFold)
-    colnames(geneFold_DT) <- c("gene", "cell_ID", "fc")
-
-    mergetest <- data.table::merge.data.table(
-        sub_ct_DT, geneFold_DT,
-        by = "gene"
-    )
-    mergetest <- mergetest[, mean(fc), by = .(cell_type, cell_ID, nr_markers)]
-    if (is.integer(mergetest$cell_ID) && is.character(cellColMeanSd$cell_ID)) {
-        mergetest$cell_ID <- as.character(mergetest$cell_ID)
-    }
-    mergetest <- data.table::merge.data.table(
-        mergetest, cellColMeanSd,
-        by = "cell_ID"
-    )
-    mergetest[, zscore := ((V1 - colmean) * nr_markers^(1 / 2)) / colSd]
-
-    if (output_enrichment == "zscore") {
-        mergetest[, zscore := scale(zscore), by = "cell_type"]
-    }
-
-
-
-
-    ## return p-values based on permutations ##
-    if (p_value == TRUE) {
-        ## 1. get number of markers instructions ##
-        sample_intrs <- unique(sub_ct_DT[, .(cell_type, nr_markers)])
-
-
-        ## 2. first create the random samples all together ##
-        cell_type_list <- list()
-        perm_type_list <- list()
-        for (row in seq_len(nrow(sample_intrs))) {
-            cell_type <- sample_intrs[row][["cell_type"]]
-            nr_genes <- as.numeric(sample_intrs[row][["nr_markers"]])
-
-            gene_list <- list()
-            perm_list <- list()
-            for (i in seq_len(n_times)) {
-                sampled_genes <- sample(rownames(expr_values), size = nr_genes)
-                gene_list[[i]] <- sampled_genes
-                perm_list[[i]] <- rep(paste0("p_", i), nr_genes)
-            }
-
-            gene_res <- unlist(gene_list)
-            names(gene_res) <- rep(cell_type, length(gene_res))
-            cell_type_list[[row]] <- gene_res
-
-            perm_res <- unlist(perm_list)
-            perm_type_list[[row]] <- perm_res
-        }
-
-        cell_type_perm <- unlist(cell_type_list)
-        perm_round <- unlist(perm_type_list)
-
-        cell_type_perm_DT <- data.table::data.table(
-            cell_type = names(cell_type_perm),
-            gene = cell_type_perm,
-            round = perm_round
-        )
-
-        sample_intrs_vec <- sample_intrs$nr_markers
-        names(sample_intrs_vec) <- sample_intrs$cell_type
-        cell_type_perm_DT[, nr_markers := sample_intrs_vec[cell_type]]
-
-
-        ## 3. decide on number of blocks to process ##
-        nr_perm_lines <- as.numeric(nrow(cell_type_perm_DT))
-        nr_spots <- as.numeric(ncol(expr_values))
-        total_lines <- nr_spots * nr_perm_lines
-        nr_groups <- round(total_lines / max_block)
-
-        ## 4. create groups
-        all_perms <- unique(perm_round)
-        all_perms_num <- seq_along(all_perms)
-        names(all_perms_num) <- all_perms
-        group_labels <- paste0("group_", seq_len(nr_groups))
-        groups_vec <- cut(
-            all_perms_num,
-            breaks = nr_groups, labels = group_labels
-        )
-        names(all_perms) <- groups_vec
-
-
-        ## 5. do random enrichment per block
-        res_list <- list()
-        for (group_i in seq_along(group_labels)) {
-            group <- group_labels[group_i]
-            sub_perms <- all_perms[names(all_perms) == group]
-            cell_type_perm_DT_sub <- cell_type_perm_DT[round %in% sub_perms]
-
-            mergetest_perm_sub <- data.table::merge.data.table(
-                cell_type_perm_DT_sub, geneFold_DT,
-                allow.cartesian = TRUE
-            )
-            mergetest_perm_sub <- mergetest_perm_sub[
-                , mean(fc),
-                by = .(cell_type, cell_ID, nr_markers, round)
-            ]
-            if (is.integer(mergetest_perm_sub$cell_ID) && is.character(
-                cellColMeanSd$cell_ID
-            )) {
-                mergetest_perm_sub$cell_ID <- as.character(
-                    mergetest_perm_sub$cell_ID
-                )
-            }
-            mergetest_perm_sub <- data.table::merge.data.table(
-                mergetest_perm_sub, cellColMeanSd,
-                by = "cell_ID"
-            )
-            mergetest_perm_sub[, zscore := ((
-                V1 - colmean) * nr_markers^(1 / 2)) / colSd]
-
-            res_list[[group_i]] <- mergetest_perm_sub
-        }
-
-        res_list_comb <- do.call("rbind", res_list)
-        res_list_comb_average <- res_list_comb[
-            , .(mean_zscore = mean(zscore), sd_zscore = stats::sd(zscore)),
-            by = c("cell_ID", "cell_type")
-        ]
-        mergetest_final <- data.table::merge.data.table(
-            mergetest, res_list_comb_average,
-            by = c("cell_ID", "cell_type")
-        )
-
-        ## calculate p.values based on normal distribution
-        if (include_depletion == TRUE) {
-            mergetest_final[, pval := stats::pnorm(
-                abs(zscore),
-                mean = mean_zscore, sd = sd_zscore,
-                lower.tail = FALSE, log.p = FALSE
-            )]
-        } else {
-            mergetest_final[, pval := stats::pnorm(
-                zscore,
-                mean = mean_zscore, sd = sd_zscore,
-                lower.tail = FALSE, log.p = FALSE
-            )]
-        }
-
-        data.table::setorder(mergetest_final, pval)
-
-        ## calculate pval_score
-        if (include_depletion == TRUE) {
-            mergetest_final[, pval_score := sign(zscore) * -log10(pval)]
-        } else {
-            mergetest_final[, pval_score := -log10(pval)]
-        }
-
-
-        resultmatrix <- data.table::dcast(
-            mergetest_final,
-            formula = cell_ID ~ cell_type,
-            value.var = "pval_score"
-        )
-        return(list(DT = mergetest_final, matrix = resultmatrix))
-    } else {
-        resultmatrix <- data.table::dcast(
-            mergetest,
-            formula = cell_ID ~ cell_type, value.var = "zscore"
-        )
-        return(list(DT = mergetest, matrix = resultmatrix))
-    }
-}
-
-
-
 #' @rdname enrichment_PAGE
 #' @export
 runPAGEEnrich <- function(
@@ -764,7 +441,6 @@ runPAGEEnrich <- function(
         method = "PAGE", name = name,
         spat_unit = spat_unit, feat_type = feat_type,
         values = values, expression_values = expression_values,
-        densify = TRUE,
         misc = list(
             expr_values_used = expression_values,
             reverse_log_scale = reverse_log_scale,
@@ -788,11 +464,7 @@ runPAGEEnrich <- function(
         return_gobject = return_gobject
     )
 
-    if (isTRUE(return_gobject)) return(out$gobject)
-    # PAGE is the only one of the four that returns a list. Kept as it was:
-    # changing it is a breaking change to a public return value and belongs in
-    # its own commit, not in a refactor that is meant to be a no-op.
-    list(DT = out$detail, matrix = out$enrObj)
+    if (isTRUE(return_gobject)) out$gobject else out$enrObj
 }
 
 
@@ -958,7 +630,6 @@ runRankEnrich <- function(
             "expression values" = expression_values,
             "reverse log scale" = reverse_log_scale,
             "logbase" = logbase,
-            "p-values calculated" = p_value,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value,
             "nr permutations" = n_times
@@ -1057,7 +728,6 @@ runHyperGeometricEnrich <- function(
             "reverse log scale" = reverse_log_scale,
             "logbase" = logbase,
             "top percentage" = top_percentage,
-            "p-values calculated" = p_value,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value
         ),
@@ -1081,15 +751,15 @@ runHyperGeometricEnrich <- function(
 #' @param enrich_method method for gene signature enrichment calculation
 #' @param min_overlap_genes minimum number of overlapping features in
 #' `sign_matrix` required to calculate enrichment (PAGE)
-#' @param include_depletion (PAGE) also test for depletion, not enrichment
-#' only (default = FALSE)
+#' @param include_depletion (PAGE) test depletion as well as enrichment, on
+#' the absolute z-score (default = FALSE)
 #' @param ties_method (rank) how to rank tied expression values, `"average"`
 #' (default) or `"max"`
 #' @param n_times (page/rank) number of permutation iterations to calculate
 #' p-value
 #' @param rbp_p (rank) fractional binarization threshold (default = 0.99)
 #' @param num_agg (rank) number of top genes to aggregate (default = 100)
-#' @param max_block number of lines to process together (default = 20e6)
+#' @param max_block no longer used; kept so existing calls still run
 #' @param top_percentage (hyper) percentage of features per cell treated as
 #' expressed when binarizing (default = 5)
 #' @param verbose be verbose

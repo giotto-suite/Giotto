@@ -37,8 +37,9 @@ runSpatialEnrich(
 
 \item{enrich_method}{method for gene signature enrichment calculation}
 
-\item{sign_matrix}{binary matrix of signature features (rows) by cell type
-or process (columns), 1 where the feature marks the type. Build one with
+\item{sign_matrix}{matrix of signature features (rows) by cell type or
+process (columns); a feature marks a type where its value is > 0. Build one
+with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
 \item{expression_values}{character. Which expression values to use, e.g.
@@ -53,7 +54,9 @@ or process (columns), 1 where the feature marks the type. Build one with
 \item{logbase}{numeric. Log base to undo when \code{reverse_log_scale = TRUE}
 (default = 2).}
 
-\item{p_value}{logical. Calculate p-values (default = FALSE).}
+\item{p_value}{logical. Return p-values instead of scores (default =
+FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
+applies to scores only.}
 
 \item{n_times}{(page/rank) number of permutation iterations to calculate
 p-value}
@@ -62,7 +65,7 @@ p-value}
 
 \item{num_agg}{(rank) number of top genes to aggregate (default = 100)}
 
-\item{max_block}{number of lines to process together (default = 20e6)}
+\item{max_block}{no longer used; kept so existing calls still run}
 
 \item{top_percentage}{(hyper) percentage of features per cell treated as
 expressed when binarizing (default = 5)}
@@ -76,8 +79,8 @@ the Usage section.}
 
 \item{verbose}{be verbose}
 
-\item{include_depletion}{(PAGE) also test for depletion, not enrichment
-only (default = FALSE)}
+\item{include_depletion}{(PAGE) test depletion as well as enrichment, on
+the absolute z-score (default = FALSE)}
 
 \item{ties_method}{(rank) how to rank tied expression values, \code{"average"}
 (default) or \code{"max"}}

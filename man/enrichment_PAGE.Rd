@@ -39,8 +39,9 @@ feat signature}
 
 \item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{sign_matrix}{binary matrix of signature features (rows) by cell type
-or process (columns), 1 where the feature marks the type. Build one with
+\item{sign_matrix}{matrix of signature features (rows) by cell type or
+process (columns); a feature marks a type where its value is > 0. Build one
+with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
 \item{expression_values}{character. Which expression values to use, e.g.
@@ -58,14 +59,16 @@ or process (columns), 1 where the feature marks the type. Build one with
 \item{output_enrichment}{character. "original" (default) or "zscore", which
 standardizes the scores within each cell type.}
 
-\item{p_value}{logical. Calculate p-values (default = FALSE).}
+\item{p_value}{logical. Return p-values instead of scores (default =
+FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
+applies to scores only.}
 
-\item{include_depletion}{also test for depletion, not enrichment only
-(default = FALSE)}
+\item{include_depletion}{test depletion as well as enrichment, on the
+absolute z-score (default = FALSE)}
 
 \item{n_times}{number of permutation iterations to calculate p-value}
 
-\item{max_block}{number of lines to process together (default = 20e6)}
+\item{max_block}{no longer used; kept so existing calls still run}
 
 \item{name}{character. Name to store the result under in the giotto object's
 spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
@@ -78,8 +81,8 @@ added (default = TRUE), or the result object on its own.}
 }
 \value{
 \code{matrix} (\code{makeSignMatrixPAGE()}) and
-\code{giotto} (\code{runPAGEEnrich(return_gobject = TRUE)}) or
-\code{data.table} (\code{runPAGEEnrich(return_gobject = FALSE)})
+\code{giotto} (\code{runPAGEEnrich(return_gobject = TRUE)}) or a \code{spatEnrObj}
+(\code{runPAGEEnrich(return_gobject = FALSE)})
 }
 \description{
 Expression feature-based enrichment scoring of labels. \cr

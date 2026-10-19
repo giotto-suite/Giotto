@@ -29,8 +29,9 @@ runRankEnrich(
 
 \item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{sign_matrix}{binary matrix of signature features (rows) by cell type
-or process (columns), 1 where the feature marks the type. Build one with
+\item{sign_matrix}{matrix of signature features (rows) by cell type or
+process (columns); a feature marks a type where its value is > 0. Build one
+with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
 \item{expression_values}{character. Which expression values to use, e.g.
@@ -47,7 +48,9 @@ standardizes the scores within each cell type.}
 \item{ties_method}{how to rank tied expression values, \code{"average"}
 (default) or \code{"max"}}
 
-\item{p_value}{logical. Calculate p-values (default = FALSE).}
+\item{p_value}{logical. Return p-values instead of scores (default =
+FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
+applies to scores only.}
 
 \item{n_times}{number of permutation iterations to calculate p-value}
 
