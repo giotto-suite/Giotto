@@ -222,6 +222,7 @@ heatmapCoexpression <- function(gobject,
         (1 - (between_cor - min(between_cor, na.rm = TRUE)))]
     data.table::setorder(summary, -score, na.last = TRUE)
 
-    list(cor = cm, modules = modules, feats = feats, summary = summary,
+    # `[]` so the first print after `:=` is not swallowed
+    list(cor = cm, modules = modules, feats = feats[], summary = summary[],
         hclust = hc)
 }
