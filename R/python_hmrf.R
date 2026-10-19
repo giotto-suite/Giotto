@@ -1382,7 +1382,7 @@ initHMRF_V2 <-
 
 
         # DT vars
-        to <- from <- clus <- NULL
+        to <- from <- module <- module_cor <- NULL
 
         spat_unit <- set_default_spat_unit(
             gobject = gobject,
@@ -1606,29 +1606,22 @@ initHMRF_V2 <-
                 y0 <- (pc.expr[, use_pca_dim])
             } else {
                 message("\n Computing spatial coexpression modules...")
-                spat_cor_netw_DT <- detectSpatialCorFeats(
-                    gobject = gobject,
-                    feat_type = feat_type,
-                    spat_unit = spat_unit,
+                # unsmoothed correlation (smoothing = 0) of the spatial genes
+                coexpr <- function(k) spatialCoexpression(gobject,
+                    spat_unit = spat_unit, feat_type = feat_type,
                     expression_values = values,
-                    method = "network",
                     spatial_network_name = spatial_network_name,
-                    subset_feats = spatial_genes,
-                    network_smoothing = 0
-                )
+                    feats = spatial_genes, smoothing = 0, n_modules = k,
+                    return_gobject = FALSE)
 
                 if (use_metagene == FALSE) {
                     n <- min(gene_samples, 500, length(spatial_genes))
                     if (n < length(spatial_genes)) {
-                        spat_cor_netw_DT <- clusterSpatialCorFeats(
-                            spat_cor_netw_DT,
-                            name = "spat_netw_clus",
-                            k = 20
-                        )
+                        modules <- coexpr(20)$modules
                         message("\n Sampling spatial genes from coexpression
                                 modules...")
                         sample_genes <- sampling_sp_genes(
-                            spat_cor_netw_DT$cor_clusters$spat_netw_clus,
+                            modules,
                             sample_rate = gene_sampling_rate,
                             target = n,
                             seed = gene_sampling_seed
@@ -1656,23 +1649,18 @@ initHMRF_V2 <-
                             " coexpression modules due to limited gene size..."
                         ))
                     }
-                    spat_cor_netw_DT <- clusterSpatialCorFeats(spat_cor_netw_DT,
-                        name = "spat_netw_clus", k = k.sp
-                    )
-
-                    cluster_genes_DT <- showSpatialCorFeats(spat_cor_netw_DT,
-                        use_clus_name = "spat_netw_clus",
-                        show_top_feats = 1
-                    )
-
                     cat(paste0("\n Collecting top spatial genes and calculating
                         metagenes from ", k.sp, " coexpression modules..."))
 
-                    top_per_module <- cluster_genes_DT[
+                    # the genes most correlated with the rest of their module
+                    mod_feats <- coexpr(k.sp)$feats
+                    data.table::setorder(mod_feats, module, -module_cor,
+                        na.last = TRUE)
+                    top_per_module <- mod_feats[
                         , head(.SD, top_metagene),
-                        by = clus
+                        by = module
                     ]
-                    cluster_genes <- top_per_module$clus
+                    cluster_genes <- top_per_module$module
                     names(cluster_genes) <- top_per_module$feat_ID
 
                     meta.genes <- createMetafeats(
@@ -1684,7 +1672,9 @@ initHMRF_V2 <-
                         return_gobject = FALSE
                     )
 
-                    expr_values <- t(meta.genes@enrichDT[, seq_len(k.sp)])
+                    expr_values <- t(
+                        meta.genes@enrichDT[, seq_len(k.sp), with = FALSE]
+                    )
                     colnames(expr_values) <- unlist(
                         meta.genes@enrichDT[, "cell_ID"]
                     )
