@@ -6,8 +6,8 @@
 # which dispatches on the expression object, so a disk-backed store works
 # wherever its backend provides them:
 #
-#   processData(x, spatialSmoothParam, network =)  # GiottoClass
-#   analyzeData(x, featCorParam)                   # GiottoClass
+#   analyzeData(x, featCorParam(smooth = spatialSmoothParam()), network =)
+#                                                  # GiottoClass
 #   hclust on 1 - correlation                      # modules
 #   createMetafeats()                              # one score per module
 # ============================================================================
@@ -111,9 +111,11 @@ spatialCoexpression <- function(gobject,
 
     vmsg(.v = verbose, "smoothing", nrow(x), "features over",
         spatial_network_name)
-    sm <- processData(x, spatialSmoothParam(smoothing = smoothing,
-        weighted = weighted, hops = hops), network = net)
-    cm <- analyzeData(sm, featCorParam(method = cor_method))
+    # smoothing and correlation in one step, so a disk backend never has to
+    # write the smoothed values
+    cm <- analyzeData(x, featCorParam(method = cor_method,
+        smooth = spatialSmoothParam(smoothing = smoothing,
+            weighted = weighted, hops = hops)), network = net)
     res <- .coexpr_modules(cm, n_modules, cluster_method)
     if (!isTRUE(return_gobject)) return(res)
 
