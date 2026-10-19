@@ -18,7 +18,8 @@
 #' `sign_matrix` required to calculate enrichment (PAGE)
 #' @param include_depletion test depletion as well as enrichment, on the
 #' absolute z-score (default = FALSE)
-#' @param n_times number of permutation iterations to calculate p-value
+#' @param n_times no longer used: PAGE p-values come from the permutation null
+#' in closed form; kept so existing calls still run
 #' @param max_block no longer used; kept so existing calls still run
 #' @param verbose be verbose
 #' @returns `matrix` (`makeSignMatrixPAGE()`) and
@@ -447,8 +448,7 @@ runPAGEEnrich <- function(
             logbase = logbase,
             p_values_calculated = p_value,
             output_enrichment_scores = output_enrichment,
-            include_depletion = include_depletion,
-            nr_permutations = n_times
+            include_depletion = include_depletion
         ),
         history = c(
             "method used" = "PAGE",
@@ -458,8 +458,7 @@ runPAGEEnrich <- function(
             "logbase" = logbase,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value,
-            "include depletion" = include_depletion,
-            "nr permutations" = n_times
+            "include depletion" = include_depletion
         ),
         return_gobject = return_gobject
     )
@@ -755,7 +754,7 @@ runHyperGeometricEnrich <- function(
 #' the absolute z-score (default = FALSE)
 #' @param ties_method (rank) how to rank tied expression values, `"average"`
 #' (default) or `"max"`
-#' @param n_times (page/rank) number of permutation iterations to calculate
+#' @param n_times (rank) number of permutation iterations to calculate
 #' p-value
 #' @param rbp_p (rank) fractional binarization threshold (default = 0.99)
 #' @param num_agg (rank) number of top genes to aggregate (default = 100)

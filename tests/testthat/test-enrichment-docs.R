@@ -130,8 +130,9 @@ test_that("a shared parameter is described one way within each family", {
     #     parameters on the enrichParam() factory but is unused on the
     #     analyzeData() methods, which document it only because it is in
     #     their usage; and runRankEnrich deprecates reverse_log_scale/logbase,
-    #     so its text differs on purpose.
-    per_topic <- c("param", "...", "reverse_log_scale", "logbase")
+    #     so its text differs on purpose, as runPAGEEnrich does n_times, whose
+    #     p-values need no permutations.
+    per_topic <- c("param", "...", "reverse_log_scale", "logbase", "n_times")
     for (f in FAMILIES) {
         members <- .family_members(db, f)
         seen <- list()

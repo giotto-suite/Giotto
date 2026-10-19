@@ -5,7 +5,7 @@
 \alias{analyzeData,ANY,hyperEnrichParam-method}
 \title{Hypergeometric enrichment}
 \usage{
-\S4method{analyzeData}{ANY,hyperEnrichParam}(x, param, ..., sign_matrix)
+\S4method{analyzeData}{ANY,hyperEnrichParam}(x, param, ..., sign_matrix, reference = NULL)
 }
 \arguments{
 \item{x}{expression values. A \code{matrix}, a \code{Matrix}, or anything an
@@ -20,6 +20,10 @@ engine registered from another package can accept its own arguments.}
 process (columns); a feature marks a type where its value is > 0. Build one
 with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
+
+\item{reference}{per-feature reference level, named by feature. Computed
+from \code{x} when \code{NULL}; supply it to score some cells against the
+reference of all of them, as a disk-backed engine does window by window.}
 }
 \value{
 a \code{data.table} of \code{cell_ID} and one column per cell type

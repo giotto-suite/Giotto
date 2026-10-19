@@ -66,7 +66,8 @@ applies to scores only.}
 \item{include_depletion}{test depletion as well as enrichment, on the
 absolute z-score (default = FALSE)}
 
-\item{n_times}{number of permutation iterations to calculate p-value}
+\item{n_times}{no longer used: PAGE p-values come from the permutation null
+in closed form; kept so existing calls still run}
 
 \item{max_block}{no longer used; kept so existing calls still run}
 

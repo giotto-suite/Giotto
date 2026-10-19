@@ -96,35 +96,34 @@ test_that("runPAGEEnrich matches the written-out PAGE z-score", {
     expect_setequal(names(res@misc), c(
         "expr_values_used", "reverse_log_scale", "logbase",
         "p_values_calculated", "output_enrichment_scores",
-        "include_depletion", "nr_permutations"
+        "include_depletion"
     ))
 })
 
-test_that("PAGE permutation p-values match the written-out permutations", {
+test_that("PAGE p-values are the permutation null in closed form", {
     skip_if_no_mini()
     f <- .enrich_fixture()
     x <- getExpression(f$g, values = "normalized", output = "matrix")
-    set.seed(11)
-    got <- analyzeData(x, enrichParam("PAGE", p_value = TRUE, n_times = 50,
+    got <- analyzeData(x, enrichParam("PAGE", p_value = TRUE,
         verbose = FALSE), sign_matrix = f$sm)
-
-    fc <- .ref_fc(x)
     z <- .ref_page(x, f$sm)
-    cm <- colMeans(fc)
-    cs <- apply(fc, 2, sd)
-    set.seed(11)
-    ref <- sapply(colnames(z), function(t) {
-        k <- sum(f$sm[, t] > 0)
-        zp <- sapply(seq_len(50), function(i) {
-            g <- sample(rownames(x), size = k)
-            (colMeans(fc[g, , drop = FALSE]) - cm) * sqrt(k) / cs
-        })
-        stats::pnorm(z[, t], mean = rowMeans(zp), sd = apply(zp, 1, sd),
-            lower.tail = FALSE)
+    G <- nrow(x)
+    k <- colSums(f$sm > 0)
+    ref <- stats::pnorm(t(t(z) / sqrt((G - k) / G)), lower.tail = FALSE)
+    expect_equal(.scores(got), ref, tolerance = 1e-10, ignore_attr = TRUE)
+
+    # against brute-force permutations on a few cells: random sets of the
+    # type's size, their z's mean and sd per cell, and the normal tail
+    fc <- .ref_fc(x)[, 1:5]
+    set.seed(3)
+    zp <- replicate(20000, {
+        g <- sample(nrow(fc), k[["typeA"]])
+        (colMeans(fc[g, , drop = FALSE]) - colMeans(fc)) *
+            sqrt(k[["typeA"]]) / apply(fc, 2, sd)
     })
-    expect_equal(.scores(got), ref, tolerance = 1e-10,
-        ignore_attr = TRUE)
-    expect_true(all(got$typeA >= 0 & got$typeA <= 1))
+    perm <- stats::pnorm(z[1:5, "typeA"], rowMeans(zp), apply(zp, 1, sd),
+        lower.tail = FALSE)
+    expect_equal(got$typeA[1:5], unname(perm), tolerance = 0.02)
 })
 
 
@@ -504,6 +503,34 @@ test_that("the verb runs on a bare matrix, with no gobject", {
     }
 })
 
+
+test_that("cells scored in parts against a shared reference match all at once", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    m <- getExpression(f$g, values = "normalized", output = "matrix")
+    ref <- log(Matrix::rowMeans(2^m - 1) + 1, base = 2)
+    parts <- split(seq_len(ncol(m)), seq_len(ncol(m)) > 300)
+
+    # what a disk-backed engine does: score each window of cells against the
+    # reference of all of them
+    for (p in list(
+        enrichParam("PAGE", verbose = FALSE),
+        enrichParam("PAGE", p_value = TRUE, verbose = FALSE),
+        enrichParam("hypergeometric"),
+        enrichParam("hypergeometric", p_value = TRUE)
+    )) {
+        whole <- analyzeData(m, p, sign_matrix = f$sm)
+        pieces <- data.table::rbindlist(lapply(parts, function(j) {
+            analyzeData(m[, j], p, sign_matrix = f$sm, reference = ref)
+        }))
+        expect_equal(pieces, whole, tolerance = 1e-12, info = class(p))
+    }
+    expect_error(
+        analyzeData(m, enrichParam("PAGE"), sign_matrix = f$sm,
+                    reference = unname(ref)),
+        "named by feature"
+    )
+})
 
 test_that("rank's reverse_log_scale and logbase are inert, and say so", {
     skip_if_no_mini()

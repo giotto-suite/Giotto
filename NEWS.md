@@ -12,9 +12,15 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 
 ## changes
 - PAGE no longer densifies the expression or melts it into a long table: the
-  scores come from per-cell moments and one product with the marker matrix,
-  and its permutation p-values from one product per cell type (about 70x
-  faster on the Visium mini).
+  scores come from per-cell moments and one product with the marker matrix.
+- PAGE p-values are the permutation null in closed form instead of a
+  normal fit to sampled permutations; `n_times` is no longer used by PAGE.
+- All three methods work a block of cells at a time and no longer loop over
+  cells in R: much faster and with a bounded memory peak, most of all for
+  PAGE p-values and hypergeometric enrichment.
+- `analyzeData()` for PAGE and hypergeometric takes a `reference` level per
+  feature, so a disk-backed engine can score windows of cells against the
+  reference of all cells.
 
 ## bug fixes
 - Hypergeometric enrichment scored every cell against other cells'

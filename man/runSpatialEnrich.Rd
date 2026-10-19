@@ -58,7 +58,7 @@ with
 FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
 applies to scores only.}
 
-\item{n_times}{(page/rank) number of permutation iterations to calculate
+\item{n_times}{(rank) number of permutation iterations to calculate
 p-value}
 
 \item{rbp_p}{(rank) fractional binarization threshold (default = 0.99)}
