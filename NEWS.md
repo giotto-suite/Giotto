@@ -19,6 +19,11 @@
   which failed on a giotto object, is gone.
 
 ## bug fixes
+- Xenium focus images from Xenium Onboard Analysis 2.x
+  (`morphology_focus_0000.ome.tif`, ...) are named by their channel, read
+  from the OME header: `dapi`, `18s`, `atp1a1_cd45_e-cadherin`,
+  `alphasma_vimentin`, as the files of later versions are named. They were
+  `bound1`-`bound4`, which named the DAPI image `bound1`.
 - Network smoothing for spatial co-expression averaged each cell only with
   the neighbours stored as `from` for it, about half of them on undirected
   networks; it now uses every neighbour.

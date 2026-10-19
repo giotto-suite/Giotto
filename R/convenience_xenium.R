@@ -555,6 +555,14 @@ setMethod(
                         marker <- ifelse(grepl("^ch\\d+_.*\\.ome\\.tif$", bn, ignore.case = TRUE),
                                          sub("^ch\\d+_(.*?)\\.ome\\.tif$", "\\1", bn, ignore.case = TRUE),
                                          NA_character_)
+                        # file names without the channel: read it from
+                        # the OME header
+                        ome_nm <- .xenium_focus_channel_names(
+                            focus_files[is.na(marker)])
+                        if (!is.null(ome_nm)) {
+                            na_m <- is.na(marker)
+                            marker[na_m] <- unname(ome_nm[bn[na_m]])
+                        }
                         is_dapi <- grepl("dapi", bn, ignore.case = TRUE) |
                             (!is.na(marker) & grepl("^dapi$", marker, ignore.case = TRUE))
 
@@ -1566,6 +1574,25 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     })
     return(gimg_list)
 }
+# Channel names of Xenium focus OME-TIFFs whose file names do not carry them
+# (Xenium Onboard Analysis 2.x writes morphology_focus_0000.ome.tif, ...).
+# Every file's OME-XML lists all channels and the file holding each, so the
+# first file names them all. Returns names keyed by file name, spelled as
+# XOA 3.x file names spell them ("ATP1A1/CD45/E-Cadherin" ->
+# "atp1a1_cd45_e-cadherin"), or NULL when the header cannot be read.
+.xenium_focus_channel_names <- function(files) {
+    ome <- files[grepl("\\.ome\\.tif$", files, ignore.case = TRUE)]
+    if (!length(ome)) return(NULL)
+    tryCatch({
+        ch <- GiottoClass::tif_metadata(ome[[1L]], node = "Channel")
+        td <- GiottoClass::tif_metadata(ome[[1L]], node = "TiffData")
+        fl <- GiottoClass::tif_metadata(ome[[1L]], node = "UUID")
+        nm <- ch$Name[as.integer(td$FirstC) + 1L]
+        if (!length(nm) || length(nm) != length(fl$FileName)) return(NULL)
+        stats::setNames(tolower(gsub("[/[:space:]]+", "_", nm)), fl$FileName)
+    }, error = function(e) NULL)
+}
+
 ### OME-XML -> LUT helper (channel-scoped)
 .xenium_read_ome_annotations <- function(path,
                                          collapse = TRUE,
