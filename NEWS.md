@@ -11,6 +11,11 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   `output_enrichment = "zscore"` no longer distorts them.
 
 ## changes
+- The Stereo-seq readers (`importStereoSeq()`,
+  `createGiottoStereoSeqObjectBin()`, `createGiottoStereoSeqObjectCell()`)
+  accept a folder with the GEF and registered image files directly, as
+  downloaded from the STOmics demo site, as well as a SAW `outs/` directory
+  with `feature_expression/` and `image/`.
 - PAGE no longer densifies the expression or melts it into a long table: the
   scores come from per-cell moments and one product with the marker matrix.
 - PAGE p-values are the permutation null in closed form instead of a

@@ -78,7 +78,9 @@ setMethod("print", signature("StereoSeqReader"), function(x, ...) show(x))
 #' A function that creates the full `giotto` object is also available. These
 #' functions should have all param values provided as defaults, but can be
 #' flexibly modified to look in alternative directories or paths.
-#' @param stereoseq_dir filepath to the Stereo-seq `outs` directory.
+#' @param stereoseq_dir filepath to the Stereo-seq `outs` directory, with
+#'   `feature_expression/` and `image/` subdirectories, or to a folder holding
+#'   the GEF and registered image files directly (as downloaded from STOmics).
 #' @param type character. One of `"bin"` (square bin, default) or `"cell"`
 #'   (cell bin / cellbin).
 #' @param bin_size character. Bin size level to load when `type = "bin"`.
@@ -334,7 +336,7 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
             stop(
                 "[StereoSeq] No bin GEF found for bin1 binpoints. ",
                 "Provide `path` explicitly or ensure a *.tissue.gef or *.gef ",
-                "is present in feature_expression/.",
+                "is present in feature_expression/ or the data directory.",
                 call. = FALSE
             )
         }
@@ -456,7 +458,7 @@ setMethod("initialize", signature("StereoSeqReader"), function(.Object,
                 stop(
                     "[StereoSeq] No bin GEF found for bin1 binpoints. ",
                     "Provide `bin1_path` explicitly or ensure a *.tissue.gef ",
-                    "or *.gef is present in feature_expression/.",
+                    "or *.gef is present in feature_expression/ or the data directory.",
                     call. = FALSE
                 )
             }
@@ -577,7 +579,7 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 # whose closures reference these names via default-arg expressions.
 .stereoseq_detect_paths <- function(stereoseq_dir, type, gef_type) {
     if (length(stereoseq_dir) == 0L) return(list())
-    image_dir <- file.path(stereoseq_dir, "image")
+    image_dir <- .stereoseq_subdir(stereoseq_dir, "image")
     gef_path  <- .stereoseq_find_gef(stereoseq_dir, gef_type)
     # bin1 data for giottoBinPoints always lives in a bin GEF (not
     # cellbin). For cell readers, find the tissue GEF separately;
@@ -613,32 +615,40 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
     NA_character_
 }
 
-# Find a .gef file of the requested type under path/feature_expression/.
+# A SAW `outs/` directory keeps its files in `feature_expression/` and
+# `image/`; a download from the STOmics demo site has them all in one folder.
+# Use the subdirectory when it exists, else the folder itself.
+.stereoseq_subdir <- function(path, sub) {
+    d <- file.path(path, sub)
+    if (dir.exists(d)) d else path
+}
+
+# Find a .gef file of the requested type under path/feature_expression/, or
+# in path itself.
 # gef_type: "tissue" | "full" | "raw" (bin) or "adjusted_cellbin" | "cellbin" (cell)
 .stereoseq_find_gef <- function(path, gef_type) {
-    feat_dir <- file.path(path, "feature_expression")
-    if (!dir.exists(feat_dir)) {
-        stop(sprintf(
-            "[StereoSeq] feature_expression directory not found at: %s",
-            feat_dir
-        ), call. = FALSE)
+    if (!dir.exists(path)) {
+        stop(sprintf("[StereoSeq] directory not found: %s", path),
+            call. = FALSE)
     }
+    feat_dir <- .stereoseq_subdir(path, "feature_expression")
     files <- list.files(feat_dir)
     gef_files <- files[grepl("\\.gef$", files)]
     types <- vapply(gef_files, .stereoseq_classify_gef, character(1L))
     hit   <- gef_files[types == gef_type]
     if (length(hit) == 0L) {
         stop(sprintf(
-            "[StereoSeq] No gef_type=\"%s\" file found in feature_expression/",
-            gef_type
+            "[StereoSeq] No gef_type=\"%s\" file found in %s",
+            gef_type, feat_dir
         ), call. = FALSE)
     }
     file.path(feat_dir, hit[[1L]])
 }
 
-# Find *_HE_mask.tif (exact, not the _edm_dis_ variant) under path/image/
+# Find *_HE_mask.tif (exact, not the _edm_dis_ variant) under path/image/, or
+# in path itself
 .stereoseq_find_mask <- function(path) {
-    img_dir <- file.path(path, "image")
+    img_dir <- .stereoseq_subdir(path, "image")
     if (!dir.exists(img_dir)) return(NULL)
     files <- list.files(img_dir)
     # match *_HE_mask.tif but NOT *_HE_mask_edm_dis_*.tif
@@ -1124,7 +1134,9 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
 #' pipeline. For lower-level loading of individual pieces of data, see
 #' [importStereoSeq()].
 #'
-#' @param stereoseq_dir filepath to the Stereo-seq `outs` directory.
+#' @param stereoseq_dir filepath to the Stereo-seq `outs` directory, with
+#'   `feature_expression/` and `image/` subdirectories, or to a folder holding
+#'   the GEF and registered image files directly (as downloaded from STOmics).
 #' @param bin_size character. Bin size level to load. One of `"bin1"`,
 #'   `"bin5"`, `"bin10"`, `"bin20"`, `"bin50"`, `"bin100"` (default),
 #'   `"bin150"`, `"bin200"`. List available bins with
@@ -1230,7 +1242,9 @@ createGiottoStereoSeqObjectBin <- function(
 #' pipeline. For lower-level loading of individual pieces of data, see
 #' [importStereoSeq()].
 #'
-#' @param stereoseq_dir filepath to the Stereo-seq `outs` directory.
+#' @param stereoseq_dir filepath to the Stereo-seq `outs` directory, with
+#'   `feature_expression/` and `image/` subdirectories, or to a folder holding
+#'   the GEF and registered image files directly (as downloaded from STOmics).
 #' @param gene_column character. Feature identifier column. One of
 #'   `"geneName"` (default) or `"geneID"`.
 #' @param negative_y logical. Map data to negative y spatial values

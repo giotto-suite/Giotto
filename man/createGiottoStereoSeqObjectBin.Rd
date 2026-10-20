@@ -24,7 +24,9 @@ createGiottoStereoSeqObjectBin(
 )
 }
 \arguments{
-\item{stereoseq_dir}{filepath to the Stereo-seq `outs` directory.}
+\item{stereoseq_dir}{filepath to the Stereo-seq `outs` directory, with
+`feature_expression/` and `image/` subdirectories, or to a folder holding
+the GEF and registered image files directly (as downloaded from STOmics).}
 
 \item{bin_size}{character. Bin size level to load. One of `"bin1"`,
 `"bin5"`, `"bin10"`, `"bin20"`, `"bin50"`, `"bin100"` (default),
