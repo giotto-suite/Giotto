@@ -294,9 +294,11 @@ NULL
 #' (default = 2).
 #' @param output_enrichment character. "original" (default) or "zscore", which
 #' standardizes the scores within each cell type.
-#' @param p_value logical. Return p-values instead of scores (default =
-#' FALSE). They are computed from the unscaled scores, so `output_enrichment`
-#' applies to scores only.
+#' @param p_value logical. Also compute p-values, from the unscaled scores
+#' (default = FALSE). The `run*Enrich()` functions store them beside the
+#' scores as `<name>_p`, with Benjamini-Hochberg adjusted p-values over all
+#' cells and types as `<name>_padj`; `analyzeData()` returns the p-values,
+#' carrying the scores as their `"scores"` attribute.
 #' @md
 #' @returns spatial enrichment scores, one per cell per signature
 #' @keywords internal

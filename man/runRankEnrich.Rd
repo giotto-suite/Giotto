@@ -48,9 +48,11 @@ standardizes the scores within each cell type.}
 \item{ties_method}{how to rank tied expression values, \code{"average"}
 (default) or \code{"max"}}
 
-\item{p_value}{logical. Return p-values instead of scores (default =
-FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
-applies to scores only.}
+\item{p_value}{logical. Also compute p-values, from the unscaled scores
+(default = FALSE). The \code{run*Enrich()} functions store them beside the
+scores as \verb{<name>_p}, with Benjamini-Hochberg adjusted p-values over all
+cells and types as \verb{<name>_padj}; \code{analyzeData()} returns the p-values,
+carrying the scores as their \code{"scores"} attribute.}
 
 \item{n_times}{number of permutation iterations to calculate p-value}
 
@@ -66,7 +68,9 @@ the Usage section.}
 added (default = TRUE), or the result object on its own.}
 }
 \value{
-data.table with enrichment results
+\code{giotto} (\code{return_gobject = TRUE}), else a \code{spatEnrObj}, or with
+\code{p_value = TRUE} a list of them named by enrichment: the scores, \verb{_p} and
+\verb{_padj}
 }
 \description{
 Score each spatial position against cell type or process

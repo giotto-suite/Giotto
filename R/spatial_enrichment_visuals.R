@@ -4,38 +4,40 @@
 #' @param spat_unit spatial unit in which the enrichment information is stored
 #' @param feat_type feature type for which the enrichment information was
 #' calculated
-#' @param enrichment_name name of the spatial enrichment
-#' i.e. output from GiottoClass::list_spatial_enrichment_names()
-#' Default value is "PAGE_Z_score"
+#' @param enrichment_name name of the spatial enrichment, as listed by
+#' `list_spatial_enrichments_names()` (default "PAGE")
 #' @param return_frequency_table see details. Default FALSE
-#' @returns table
+#' @param min_score leave a cell unassigned (`NA`) when its top score is below
+#' this (default NULL: no threshold). Not used for an enrichment of p-values.
+#' @param max_padj leave a cell unassigned (`NA`) when the adjusted p-value of
+#' its top type, from the `<enrichment_name>_padj` enrichment that
+#' `p_value = TRUE` stores, is above this (default NULL: no threshold)
+#' @param return_gobject add the assignment to the cell metadata as
+#' `<enrichment_name>_type` and return the giotto object (default FALSE)
+#' @returns a data.table of `cell_ID` and `probable_cell_type`, a frequency
+#' table, or the giotto object (`return_gobject = TRUE`)
 #' @details
-#' This function returns a two-column matrix, one column
-#' will contain cell IDs and the other will contain the
-#' most likely cell type based on the provided enrichment.
+#' Each cell is assigned the cell type with the highest score in the
+#' enrichment or, for an enrichment of p-values, the lowest p-value. Ties go
+#' to the first type. `min_score` and `max_padj` leave cells without a
+#' confident type unassigned.
 #'
-#' By setting return_frequency_table to TRUE, a table
-#' will instead be returned. This table will detail
-#' the number of occurences for each cell type, based on
-#' the provided enrichment.
-#'
-#' The cell types are assigned by determining the maximum
-#' value of the z-score or -log10(p-value) for a cell and
-#' the associated cell types from the enrichment.
-#'
+#' By setting return_frequency_table to TRUE, a table of the number of cells
+#' per cell type is returned instead, unassigned cells counted as `NA`.
+#' @md
 #' @export
 findCellTypesFromEnrichment <- function(
         gobject = NULL,
         spat_unit = NULL,
         feat_type = NULL,
-        enrichment_name = "PAGE_z_score",
-        return_frequency_table = FALSE) {
-    # guard clauses
-
+        enrichment_name = "PAGE",
+        return_frequency_table = FALSE,
+        min_score = NULL,
+        max_padj = NULL,
+        return_gobject = FALSE) {
     if (!inherits(gobject, "giotto")) {
         stop("gobject needs to be a giotto object")
     }
-
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
         spat_unit = spat_unit
@@ -45,50 +47,51 @@ findCellTypesFromEnrichment <- function(
         spat_unit = spat_unit,
         feat_type = feat_type
     )
-
-    # data.table variables
-    probable_cell_type <- cell_ID <- NULL
-
-    # extract p-value or z-socre from provided enrichment
-    pz_enrich <- getSpatialEnrichment(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        name = enrichment_name
-    )
-
-    enrich_is_p_value <- pz_enrich@misc$p_values_calculated
-
-    if (colnames(pz_enrich)[[1]] != "cell_ID") {
-        selected_cols <- colnames(pz_enrich)[colnames(pz_enrich) != "cell_ID"]
-        data.table::setcolorder(pz_enrich, c("cell_ID", selected_cols))
-    }
-
-
-    n_c <- ncol(pz_enrich)
-
-    # Find the cell type column that corresponds to the
-    # maximum value within a row and assign it into a
-    # new column, mapping a cell to it's most likely type
-    if (enrich_is_p_value) {
-        pz_enrich[, probable_cell_type := names(
-            .SD
-        )[max.col(-.SD)], .SDcols = 2:n_c]
-    } else {
-        pz_enrich[, probable_cell_type := names(
-            .SD
-        )[max.col(.SD)], .SDcols = 2:n_c]
-    }
-
-    cell_ID_and_types_pz_enrich <- pz_enrich[, .(cell_ID, probable_cell_type)]
-
-    if (return_frequency_table) {
-        pz_enrich_cell_type_frequencies <- table(
-            cell_ID_and_types_pz_enrich$probable_cell_type
+    get_enr <- function(name) {
+        getSpatialEnrichment(gobject,
+            spat_unit = spat_unit, feat_type = feat_type, name = name,
+            output = "spatEnrObj"
         )
-        return(pz_enrich_cell_type_frequencies)
     }
 
-    return(cell_ID_and_types_pz_enrich)
+    enr <- get_enr(enrichment_name)
+    is_p <- isTRUE(enr@misc$p_values_calculated)
+    if (is_p && !is.null(min_score)) {
+        stop("`min_score` applies to scores; \"", enrichment_name,
+            "\" holds p-values.", call. = FALSE)
+    }
+    dt <- enr[]
+    types <- setdiff(names(dt), "cell_ID")
+    vals <- as.matrix(dt[, types, with = FALSE])
+    top <- max.col(if (is_p) -vals else vals, ties.method = "first")
+    type <- types[top]
+
+    if (!is.null(min_score)) {
+        type[vals[cbind(seq_along(top), top)] < min_score] <- NA_character_
+    }
+    if (!is.null(max_padj)) {
+        padj_name <- paste0(enrichment_name, "_padj")
+        padj <- get_enr(padj_name)[]
+        padj <- as.matrix(padj[match(dt$cell_ID, padj$cell_ID),
+            types, with = FALSE])
+        type[padj[cbind(seq_along(top), top)] > max_padj] <- NA_character_
+    }
+
+    out <- data.table::data.table(cell_ID = dt$cell_ID,
+                                  probable_cell_type = type)
+    if (isTRUE(return_gobject)) {
+        meta <- data.table::setnames(data.table::copy(out),
+            "probable_cell_type", paste0(enrichment_name, "_type"))
+        return(addCellMetadata(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            new_metadata = meta, by_column = TRUE,
+            column_cell_ID = "cell_ID"
+        ))
+    }
+    if (return_frequency_table) {
+        return(table(out$probable_cell_type, useNA = "ifany"))
+    }
+    out
 }
 
 #' @title plotCellTypesFromEnrichment
@@ -97,9 +100,7 @@ findCellTypesFromEnrichment <- function(
 #' @param spat_unit spatial unit in which the enrichment information is stored
 #' @param feat_type feature type for which the enrichment information was
 #' calculated
-#' @param enrichment_name name of the spatial enrichment
-#'  i.e. output from GiottoClass::list_spatial_enrichment_names()
-#'  Default value is "PAGE_Z_score"
+#' @inheritParams findCellTypesFromEnrichment
 #' @param title Title of the generated plot.
 #'  Default `paste0(spat_unit,"cell types (maximum", enrichment_name, ")")`
 #' @inheritParams plot_output_params
@@ -117,7 +118,9 @@ plotCellTypesFromEnrichment <- function(
         gobject = NULL,
         spat_unit = NULL,
         feat_type = NULL,
-        enrichment_name = "PAGE_z_score",
+        enrichment_name = "PAGE",
+        min_score = NULL,
+        max_padj = NULL,
         title = NULL,
         save_param = list(),
         default_save_name = "cell_types_from_enrichment",
@@ -131,6 +134,8 @@ plotCellTypesFromEnrichment <- function(
         spat_unit = spat_unit,
         feat_type = feat_type,
         enrichment_name = enrichment_name,
+        min_score = min_score,
+        max_padj = max_padj,
         return_frequency_table = FALSE
     )
 
@@ -174,9 +179,7 @@ plotCellTypesFromEnrichment <- function(
 #' @param spat_unit spatial unit in which the enrichment information is stored
 #' @param feat_type feature type for which the enrichment information was
 #' calculated
-#' @param enrichment_name name of the spatial enrichment
-#'  i.e. output from GiottoClass::list_spatial_enrichment_names()
-#'  Default value is "PAGE_Z_score"
+#' @inheritParams findCellTypesFromEnrichment
 #' @param title Title of the generated plot.
 #'  Default `paste0(spat_unit,"cell types (maximum", enrichment_name, ")")`
 #' @inheritParams plot_output_params
@@ -192,7 +195,9 @@ pieCellTypesFromEnrichment <- function(
         gobject = NULL,
         spat_unit = NULL,
         feat_type = NULL,
-        enrichment_name = "PAGE_z_score",
+        enrichment_name = "PAGE",
+        min_score = NULL,
+        max_padj = NULL,
         title = NULL,
         save_param = list(),
         default_save_name = "cell_types_from_enrichment_pie",
@@ -206,6 +211,8 @@ pieCellTypesFromEnrichment <- function(
         spat_unit = spat_unit,
         feat_type = feat_type,
         enrichment_name = enrichment_name,
+        min_score = min_score,
+        max_padj = max_padj,
         return_frequency_table = TRUE
     )
 

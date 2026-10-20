@@ -59,9 +59,11 @@ with
 \item{output_enrichment}{character. "original" (default) or "zscore", which
 standardizes the scores within each cell type.}
 
-\item{p_value}{logical. Return p-values instead of scores (default =
-FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
-applies to scores only.}
+\item{p_value}{logical. Also compute p-values, from the unscaled scores
+(default = FALSE). The \code{run*Enrich()} functions store them beside the
+scores as \verb{<name>_p}, with Benjamini-Hochberg adjusted p-values over all
+cells and types as \verb{<name>_padj}; \code{analyzeData()} returns the p-values,
+carrying the scores as their \code{"scores"} attribute.}
 
 \item{include_depletion}{test depletion as well as enrichment, on the
 absolute z-score (default = FALSE)}
@@ -81,9 +83,10 @@ the Usage section.}
 added (default = TRUE), or the result object on its own.}
 }
 \value{
-\code{matrix} (\code{makeSignMatrixPAGE()}) and
-\code{giotto} (\code{runPAGEEnrich(return_gobject = TRUE)}) or a \code{spatEnrObj}
-(\code{runPAGEEnrich(return_gobject = FALSE)})
+\code{matrix} (\code{makeSignMatrixPAGE()}); \code{runPAGEEnrich()} returns a
+\code{giotto} (\code{return_gobject = TRUE}), else a \code{spatEnrObj}, or with
+\code{p_value = TRUE} a list of them named by enrichment: the scores, \verb{_p} and
+\verb{_padj}
 }
 \description{
 Expression feature-based enrichment scoring of labels. \cr

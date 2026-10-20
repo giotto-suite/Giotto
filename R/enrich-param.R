@@ -296,14 +296,10 @@ setMethod("analyzeData",
         z[j, ] <- .page_z(xb, m, mk, .enrich_cell_moments(xb, m))
     }
 
-    out <- if (isTRUE(param$p_value)) {
+    p <- if (isTRUE(param$p_value)) {
         .page_p(z, k, nrow(x), param$include_depletion)
-    } else if (param$output_enrichment == "zscore") {
-        scale(z)
-    } else {
-        z
     }
-    .enrich_result(out, colnames(x))
+    .enrich_output(z, p, param, colnames(x))
 }
 
 # cells x types matrix of PAGE z-scores
@@ -425,18 +421,10 @@ setMethod("analyzeData",
     colnames(enrichment) <- colnames(expr_values)
     enrichment <- t(enrichment)
 
-    # p-values come from the unscaled scores; z-scoring is for scores only
-    if (param$output_enrichment == "zscore" && !isTRUE(param$p_value)) {
-        enrichment <- scale(enrichment)
-    }
-
-    enrichmentDT <- .enrich_result(enrichment, rownames(enrichment))
-
+    p <- NULL
     if (isTRUE(param$p_value)) {
         # Suggests-only, and reached solely by this branch -- checked here
         # rather than at the top so the common path does not require it.
-        # It went unguarded while this branch errored regardless; now that
-        # it works, a missing install is the only thing that stops it.
         package_check(pkg_name = "fitdistrplus", repository = "CRAN")
 
         random_rank <- .do_rank_permutation(
@@ -449,29 +437,17 @@ setMethod("analyzeData",
             sign_matrix = random_rank, expr_values = expr_values, param = no_p,
             ranks = geneFold
         )
-        # by name, not position: cell_ID is character and unlisting it into
-        # the gamma fit is how this used to fail
-        score_cols <- names(random_enr)[
-            vapply(random_enr, is.numeric, logical(1L))
-        ]
-        background <- unlist(
-            random_enr[, score_cols, with = FALSE], use.names = FALSE
-        )
+        background <- unlist(random_enr[, -"cell_ID"], use.names = FALSE)
         fit.gamma <- fitdistrplus::fitdist(
             background, distr = "gamma", method = "mle"
         )
-        own_cols <- names(enrichmentDT)[
-            vapply(enrichmentDT, is.numeric, logical(1L))
-        ]
-        enrichmentDT[, (own_cols) := lapply(.SD, function(v) {
-            stats::pgamma(
-                v, fit.gamma$estimate[1], rate = fit.gamma$estimate[2],
-                lower.tail = FALSE, log.p = FALSE
-            )
-        }), .SDcols = own_cols]
+        p <- stats::pgamma(
+            enrichment, fit.gamma$estimate[1], rate = fit.gamma$estimate[2],
+            lower.tail = FALSE
+        )
+        p <- matrix(p, nrow(enrichment), dimnames = dimnames(enrichment))
     }
-
-    enrichmentDT[]
+    .enrich_output(enrichment, p, param, rownames(enrichment))
 }
 
 
@@ -542,14 +518,8 @@ setMethod("analyzeData",
             rep(nrow(mk) - n_t, each = length(j)), k, lower.tail = FALSE)
     }
 
-    out <- if (isTRUE(param$p_value)) {
-        p
-    } else if (param$output_enrichment == "zscore") {
-        scale(-log10(p))
-    } else {
-        -log10(p)
-    }
-    .enrich_result(out, colnames(x))
+    .enrich_output(-log10(p), if (isTRUE(param$p_value)) p, param,
+        colnames(x))
 }
 
 
@@ -653,6 +623,20 @@ setMethod("analyzeData",
     cbind(out, data.table::as.data.table(unclass(mat)))[]
 }
 
+# A method's result from its raw scores (cells x types) and, with p_value,
+# their p-values: the scores, scaled per `output_enrichment`; or the p-values
+# carrying those scores as the "scores" attribute, so one run yields both.
+#' @keywords internal
+#' @noRd
+.enrich_output <- function(scores, p, param, cell_ids) {
+    if (identical(param$output_enrichment, "zscore")) scores <- scale(scores)
+    s <- .enrich_result(scores, cell_ids)
+    if (!isTRUE(param$p_value)) return(s)
+    out <- .enrich_result(p, cell_ids)
+    data.table::setattr(out, "scores", s)
+    out
+}
+
 
 # shared gobject plumbing ####
 
@@ -702,26 +686,43 @@ setMethod("analyzeData",
     # returns whatever the slot holds, so a disk-backed store arrives here
     # intact and routes to its own method.
     res <- analyzeData(x = mat, param = param, sign_matrix = sign_matrix)
+    detail <- attr(res, "detail")
 
-    enrObj <- createSpatEnrObj(
-        name = name,
-        method = method,
-        enrichment_data = res,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = expr_values@provenance,
-        misc = misc
-    )
+    # scores under `name`; with p_value their p-values and adjusted p-values
+    # beside them, as `<name>_p` and `<name>_padj`
+    tabs <- if (isTRUE(param$p_value)) {
+        scores <- attr(res, "scores")
+        data.table::setattr(res, "scores", NULL)
+        p <- list(res, .enrich_padj(res))
+        names(p) <- paste0(name, c("_p", "_padj"))
+        c(if (!is.null(scores)) stats::setNames(list(scores), name), p)
+    } else {
+        stats::setNames(list(res), name)
+    }
+    objs <- lapply(names(tabs), function(nm) {
+        createSpatEnrObj(
+            name = nm,
+            method = method,
+            enrichment_data = tabs[[nm]],
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            provenance = expr_values@provenance,
+            misc = utils::modifyList(misc,
+                list(p_values_calculated = nm != name))
+        )
+    })
+    names(objs) <- names(tabs)
 
     if (!isTRUE(return_gobject)) {
-        return(list(enrObj = enrObj, detail = attr(res, "detail")))
+        enrObj <- if (length(objs) == 1L) objs[[1L]] else objs
+        return(list(enrObj = enrObj, detail = detail))
     }
 
     spenr_names <- list_spatial_enrichments_names(
         gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
     )
-    if (name %in% spenr_names) {
-        cat(name, " has already been used, will be overwritten")
+    for (nm in intersect(names(objs), spenr_names)) {
+        cat(nm, " has already been used, will be overwritten")
     }
 
     parameters_list <- gobject@parameters
@@ -729,5 +730,18 @@ setMethod("analyzeData",
     parameters_list[[update_name]] <- history
     gobject@parameters <- parameters_list
 
-    list(gobject = setGiotto(gobject, enrObj), detail = attr(res, "detail"))
+    for (o in objs) gobject <- setGiotto(gobject, o)
+    list(gobject = gobject, detail = detail)
+}
+
+# Benjamini-Hochberg adjusted p-values over every cell and type tested.
+#' @keywords internal
+#' @noRd
+.enrich_padj <- function(p) {
+    out <- data.table::copy(p)
+    types <- setdiff(names(out), "cell_ID")
+    adj <- stats::p.adjust(unlist(out[, types, with = FALSE],
+        use.names = FALSE), method = "BH")
+    out[, (types) := split(adj, rep(seq_along(types), each = nrow(out)))]
+    out[]
 }

@@ -8,8 +8,11 @@ findCellTypesFromEnrichment(
   gobject = NULL,
   spat_unit = NULL,
   feat_type = NULL,
-  enrichment_name = "PAGE_z_score",
-  return_frequency_table = FALSE
+  enrichment_name = "PAGE",
+  return_frequency_table = FALSE,
+  min_score = NULL,
+  max_padj = NULL,
+  return_gobject = FALSE
 )
 }
 \arguments{
@@ -20,29 +23,34 @@ findCellTypesFromEnrichment(
 \item{feat_type}{feature type for which the enrichment information was
 calculated}
 
-\item{enrichment_name}{name of the spatial enrichment
-i.e. output from GiottoClass::list_spatial_enrichment_names()
-Default value is "PAGE_Z_score"}
+\item{enrichment_name}{name of the spatial enrichment, as listed by
+\code{list_spatial_enrichments_names()} (default "PAGE")}
 
 \item{return_frequency_table}{see details. Default FALSE}
+
+\item{min_score}{leave a cell unassigned (\code{NA}) when its top score is below
+this (default NULL: no threshold). Not used for an enrichment of p-values.}
+
+\item{max_padj}{leave a cell unassigned (\code{NA}) when the adjusted p-value of
+its top type, from the \verb{<enrichment_name>_padj} enrichment that
+\code{p_value = TRUE} stores, is above this (default NULL: no threshold)}
+
+\item{return_gobject}{add the assignment to the cell metadata as
+\verb{<enrichment_name>_type} and return the giotto object (default FALSE)}
 }
 \value{
-table
+a data.table of \code{cell_ID} and \code{probable_cell_type}, a frequency
+table, or the giotto object (\code{return_gobject = TRUE})
 }
 \description{
 findCellTypesFromEnrichment
 }
 \details{
-This function returns a two-column matrix, one column
-will contain cell IDs and the other will contain the
-most likely cell type based on the provided enrichment.
+Each cell is assigned the cell type with the highest score in the
+enrichment or, for an enrichment of p-values, the lowest p-value. Ties go
+to the first type. \code{min_score} and \code{max_padj} leave cells without a
+confident type unassigned.
 
-By setting return_frequency_table to TRUE, a table
-will instead be returned. This table will detail
-the number of occurences for each cell type, based on
-the provided enrichment.
-
-The cell types are assigned by determining the maximum
-value of the z-score or -log10(p-value) for a cell and
-the associated cell types from the enrichment.
+By setting return_frequency_table to TRUE, a table of the number of cells
+per cell type is returned instead, unassigned cells counted as \code{NA}.
 }
