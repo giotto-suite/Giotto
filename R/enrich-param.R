@@ -291,7 +291,7 @@ setMethod("analyzeData",
         reference)
     z <- matrix(NA_real_, ncol(x), ncol(mk),
         dimnames = list(colnames(x), colnames(mk)))
-    for (j in .enrich_blocks(x)) {
+    for (j in .enrich_blocks(ncol(x), nrow(x))) {
         xb <- x[, j, drop = FALSE]
         z[j, ] <- .page_z(xb, m, mk, .enrich_cell_moments(xb, m))
     }
@@ -408,7 +408,7 @@ setMethod("analyzeData",
     }
     sig <- lapply(seq_len(ncol(sign_matrix)), function(i) intersect(
         rownames(sign_matrix)[sign_matrix[, i] > 0], rownames(geneFold)))
-    for (j in .enrich_blocks(geneFold)) {
+    for (j in .enrich_blocks(ncol(geneFold), nrow(geneFold))) {
         rankFold <- t(sparseMatrixStats::colRanks(-geneFold[, j, drop = FALSE],
             ties.method = ties_2))
         rownames(rankFold) <- rownames(geneFold)
@@ -430,8 +430,7 @@ setMethod("analyzeData",
         enrichment <- scale(enrichment)
     }
 
-    enrichmentDT <- data.table::data.table(cell_ID = rownames(enrichment))
-    enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
+    enrichmentDT <- .enrich_result(enrichment, rownames(enrichment))
 
     if (isTRUE(param$p_value)) {
         # Suggests-only, and reached solely by this branch -- checked here
@@ -532,7 +531,7 @@ setMethod("analyzeData",
     # blocks of cells, so the dense fold changes are never held in full
     p <- matrix(NA_real_, ncol(x), ncol(mk),
         dimnames = list(colnames(x), colnames(mk)))
-    for (j in .enrich_blocks(x)) {
+    for (j in .enrich_blocks(ncol(x), nrow(x))) {
         fc <- as.matrix(x[, j, drop = FALSE]) - m
         cut <- MatrixGenerics::colQuantiles(fc,
             probs = 1 - param$top_percentage / 100, type = 7L, drop = TRUE)
@@ -627,23 +626,22 @@ setMethod("analyzeData",
 #' @noRd
 .rank_rows <- function(x, ties, values = 5e7) {
     out <- matrix(0, nrow(x), ncol(x), dimnames = dimnames(x))
-    step <- max(1L, as.integer(values %/% max(1L, ncol(x))))
-    for (a in seq(1L, max(1L, nrow(x)), by = step)) {
-        r <- a:min(nrow(x), a + step - 1L)
+    for (r in .enrich_blocks(nrow(x), ncol(x), values)) {
         out[r, ] <- MatrixGenerics::rowRanks(as.matrix(x[r, , drop = FALSE]),
             ties.method = ties)
     }
     out
 }
 
-# Column (cell) index blocks of about `values` dense values each: the unit
-# every method computes in, so no step holds a dense features x cells copy
+# Index blocks over `n` rows or columns, each about `values` dense values when
+# the other dimension is `width`: the unit every method computes in, so no
+# step holds a dense features x cells copy
 #' @keywords internal
 #' @noRd
-.enrich_blocks <- function(x, values = 5e7) {
-    step <- max(1L, as.integer(values %/% max(1L, nrow(x))))
-    starts <- seq(1L, max(1L, ncol(x)), by = step)
-    lapply(starts, function(a) a:min(ncol(x), a + step - 1L))
+.enrich_blocks <- function(n, width, values = 5e7) {
+    step <- max(1L, as.integer(values %/% max(1L, width)))
+    lapply(seq(1L, max(1L, n), by = step),
+           function(a) a:min(n, a + step - 1L))
 }
 
 # cells x types matrix -> the result contract, cells in expression order
