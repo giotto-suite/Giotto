@@ -166,13 +166,87 @@ test_that("runHyperGeometricEnrich matches the written-out test", {
     expect_equal(.scores(dt), .ref_hyper(x, f$sm),
         tolerance = 1e-10, ignore_attr = TRUE)
 
-    p <- runHyperGeometricEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
-        return_gobject = FALSE)[]
+    both <- runHyperGeometricEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+        return_gobject = FALSE)
+    expect_equal(both$hypergeometric[], dt)
+    p <- both$hypergeometric_p[]
     expect_equal(.scores(p), 10^-.ref_hyper(x, f$sm),
         tolerance = 1e-10, ignore_attr = TRUE)
 
     expect_identical(res@method, "hypergeometric")
     expect_identical(res@name, "hypergeometric")
+})
+
+test_that("p_value = TRUE stores scores, p-values and adjusted p-values", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+
+    plain <- runPAGEEnrich(f$g, sign_matrix = f$sm, verbose = FALSE,
+                           return_gobject = FALSE)
+    g <- runPAGEEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+                       verbose = FALSE)
+    expect_true(all(c("PAGE", "PAGE_p", "PAGE_padj") %in%
+        list_spatial_enrichments_names(g, spat_unit = "cell",
+                                       feat_type = "rna")))
+    get <- function(n) getSpatialEnrichment(g, name = n,
+                                            output = "spatEnrObj")
+    expect_equal(get("PAGE")[], plain[])
+    expect_false(isTRUE(get("PAGE")@misc$p_values_calculated))
+    expect_true(get("PAGE_p")@misc$p_values_calculated)
+
+    p <- as.matrix(get("PAGE_p")[][, -"cell_ID"])
+    padj <- as.matrix(get("PAGE_padj")[][, -"cell_ID"])
+    expect_equal(as.vector(padj), stats::p.adjust(as.vector(p), "BH"))
+
+    # zscore scales the scores; the p-values stay those of the raw scores
+    z <- runPAGEEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+        output_enrichment = "zscore", verbose = FALSE,
+        return_gobject = FALSE)
+    expect_equal(z$PAGE_p[], get("PAGE_p")[])
+    expect_equal(.scores(z$PAGE[]), scale(.scores(plain[])),
+                 ignore_attr = TRUE)
+})
+
+test_that("each cell gets its top type, unless it is not confident", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    g <- runPAGEEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+                       verbose = FALSE)
+    s <- getSpatialEnrichment(g, name = "PAGE", output = "data.table")
+    types <- c("typeA", "typeB", "typeC")
+    top <- types[max.col(as.matrix(s[, types, with = FALSE]), "first")]
+
+    a <- findCellTypesFromEnrichment(g)
+    expect_identical(a$cell_ID, s$cell_ID)
+    expect_identical(a$probable_cell_type, top)
+
+    # an enrichment of p-values picks the smallest
+    p <- getSpatialEnrichment(g, name = "PAGE_p", output = "data.table")
+    expect_identical(
+        findCellTypesFromEnrichment(g, enrichment_name = "PAGE_p")$
+            probable_cell_type,
+        types[max.col(-as.matrix(p[, types, with = FALSE]), "first")])
+
+    best <- apply(as.matrix(s[, types, with = FALSE]), 1L, max)
+    b <- findCellTypesFromEnrichment(g, min_score = 1)
+    expect_identical(is.na(b$probable_cell_type), best < 1)
+
+    padj <- as.matrix(getSpatialEnrichment(g, name = "PAGE_padj",
+        output = "data.table")[, types, with = FALSE])
+    top_padj <- padj[cbind(seq_along(top), match(top, types))]
+    # the fixture's signatures are random genes, so cut at the median rather
+    # than at a conventional level, which no cell would pass
+    cut <- stats::median(top_padj)
+    c_ <- findCellTypesFromEnrichment(g, max_padj = cut)
+    expect_identical(is.na(c_$probable_cell_type), top_padj > cut)
+    expect_gt(sum(!is.na(c_$probable_cell_type)), 0)
+
+    g2 <- findCellTypesFromEnrichment(g, max_padj = cut,
+                                      return_gobject = TRUE)
+    expect_identical(pDataDT(g2)$PAGE_type[
+        match(c_$cell_ID, pDataDT(g2)$cell_ID)], c_$probable_cell_type)
+    expect_error(findCellTypesFromEnrichment(g, enrichment_name = "PAGE_p",
+        min_score = 1), "holds p-values")
 })
 
 test_that("each cell is cut at its own top percentage", {
@@ -290,7 +364,7 @@ test_that("runRankEnrich(p_value = TRUE) returns p-values", {
     # return_gobject = FALSE, so it got a giotto object back and then subset it
     # as a table. p_value = TRUE errored in fitdistrplus every time.
     res <- runRankEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
-                         n_times = 20, return_gobject = FALSE)
+                         n_times = 20, return_gobject = FALSE)$rank_p
     expect_s4_class(res, "spatEnrObj")
 
     dt <- res[]
@@ -523,7 +597,8 @@ test_that("cells scored in parts against a shared reference match all at once", 
         pieces <- data.table::rbindlist(lapply(parts, function(j) {
             analyzeData(m[, j], p, sign_matrix = f$sm, reference = ref)
         }))
-        expect_equal(pieces, whole, tolerance = 1e-12, info = class(p))
+        expect_equal(pieces, whole, tolerance = 1e-12, ignore_attr = TRUE,
+                     info = class(p))
     }
     expect_error(
         analyzeData(m, enrichParam("PAGE"), sign_matrix = f$sm,

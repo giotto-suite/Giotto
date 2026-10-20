@@ -6,9 +6,12 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 ## breaking changes
 - `runPAGEEnrich(return_gobject = FALSE)` returns a `spatEnrObj`, as the
   other enrichment methods do, instead of `list(DT =, matrix =)`.
-- Enrichment `p_value = TRUE` returns p-values for every method; PAGE
-  returned `-log10(p)`. They are computed from the unscaled scores, so
-  `output_enrichment = "zscore"` no longer distorts them.
+- Enrichment `p_value = TRUE` keeps the scores and adds p-values: the
+  `run*Enrich()` functions store the scores under `name`, the p-values as
+  `<name>_p` and Benjamini-Hochberg adjusted p-values as `<name>_padj`, and
+  with `return_gobject = FALSE` return the three as a list. PAGE returned
+  `-log10(p)` in place of the scores. P-values come from the unscaled
+  scores, so `output_enrichment = "zscore"` no longer distorts them.
 
 ## changes
 - PAGE no longer densifies the expression or melts it into a long table: the
@@ -23,7 +26,16 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   disk-backed engine can score windows of cells against all of them.
 - Rank p-values reuse the feature ranks instead of computing them again.
 
+## new
+- `findCellTypesFromEnrichment()` (and its bar and pie plots) can leave
+  cells unassigned below a `min_score` or above a `max_padj`, and with
+  `return_gobject = TRUE` writes the assignment to the cell metadata as
+  `<enrichment_name>_type`.
+
 ## bug fixes
+- `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
+  `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
+  to the first type instead of a random one.
 - Hypergeometric enrichment scored every cell against other cells'
   thresholds: the per-cell top-percentage cut was recycled down the
   features. It also tested P(X > x) instead of P(X >= x), and a cell with a

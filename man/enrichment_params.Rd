@@ -18,9 +18,11 @@ with
 \item{output_enrichment}{character. "original" (default) or "zscore", which
 standardizes the scores within each cell type.}
 
-\item{p_value}{logical. Return p-values instead of scores (default =
-FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
-applies to scores only.}
+\item{p_value}{logical. Also compute p-values, from the unscaled scores
+(default = FALSE). The \code{run*Enrich()} functions store them beside the
+scores as \verb{<name>_p}, with Benjamini-Hochberg adjusted p-values over all
+cells and types as \verb{<name>_padj}; \code{analyzeData()} returns the p-values,
+carrying the scores as their \code{"scores"} attribute.}
 }
 \value{
 spatial enrichment scores, one per cell per signature
