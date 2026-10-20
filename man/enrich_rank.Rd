@@ -5,7 +5,7 @@
 \alias{analyzeData,ANY,rankEnrichParam-method}
 \title{Rank enrichment}
 \usage{
-\S4method{analyzeData}{ANY,rankEnrichParam}(x, param, ..., sign_matrix)
+\S4method{analyzeData}{ANY,rankEnrichParam}(x, param, ..., sign_matrix, ranks = NULL)
 }
 \arguments{
 \item{x}{expression values. A \code{matrix}, a \code{Matrix}, or anything an
@@ -20,6 +20,11 @@ engine registered from another package can accept its own arguments.}
 process (columns); a feature marks a type where its value is > 0. Build one
 with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
+
+\item{ranks}{each feature's rank across all cells, for the cells of \code{x}
+(features x cells, named as \code{x}). Computed from \code{x} when \code{NULL}; supply
+it to score some cells against the ranks of all of them, as a
+disk-backed engine does window by window.}
 }
 \value{
 a \code{data.table} of \code{cell_ID} and one column per cell type

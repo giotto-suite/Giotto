@@ -532,6 +532,35 @@ test_that("cells scored in parts against a shared reference match all at once", 
     )
 })
 
+test_that("rank scores cells in parts from the ranks of all of them", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    m <- getExpression(f$g, values = "normalized", output = "matrix")
+    set.seed(3)
+    rm_ <- sapply(1:3, function(j) sample(nrow(m)))
+    dimnames(rm_) <- list(rownames(m), paste0("t", 1:3))
+    parts <- split(seq_len(ncol(m)), seq_len(ncol(m)) > 300)
+
+    for (ties in c("average", "max")) {
+        p <- enrichParam("rank", ties_method = ties)
+        ranks <- t(apply(as.matrix(m), 1L, rank,
+            ties.method = if (ties == "max") "min" else "average"))
+        whole <- analyzeData(m, p, sign_matrix = rm_)
+        expect_equal(analyzeData(m, p, sign_matrix = rm_, ranks = ranks),
+                     whole, info = ties)
+        pieces <- data.table::rbindlist(lapply(parts, function(j) {
+            analyzeData(m[, j], p, sign_matrix = rm_,
+                        ranks = ranks[, j, drop = FALSE])
+        }))
+        expect_equal(pieces, whole, tolerance = 1e-12, info = ties)
+    }
+    expect_error(
+        analyzeData(m, enrichParam("rank"), sign_matrix = rm_,
+                    ranks = matrix(0, 2, 2)),
+        "same order"
+    )
+})
+
 test_that("rank's reverse_log_scale and logbase are inert, and say so", {
     skip_if_no_mini()
     f <- .enrich_fixture()

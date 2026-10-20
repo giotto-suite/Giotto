@@ -338,15 +338,19 @@ setMethod("analyzeData",
 #' @rdname enrich_rank
 #' @inheritParams enrich_page
 #' @param param a [rankEnrichParam-class].
+#' @param ranks each feature's rank across all cells, for the cells of `x`
+#'   (features x cells, named as `x`). Computed from `x` when `NULL`; supply
+#'   it to score some cells against the ranks of all of them, as a
+#'   disk-backed engine does window by window.
 #' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
     signature(x = "ANY", param = "rankEnrichParam"),
-    function(x, param, ..., sign_matrix) {
+    function(x, param, ..., sign_matrix, ranks = NULL) {
         .enrich_check_contract(
             .rank_dt_method(sign_matrix = sign_matrix, expr_values = x,
-                            param = param),
+                            param = param, ranks = ranks),
             "analyzeData(rankEnrichParam)"
         )
     }
@@ -358,7 +362,7 @@ setMethod("analyzeData",
 # `p_value = TRUE` unreachable before.
 #' @keywords internal
 #' @noRd
-.rank_dt_method <- function(sign_matrix, expr_values, param) {
+.rank_dt_method <- function(sign_matrix, expr_values, param, ranks = NULL) {
     interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
     if (length(interGene) < 100) {
         stop("Please check the gene numbers or names of scRNA-seq. The names
@@ -393,7 +397,15 @@ setMethod("analyzeData",
     # else ties_1=ties_2 is equal to random
     # each feature ranked across all cells needs every cell at once; the
     # within-cell ranks and the scores then go a block of cells at a time
-    geneFold <- .rank_rows(expr_values, ties_1)
+    geneFold <- if (is.null(ranks)) {
+        .rank_rows(expr_values, ties_1)
+    } else {
+        if (!identical(dimnames(ranks), dimnames(expr_values))) {
+            stop("`ranks` must have the features and cells of the ",
+                "expression values, in the same order.", call. = FALSE)
+        }
+        ranks
+    }
     sig <- lapply(seq_len(ncol(sign_matrix)), function(i) intersect(
         rownames(sign_matrix)[sign_matrix[, i] > 0], rownames(geneFold)))
     for (j in .enrich_blocks(geneFold)) {
@@ -435,7 +447,8 @@ setMethod("analyzeData",
         no_p$p_value <- FALSE
         no_p$output_enrichment <- "original"
         random_enr <- .rank_dt_method(
-            sign_matrix = random_rank, expr_values = expr_values, param = no_p
+            sign_matrix = random_rank, expr_values = expr_values, param = no_p,
+            ranks = geneFold
         )
         # by name, not position: cell_ID is character and unlisting it into
         # the gamma fit is how this used to fail

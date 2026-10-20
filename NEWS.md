@@ -19,8 +19,9 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   cells in R: much faster and with a bounded memory peak, most of all for
   PAGE p-values and hypergeometric enrichment.
 - `analyzeData()` for PAGE and hypergeometric takes a `reference` level per
-  feature, so a disk-backed engine can score windows of cells against the
-  reference of all cells.
+  feature, and rank takes the features' `ranks` across all cells, so a
+  disk-backed engine can score windows of cells against all of them.
+- Rank p-values reuse the feature ranks instead of computing them again.
 
 ## bug fixes
 - Hypergeometric enrichment scored every cell against other cells'
