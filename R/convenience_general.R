@@ -977,210 +977,197 @@ createMerscopeLargeImage <- function(image_file,
 
 #' @title Create Vizgen MERSCOPE Giotto Object
 #' @name createGiottoMerscopeObject
-#' @description Given the path to a MERSCOPE experiment directory, creates a
-#' Giotto object. Supports both Parquet and HDF5 cell boundary formats (v2).
-#' Features automatic 2D vs 3D architecture detection with vertex validation.
-#' @param merscope_dir full path to the exported merscope directory
-#' @param version integer. Version of logic to use (1 = Legacy/Original,
-#' 2 = New/Optimized)
-#' @param data_to_use which of either the 'subcellular' or 'aggregate'
-#' information to use for object creation
-#' @param FOVs which FOVs to use when building the subcellular object.
-#' (default is NULL). NULL loads all FOVs (very slow)
-#' @param polygon_format format of the boundary files, either 'parquet' or
-#' 'hdf5' (v2 only)
-#' @param poly_z_indices which z-indices to use for the polygons (Default 0:6
-#' for v2, 1:7 for v1)
-#' @param flip_axis character. \strong{Version 2 only.} Axis along which to
-#' reflect polygon vertices and transcript coordinates after loading:
-#' \code{"none"} (default, data read as-is), \code{"y"}, \code{"x"}, or
-#' \code{"both"}. The reflection origin is the midpoint of the transcript
-#' coordinate range so both layers stay registered. Silently forced to
-#' \code{"none"} for \code{version = 1}, which handles orientation internally
-#' via \code{polygon_mask_list_params} (\code{flip_vertical = TRUE}).
-#' @param spat_unit character. Name assigned to the cell spatial unit (default
-#' \code{"cell"}). Controls the polygon layer name when a single Z-plane is
-#' present and serves as the default \code{new_spat_unit} in
-#' \code{aggregate_stack_param} when that field is not already supplied.
-#' @param calculate_overlap whether to run \code{\link{calculateOverlapRaster}}
-#' @param overlap_to_matrix whether to run \code{\link{overlapToMatrix}}
-#' @param aggregate_stack whether to run \code{\link{aggregateStacks}}
-#' @param aggregate_stack_param params to pass to \code{\link{aggregateStacks}}
+#' @description Given the path to a MERSCOPE region directory, creates a
+#' Giotto object from the vendor outputs: transcripts
+#' (`detected_transcripts.parquet` or `.csv`), cell boundaries
+#' (`cell_boundaries.parquet`, or the per-FOV HDF5 files in `cell_boundaries/`),
+#' the cell by gene matrix (`cell_by_gene.csv`) and cell metadata
+#' (`cell_metadata.csv`). Calls [importMerscope()] and the reader's
+#' `create_gobject()`.
+#'
+#' No overlap between transcripts and polygons is calculated. Use
+#' [calculateOverlap()] and [overlapToMatrix()] on the created object to
+#' aggregate transcripts by polygon.
+#'
+#' The y coordinates of transcripts, polygons and cell centers are negated
+#' (`y` becomes `-y`).
+#' @param merscope_dir full path to the MERSCOPE region directory
+#' @param transcript_path (optional) path to the transcripts file. `NULL`
+#' (default) uses `detected_transcripts.parquet` or `.csv` in `merscope_dir`.
+#' @param bounds_path (optional) path to the cell boundaries. `NULL` (default)
+#' uses `cell_boundaries.parquet`, or the `cell_boundaries/` directory when
+#' `polygon_format = "hdf5"`.
+#' @param expression_path (optional) path to the cell by gene matrix. `NULL`
+#' (default) uses `cell_by_gene.csv` in `merscope_dir`.
+#' @param cell_metadata_path (optional) path to the cell metadata. `NULL`
+#' (default) uses `cell_metadata.csv` in `merscope_dir`.
+#' @param data_to_use `"subcellular"` (default) loads transcripts, polygons and
+#' the cell by gene matrix. `"aggregate"` loads the cell by gene matrix, with
+#' cell centers from `cell_metadata.csv` as spatial locations.
+#' @param FOVs which FOVs to load. `NULL` (default) loads all FOVs.
+#' @param polygon_format format of the cell boundaries, either `"parquet"`
+#' (default, `cell_boundaries.parquet`) or `"hdf5"` (per-FOV files in
+#' `cell_boundaries/`)
+#' @param poly_z_indices which z-indices to use for the polygons. `NULL`
+#' (default) uses the lowest z-plane when all z-planes hold identical
+#' boundaries and stops otherwise.
+#' @param spat_unit character. Name of the spatial unit for the polygons,
+#' expression, cell metadata and spatial locations (default `"cell"`)
 #' @param split_keyword character vector of keywords to separate feature
-#' detections (e.g. "Blank")
-#' @inheritParams GiottoClass::createGiottoObjectSubcellular
+#' detections (default `"Blank"`). Detections matching `"Blank"` are loaded as
+#' the `"neg_probe"` feature type; other keywords are used as the feature type
+#' name.
+#' @param score_threshold numeric or `NULL` (default). Minimum
+#' `transcript_score` for a transcript detection to be loaded. `NULL` loads
+#' all transcripts.
+#' @param load_transcripts logical. Whether to load the transcripts
+#' (default `TRUE`)
+#' @param load_expression logical. Whether to load the cell by gene matrix
+#' (default `TRUE`)
+#' @param load_cellmeta logical. Whether to load the cell metadata
+#' (default `FALSE`)
+#' @param load_images (optional) images to load. Character vector or list of
+#' mosaic names (e.g. `"DAPI_z3"` for `images/mosaic_DAPI_z3.tif`) or image
+#' file paths. Names of the list are used as image names. Images are placed
+#' with `images/micron_to_mosaic_pixel_transform.csv`. `NULL` (default) loads
+#' no images.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project (See \pkg{GiottoDisk}).
+#' @param instructions list of instructions or output result from
+#' [createGiottoInstructions()]
+#' @param verbose be verbose (default `NULL`)
+#' @param version deprecated. Use `polygon_format`.
+#' @param flip_axis deprecated. Use [flip()] on the created object.
+#' @param calculate_overlap deprecated. Use [calculateOverlap()] on the created
+#' object.
+#' @param overlap_to_matrix deprecated. Use [overlapToMatrix()] on the created
+#' object.
+#' @param aggregate_stack deprecated.
+#' @param aggregate_stack_param deprecated.
+#' @param cores deprecated.
 #' @returns a giotto object
+#' @seealso [importMerscope()]
 #' @export
 createGiottoMerscopeObject <- function(merscope_dir,
-    version = 1,
+    transcript_path = NULL,
+    bounds_path = NULL,
+    expression_path = NULL,
+    cell_metadata_path = NULL,
     data_to_use = c("subcellular", "aggregate"),
     FOVs = NULL,
     polygon_format = c("parquet", "hdf5"),
     poly_z_indices = NULL,
-    flip_axis = c("none", "y", "x", "both"),
     spat_unit = "cell",
-    calculate_overlap = TRUE,
-    overlap_to_matrix = TRUE,
-    aggregate_stack = TRUE,
-    aggregate_stack_param = list(
-        summarize_expression = "sum",
-        summarize_locations = "mean",
-        new_spat_unit = "cell"
-    ),
     split_keyword = c("Blank"),
+    score_threshold = NULL,
+    load_transcripts = TRUE,
+    load_expression = TRUE,
+    load_cellmeta = FALSE,
+    load_images = NULL,
+    backend = NULL,
     instructions = NULL,
-    cores = NA,
-    verbose = TRUE) {
+    verbose = NULL,
+    version = deprecated(),
+    flip_axis = deprecated(),
+    calculate_overlap = deprecated(),
+    overlap_to_matrix = deprecated(),
+    aggregate_stack = deprecated(),
+    aggregate_stack_param = deprecated(),
+    cores = deprecated()) {
+    polygon_format_missing <- missing(polygon_format)
+    data_to_use <- match.arg(data_to_use, c("subcellular", "aggregate"))
+    polygon_format <- match.arg(polygon_format, c("parquet", "hdf5"))
 
-    # 1. version-specific defaults and validation
-    merscope_dir <- path.expand(merscope_dir)
-    data_to_use  <- match.arg(arg = data_to_use, choices = c("subcellular", "aggregate"))
-    flip_axis    <- match.arg(flip_axis)
-
-    if (version == 1 && flip_axis != "none") {
-        message(
-            "'flip_axis' is only available for version = 2. ",
-            "Version 1 handles orientation internally via ",
-            "polygon_mask_list_params (flip_vertical = TRUE). ",
-            "Setting flip_axis = 'none'."
+    if (is_present(version)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(version)",
+            with = "createGiottoMerscopeObject(polygon_format)"
         )
-        flip_axis <- "none"
-    }
-
-    if (isTRUE(verbose)) {
-        if (inherits(future::plan(), "sequential")) {
-            message(
-                "Running sequentially. For better performance consider:\n",
-                "  future::plan(future::multisession, workers = <n>)"
-            )
+        if (identical(as.numeric(version), 1) && polygon_format_missing) {
+            polygon_format <- "hdf5"
         }
     }
-    # suppress Giotto's internal sequential warning (surfaced above)
-    options("giotto.warn_sequential" = FALSE)
-
-    if (version == 1) {
-        if (is.null(poly_z_indices)) poly_z_indices <- seq(from = 1, to = 7)
-        poly_z_indices <- as.integer(poly_z_indices)
-        if (any(poly_z_indices < 1)) {
-            stop(wrap_txt(
-                "Version 1 requires 1-based indexing (poly_z_indices >= 1).",
-                errWidth = TRUE
-            ))
-        }
-        polygon_format <- "hdf5"
-        fovs <- NULL
-    } else {
-        if (is.null(poly_z_indices)) poly_z_indices <- 0:6
-        poly_z_indices <- as.integer(poly_z_indices)
-        if (any(poly_z_indices < 0)) {
-            stop(wrap_txt(
-                "Version 2 requires 0-based indexing (poly_z_indices >= 0).",
-                errWidth = TRUE
-            ))
-        }
-        polygon_format <- match.arg(arg = polygon_format, choices = c("parquet", "hdf5"))
-        fovs <- FOVs
+    if (is_present(flip_axis)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(flip_axis)",
+            details = "The y coordinates are negated on load. Use `flip()` on
+            the created object."
+        )
+    }
+    if (is_present(calculate_overlap)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(calculate_overlap)",
+            details = "Expression is loaded from `cell_by_gene.csv`. Use
+            `calculateOverlap()` on the created object."
+        )
+    }
+    if (is_present(overlap_to_matrix)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(overlap_to_matrix)",
+            details = "Expression is loaded from `cell_by_gene.csv`. Use
+            `overlapToMatrix()` on the created object."
+        )
+    }
+    if (is_present(aggregate_stack)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(aggregate_stack)"
+        )
+    }
+    if (is_present(aggregate_stack_param)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(aggregate_stack_param)"
+        )
+    }
+    if (is_present(cores)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(cores)"
+        )
     }
 
-    # 2. directory scanning
-    dir_items <- .read_merscope_folder(
-        merscope_dir   = merscope_dir,
-        data_to_use    = data_to_use,
+    kw <- as.character(unlist(split_keyword))
+    feat_type <- c("rna", ifelse(kw == "Blank", "neg_probe", kw))
+
+    x <- importMerscope(
+        merscope_dir = path.expand(merscope_dir),
+        score_threshold = score_threshold,
         polygon_format = polygon_format,
-        version        = version,
-        cores          = cores,
-        verbose        = verbose
+        backend = backend
     )
-
-    # 3. data loading
-    data_list <- .load_merscope_folder(
-        dir_items      = dir_items,
-        data_to_use    = data_to_use,
-        polygon_format = polygon_format,
+    a <- list(
+        data_to_use = data_to_use,
+        feat_type = feat_type,
+        split_keyword = as.list(kw),
         poly_z_indices = poly_z_indices,
-        fovs           = fovs,
-        version        = version,
-        cores          = cores,
-        verbose        = verbose
+        FOVs = FOVs,
+        spat_unit = spat_unit,
+        load_transcripts = load_transcripts,
+        load_expression = load_expression,
+        load_cellmeta = load_cellmeta,
+        load_images = load_images,
+        instructions = instructions,
+        verbose = verbose
     )
+    if (!is.null(transcript_path)) a$transcript_path <- transcript_path
+    if (!is.null(bounds_path)) a$boundary_path <- bounds_path
+    if (!is.null(expression_path)) a$expression_path <- expression_path
+    if (!is.null(cell_metadata_path)) a$metadata_path <- cell_metadata_path
 
-    # 4. version 2: optimized 2D vs 3D auto-detection
-    if (version == 2 && data_to_use == "subcellular" && !is.null(data_list$poly_info)) {
-
-        # bypass aggregation if only 1 Z-plane loaded
-        if (length(data_list$poly_info) == 1 && isTRUE(aggregate_stack)) {
-            if (isTRUE(verbose)) {
-                message(
-                    "--> [Auto-Correction] Only 1 Z-plane loaded.",
-                    " Setting 'aggregate_stack = FALSE'."
-                )
-            }
-            aggregate_stack <- FALSE
-        }
-
-        if (length(data_list$poly_info) > 1) {
-            ids_zA <- data_list$poly_info[[1]]@unique_ID_cache
-            ids_zB <- data_list$poly_info[[2]]@unique_ID_cache
-
-            if (isTRUE(setequal(ids_zA, ids_zB))) {
-                sv_A   <- slot(data_list$poly_info[[1]], "spatVector")
-                sv_B   <- slot(data_list$poly_info[[2]], "spatVector")
-                crds_A <- head(terra::crds(sv_A), 100)
-                crds_B <- head(terra::crds(sv_B), 100)
-
-                if (isTRUE(all.equal(crds_A, crds_B))) {
-                    if (isTRUE(verbose)) {
-                        message(
-                            "--> [Auto-Detection] Identical IDs AND vertices",
-                            " detected (Replicated 2D Data)."
-                        )
-                        message(
-                            "--> [Auto-Correction] Dropping redundant Z-planes.",
-                            " Setting 'aggregate_stack = FALSE'."
-                        )
-                    }
-                    data_list$poly_info <- data_list$poly_info[1]
-                    poly_z_indices      <- poly_z_indices[1]
-                    aggregate_stack     <- FALSE
-                }
-            }
-        }
-    }
-
-    # 5. object creation
-    if (data_to_use == "subcellular") {
-        merscope_gobject <- .createGiottoMerscopeObject_subcellular(
-            data_list             = data_list,
-            version               = version,
-            flip_axis             = flip_axis,
-            spat_unit             = spat_unit,
-            calculate_overlap     = calculate_overlap,
-            overlap_to_matrix     = overlap_to_matrix,
-            aggregate_stack       = aggregate_stack,
-            aggregate_stack_param = aggregate_stack_param,
-            split_keyword         = split_keyword,
-            instructions          = instructions,
-            cores                 = cores,
-            verbose               = verbose
-        )
-    } else {
-        merscope_gobject <- .createGiottoMerscopeObject_aggregate(
-            data_list = data_list,
-            cores     = cores,
-            verbose   = verbose
-        )
-    }
-
-    return(merscope_gobject)
+    g <- do.call(x$create_gobject, args = a)
+    return(g)
 }
 
 
 
 
-#' @describeIn createGiottoMerscopeObject Create giotto object with
-#' 'subcellular' workflow
-#' @param data_list list of loaded data from \code{\link{load_merscope_folder}}
-#' @keywords internal
+
 .createGiottoMerscopeObject_subcellular <- function(data_list,
     version               = 1,
     flip_axis             = c("none", "y", "x", "both"),

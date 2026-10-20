@@ -3,7 +3,26 @@
 Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
 
+## new
+- `importMerscope()` creates a `MerscopeReader` with `load_transcripts()`,
+  `load_polys()`, `load_expression()`, `load_cellmeta()`, `load_spatlocs()`,
+  `load_image()` and `create_gobject()` for Vizgen MERSCOPE region
+  directories. `backend =` returns `GiottoDisk::importMerscopeDisk()`.
+- `createGiottoMerscopeObject()` gains `load_images`: mosaic images (e.g.
+  `"DAPI_z3"`) placed with `images/micron_to_mosaic_pixel_transform.csv`.
+
 ## breaking changes
+- `createGiottoMerscopeObject()` loads the vendor outputs through
+  `importMerscope()`: transcripts, cell boundaries, the expression matrix from
+  `cell_by_gene.csv` and, with `data_to_use = "aggregate"`, cell centers from
+  `cell_metadata.csv`. No overlap is calculated; use `calculateOverlap()` and
+  `overlapToMatrix()` on the created object. Expression values now match
+  `cell_by_gene.csv`. `polygon_format = "parquet"` is the default.
+  The y coordinates of transcripts, polygons and cell centers are negated.
+  `version`, `flip_axis`, `calculate_overlap`, `overlap_to_matrix`,
+  `aggregate_stack`, `aggregate_stack_param` and `cores` are deprecated.
+  `version = 1` reads the HDF5 cell boundaries when `polygon_format` is not
+  given.
 - `runPAGEEnrich(return_gobject = FALSE)` returns a `spatEnrObj`, as the
   other enrichment methods do, instead of `list(DT =, matrix =)`.
 - Enrichment `p_value = TRUE` returns p-values for every method; PAGE
