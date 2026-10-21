@@ -34,8 +34,8 @@ setClass(
         calls = "list",
         paths = "list",
         # label used in path-detection messages. A subclass for a platform
-        # that shares this layout (see AteraReader) overrides it via its
-        # prototype so warnings name the right platform.
+        # that shares this layout can override it via its prototype so
+        # warnings name the right platform.
         platform = "character"
     ),
     prototype = list(
