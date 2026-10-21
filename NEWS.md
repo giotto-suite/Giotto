@@ -10,6 +10,9 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   directories. `backend =` returns `GiottoDisk::importMerscopeDisk()`.
 - `createGiottoMerscopeObject()` gains `load_images`: mosaic images (e.g.
   `"DAPI_z3"`) placed with `images/micron_to_mosaic_pixel_transform.csv`.
+- Atera docs: Atera v1 output (zarr) is read with `importAtera(backend =)` /
+  `createGiottoAteraObject(backend =)`, which use GiottoDisk's Atera reader.
+  Atera preview data in the Xenium layout reads with the Xenium readers.
 
 ## breaking changes
 - `createGiottoMerscopeObject()` loads the vendor outputs through
