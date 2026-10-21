@@ -521,8 +521,19 @@ setMethod(
 
 
             # images
+            # no morphology_focus output: skip the "focus" shortname instead
+            # of failing on a NULL path
+            if (!is.null(load_images) && is.null(img_focus_path) &&
+                    any(load_images == "focus")) {
+                warning(wrap_txt("No morphology_focus image found.",
+                    "Skipping the focus images; pass `load_images` paths",
+                    "to load other images."), call. = FALSE)
+                load_images <- load_images[load_images != "focus"]
+                if (!length(load_images)) load_images <- NULL
+            }
             if (!is.null(load_images)) {
                 load_images <- lapply(load_images, normalizePath, mustWork = FALSE)
+                if (is.null(img_focus_path)) img_focus_path <- ""
                 img_focus_path <- normalizePath(img_focus_path, mustWork = FALSE)
 
                 # replace shortname

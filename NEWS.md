@@ -47,6 +47,10 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   reference of all cells.
 
 ## bug fixes
+- Xenium and Atera readers: with the default `load_images = "focus"`, an output
+  folder without `morphology_focus/` loaded everything else and then failed
+  with "invalid 'path' argument". The focus images are now skipped with a
+  warning.
 - Hypergeometric enrichment scored every cell against other cells'
   thresholds: the per-cell top-percentage cut was recycled down the
   features. It also tested P(X > x) instead of P(X >= x), and a cell with a
