@@ -15,6 +15,11 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   Atera preview data in the Xenium layout reads with the Xenium readers.
 
 ## breaking changes
+- Atera has no in-memory reader: `importAtera()` and
+  `createGiottoAteraObject()` stop unless `backend =` is given, and read
+  through `GiottoDisk::importAteraDisk()`. The `AteraReader` class (a
+  `XeniumReader` subclass) is removed. Atera preview data in the Xenium layout
+  reads with `importXenium()` / `createGiottoXeniumObject()`.
 - `createGiottoMerscopeObject()` loads the vendor outputs through
   `importMerscope()`: transcripts, cell boundaries, the expression matrix from
   `cell_by_gene.csv` and, with `data_to_use = "aggregate"`, cell centers from

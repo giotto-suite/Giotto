@@ -1,34 +1,10 @@
 # Atera reader.
 #
-# Atera v1 output ships zarr archives only, read through GiottoDisk
-# (`backend =` -> GiottoDisk::importAteraDisk(), a reader of its own). The
-# in-memory `AteraReader` still subclasses `XeniumReader` and overrides
-# nothing but the platform label; Atera preview data in the Xenium layout is
-# read with the Xenium readers.
-#
-# `@include` is required, not cosmetic -- Collate is alphabetical, so without it
-# `convenience_atera.R` is sourced before `convenience_xenium.R` and
-# `contains = "XeniumReader"` fails at build time.
-
-#' @include convenience_xenium.R
-NULL
-
-#' @title Atera reader
-#' @name AteraReader-class
-#' @md
-#' @description
-#' In-memory reader behind [importAtera()] without a `backend`. Inherits the
-#' `XeniumReader` implementation. Atera v1 output (zarr) is read with a
-#' `backend`; see [importAtera()].
-#' @keywords internal
-setClass("AteraReader",
-    contains = "XeniumReader",
-    # only override: path-detection messages should name Atera
-    prototype = list(platform = "Atera")
-)
-
-#' @export
-`.DollarNames.AteraReader` <- `.DollarNames.XeniumReader`
+# Atera v1 output ships zarr archives only and is read on disk, through
+# GiottoDisk's own Atera reader (`backend =` -> GiottoDisk::importAteraDisk()).
+# There is no in-memory Atera reader for now: without a backend, importAtera()
+# stops. Atera preview data in the Xenium layout is read with the Xenium
+# readers.
 
 #' @name importAtera
 #' @md
@@ -37,19 +13,18 @@ setClass("AteraReader",
 #' Creates a reader with functions for converting individual pieces of Atera
 #' data into Giotto-compatible representations.
 #'
-#' Atera v1 output ships zarr archives only and is read through GiottoDisk:
-#' pass a `backend` to get a `GiottoDisk::importAteraDisk()` reader, which
-#' writes each data type to the on-disk project. Atera preview data in the
-#' Xenium layout (parquet / h5 files) is read with [importXenium()] and
+#' Atera v1 output ships zarr archives only and is read on disk: `backend` is
+#' required and returns a `GiottoDisk::importAteraDisk()` reader, which writes
+#' each data type to the on-disk project. There is no in-memory Atera reader;
+#' without a `backend` this stops. Atera preview data in the Xenium layout
+#' (parquet / h5 files) is read with [importXenium()] and
 #' [createGiottoXeniumObject()].
 #' @param atera_dir Atera output directory
 #' @param qv_threshold Minimum Phred-scaled quality score cutoff to be included
-#' as a subcellular transcript detection (default = 20). Only applies when
-#' transcript-level data is present.
-#' @param backend a `gsource`-inheriting project backend, or a path to one.
-#' Required for Atera v1 (zarr) output: creates the `giotto` object as a
-#' managed on-disk project.
-#' @returns `AteraDiskReader` object when `backend` is set, else `AteraReader`
+#' as a subcellular transcript detection (default = 20).
+#' @param backend a `gsource`-inheriting project backend (typically
+#' `GiottoDisk::sourceCreate()`), or a path to one. Required.
+#' @returns an `AteraDiskReader` object
 #' @examples
 #' \dontrun{
 #' x <- importAtera("path/to/atera_outs", backend = "path/to/project")
@@ -57,27 +32,23 @@ setClass("AteraReader",
 #' }
 #' @export
 importAtera <- function(atera_dir = NULL, qv_threshold = 20, backend = NULL) {
-    if (!is.null(backend)) {
-        package_check(
-            "GiottoDisk",
-            repository = "github:giotto-suite/GiottoDisk"
-        )
-        return(GiottoDisk::importAteraDisk(
-            atera_dir = atera_dir,
-            backend = backend,
-            qv_threshold = qv_threshold
-        ))
+    if (is.null(backend)) {
+        stop(wrap_txt(
+            "Atera output is read on disk: pass `backend =` (a GiottoDisk
+            project, e.g. from GiottoDisk::sourceCreate(), or a path for one).
+            Atera preview data in the Xenium layout reads with importXenium() /
+            createGiottoXeniumObject()."
+        ), call. = FALSE)
     }
-
-    a <- list(Class = "AteraReader")
-    # the inherited slot is named `xenium_dir`; only the public argument is
-    # renamed, so nothing about the parent implementation has to change
-    if (!is.null(atera_dir)) {
-        a$xenium_dir <- atera_dir
-    }
-    a$qv <- qv_threshold
-
-    do.call(new, args = a)
+    package_check(
+        "GiottoDisk",
+        repository = "github:giotto-suite/GiottoDisk"
+    )
+    GiottoDisk::importAteraDisk(
+        atera_dir = atera_dir,
+        backend = backend,
+        qv_threshold = qv_threshold
+    )
 }
 
 #' @name createGiottoAteraObject
@@ -85,7 +56,8 @@ importAtera <- function(atera_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' @title Create a Giotto object from Atera output
 #' @description
 #' Convenience wrapper around [importAtera()] that builds a `giotto` object in
-#' one call. Atera v1 output (zarr) needs a `backend`: transcripts, polygons
+#' one call. Atera output is read on disk, so `backend` is required (see
+#' [importAtera()]): transcripts, polygons
 #' and expression are written to the on-disk project, and `load_images =
 #' "focus"` loads the `morphology_2d` images. Parameters match
 #' [createGiottoXeniumObject()]; `gene_panel_json_path` does not apply, since
@@ -134,8 +106,7 @@ createGiottoAteraObject <- function(
         backend = NULL,
         instructions = NULL,
         verbose = NULL) {
-    x <- importAtera(atera_dir, backend = backend)
-    x$qv <- qv_threshold
+    x <- importAtera(atera_dir, qv_threshold = qv_threshold, backend = backend)
 
     a <- list(
         load_bounds = bounds_path,

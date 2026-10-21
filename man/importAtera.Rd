@@ -10,24 +10,23 @@ importAtera(atera_dir = NULL, qv_threshold = 20, backend = NULL)
 \item{atera_dir}{Atera output directory}
 
 \item{qv_threshold}{Minimum Phred-scaled quality score cutoff to be included
-as a subcellular transcript detection (default = 20). Only applies when
-transcript-level data is present.}
+as a subcellular transcript detection (default = 20).}
 
-\item{backend}{a \code{gsource}-inheriting project backend, or a path to one.
-Required for Atera v1 (zarr) output: creates the \code{giotto} object as a
-managed on-disk project.}
+\item{backend}{a \code{gsource}-inheriting project backend (typically
+\code{GiottoDisk::sourceCreate()}), or a path to one. Required.}
 }
 \value{
-\code{AteraDiskReader} object when \code{backend} is set, else \code{AteraReader}
+an \code{AteraDiskReader} object
 }
 \description{
 Creates a reader with functions for converting individual pieces of Atera
 data into Giotto-compatible representations.
 
-Atera v1 output ships zarr archives only and is read through GiottoDisk:
-pass a \code{backend} to get a \code{GiottoDisk::importAteraDisk()} reader, which
-writes each data type to the on-disk project. Atera preview data in the
-Xenium layout (parquet / h5 files) is read with \code{\link[=importXenium]{importXenium()}} and
+Atera v1 output ships zarr archives only and is read on disk: \code{backend} is
+required and returns a \code{GiottoDisk::importAteraDisk()} reader, which writes
+each data type to the on-disk project. There is no in-memory Atera reader;
+without a \code{backend} this stops. Atera preview data in the Xenium layout
+(parquet / h5 files) is read with \code{\link[=importXenium]{importXenium()}} and
 \code{\link[=createGiottoXeniumObject]{createGiottoXeniumObject()}}.
 }
 \examples{

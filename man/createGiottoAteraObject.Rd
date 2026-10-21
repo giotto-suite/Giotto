@@ -90,7 +90,8 @@ a \code{giotto} object
 }
 \description{
 Convenience wrapper around \code{\link[=importAtera]{importAtera()}} that builds a \code{giotto} object in
-one call. Atera v1 output (zarr) needs a \code{backend}: transcripts, polygons
+one call. Atera output is read on disk, so \code{backend} is required (see
+\code{\link[=importAtera]{importAtera()}}): transcripts, polygons
 and expression are written to the on-disk project, and \code{load_images = "focus"} loads the \code{morphology_2d} images. Parameters match
 \code{\link[=createGiottoXeniumObject]{createGiottoXeniumObject()}}; \code{gene_panel_json_path} does not apply, since
 Atera ships no gene panel. Atera preview data in the Xenium layout is read
