@@ -55,6 +55,12 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   reference of all cells.
 
 ## bug fixes
+- Xenium and Atera readers: genomic control probes named
+  `Intergenic_Region_*` (Atera WTA panels) and `DeprecatedCodeword_*`
+  features were not matched by the default `split_keyword` and were loaded as
+  `rna` transcripts, so aggregation added them to the gene expression. The
+  defaults now put them in `GenomicControl` and a new `DeprecatedCodeword`
+  feature type, matching how the 10x expression matrix is split.
 - Xenium and Atera readers: with the default `load_images = "focus"`, an output
   folder without `morphology_focus/` loaded everything else and then failed
   with "invalid 'path' argument". The focus images are now skipped with a

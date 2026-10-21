@@ -89,13 +89,15 @@ createGiottoAteraObject <- function(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         qv_threshold = 20,
         load_images = "focus",

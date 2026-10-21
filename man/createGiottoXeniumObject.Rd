@@ -12,9 +12,9 @@ createGiottoXeniumObject(
   expression_path = NULL,
   cell_metadata_path = NULL,
   feat_type = c("rna", "NegControlProbe", "UnassignedCodeword", "NegControlCodeword",
-    "GenomicControl"),
+    "GenomicControl", "DeprecatedCodeword"),
   split_keyword = list("NegControlProbe", "UnassignedCodeword", "NegControlCodeword",
-    "GenomicControl"),
+    c("GenomicControl", "Intergenic_Region"), "DeprecatedCodeword"),
   qv_threshold = 20,
   load_images = "focus",
   load_aligned_images = NULL,
@@ -116,8 +116,9 @@ reinstalled with the following:
 [\strong{QC feature types}]
 Xenium provides info on feature detections that include more than only the
 Gene Expression specific probes. Additional probes for QC are included:
-\emph{blank codeword}, \emph{negative control codeword}, and
-\emph{negative control probe}. These additional QC probes each occupy and
+\emph{blank codeword}, \emph{negative control codeword},
+\emph{negative control probe}, \emph{genomic control} and
+\emph{deprecated codeword}. These additional QC probes each occupy and
 are treated as their own feature types so that they can largely remain
 independent of the gene expression information.
 
@@ -126,7 +127,9 @@ Additional QC probe information is in the subcellular feature detections
 information and must be separated from the gene expression information
 during processing.
 The QC probes have prefixes that allow them to be selected from the rest of
-the feature IDs.
+the feature IDs. Genomic control probes are named either \verb{GenomicControl*}
+or, in whole-transcriptome panels (Atera WTA), \verb{Intergenic_Region_*}; the
+default \code{split_keyword} matches both.
 Giotto uses \code{feat_type} and \code{split_keyword} params to select these QC
 probes out as separate feature types. See examples in
 \verb{[GiottoClass::createGiottoPoints]} for how this works.
