@@ -17,6 +17,12 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   cells unassigned below a `min_score` or above a `max_padj`, and with
   `return_gobject = TRUE` writes the assignment to the cell metadata as
   `<enrichment_name>_type`.
+- `sweepClusterK()` scores a partition at each k over a range (silhouette,
+  within-cluster sum of squares, gap statistic), so the number of clusters is
+  chosen from the data. It reads a linear reduction or a spatial enrichment
+  (for niches) from the giotto object, or takes a matrix, a `dist`, or a
+  `spatialCoexpression(return_gobject = FALSE)` result, whose own tree it cuts
+  to choose `n_modules`.
 
 ## breaking changes
 - Atera has no in-memory reader: `importAtera()` and
