@@ -291,19 +291,15 @@ setMethod("analyzeData",
         reference)
     z <- matrix(NA_real_, ncol(x), ncol(mk),
         dimnames = list(colnames(x), colnames(mk)))
-    for (j in .enrich_blocks(x)) {
+    for (j in .enrich_blocks(ncol(x), nrow(x))) {
         xb <- x[, j, drop = FALSE]
         z[j, ] <- .page_z(xb, m, mk, .enrich_cell_moments(xb, m))
     }
 
-    out <- if (isTRUE(param$p_value)) {
+    p <- if (isTRUE(param$p_value)) {
         .page_p(z, k, nrow(x), param$include_depletion)
-    } else if (param$output_enrichment == "zscore") {
-        scale(z)
-    } else {
-        z
     }
-    .enrich_result(out, colnames(x))
+    .enrich_output(z, p, param, colnames(x))
 }
 
 # cells x types matrix of PAGE z-scores
@@ -338,15 +334,19 @@ setMethod("analyzeData",
 #' @rdname enrich_rank
 #' @inheritParams enrich_page
 #' @param param a [rankEnrichParam-class].
+#' @param ranks each feature's rank across all cells, for the cells of `x`
+#'   (features x cells, named as `x`). Computed from `x` when `NULL`; supply
+#'   it to score some cells against the ranks of all of them, as a
+#'   disk-backed engine does window by window.
 #' @md
 #' @returns a `data.table` of `cell_ID` and one column per cell type
 #' @export
 setMethod("analyzeData",
     signature(x = "ANY", param = "rankEnrichParam"),
-    function(x, param, ..., sign_matrix) {
+    function(x, param, ..., sign_matrix, ranks = NULL) {
         .enrich_check_contract(
             .rank_dt_method(sign_matrix = sign_matrix, expr_values = x,
-                            param = param),
+                            param = param, ranks = ranks),
             "analyzeData(rankEnrichParam)"
         )
     }
@@ -358,7 +358,7 @@ setMethod("analyzeData",
 # `p_value = TRUE` unreachable before.
 #' @keywords internal
 #' @noRd
-.rank_dt_method <- function(sign_matrix, expr_values, param) {
+.rank_dt_method <- function(sign_matrix, expr_values, param, ranks = NULL) {
     interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
     if (length(interGene) < 100) {
         stop("Please check the gene numbers or names of scRNA-seq. The names
@@ -393,10 +393,18 @@ setMethod("analyzeData",
     # else ties_1=ties_2 is equal to random
     # each feature ranked across all cells needs every cell at once; the
     # within-cell ranks and the scores then go a block of cells at a time
-    geneFold <- .rank_rows(expr_values, ties_1)
+    geneFold <- if (is.null(ranks)) {
+        .rank_rows(expr_values, ties_1)
+    } else {
+        if (!identical(dimnames(ranks), dimnames(expr_values))) {
+            stop("`ranks` must have the features and cells of the ",
+                "expression values, in the same order.", call. = FALSE)
+        }
+        ranks
+    }
     sig <- lapply(seq_len(ncol(sign_matrix)), function(i) intersect(
         rownames(sign_matrix)[sign_matrix[, i] > 0], rownames(geneFold)))
-    for (j in .enrich_blocks(geneFold)) {
+    for (j in .enrich_blocks(ncol(geneFold), nrow(geneFold))) {
         rankFold <- t(sparseMatrixStats::colRanks(-geneFold[, j, drop = FALSE],
             ties.method = ties_2))
         rownames(rankFold) <- rownames(geneFold)
@@ -413,19 +421,10 @@ setMethod("analyzeData",
     colnames(enrichment) <- colnames(expr_values)
     enrichment <- t(enrichment)
 
-    # p-values come from the unscaled scores; z-scoring is for scores only
-    if (param$output_enrichment == "zscore" && !isTRUE(param$p_value)) {
-        enrichment <- scale(enrichment)
-    }
-
-    enrichmentDT <- data.table::data.table(cell_ID = rownames(enrichment))
-    enrichmentDT <- cbind(enrichmentDT, data.table::as.data.table(enrichment))
-
+    p <- NULL
     if (isTRUE(param$p_value)) {
         # Suggests-only, and reached solely by this branch -- checked here
         # rather than at the top so the common path does not require it.
-        # It went unguarded while this branch errored regardless; now that
-        # it works, a missing install is the only thing that stops it.
         package_check(pkg_name = "fitdistrplus", repository = "CRAN")
 
         random_rank <- .do_rank_permutation(
@@ -435,31 +434,20 @@ setMethod("analyzeData",
         no_p$p_value <- FALSE
         no_p$output_enrichment <- "original"
         random_enr <- .rank_dt_method(
-            sign_matrix = random_rank, expr_values = expr_values, param = no_p
+            sign_matrix = random_rank, expr_values = expr_values, param = no_p,
+            ranks = geneFold
         )
-        # by name, not position: cell_ID is character and unlisting it into
-        # the gamma fit is how this used to fail
-        score_cols <- names(random_enr)[
-            vapply(random_enr, is.numeric, logical(1L))
-        ]
-        background <- unlist(
-            random_enr[, score_cols, with = FALSE], use.names = FALSE
-        )
+        background <- unlist(random_enr[, -"cell_ID"], use.names = FALSE)
         fit.gamma <- fitdistrplus::fitdist(
             background, distr = "gamma", method = "mle"
         )
-        own_cols <- names(enrichmentDT)[
-            vapply(enrichmentDT, is.numeric, logical(1L))
-        ]
-        enrichmentDT[, (own_cols) := lapply(.SD, function(v) {
-            stats::pgamma(
-                v, fit.gamma$estimate[1], rate = fit.gamma$estimate[2],
-                lower.tail = FALSE, log.p = FALSE
-            )
-        }), .SDcols = own_cols]
+        p <- stats::pgamma(
+            enrichment, fit.gamma$estimate[1], rate = fit.gamma$estimate[2],
+            lower.tail = FALSE
+        )
+        p <- matrix(p, nrow(enrichment), dimnames = dimnames(enrichment))
     }
-
-    enrichmentDT[]
+    .enrich_output(enrichment, p, param, rownames(enrichment))
 }
 
 
@@ -519,7 +507,7 @@ setMethod("analyzeData",
     # blocks of cells, so the dense fold changes are never held in full
     p <- matrix(NA_real_, ncol(x), ncol(mk),
         dimnames = list(colnames(x), colnames(mk)))
-    for (j in .enrich_blocks(x)) {
+    for (j in .enrich_blocks(ncol(x), nrow(x))) {
         fc <- as.matrix(x[, j, drop = FALSE]) - m
         cut <- MatrixGenerics::colQuantiles(fc,
             probs = 1 - param$top_percentage / 100, type = 7L, drop = TRUE)
@@ -530,14 +518,8 @@ setMethod("analyzeData",
             rep(nrow(mk) - n_t, each = length(j)), k, lower.tail = FALSE)
     }
 
-    out <- if (isTRUE(param$p_value)) {
-        p
-    } else if (param$output_enrichment == "zscore") {
-        scale(-log10(p))
-    } else {
-        -log10(p)
-    }
-    .enrich_result(out, colnames(x))
+    .enrich_output(-log10(p), if (isTRUE(param$p_value)) p, param,
+        colnames(x))
 }
 
 
@@ -614,23 +596,22 @@ setMethod("analyzeData",
 #' @noRd
 .rank_rows <- function(x, ties, values = 5e7) {
     out <- matrix(0, nrow(x), ncol(x), dimnames = dimnames(x))
-    step <- max(1L, as.integer(values %/% max(1L, ncol(x))))
-    for (a in seq(1L, max(1L, nrow(x)), by = step)) {
-        r <- a:min(nrow(x), a + step - 1L)
+    for (r in .enrich_blocks(nrow(x), ncol(x), values)) {
         out[r, ] <- MatrixGenerics::rowRanks(as.matrix(x[r, , drop = FALSE]),
             ties.method = ties)
     }
     out
 }
 
-# Column (cell) index blocks of about `values` dense values each: the unit
-# every method computes in, so no step holds a dense features x cells copy
+# Index blocks over `n` rows or columns, each about `values` dense values when
+# the other dimension is `width`: the unit every method computes in, so no
+# step holds a dense features x cells copy
 #' @keywords internal
 #' @noRd
-.enrich_blocks <- function(x, values = 5e7) {
-    step <- max(1L, as.integer(values %/% max(1L, nrow(x))))
-    starts <- seq(1L, max(1L, ncol(x)), by = step)
-    lapply(starts, function(a) a:min(ncol(x), a + step - 1L))
+.enrich_blocks <- function(n, width, values = 5e7) {
+    step <- max(1L, as.integer(values %/% max(1L, width)))
+    lapply(seq(1L, max(1L, n), by = step),
+           function(a) a:min(n, a + step - 1L))
 }
 
 # cells x types matrix -> the result contract, cells in expression order
@@ -640,6 +621,20 @@ setMethod("analyzeData",
     mat <- as.matrix(mat)
     out <- data.table::data.table(cell_ID = as.character(cell_ids))
     cbind(out, data.table::as.data.table(unclass(mat)))[]
+}
+
+# A method's result from its raw scores (cells x types) and, with p_value,
+# their p-values: the scores, scaled per `output_enrichment`; or the p-values
+# carrying those scores as the "scores" attribute, so one run yields both.
+#' @keywords internal
+#' @noRd
+.enrich_output <- function(scores, p, param, cell_ids) {
+    if (identical(param$output_enrichment, "zscore")) scores <- scale(scores)
+    s <- .enrich_result(scores, cell_ids)
+    if (!isTRUE(param$p_value)) return(s)
+    out <- .enrich_result(p, cell_ids)
+    data.table::setattr(out, "scores", s)
+    out
 }
 
 
@@ -691,26 +686,43 @@ setMethod("analyzeData",
     # returns whatever the slot holds, so a disk-backed store arrives here
     # intact and routes to its own method.
     res <- analyzeData(x = mat, param = param, sign_matrix = sign_matrix)
+    detail <- attr(res, "detail")
 
-    enrObj <- createSpatEnrObj(
-        name = name,
-        method = method,
-        enrichment_data = res,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        provenance = expr_values@provenance,
-        misc = misc
-    )
+    # scores under `name`; with p_value their p-values and adjusted p-values
+    # beside them, as `<name>_p` and `<name>_padj`
+    tabs <- if (isTRUE(param$p_value)) {
+        scores <- attr(res, "scores")
+        data.table::setattr(res, "scores", NULL)
+        p <- list(res, .enrich_padj(res))
+        names(p) <- paste0(name, c("_p", "_padj"))
+        c(if (!is.null(scores)) stats::setNames(list(scores), name), p)
+    } else {
+        stats::setNames(list(res), name)
+    }
+    objs <- lapply(names(tabs), function(nm) {
+        createSpatEnrObj(
+            name = nm,
+            method = method,
+            enrichment_data = tabs[[nm]],
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            provenance = expr_values@provenance,
+            misc = utils::modifyList(misc,
+                list(p_values_calculated = nm != name))
+        )
+    })
+    names(objs) <- names(tabs)
 
     if (!isTRUE(return_gobject)) {
-        return(list(enrObj = enrObj, detail = attr(res, "detail")))
+        enrObj <- if (length(objs) == 1L) objs[[1L]] else objs
+        return(list(enrObj = enrObj, detail = detail))
     }
 
     spenr_names <- list_spatial_enrichments_names(
         gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
     )
-    if (name %in% spenr_names) {
-        cat(name, " has already been used, will be overwritten")
+    for (nm in intersect(names(objs), spenr_names)) {
+        cat(nm, " has already been used, will be overwritten")
     }
 
     parameters_list <- gobject@parameters
@@ -718,5 +730,18 @@ setMethod("analyzeData",
     parameters_list[[update_name]] <- history
     gobject@parameters <- parameters_list
 
-    list(gobject = setGiotto(gobject, enrObj), detail = attr(res, "detail"))
+    for (o in objs) gobject <- setGiotto(gobject, o)
+    list(gobject = gobject, detail = detail)
+}
+
+# Benjamini-Hochberg adjusted p-values over every cell and type tested.
+#' @keywords internal
+#' @noRd
+.enrich_padj <- function(p) {
+    out <- data.table::copy(p)
+    types <- setdiff(names(out), "cell_ID")
+    adj <- stats::p.adjust(unlist(out[, types, with = FALSE],
+        use.names = FALSE), method = "BH")
+    out[, (types) := split(adj, rep(seq_along(types), each = nrow(out)))]
+    out[]
 }

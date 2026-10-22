@@ -54,9 +54,11 @@ with
 \item{logbase}{numeric. Log base to undo when \code{reverse_log_scale = TRUE}
 (default = 2).}
 
-\item{p_value}{logical. Return p-values instead of scores (default =
-FALSE). They are computed from the unscaled scores, so \code{output_enrichment}
-applies to scores only.}
+\item{p_value}{logical. Also compute p-values, from the unscaled scores
+(default = FALSE). The \code{run*Enrich()} functions store them beside the
+scores as \verb{<name>_p}, with Benjamini-Hochberg adjusted p-values over all
+cells and types as \verb{<name>_padj}; \code{analyzeData()} returns the p-values,
+carrying the scores as their \code{"scores"} attribute.}
 
 \item{n_times}{(rank) number of permutation iterations to calculate
 p-value}

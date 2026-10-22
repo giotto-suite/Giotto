@@ -22,9 +22,10 @@
 #' in closed form; kept so existing calls still run
 #' @param max_block no longer used; kept so existing calls still run
 #' @param verbose be verbose
-#' @returns `matrix` (`makeSignMatrixPAGE()`) and
-#' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or a `spatEnrObj`
-#' (`runPAGEEnrich(return_gobject = FALSE)`)
+#' @returns `matrix` (`makeSignMatrixPAGE()`); `runPAGEEnrich()` returns a
+#' `giotto` (`return_gobject = TRUE`), else a `spatEnrObj`, or with
+#' `p_value = TRUE` a list of them named by enrichment: the scores, `_p` and
+#' `_padj`
 #' @details
 #' The enrichment Z score is calculated by using method (PAGE) from
 #' Kim SY et al., BMC bioinformatics, 2005 as \cr
@@ -501,7 +502,9 @@ runPAGEEnrich <- function(
 #' @param n_times number of permutation iterations to calculate p-value
 #' @param rbp_p fractional binarization threshold (default = 0.99)
 #' @param num_agg number of top genes to aggregate (default = 100)
-#' @returns data.table with enrichment results
+#' @returns `giotto` (`return_gobject = TRUE`), else a `spatEnrObj`, or with
+#' `p_value = TRUE` a list of them named by enrichment: the scores, `_p` and
+#' `_padj`
 #' @details
 #' sign_matrix: a rank-fold matrix with genes as row names and cell-types as
 #' column names.
@@ -651,7 +654,9 @@ runRankEnrich <- function(
 #' @inheritParams enrichment_params
 #' @param top_percentage percentage of features per cell treated as expressed
 #' when binarizing (default = 5)
-#' @returns data.table with enrichment results
+#' @returns `giotto` (`return_gobject = TRUE`), else a `spatEnrObj`, or with
+#' `p_value = TRUE` a list of them named by enrichment: the scores, `_p` and
+#' `_padj`
 #' @details The enrichment score is calculated based on the p-value from the
 #' hypergeometric test, -log10(p-value).
 #' @md
