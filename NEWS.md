@@ -3,7 +3,38 @@
 Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
 
+## new
+- `importMerscope()` creates a `MerscopeReader` with `load_transcripts()`,
+  `load_polys()`, `load_expression()`, `load_cellmeta()`, `load_spatlocs()`,
+  `load_image()` and `create_gobject()` for Vizgen MERSCOPE region
+  directories. `backend =` returns `GiottoDisk::importMerscopeDisk()`.
+- `createGiottoMerscopeObject()` gains `load_images`: mosaic images (e.g.
+  `"DAPI_z3"`) placed with `images/micron_to_mosaic_pixel_transform.csv`.
+- Atera docs: Atera v1 output (zarr) is read with `importAtera(backend =)` /
+  `createGiottoAteraObject(backend =)`, which use GiottoDisk's Atera reader.
+  Atera preview data in the Xenium layout reads with the Xenium readers.
+- `findCellTypesFromEnrichment()` (and its bar and pie plots) can leave
+  cells unassigned below a `min_score` or above a `max_padj`, and with
+  `return_gobject = TRUE` writes the assignment to the cell metadata as
+  `<enrichment_name>_type`.
+
 ## breaking changes
+- Atera has no in-memory reader: `importAtera()` and
+  `createGiottoAteraObject()` stop unless `backend =` is given, and read
+  through `GiottoDisk::importAteraDisk()`. The `AteraReader` class (a
+  `XeniumReader` subclass) is removed. Atera preview data in the Xenium layout
+  reads with `importXenium()` / `createGiottoXeniumObject()`.
+- `createGiottoMerscopeObject()` loads the vendor outputs through
+  `importMerscope()`: transcripts, cell boundaries, the expression matrix from
+  `cell_by_gene.csv` and, with `data_to_use = "aggregate"`, cell centers from
+  `cell_metadata.csv`. No overlap is calculated; use `calculateOverlap()` and
+  `overlapToMatrix()` on the created object. Expression values now match
+  `cell_by_gene.csv`. `polygon_format = "parquet"` is the default.
+  The y coordinates of transcripts, polygons and cell centers are negated.
+  `version`, `flip_axis`, `calculate_overlap`, `overlap_to_matrix`,
+  `aggregate_stack`, `aggregate_stack_param` and `cores` are deprecated.
+  `version = 1` reads the HDF5 cell boundaries when `polygon_format` is not
+  given.
 - `runPAGEEnrich(return_gobject = FALSE)` returns a `spatEnrObj`, as the
   other enrichment methods do, instead of `list(DT =, matrix =)`.
 - Enrichment `p_value = TRUE` keeps the scores and adds p-values: the
@@ -14,6 +45,11 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   scores, so `output_enrichment = "zscore"` no longer distorts them.
 
 ## changes
+- The Stereo-seq readers (`importStereoSeq()`,
+  `createGiottoStereoSeqObjectBin()`, `createGiottoStereoSeqObjectCell()`)
+  accept a folder with the GEF and registered image files directly, as
+  downloaded from the STOmics demo site, as well as a SAW `outs/` directory
+  with `feature_expression/` and `image/`.
 - PAGE no longer densifies the expression or melts it into a long table: the
   scores come from per-cell moments and one product with the marker matrix.
 - PAGE p-values are the permutation null in closed form instead of a
@@ -26,16 +62,20 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   disk-backed engine can score windows of cells against all of them.
 - Rank p-values reuse the feature ranks instead of computing them again.
 
-## new
-- `findCellTypesFromEnrichment()` (and its bar and pie plots) can leave
-  cells unassigned below a `min_score` or above a `max_padj`, and with
-  `return_gobject = TRUE` writes the assignment to the cell metadata as
-  `<enrichment_name>_type`.
-
 ## bug fixes
 - `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
   `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
   to the first type instead of a random one.
+- Xenium and Atera readers: genomic control probes named
+  `Intergenic_Region_*` (Atera WTA panels) and `DeprecatedCodeword_*`
+  features were not matched by the default `split_keyword` and were loaded as
+  `rna` transcripts, so aggregation added them to the gene expression. The
+  defaults now put them in `GenomicControl` and a new `DeprecatedCodeword`
+  feature type, matching how the 10x expression matrix is split.
+- Xenium and Atera readers: with the default `load_images = "focus"`, an output
+  folder without `morphology_focus/` loaded everything else and then failed
+  with "invalid 'path' argument". The focus images are now skipped with a
+  warning.
 - Hypergeometric enrichment scored every cell against other cells'
   thresholds: the per-cell top-percentage cut was recycled down the
   features. It also tested P(X > x) instead of P(X >= x), and a cell with a

@@ -142,7 +142,7 @@ spdepAutoCorr <- function(
 #' @seealso \url{https://cran.r-project.org/web/packages/spdep/index.html}
 callSpdep <- function(method, ...) {
     # Load the 'spdep' package if not already installed
-    package_check(pkg_name = "spdep", repository = "CRAN", optional = FALSE)
+    package_check(pkg_name = "spdep", repository = "CRAN")
 
     # Check if 'method' argument is NULL, if so, stop with an error
     if (is.null(method)) {

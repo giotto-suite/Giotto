@@ -34,8 +34,8 @@ setClass(
         calls = "list",
         paths = "list",
         # label used in path-detection messages. A subclass for a platform
-        # that shares this layout (see AteraReader) overrides it via its
-        # prototype so warnings name the right platform.
+        # that shares this layout can override it via its prototype so
+        # warnings name the right platform.
         platform = "character"
     ),
     prototype = list(
@@ -196,13 +196,15 @@ setMethod(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -369,13 +371,15 @@ setMethod(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         load_images = "focus",
         load_aligned_images = NULL,
@@ -521,8 +525,19 @@ setMethod(
 
 
             # images
+            # no morphology_focus output: skip the "focus" shortname instead
+            # of failing on a NULL path
+            if (!is.null(load_images) && is.null(img_focus_path) &&
+                    any(load_images == "focus")) {
+                warning(wrap_txt("No morphology_focus image found.",
+                    "Skipping the focus images; pass `load_images` paths",
+                    "to load other images."), call. = FALSE)
+                load_images <- load_images[load_images != "focus"]
+                if (!length(load_images)) load_images <- NULL
+            }
             if (!is.null(load_images)) {
                 load_images <- lapply(load_images, normalizePath, mustWork = FALSE)
+                if (is.null(img_focus_path)) img_focus_path <- ""
                 img_focus_path <- normalizePath(img_focus_path, mustWork = FALSE)
 
                 # replace shortname
@@ -905,13 +920,15 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -1858,8 +1875,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' \[\strong{QC feature types}\]
 #' Xenium provides info on feature detections that include more than only the
 #' Gene Expression specific probes. Additional probes for QC are included:
-#' \emph{blank codeword}, \emph{negative control codeword}, and
-#' \emph{negative control probe}. These additional QC probes each occupy and
+#' \emph{blank codeword}, \emph{negative control codeword},
+#' \emph{negative control probe}, \emph{genomic control} and
+#' \emph{deprecated codeword}. These additional QC probes each occupy and
 #' are treated as their own feature types so that they can largely remain
 #' independent of the gene expression information.
 #'
@@ -1868,7 +1886,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' information and must be separated from the gene expression information
 #' during processing.
 #' The QC probes have prefixes that allow them to be selected from the rest of
-#' the feature IDs.
+#' the feature IDs. Genomic control probes are named either `GenomicControl*`
+#' or, in whole-transcriptome panels (Atera WTA), `Intergenic_Region_*`; the
+#' default `split_keyword` matches both.
 #' Giotto uses `feat_type` and `split_keyword` params to select these QC
 #' probes out as separate feature types. See examples in
 #' `[GiottoClass::createGiottoPoints]` for how this works.
@@ -1893,13 +1913,15 @@ createGiottoXeniumObject <- function(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         qv_threshold = 20,
         load_images = "focus",

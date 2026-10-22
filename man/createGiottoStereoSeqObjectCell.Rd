@@ -24,7 +24,9 @@ createGiottoStereoSeqObjectCell(
 )
 }
 \arguments{
-\item{stereoseq_dir}{filepath to the Stereo-seq `outs` directory.}
+\item{stereoseq_dir}{filepath to the Stereo-seq `outs` directory, with
+`feature_expression/` and `image/` subdirectories, or to a folder holding
+the GEF and registered image files directly (as downloaded from STOmics).}
 
 \item{gene_column}{character. Feature identifier column. One of
 `"geneName"` (default) or `"geneID"`.}
