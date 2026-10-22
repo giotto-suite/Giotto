@@ -931,11 +931,13 @@ get10Xmatrix <- function(
     ## convert ensembl gene id to gene symbol ##
     ## TODO
 
-    featuresDT[, total := .N, by = get(g_name)]
+    # a character `by` groups by that column; `by = get(g_name)` errors in
+    # data.table 1.18 ("'by' appears to evaluate to column names")
+    featuresDT[, total := .N, by = g_name]
     featuresDT[, gene_symbol := ifelse(
         total > 1, paste0(get(g_name), "--", seq_len(.N)),
         get(g_name)
-    ), by = get(g_name)]
+    ), by = g_name]
     features_vec <- featuresDT$gene_symbol
     names(features_vec) <- seq_len(nrow(featuresDT))
 
