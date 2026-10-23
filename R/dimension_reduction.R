@@ -2476,6 +2476,7 @@ runNMF <- function(gobject,
 
 #' @title Run UMAP dimension reduction
 #' @name runUMAP
+#' @md
 #' @description run UMAP
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
@@ -2489,12 +2490,10 @@ runNMF <- function(gobject,
 #' @param feats_to_use if dim_reduction_to_use = NULL, which features to use
 #' @param return_gobject logical: return giotto object (default = TRUE)
 #' @param n_neighbors UMAP param: number of neighbors, counting the cell
-#'   itself. `NULL` (default) takes it from the stored kNN reused under
-#'   `nn_engine = "giotto"` (its `k + 1`), so no second graph is built, and
-#'   falls back to `31` -- the `k = 30` graph
-#'   [GiottoClass::createNearestNetwork()] builds by default, plus the cell
-#'   itself -- when there is none to reuse or another `nn_engine` is used. A
-#'   value wider than the stored kNN builds a new graph of that size.
+#'   itself. `NULL` (default) uses every neighbor of a reused stored network
+#'   (its `k + 1`), and `31` when a graph is built: the `k = 30`
+#'   [GiottoClass::createNearestNetwork()] uses by default, plus the cell
+#'   itself. See the "Neighbor graph" section.
 #' @param n_components UMAP param: number of components
 #' @param n_epochs UMAP param: number of epochs. `NULL` (default) scales with
 #'   the number of observations embedded: `200` above 50,000, otherwise uwot's
@@ -2520,10 +2519,10 @@ runNMF <- function(gobject,
 #'   stage that made this function irreproducible before `nn_engine` existed.
 #' @param nn_engine character. Where the neighbor graph UMAP runs on comes
 #'   from. `"giotto"` (default) takes it from Giotto rather than from uwot:
-#'   the kNN stored by [GiottoClass::createNearestNetwork()] when one is
-#'   available (see `network_name`), otherwise one built with
-#'   [GiottoClass::hnswKNN()]. Either way uwot runs no search, and neither
-#'   depends on a seed. `"uwot"` lets uwot choose its own backend, which is
+#'   a stored network when one fits, otherwise one built with
+#'   [GiottoClass::hnswKNN()] (see the "Neighbor graph" section). Either way
+#'   uwot runs no search, and neither depends on a seed. `"uwot"` lets uwot
+#'   choose its own backend, which is
 #'   what earlier versions did and is **not** reproducible: it prefers
 #'   RcppHNSW, whose parallel index build is a thread race the R RNG cannot
 #'   reach. Any other value names a uwot backend directly and is passed
@@ -2543,8 +2542,9 @@ runNMF <- function(gobject,
 #'   (default) derives it as `<nn_network_to_use>.<dim_reduction_to_use>`,
 #'   which is what [GiottoClass::createNearestNetwork()] names it. An object
 #'   can hold several kNN networks, so this is looked up by name and never
-#'   guessed: when the derived name is absent a graph is built instead, but a
-#'   name given explicitly and not found is an error.
+#'   guessed. A derived name that is absent or does not fit means a graph is
+#'   built; a name given explicitly must fit, or `runUMAP()` stops. See the
+#'   "Neighbor graph" section.
 #' @inheritDotParams uwot::umap2 -X -n_neighbors -n_components -n_epochs
 #' -min_dist -n_threads -spread -init -batch -seed -scale -pca -pca_center
 #' -pca_method
@@ -2588,6 +2588,31 @@ runNMF <- function(gobject,
 #'   \item multiple UMAP results can be stored by changing the \emph{name} of
 #'   the analysis
 #' }
+#' @section Neighbor graph:
+#' With `nn_engine = "giotto"` (the default), the graph UMAP runs on is
+#' chosen in this order:
+#' 1. **Look up** the stored network named `network_name`, or
+#'    `<nn_network_to_use>.<dim_reduction_to_use>` (`kNN.pca` by default),
+#'    which is the name [GiottoClass::createNearestNetwork()] gives it.
+#' 2. **Reuse it if it fits.** It must have been built from the same input
+#'    as this UMAP: the same reduction (by name), `dimensions_to_use` and
+#'    distance, or, without a reduction, the same `expression_values` and
+#'    features. It must also cover the same cells, with the same number of
+#'    neighbors each, and be wide enough for `n_neighbors`. With
+#'    `n_neighbors = NULL` every stored neighbor is used; a smaller
+#'    `n_neighbors` uses each cell's nearest `n_neighbors - 1`.
+#' 3. **Otherwise**, if `network_name` was given, stop with an error saying
+#'    why it does not fit. If not, build a graph with
+#'    [GiottoClass::hnswKNN()] at `n_neighbors - 1` neighbors (30 when
+#'    `n_neighbors = NULL`).
+#'
+#' `verbose = TRUE` reports which of these happened and why. A network
+#' created before GiottoClass 0.7.26 has no record of its input, so step 2
+#' cannot check it: it is reused with a warning. Run `createNearestNetwork()`
+#' again to record it.
+#'
+#' Any other `nn_engine` skips these steps and lets uwot search, with
+#' `n_neighbors = NULL` meaning 31.
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
@@ -2707,6 +2732,12 @@ runUMAP <- function(gobject,
             }
 
             matrix_to_use <- matrix_to_use[, dimensions_to_use]
+            # what a stored kNN must have been built from to be reused
+            umap_input <- list(
+                dim_reduction_to_use = dim_reduction_to_use,
+                dim_reduction_name = objName(dimObj_to_use),
+                dimensions_to_use = as.integer(dimensions_to_use)
+            )
         } else {
             ## using original matrix ##
             # expression values to be used
@@ -2725,6 +2756,7 @@ runUMAP <- function(gobject,
 
             provenance <- prov(expr_values)
             expr_values <- expr_values[] # extract matrix
+            all_feats <- rownames(expr_values)
 
 
             ## subset matrix
@@ -2740,6 +2772,11 @@ runUMAP <- function(gobject,
             }
 
             matrix_to_use <- t_flex(expr_values)
+            umap_input <- list(
+                expression_values = values,
+                feats = colnames(matrix_to_use),
+                all_feats = all_feats
+            )
         }
 
         # start seed
@@ -2847,6 +2884,8 @@ runUMAP <- function(gobject,
                 feat_type = feat_type, cell_ids = rownames(matrix_to_use),
                 n_neighbors = n_neighbors, nn_type = nn_network_to_use,
                 network_name = nn_name,
+                input = c(umap_input,
+                          list(distance = dots$metric %null% "euclidean")),
                 required = !is.null(network_name), verbose = verbose
             )
             if (is.null(nn)) {
@@ -3985,16 +4024,23 @@ runIterativeLSI <- function(
 # several kNN networks, and ranking candidates would silently embed on a graph
 # the caller never chose.
 #
-# Usable means: the same cells, uniform degree, and at least
-# `n_neighbors - 1` neighbours each; `n_neighbors = NULL` takes every stored
-# neighbour, so any usable graph is reused. A stored graph with fewer
-# neighbours than asked for is NOT quietly accepted -- embedding on a narrower
-# neighbourhood than the caller requested is a different analysis. `required = TRUE` (the
-# caller named the network explicitly) turns every miss into an error, since
-# an explicit request that cannot be honoured is worth stopping for.
+# Usable means: built from the same input as this UMAP, the same cells,
+# uniform degree, and at least `n_neighbors - 1` neighbours each;
+# `n_neighbors = NULL` takes every stored neighbour, so any usable graph is
+# reused. A stored graph with fewer neighbours than asked for is NOT quietly
+# accepted -- embedding on a narrower neighbourhood than the caller requested
+# is a different analysis. `required = TRUE` (the caller named the network
+# explicitly) turns every miss into an error, since an explicit request that
+# cannot be honoured is worth stopping for.
+#
+# Same input is checked against the record createNearestNetwork() leaves in
+# `@misc$nn_input` (GiottoClass >= 0.7.26). The name cannot stand in for it:
+# `kNN.pca` says only that the graph came from some PCA, so a network built on
+# PCs 1:20 would otherwise be reused under a UMAP of PCs 1:10. `input` is what
+# runUMAP() embeds -- see `.umap_input_mismatch()`.
 .umap_stored_knn <- function(gobject, spat_unit, feat_type, cell_ids,
-    n_neighbors, nn_type = "kNN", network_name, required = FALSE,
-    verbose = NULL) {
+    n_neighbors, nn_type = "kNN", network_name, input = NULL,
+    required = FALSE, verbose = NULL) {
     .miss <- function(msg) {
         if (required) {
             stop("[runUMAP] ", msg, call. = FALSE)
@@ -4013,6 +4059,32 @@ runIterativeLSI <- function(
             !network_name %in% nets$name[nets$nn_type == nn_type]) {
         return(.miss(sprintf("no %s network named '%s'", nn_type,
                              network_name)))
+    }
+
+    # Before the edges are read: a graph from a different input is rejected
+    # without paying for the read.
+    record <- NULL
+    if (!is.null(input)) {
+        nn_obj <- tryCatch(
+            GiottoClass::getNearestNetwork(gobject, spat_unit = spat_unit,
+                feat_type = feat_type, nn_type = nn_type,
+                name = network_name, output = "nnNetObj"),
+            error = function(e) NULL
+        )
+        record <- if (!is.null(nn_obj)) nn_obj@misc$nn_input
+        if (is.null(record)) {
+            warning(wrap_txtf(
+                "[runUMAP] '%s' has no record of the input it was built from,
+                so it is reused unchecked. It predates GiottoClass 0.7.26;
+                run createNearestNetwork() again to record it.",
+                network_name), call. = FALSE)
+        } else {
+            mismatch <- .umap_input_mismatch(record, input)
+            if (length(mismatch)) {
+                return(.miss(sprintf("'%s' was built from %s",
+                    network_name, paste(mismatch, collapse = ", "))))
+            }
+        }
     }
 
     dt <- tryCatch(
@@ -4075,5 +4147,64 @@ runIterativeLSI <- function(
         "runUMAP: using the stored %s '%s' (%d neighbours per cell)",
         nn_type, network_name, k_want))
     structure(list(dist = di, id = id, k = k_want, sort = TRUE,
-                   metric = "euclidean"), class = c("kNN", "NN"))
+                   metric = .umap_distance(record$distance)),
+              class = c("kNN", "NN"))
+}
+
+# hnsw's "l2" is squared euclidean: the same neighbours in the same order.
+.umap_distance <- function(d) {
+    d <- d %null% "euclidean"
+    if (identical(d, "l2")) "euclidean" else d
+}
+
+# How a stored network's `@misc$nn_input` record differs from what runUMAP()
+# embeds, as phrases for the message ("PCs 1:20, not 1:10"); empty when it
+# fits. `input` holds either the reduction fields or, when UMAP runs on
+# expression values, `expression_values`, `feats` (used) and `all_feats` (the
+# record stores NULL for "every feature"). `k` is not compared: the width
+# check that follows covers it.
+.umap_input_mismatch <- function(record, input) {
+    .fmt_dims <- function(x) {
+        if (length(x) > 1L && all(diff(x) == 1L)) {
+            sprintf("%d:%d", x[[1L]], x[[length(x)]])
+        } else {
+            paste(x, collapse = ",")
+        }
+    }
+    out <- character()
+
+    uses_reduction <- !is.null(input$dim_reduction_to_use)
+    if (!identical(record$dim_reduction_to_use, input$dim_reduction_to_use)) {
+        rec_src <- record$dim_reduction_to_use %null% "expression values"
+        out <- c(out, sprintf("%s, not %s", rec_src,
+            input$dim_reduction_to_use %null% "expression values"))
+    } else if (uses_reduction) {
+        if (!identical(record$dim_reduction_name, input$dim_reduction_name)) {
+            out <- c(out, sprintf("reduction '%s', not '%s'",
+                record$dim_reduction_name, input$dim_reduction_name))
+        }
+        if (!identical(as.integer(record$dimensions_to_use),
+                       input$dimensions_to_use)) {
+            out <- c(out, sprintf("dimensions %s, not %s",
+                .fmt_dims(record$dimensions_to_use),
+                .fmt_dims(input$dimensions_to_use)))
+        }
+    } else {
+        if (!identical(record$expression_values, input$expression_values)) {
+            out <- c(out, sprintf("'%s' expression values, not '%s'",
+                record$expression_values, input$expression_values))
+        }
+        rec_feats <- record$feats_to_use %null% input$all_feats
+        if (!setequal(rec_feats, input$feats)) {
+            out <- c(out, sprintf("%d features, not these %d",
+                length(rec_feats), length(input$feats)))
+        }
+    }
+
+    rec_dist <- .umap_distance(record$distance)
+    want_dist <- .umap_distance(input$distance)
+    if (!identical(rec_dist, want_dist)) {
+        out <- c(out, sprintf("%s distance, not %s", rec_dist, want_dist))
+    }
+    out
 }

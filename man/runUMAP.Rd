@@ -60,17 +60,15 @@ runUMAP(
 \item{return_gobject}{logical: return giotto object (default = TRUE)}
 
 \item{n_neighbors}{UMAP param: number of neighbors, counting the cell
-itself. `NULL` (default) takes it from the stored kNN reused under
-`nn_engine = "giotto"` (its `k + 1`), so no second graph is built, and
-falls back to `31` -- the `k = 30` graph
-[GiottoClass::createNearestNetwork()] builds by default, plus the cell
-itself -- when there is none to reuse or another `nn_engine` is used. A
-value wider than the stored kNN builds a new graph of that size.}
+itself. \code{NULL} (default) uses every neighbor of a reused stored network
+(its \code{k + 1}), and \code{31} when a graph is built: the \code{k = 30}
+\code{\link[GiottoClass:createNearestNetwork]{GiottoClass::createNearestNetwork()}} uses by default, plus the cell
+itself. See the "Neighbor graph" section.}
 
 \item{n_components}{UMAP param: number of components}
 
-\item{n_epochs}{UMAP param: number of epochs. `NULL` (default) scales with
-the number of observations embedded: `200` above 50,000, otherwise uwot's
+\item{n_epochs}{UMAP param: number of epochs. \code{NULL} (default) scales with
+the number of observations embedded: \code{200} above 50,000, otherwise uwot's
 own default (500 below 10,000 observations, 200 above).}
 
 \item{min_dist}{UMAP param: minimum distance}
@@ -89,49 +87,50 @@ own default (500 below 10,000 observations, 200 above).}
 
 \item{toplevel}{relative stackframe where call was made from}
 
-\item{method}{character. UMAP engine to use. One of `"umap2"` (default,
-\code{\link[uwot]{umap2}}) or `"umap"` (\code{\link[uwot]{umap}}). The two
+\item{method}{character. UMAP engine to use. One of \code{"umap2"} (default,
+\code{\link[uwot]{umap2}}) or \code{"umap"} (\code{\link[uwot]{umap}}). The two
 take identical arguments; see details.}
 
-\item{init}{UMAP param: initialization method for the embedding. `NULL`
-(default) scales with the number of observations embedded: `"pca"` above
-50,000 and `"spectral"` otherwise.}
+\item{init}{UMAP param: initialization method for the embedding. \code{NULL}
+(default) scales with the number of observations embedded: \code{"pca"} above
+50,000 and \code{"spectral"} otherwise.}
 
-\item{batch}{UMAP param: use the batch optimizer. Default `TRUE`, which
-under `method = "umap2"` also threads the stochastic gradient descent
-across `n_threads`. The SGD is then reproducible at any thread count;
+\item{batch}{UMAP param: use the batch optimizer. Default \code{TRUE}, which
+under \code{method = "umap2"} also threads the stochastic gradient descent
+across \code{n_threads}. The SGD is then reproducible at any thread count;
 note that this says nothing about the neighbor search, which is the
-stage that made this function irreproducible before `nn_engine` existed.}
+stage that made this function irreproducible before \code{nn_engine} existed.}
 
 \item{nn_engine}{character. Where the neighbor graph UMAP runs on comes
-  from. `"giotto"` (default) takes it from Giotto rather than from uwot:
-  the kNN stored by [GiottoClass::createNearestNetwork()] when one is
-  available (see `network_name`), otherwise one built with
-  [GiottoClass::hnswKNN()]. Either way uwot runs no search, and neither
-  depends on a seed. `"uwot"` lets uwot choose its own backend, which is
-  what earlier versions did and is **not** reproducible: it prefers
-  RcppHNSW, whose parallel index build is a thread race the R RNG cannot
-  reach. Any other value names a uwot backend directly and is passed
-  through as its `nn_method` — `"fnn"` (exact, via \pkg{FNN}), `"annoy"`,
-  `"hnsw"` or `"nndescent"`. These are not equally reproducible: `"annoy"`
-  builds its trees from the R RNG and threads only the search, so repeated
-  calls agree bit for bit, while `"hnsw"` threads the index build and does
-  not.
+from. \code{"giotto"} (default) takes it from Giotto rather than from uwot:
+a stored network when one fits, otherwise one built with
+\code{\link[GiottoClass:hnswKNN]{GiottoClass::hnswKNN()}} (see the "Neighbor graph" section). Either way
+uwot runs no search, and neither depends on a seed. \code{"uwot"} lets uwot
+choose its own backend, which is
+what earlier versions did and is \strong{not} reproducible: it prefers
+RcppHNSW, whose parallel index build is a thread race the R RNG cannot
+reach. Any other value names a uwot backend directly and is passed
+through as its \code{nn_method} — \code{"fnn"} (exact, via \pkg{FNN}), \code{"annoy"},
+\code{"hnsw"} or \code{"nndescent"}. These are not equally reproducible: \code{"annoy"}
+builds its trees from the R RNG and threads only the search, so repeated
+calls agree bit for bit, while \code{"hnsw"} threads the index build and does
+not.
 
-  Measured end-to-end on a 169,528-cell section: 5.9s reusing a stored
-  graph, 19.6s building one, 16.6s for `"annoy"`, 6.8s for `"uwot"`. So
-  reproducibility is free when the neighbor step has already run —
-  recovering the kNN costs 0.9s where repeating the search costs 13.8s.}
+Measured end-to-end on a 169,528-cell section: 5.9s reusing a stored
+graph, 19.6s building one, 16.6s for \code{"annoy"}, 6.8s for \code{"uwot"}. So
+reproducibility is free when the neighbor step has already run —
+recovering the kNN costs 0.9s where repeating the search costs 13.8s.}
 
 \item{nn_network_to_use}{character. Type of stored nearest neighbor network
-to reuse under `nn_engine = "giotto"`. Default `"kNN"`.}
+to reuse under \code{nn_engine = "giotto"}. Default \code{"kNN"}.}
 
-\item{network_name}{character. Name of the stored network to reuse. `NULL`
-(default) derives it as `<nn_network_to_use>.<dim_reduction_to_use>`,
-which is what [GiottoClass::createNearestNetwork()] names it. An object
+\item{network_name}{character. Name of the stored network to reuse. \code{NULL}
+(default) derives it as \verb{<nn_network_to_use>.<dim_reduction_to_use>},
+which is what \code{\link[GiottoClass:createNearestNetwork]{GiottoClass::createNearestNetwork()}} names it. An object
 can hold several kNN networks, so this is looked up by name and never
-guessed: when the derived name is absent a graph is built instead, but a
-name given explicitly and not found is an error.}
+guessed. A derived name that is absent or does not fit means a graph is
+built; a name given explicitly must fit, or \code{runUMAP()} stops. See the
+"Neighbor graph" section.}
 
 \item{...}{
   Arguments passed on to \code{\link[uwot:umap2]{uwot::umap2}}
@@ -612,16 +611,46 @@ and \code{"spectral"} below 50,000, \code{n_epochs = 200} and
 \code{init = "pca"} above it. Passing either explicitly overrides the
 adaptation.
 \itemize{
-  \item Input for UMAP dimension reduction can be another dimension reduction
-  (default = 'pca')
-  \item To use gene expression as input set dim_reduction_to_use = NULL
-  \item If dim_reduction_to_use = NULL, feats_to_use can be used to select a
-  column name of highly variable features (see \code{\link{calculateHVF}}) or
-  simply provide a vector of features
-  \item multiple UMAP results can be stored by changing the \emph{name} of
-  the analysis
+\item Input for UMAP dimension reduction can be another dimension reduction
+(default = 'pca')
+\item To use gene expression as input set dim_reduction_to_use = NULL
+\item If dim_reduction_to_use = NULL, feats_to_use can be used to select a
+column name of highly variable features (see \code{\link{calculateHVF}}) or
+simply provide a vector of features
+\item multiple UMAP results can be stored by changing the \emph{name} of
+the analysis
 }
 }
+\section{Neighbor graph}{
+
+With \code{nn_engine = "giotto"} (the default), the graph UMAP runs on is
+chosen in this order:
+\enumerate{
+\item \strong{Look up} the stored network named \code{network_name}, or
+\verb{<nn_network_to_use>.<dim_reduction_to_use>} (\code{kNN.pca} by default),
+which is the name \code{\link[GiottoClass:createNearestNetwork]{GiottoClass::createNearestNetwork()}} gives it.
+\item \strong{Reuse it if it fits.} It must have been built from the same input
+as this UMAP: the same reduction (by name), \code{dimensions_to_use} and
+distance, or, without a reduction, the same \code{expression_values} and
+features. It must also cover the same cells, with the same number of
+neighbors each, and be wide enough for \code{n_neighbors}. With
+\code{n_neighbors = NULL} every stored neighbor is used; a smaller
+\code{n_neighbors} uses each cell's nearest \code{n_neighbors - 1}.
+\item \strong{Otherwise}, if \code{network_name} was given, stop with an error saying
+why it does not fit. If not, build a graph with
+\code{\link[GiottoClass:hnswKNN]{GiottoClass::hnswKNN()}} at \code{n_neighbors - 1} neighbors (30 when
+\code{n_neighbors = NULL}).
+}
+
+\code{verbose = TRUE} reports which of these happened and why. A network
+created before GiottoClass 0.7.26 has no record of its input, so step 2
+cannot check it: it is reused with a warning. Run \code{createNearestNetwork()}
+again to record it.
+
+Any other \code{nn_engine} skips these steps and lets uwot search, with
+\code{n_neighbors = NULL} meaning 31.
+}
+
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 
