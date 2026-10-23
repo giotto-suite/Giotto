@@ -2415,6 +2415,550 @@ doHclust <- function(
 }
 
 
+#' @title Sweep a range of cluster numbers
+#' @name sweepClusterK
+#' @description
+#' Scores a partition at each k over a range, so the number of clusters is
+#' chosen from the data rather than fixed by hand. Returns the scores and a
+#' plot marking the k the chosen criterion favors.
+#'
+#' @details
+#' The criterion, not the clustering engine, is what makes this general. A
+#' silhouette needs only a partition and a distance, so the same call covers
+#' k-means over a composition matrix and a hierarchical cut of a correlation
+#' matrix. Within-cluster sum of squares applies to k-means alone, where the
+#' chosen k is the point furthest from the line joining the ends of the curve.
+#'
+#' The list returned by \code{spatialCoexpression(return_gobject = FALSE)} is
+#' accepted directly. Its own tree is cut at each k and scored on the same
+#' `1 - r` distance it was built from, so no second tree is fitted and the k
+#' reported here is the `n_modules` to pass back to
+#' \code{spatialCoexpression()}. The `n_modules` used for that first call does
+#' not matter: the tree is the same for every k.
+#'
+#' A silhouette is quadratic in the number of observations, so `subsample`
+#' exists for the cell-level case. It does not apply to a co-expression
+#' result, where the observations are features and the tree is already built.
+#'
+#' Only linear reductions are read from the object. UMAP and t-SNE are
+#' refused: they distort distances, so the silhouette and wss computed on them
+#' are inflated and depend on the embedding's random seed, and on data with no
+#' clusters at all they report structure that is not there. Coordinates passed
+#' as `x` are used as given.
+#'
+#' The marked k is the criterion's preference, not a recommendation. Criteria
+#' disagree, and a k one step either side is usually defensible.
+#'
+#' Which arguments apply depends on the input. A setting that would change
+#' what is computed, but that the chosen input does not use, is ignored with a
+#' warning when it was set explicitly: a linkage, distance or sample for a
+#' co-expression result or a distance, a slot when `x` is supplied, or the
+#' other slot's name. Other unused arguments are ignored silently.
+#'
+#' @inheritParams data_access_params
+#' @inheritParams plot_output_params
+#' @param gobject giotto object. The matrix to cluster is read from one of
+#'   its slots, chosen with `values_to_use`. May be NULL when `x` is given.
+#' @param values_to_use character. Which slot supplies the matrix:
+#'   "dim_reduction" (cluster cells in PC space), "spatial_enrichment"
+#'   (cluster cells by neighborhood composition, which is how a niche k is
+#'   chosen).
+#' @param dim_reduction_to_use,dim_reduction_name,dimensions_to_use
+#'   Which reduction and which of its components, for
+#'   `values_to_use = "dim_reduction"`. A linear reduction: "pca", "nmf",
+#'   "harmony" or "lsi".
+#' @param spat_enr_name character. Enrichment to read, for
+#'   `values_to_use = "spatial_enrichment"`. Defaults to the first stored.
+#' @param x numeric matrix or data.frame of observations by variables, a
+#'   \code{dist}, or the list from
+#'   \code{spatialCoexpression(return_gobject = FALSE)}. Supplied, it is used
+#'   instead of any slot. A co-expression result is not stored on a giotto
+#'   object, so this is the only way to sweep co-expression modules.
+#' @param k_range integer vector of cluster numbers to score.
+#' @param cluster_method character. "kmeans" or "hclust". Forced to "hclust"
+#'   for a co-expression result or a `dist`.
+#' @param score character, one or more of "silhouette", "wss" and "gap".
+#'   Several are drawn as panels, which is the honest way to show that they
+#'   disagree. "wss" and "gap" need coordinates, so a co-expression result or
+#'   a `dist` leaves only "silhouette". Left unset, all three are scored for
+#'   k-means and only "silhouette" for a hierarchical cut.
+#' @param dist_method character. Distance for the silhouette when `x` is a
+#'   matrix: "euclidean" or "correlation" (`1 - r` between observations).
+#' @param hclust_method character. Passed to \code{stats::hclust}. Ignored for
+#'   a co-expression result, whose own tree is used.
+#' @param subsample integer or NULL. Observations to randomly sample before
+#'   scoring. A silhouette needs every pairwise distance, so it is quadratic
+#'   in observations and this is the only way to run one on a large object.
+#' @param max_dist_obs integer. Refuse to build a distance above this many
+#'   observations. The default of 20,000 is about 1.6 GB; half a million cells
+#'   would be 892 GB, so the refusal is there to name the number rather than
+#'   let the allocation fail.
+#' @param seed numeric or NULL. Seed for sampling and k-means starts.
+#' @param nstart,iter_max numeric. Passed to \code{stats::kmeans}.
+#' @param n_perm numeric. Reference datasets for the gap statistic, passed to
+#'   \code{cluster::clusGap} as `B`. Ignored by the other criteria.
+#' @param line_color,point_color character. Curve and marked point.
+#' @param title character. Plot title.
+#' @param xlab,ylab character. Axis titles. NULL names the criterion on y, and
+#'   on x the number swept: modules for a co-expression result, clusters
+#'   otherwise.
+#' @param axis_text,axis_title numeric. Base sizes.
+#' @param theme_param list. Passed to \code{ggplot2::theme}.
+#' @param output character. "plot" (default) draws the scores; "data.table"
+#'   returns them instead: one row per k per criterion, with `k`, `value`,
+#'   `se` (the gap's standard error, NA for the others), `score` and `best`.
+#' @param verbose be verbose
+#' @param view character. Name of a \code{GiottoClass::giottoView} slotted on
+#'   `gobject`, resolved once before the matrix is read.
+#' @returns ggplot, or a data.table when `output = "data.table"`
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' # k-means on the PCA, scored by within-cluster sum of squares
+#' sweepClusterK(g, k_range = 2:10, score = "wss", seed = 1)
+#'
+#' # the same partitions scored by silhouette, as a table
+#' sweepClusterK(g, k_range = 2:10, score = "silhouette", seed = 1,
+#'     output = "data.table")
+#'
+#' # co-expression modules: sweep the tree spatialCoexpression() built
+#' coexp <- spatialCoexpression(g, feats = head(rownames(g), 100),
+#'     return_gobject = FALSE)
+#' sweepClusterK(coexp, k_range = 2:12)
+#' @export
+sweepClusterK <- function(gobject = NULL,
+    spat_unit = NULL,
+    feat_type = NULL,
+    values_to_use = c("dim_reduction", "spatial_enrichment"),
+    dim_reduction_to_use = "pca",
+    dim_reduction_name = NULL,
+    dimensions_to_use = 1:10,
+    spat_enr_name = NULL,
+    x = NULL,
+    k_range = 2:15,
+    cluster_method = c("kmeans", "hclust"),
+    score = c("silhouette", "wss", "gap"),
+    dist_method = c("euclidean", "correlation"),
+    hclust_method = "ward.D2",
+    subsample = NULL,
+    max_dist_obs = 20000L,
+    seed = NULL,
+    nstart = 5,
+    iter_max = 50,
+    n_perm = 25,
+    line_color = "grey60",
+    point_color = "#C44E52",
+    title = NULL,
+    xlab = NULL,
+    ylab = NULL,
+    axis_text = 9,
+    axis_title = 10,
+    theme_param = list(),
+    output = c("plot", "data.table"),
+    verbose = NULL,
+    view = NULL,
+    show_plot = NULL,
+    return_plot = NULL,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "sweepClusterK") {
+    # NSE vars
+    k <- value <- se <- best <- score_lab <- NULL
+
+    fname <- "[sweepClusterK]"
+    supplied <- names(match.call())[-1L]
+    score_given <- !missing(score)
+    checkmate::assert_integerish(k_range, lower = 2, any.missing = FALSE,
+                                 min.len = 3)
+    checkmate::assert_count(subsample, positive = TRUE, null.ok = TRUE)
+    checkmate::assert_count(max_dist_obs, positive = TRUE)
+    checkmate::assert_number(seed, null.ok = TRUE)
+    checkmate::assert_count(nstart, positive = TRUE)
+    checkmate::assert_count(iter_max, positive = TRUE)
+    checkmate::assert_count(n_perm, positive = TRUE)
+    checkmate::assert_character(title, len = 1L, null.ok = TRUE)
+    checkmate::assert_character(xlab, len = 1L, null.ok = TRUE)
+    checkmate::assert_character(ylab, len = 1L, null.ok = TRUE)
+    checkmate::assert_list(theme_param)
+
+    cluster_method <- match.arg(cluster_method,
+                                choices = c("kmeans", "hclust"))
+    score <- match.arg(score, choices = c("silhouette", "wss", "gap"),
+                       several.ok = TRUE)
+    dist_method <- match.arg(dist_method,
+                             choices = c("euclidean", "correlation"))
+    values_to_use <- match.arg(values_to_use,
+                               choices = c("dim_reduction",
+                                           "spatial_enrichment"))
+    output <- match.arg(output, choices = c("plot", "data.table"))
+    cluster_method_asked <- cluster_method
+
+    if (!is.null(view) && !is.null(gobject) && inherits(gobject, "giotto")) {
+        gobject <- GiottoClass::resolveRecipe(gobject, coordinator = view)
+    }
+
+    # Called positionally with the thing to cluster, which is the natural way
+    # to reach for it with a co-expression result. Move it across rather than
+    # failing.
+    if (!is.null(gobject) && !inherits(gobject, "giotto")) {
+        if (!is.null(x)) {
+            stop(fname, " gobject is not a giotto object and x is already ",
+                 "given", call. = FALSE)
+        }
+        x <- gobject
+        gobject <- NULL
+    }
+    if (is.null(gobject) && is.null(x)) {
+        stop(fname, " supply a giotto object, or x", call. = FALSE)
+    }
+
+    slot_args <- list(
+        dim_reduction = c("dim_reduction_to_use", "dim_reduction_name",
+                          "dimensions_to_use"),
+        spatial_enrichment = "spat_enr_name")
+    route_label <- c(dim_reduction = "the dimension reduction",
+                     spatial_enrichment = "the spatial enrichment")
+    if (!is.null(x)) {
+        .sck_warn_ignored(c(unlist(slot_args, use.names = FALSE),
+                            "values_to_use", "spat_unit", "feat_type", "view"),
+                          supplied, fname,
+                          "x is supplied, so nothing is read from the giotto object")
+    } else {
+        other <- setdiff(names(slot_args), values_to_use)
+        .sck_warn_ignored(slot_args[[other]], supplied, fname, sprintf(
+            "%s is swept (values_to_use = \"%s\"); set values_to_use = \"%s\" to sweep %s",
+            route_label[[values_to_use]], values_to_use, other,
+            route_label[[other]]))
+    }
+
+    # ---- read the matrix out of the object, the way screePlot does ---------
+    if (is.null(x)) {
+        spat_unit <- set_default_spat_unit(gobject = gobject,
+                                           spat_unit = spat_unit)
+        feat_type <- set_default_feat_type(gobject = gobject,
+                                           spat_unit = spat_unit,
+                                           feat_type = feat_type)
+        if (identical(values_to_use, "dim_reduction")) {
+            checkmate::assert_character(dim_reduction_to_use, len = 1L)
+            linear <- c("pca", "nmf", "harmony", "lsi")
+            if (!dim_reduction_to_use %in% linear) {
+                stop(fname, " '", dim_reduction_to_use, "' is not a linear ",
+                     "reduction: its distances are distorted, so the scores ",
+                     "are not reliable. Use one of: ",
+                     paste(linear, collapse = ", "), call. = FALSE)
+            }
+        }
+        x <- switch(
+            values_to_use,
+            dim_reduction = {
+                if (is.null(dim_reduction_name)) {
+                    avail <- list_dim_reductions(gobject, spat_unit = spat_unit,
+                                                 feat_type = feat_type)
+                    avail <- avail[avail$dim_type == dim_reduction_to_use, ]
+                    if (!nrow(avail)) {
+                        stop(fname, " no '", dim_reduction_to_use,
+                             "' reduction for [", spat_unit, "][", feat_type,
+                             "]", call. = FALSE)
+                    }
+                    dim_reduction_name <- avail$name[[1]]
+                }
+                cc <- getDimReduction(gobject, spat_unit = spat_unit,
+                                      feat_type = feat_type,
+                                      reduction_method = dim_reduction_to_use,
+                                      name = dim_reduction_name,
+                                      output = "matrix")
+                cc[, intersect(dimensions_to_use, seq_len(ncol(cc))),
+                   drop = FALSE]
+            },
+            spatial_enrichment = {
+                if (is.null(spat_enr_name)) {
+                    avail <- list_spatial_enrichments(gobject,
+                                                      spat_unit = spat_unit,
+                                                      feat_type = feat_type)
+                    if (is.null(avail) || !nrow(avail)) {
+                        stop(fname, " no spatial enrichment stored for [",
+                             spat_unit, "][", feat_type, "]", call. = FALSE)
+                    }
+                    spat_enr_name <- avail$name[[1]]
+                }
+                en <- getSpatialEnrichment(gobject, spat_unit = spat_unit,
+                                           feat_type = feat_type,
+                                           name = spat_enr_name,
+                                           output = "data.table")
+                .sck_enr_matrix(en)
+            })
+        GiottoUtils::vmsg(.v = verbose, fname, "clustering a", nrow(x), "x",
+                          ncol(x), "matrix from", values_to_use)
+    }
+
+    k_range <- sort(unique(as.integer(k_range)))
+
+    # ---- resolve the input to a matrix, a distance, or both ----------------
+    mat <- NULL
+    d <- NULL
+    hc <- NULL
+
+    is_coexpr <- is.list(x) && !is.data.frame(x) &&
+        all(c("cor", "hclust") %in% names(x))
+    if (is_coexpr) {
+        cm <- x[["cor"]]
+        ok <- !is.na(diag(cm))
+        r <- cm[ok, ok, drop = FALSE]
+        r[is.na(r)] <- 0
+        d <- stats::as.dist(1 - r)
+        hc <- x[["hclust"]]
+        cluster_method <- "hclust"
+        if (!score_given) score <- "silhouette"
+        bad <- setdiff(score, "silhouette")
+        if (length(bad)) {
+            stop(fname, " score '", paste(bad, collapse = "', '"), "' needs ",
+                 "coordinates; a co-expression result supplies a distance, so ",
+                 "only 'silhouette' applies", call. = FALSE)
+        }
+        .sck_warn_ignored(c("hclust_method", "dist_method"), supplied, fname,
+                          sprintf(paste0("a co-expression result is cut along its own ",
+                                         "tree (%s), on its own correlation distance"),
+                                  hc$method))
+        .sck_warn_ignored("subsample", supplied, fname,
+                          "the co-expression tree is already built from every gene, so there is nothing to sample")
+        if ("cluster_method" %in% supplied &&
+            identical(cluster_method_asked, "kmeans")) {
+            warning(fname, " cluster_method = \"kmeans\" is ignored: a ",
+                    "co-expression result is a tree, so it is cut ",
+                    "hierarchically", call. = FALSE)
+        }
+    } else if (inherits(x, "dist")) {
+        d <- x
+        cluster_method <- "hclust"
+        if (!score_given) score <- "silhouette"
+        bad <- setdiff(score, "silhouette")
+        if (length(bad)) {
+            stop(fname, " score '", paste(bad, collapse = "', '"), "' needs ",
+                 "coordinates, not a distance", call. = FALSE)
+        }
+        .sck_warn_ignored(c("dist_method", "subsample"),
+                          supplied, fname, "x is already a distance")
+        if ("cluster_method" %in% supplied &&
+            identical(cluster_method_asked, "kmeans")) {
+            warning(fname, " cluster_method = \"kmeans\" is ignored: k-means ",
+                    "needs coordinates, so a distance is cut hierarchically",
+                    call. = FALSE)
+        }
+    } else {
+        mat <- as.matrix(x)
+        if (!is.numeric(mat)) stop(fname, " x must be numeric", call. = FALSE)
+        if (anyNA(mat)) stop(fname, " x contains NA", call. = FALSE)
+    }
+
+    if (!score_given && identical(cluster_method, "hclust")) {
+        score <- "silhouette"
+    }
+    if (any(c("silhouette", "gap") %in% score)) {
+        GiottoUtils::package_check("cluster", repository = "CRAN")
+    }
+
+    coord_scores <- intersect(score, c("wss", "gap"))
+    if (length(coord_scores) && !identical(cluster_method, "kmeans")) {
+        stop(fname, " score '", paste(coord_scores, collapse = "', '"),
+             "' is defined for cluster_method = 'kmeans'", call. = FALSE)
+    }
+
+    # ---- subsample, where the observations are rows of a matrix ------------
+    if (!is.null(mat) && !is.null(subsample) && subsample >= nrow(mat)) {
+        GiottoUtils::vmsg(.v = verbose, fname, "subsample", subsample,
+                          "is not below the", nrow(mat),
+                          "observations; scoring all of them")
+    }
+    if (!is.null(mat) && !is.null(subsample) && subsample < nrow(mat)) {
+        if (!is.null(seed)) set.seed(seed)
+        n_all <- nrow(mat)
+        mat <- mat[sample.int(n_all, subsample), , drop = FALSE]
+        GiottoUtils::vmsg(.v = verbose, fname, "scoring on", subsample,
+                          "randomly sampled observations of", n_all)
+    }
+
+    if (max(k_range) >= (if (is.null(mat)) attr(d, "Size") else nrow(mat))) {
+        stop(fname, " k_range reaches the number of observations",
+             call. = FALSE)
+    }
+
+    # ---- a silhouette needs a distance; build it once ----------------------
+    if ("silhouette" %in% score && is.null(d)) {
+        n <- nrow(mat)
+        gb <- n * (n - 1) / 2 * 8 / 1024^3
+        if (n > max_dist_obs) {
+            stop(sprintf(paste0(
+                "%s a silhouette needs every pairwise distance: %s ",
+                "observations would be %.0f GB.\n",
+                "  Set subsample to score on a random sample, or use ",
+                "score = 'wss', which never builds a distance and so runs on ",
+                "all of them."), fname, format(n, big.mark = ","), gb),
+                call. = FALSE)
+        }
+        if (gb > 0.5) {
+            GiottoUtils::vmsg(.v = verbose, fname, sprintf(
+                "building a %s x %s distance, about %.1f GB",
+                format(n, big.mark = ","), format(n, big.mark = ","), gb))
+        }
+        d <- switch(dist_method,
+                    euclidean = stats::dist(mat),
+                    correlation = stats::as.dist(1 - stats::cor(t(mat))))
+    }
+
+    if (is.null(hc) && identical(cluster_method, "hclust")) {
+        hc <- stats::hclust(d, method = hclust_method)
+    }
+
+    # One partition per k, reused by every criterion so they describe the same
+    # clustering rather than independent fits.
+    # Only silhouette needs the partition and only wss needs the objective,
+    # so a gap-only sweep can skip this entirely: clusGap fits its own.
+    need_fits <- any(c("silhouette", "wss") %in% score)
+    if (!is.null(seed)) set.seed(seed)
+    fits <- if (!need_fits) NULL else lapply(k_range, function(kk) {
+        if (identical(cluster_method, "hclust")) {
+            list(cluster = stats::cutree(hc, k = kk), wss = NA_real_)
+        } else {
+            km <- stats::kmeans(mat, centers = kk, nstart = nstart,
+                                iter.max = iter_max)
+            list(cluster = km$cluster, wss = km$tot.withinss)
+        }
+    })
+
+    # The gap statistic resamples, so it is fitted once over the whole range
+    # rather than per k.
+    gap_tab <- NULL
+    if ("gap" %in% score) {
+        if (!is.null(seed)) set.seed(seed)
+        gs <- cluster::clusGap(mat, FUNcluster = stats::kmeans,
+                               K.max = max(k_range), B = n_perm,
+                               nstart = nstart, iter.max = iter_max,
+                               verbose = FALSE)
+        gap_tab <- data.table::data.table(k = seq_len(nrow(gs$Tab)),
+                                          value = gs$Tab[, "gap"],
+                                          se = gs$Tab[, "SE.sim"])
+    }
+
+    res <- data.table::rbindlist(lapply(score, function(s) {
+        if (identical(s, "gap")) {
+            tb <- gap_tab[gap_tab$k %in% k_range, c("k", "value", "se")]
+        } else {
+            v <- vapply(seq_along(k_range), function(i) {
+                switch(s,
+                       silhouette = mean(cluster::silhouette(
+                           fits[[i]]$cluster, d)[, 3L]),
+                       wss = fits[[i]]$wss)
+            }, numeric(1))
+            tb <- data.table::data.table(k = k_range, value = v,
+                                         se = NA_real_)
+        }
+        # Tibshirani's rule for the gap: the smallest k whose gap already
+        # reaches the next k's, allowing for that one's error. argmax is wrong
+        # here -- on a curve that keeps rising it just returns the largest k
+        # in the range, which says nothing.
+        b <- if (identical(s, "wss")) {
+            .sck_elbow_k(tb$k, tb$value)
+        } else if (identical(s, "gap")) {
+            ok <- which(tb$value[-nrow(tb)] >=
+                            (tb$value[-1L] - tb$se[-1L]))
+            if (length(ok)) tb$k[[ok[[1L]]]] else tb$k[[which.max(tb$value)]]
+        } else {
+            tb$k[[which.max(tb$value)]]
+        }
+        tb[, `:=`(score = s, best = k == b)]
+        tb
+    }))
+
+    if (identical(output, "data.table")) return(res[])
+
+    labs <- c(silhouette = "mean silhouette width",
+              wss = "total within-cluster sum of squares",
+              gap = "gap statistic")
+    res[, score_lab := labs[score]]
+    picks <- res[res$best]
+    sub_txt <- paste(sprintf("%s: k = %d", picks$score, picks$k),
+                     collapse = "   |   ")
+
+    pl <- ggplot2::ggplot(res, ggplot2::aes(k, value)) +
+        ggplot2::geom_line(color = line_color) +
+        ggplot2::geom_point(size = 1.6) +
+        ggplot2::geom_point(data = picks, color = point_color, size = 3) +
+        ggplot2::scale_x_continuous(breaks = k_range) +
+        ggplot2::labs(x = if (!is.null(xlab)) xlab else if (is_coexpr)
+                          "number of modules (n_modules)" else
+                          "number of clusters (k)",
+                      y = ylab, subtitle = sub_txt)
+    pl <- if (length(score) > 1L) {
+        pl + ggplot2::facet_wrap(~score_lab, scales = "free_y", ncol = 1)
+    } else {
+        pl + ggplot2::labs(y = if (is.null(ylab)) labs[[score]] else ylab)
+    }
+    if (!is.null(title)) pl <- pl + ggplot2::labs(title = title)
+
+    pl <- pl + ggplot2::theme_classic(base_size = axis_text) +
+        ggplot2::theme(axis.title = ggplot2::element_text(size = axis_title))
+    if (length(theme_param)) pl <- pl + do.call(ggplot2::theme, theme_param)
+
+    # plot_output_handler asserts a gobject, so a call on a bare matrix or a
+    # co-expression result has nowhere to read show/save defaults from. Honor
+    # the arguments directly in that case, and use the handler when an object
+    # is supplied so saving matches every other Giotto plot.
+    if (is.null(gobject)) {
+        if (isTRUE(save_plot)) {
+            warning(fname, " save_plot needs a gobject to read its save ",
+                    "settings from", call. = FALSE)
+        }
+        if (!isFALSE(show_plot)) print(pl)
+        return(if (isFALSE(return_plot)) invisible(NULL) else pl)
+    }
+
+    GiottoVisuals::plot_output_handler(
+        gobject = gobject, plot_object = pl,
+        save_plot = save_plot, return_plot = return_plot,
+        show_plot = show_plot,
+        default_save_name = default_save_name,
+        save_param = save_param, else_return = NULL)
+}
+
+.sck_elbow_k <- function(kk, vv) {
+    kn <- (kk - min(kk)) / diff(range(kk))
+    vn <- (vv - min(vv)) / diff(range(vv))
+    n <- length(kn)
+    dchord <- abs((vn[n] - vn[1]) * kn - (kn[n] - kn[1]) * vn +
+                      kn[n] * vn[1] - vn[n] * kn[1]) /
+        sqrt((vn[n] - vn[1])^2 + (kn[n] - kn[1])^2)
+    kk[[which.max(dchord)]]
+}
+
+# A spatial enrichment table carries its cell IDs in a cell_ID column whose
+# position is not fixed, so find it by name rather than by index.
+.sck_enr_matrix <- function(en) {
+    id_col <- if ("cell_ID" %in% colnames(en)) {
+        "cell_ID"
+    } else {
+        nn <- names(which(!vapply(en, is.numeric, logical(1))))
+        if (length(nn)) nn[[1L]] else colnames(en)[[1L]]
+    }
+    num <- setdiff(names(which(vapply(en, is.numeric, logical(1)))), id_col)
+    if (!length(num)) {
+        stop("[sweepClusterK] spatial enrichment has no numeric columns",
+             call. = FALSE)
+    }
+    mm <- as.matrix(en[, num, with = FALSE])
+    mm[is.na(mm)] <- 0
+    rownames(mm) <- as.character(en[[id_col]])
+    mm
+}
+
+.sck_warn_ignored <- function(args, supplied, fname, why) {
+    args <- intersect(args, supplied)
+    if (!length(args)) return(invisible(NULL))
+    warning(fname, " ", paste0("`", args, "`", collapse = ", "),
+            if (length(args) > 1L) " are" else " is", " ignored: ", why,
+            call. = FALSE)
+}
+
+
 
 
 
