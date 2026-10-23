@@ -909,6 +909,19 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     return(fovs)
 }
 
+# file name format of the FOV number in a set of cosmx images: "F%03d" for
+# older exports (CellComposite_F001.jpg), "F%05d" for AtoMx exports that pad
+# to five digits (CellComposite_F00033.jpg). Read from the files themselves
+# so either works without setting `file_fov_fmt`; falls back to "F%03d" when
+# the widths are mixed or none can be read.
+.cosmx_file_fov_fmt <- function(path) {
+    if (length(path) == 1) im_names <- list.files(path)
+    else im_names <- basename(path)
+    digits <- sub(".*F(\\d+)\\..*", "\\1", im_names)
+    widths <- unique(nchar(digits[grepl("^\\d+$", digits)]))
+    if (length(widths) == 1L) sprintf("F%%0%dd", widths) else "F%03d"
+}
+
 .cosmx_poly_maskimage <- function(path,
     slide = 1,
     fovs = NULL,
@@ -953,7 +966,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     )
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
-    file_fov_fmt <- file_fov_fmt %null% "F%03d"
+    file_fov_fmt <- file_fov_fmt %null% .cosmx_file_fov_fmt(path)
     checkmate::assert_character(file_fov_fmt)
     with_pbar({
         p <- pbar(along = fovs)
@@ -1257,7 +1270,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
-    file_fov_fmt <- file_fov_fmt %null% "F%03d"
+    file_fov_fmt <- file_fov_fmt %null% .cosmx_file_fov_fmt(path)
     checkmate::assert_character(file_fov_fmt)
     verbose <- verbose %null% TRUE
 

@@ -80,6 +80,11 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 - Rank p-values reuse the feature ranks instead of computing them again.
 
 ## bug fixes
+- CosMx images and label masks of AtoMx exports, whose file names pad the
+  FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
+  ("No images found matching fov [F033]"). The digits are now read from the
+  files, so both these and the three-digit names of older exports load
+  without setting `file_fov_fmt`.
 - `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
   `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
   to the first type instead of a random one.
