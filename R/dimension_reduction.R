@@ -2055,14 +2055,14 @@ jackstrawPlot <- function(gobject,
 #' @param covariates numeric cell metadata column names, or a matrix or
 #'   data.frame of numeric covariates whose rownames are cell IDs. The default
 #'   names are written by \code{addStatistics()}.
-#' @param dimensions_to_use numeric. Components to show, capped at those
-#'   stored. Named as elsewhere in Giotto rather than as a plot-specific
-#'   count.
+#' @param dimensions_to_use numeric. Indices of the components to show, as
+#'   elsewhere in Giotto. Indices beyond the stored components are dropped.
 #' @param cor_method character. Correlation method for \code{stats::cor}.
 #' @param transform character, "log10" or "none", one value for all
 #'   covariates or one per covariate. "log10" uses `log10(pmax(x, 1))`. A
 #'   count wants a log and a coordinate must not have one, so mixed covariates
-#'   take one value each, in the order given.
+#'   take one value each, in the order given. NULL (default) uses "log10" for
+#'   cell metadata columns and "none" for a supplied matrix.
 #' @param threshold numeric or NULL. Advisory line; NULL draws none.
 #' @param show_values logical, or NULL to print the values only where they
 #'   fit. Horizontal space is what runs out, so NULL counts the columns the
@@ -2100,7 +2100,7 @@ jackstrawPlot <- function(gobject,
 #' plotDimCovariateCor(g)
 #'
 #' # one covariate gives a bar per component
-#' plotDimCovariateCor(g, covariates = "total_expr", dimensions_to_use = 10)
+#' plotDimCovariateCor(g, covariates = "total_expr", dimensions_to_use = 1:10)
 #' @export
 plotDimCovariateCor <- function(gobject,
     spat_unit = NULL,
@@ -2108,9 +2108,9 @@ plotDimCovariateCor <- function(gobject,
     dim_reduction_to_use = "pca",
     dim_reduction_name = NULL,
     covariates = c("total_expr", "nr_feats"),
-    dimensions_to_use = 30,
+    dimensions_to_use = 1:30,
     cor_method = c("pearson", "spearman", "kendall"),
-    transform = "log10",
+    transform = NULL,
     threshold = 0.6,
     show_values = NULL,
     max_value_cols = 20,
@@ -2150,9 +2150,12 @@ plotDimCovariateCor <- function(gobject,
              "one of: ", paste(linear, collapse = ", "), call. = FALSE)
     }
     checkmate::assert_character(dim_reduction_name, len = 1L, null.ok = TRUE)
-    checkmate::assert_count(dimensions_to_use, positive = TRUE)
-    checkmate::assert_subset(transform, choices = c("log10", "none"),
-                             empty.ok = FALSE)
+    checkmate::assert_integerish(dimensions_to_use, lower = 1,
+                                 any.missing = FALSE, min.len = 1L)
+    if (!is.null(transform)) {
+        checkmate::assert_subset(transform, choices = c("log10", "none"),
+                                 empty.ok = FALSE)
+    }
     checkmate::assert_number(threshold, lower = 0, upper = 1, null.ok = TRUE)
     checkmate::assert_flag(show_values, null.ok = TRUE)
     checkmate::assert_flag(dims_on_y, null.ok = TRUE)
@@ -2164,13 +2167,15 @@ plotDimCovariateCor <- function(gobject,
     cor_method <- match.arg(cor_method,
                             choices = c("pearson", "spearman", "kendall"))
 
-    if (!is.null(view)) {
-        gobject <- GiottoClass::resolveRecipe(gobject, coordinator = view)
-    }
-
     spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
     feat_type <- set_default_feat_type(gobject = gobject, spat_unit = spat_unit,
                                        feat_type = feat_type)
+    if (!is.null(view)) {
+        checkmate::assert_string(view)
+        gobject <- GiottoClass::resolveRecipe(gobject, view = view,
+            slots = c("dimension_reduction", "cell_metadata"),
+            spat_unit = spat_unit, feat_type = feat_type)
+    }
 
     if (is.null(dim_reduction_name)) {
         avail <- list_dim_reductions(gobject, spat_unit = spat_unit,
@@ -2211,6 +2216,7 @@ plotDimCovariateCor <- function(gobject,
         }
         cov_mat <- as.matrix(meta[, covariates, with = FALSE])
         rownames(cov_mat) <- meta$cell_ID
+        if (is.null(transform)) transform <- "log10"
     } else {
         cov_mat <- as.matrix(covariates)
         if (!is.numeric(cov_mat)) {
@@ -2224,6 +2230,7 @@ plotDimCovariateCor <- function(gobject,
             colnames(cov_mat) <- paste0("covariate", seq_len(ncol(cov_mat)))
         }
         covariates <- colnames(cov_mat)
+        if (is.null(transform)) transform <- "none"
     }
 
     n_cov <- length(covariates)
@@ -2246,14 +2253,19 @@ plotDimCovariateCor <- function(gobject,
     coords <- coords[cells, , drop = FALSE]
     cov_mat <- cov_mat[cells, , drop = FALSE]
 
-    n_dims <- min(dimensions_to_use, ncol(coords))
-    coords <- coords[, seq_len(n_dims), drop = FALSE]
+    dims <- intersect(as.integer(dimensions_to_use), seq_len(ncol(coords)))
+    if (!length(dims)) {
+        stop(fname, " none of dimensions_to_use are among the ",
+             ncol(coords), " stored components", call. = FALSE)
+    }
+    n_dims <- length(dims)
+    coords <- coords[, dims, drop = FALSE]
 
     res <- data.table::rbindlist(lapply(covariates, function(cv) {
         v <- cov_mat[, cv]
         if (identical(transform[[cv]], "log10")) v <- log10(pmax(v, 1))
         data.table::data.table(
-            dim = seq_len(n_dims),
+            dim = dims,
             covariate = cv,
             abs_cor = abs(as.numeric(stats::cor(coords, v,
                                                 method = cor_method,
@@ -2272,7 +2284,7 @@ plotDimCovariateCor <- function(gobject,
     dim_lab <- sprintf("%s component", toupper(dim_reduction_to_use))
     comp_prefix <- switch(dim_reduction_to_use, pca = "PC", nmf = "NMF",
                           harmony = "Harmony", lsi = "LSI")
-    brks <- if (n_dims <= 12) seq_len(n_dims) else scales::breaks_pretty()
+    brks <- if (n_dims <= 12) dims else scales::breaks_pretty()
 
     if (n_cov == 1L) {
         res[, flag := if (is.null(threshold)) FALSE else abs_cor > threshold]
@@ -2286,8 +2298,8 @@ plotDimCovariateCor <- function(gobject,
                           y = if (is.null(ylab)) {
                               sprintf("|%s r| with %s", cor_method, covariates)
                           } else ylab,
-                          subtitle = sprintf("%s1 |r| = %.3f", comp_prefix,
-                                             res$abs_cor[[1]]))
+                          subtitle = sprintf("%s%d |r| = %.3f", comp_prefix,
+                                             dims[[1]], res$abs_cor[[1]]))
         if (!is.null(threshold)) {
             pl <- pl + ggplot2::geom_hline(yintercept = threshold,
                                            linetype = "dashed")

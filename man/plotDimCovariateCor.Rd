@@ -11,9 +11,9 @@ plotDimCovariateCor(
   dim_reduction_to_use = "pca",
   dim_reduction_name = NULL,
   covariates = c("total_expr", "nr_feats"),
-  dimensions_to_use = 30,
+  dimensions_to_use = 1:30,
   cor_method = c("pearson", "spearman", "kendall"),
-  transform = "log10",
+  transform = NULL,
   threshold = 0.6,
   show_values = NULL,
   max_value_cols = 20,
@@ -59,16 +59,16 @@ to the first found for `dim_reduction_to_use`.}
 data.frame of numeric covariates whose rownames are cell IDs. The default
 names are written by \code{addStatistics()}.}
 
-\item{dimensions_to_use}{numeric. Components to show, capped at those
-stored. Named as elsewhere in Giotto rather than as a plot-specific
-count.}
+\item{dimensions_to_use}{numeric. Indices of the components to show, as
+elsewhere in Giotto. Indices beyond the stored components are dropped.}
 
 \item{cor_method}{character. Correlation method for \code{stats::cor}.}
 
 \item{transform}{character, "log10" or "none", one value for all
 covariates or one per covariate. "log10" uses `log10(pmax(x, 1))`. A
 count wants a log and a coordinate must not have one, so mixed covariates
-take one value each, in the order given.}
+take one value each, in the order given. NULL (default) uses "log10" for
+cell metadata columns and "none" for a supplied matrix.}
 
 \item{threshold}{numeric or NULL. Advisory line; NULL draws none.}
 
@@ -158,5 +158,5 @@ g <- GiottoData::loadGiottoMini("visium")
 plotDimCovariateCor(g)
 
 # one covariate gives a bar per component
-plotDimCovariateCor(g, covariates = "total_expr", dimensions_to_use = 10)
+plotDimCovariateCor(g, covariates = "total_expr", dimensions_to_use = 1:10)
 }
