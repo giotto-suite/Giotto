@@ -66,3 +66,29 @@ test_that("a setting the input does not use warns only when it was set", {
         spat_enr_name = "niche_props", show_plot = FALSE),
         "values_to_use = \"spatial_enrichment\"")
 })
+
+test_that("a view sweeps only the cells it keeps", {
+    g <- .sck_g()
+    md <- pDataDT(g)
+    thr <- stats::median(md$total_expr)
+    gv <- subset(g, total_expr > thr, view = "v")
+    kept <- md[total_expr > thr]$cell_ID
+    got <- sweepClusterK(gv, k_range = 2:5, score = "wss", seed = 1,
+        view = "v", output = "data.table")
+    ref <- sweepClusterK(subsetGiotto(g, cell_ids = kept), k_range = 2:5,
+        score = "wss", seed = 1, output = "data.table")
+    expect_equal(got$value, ref$value)
+    full <- sweepClusterK(g, k_range = 2:5, score = "wss", seed = 1,
+        output = "data.table")
+    expect_false(isTRUE(all.equal(got$value, full$value)))
+})
+
+test_that("seed leaves the caller's random stream as it was", {
+    g <- .sck_g()
+    set.seed(42)
+    a <- stats::runif(3)
+    set.seed(42)
+    sweepClusterK(g, k_range = 2:4, score = "wss", seed = 1,
+        output = "data.table")
+    expect_identical(stats::runif(3), a)
+})

@@ -2592,10 +2592,7 @@ sweepClusterK <- function(gobject = NULL,
                                            "spatial_enrichment"))
     output <- match.arg(output, choices = c("plot", "data.table"))
     cluster_method_asked <- cluster_method
-
-    if (!is.null(view) && !is.null(gobject) && inherits(gobject, "giotto")) {
-        gobject <- GiottoClass::resolveRecipe(gobject, coordinator = view)
-    }
+    if (!is.null(seed)) GiottoUtils::local_seed(seed)
 
     # Called positionally with the thing to cluster, which is the natural way
     # to reach for it with a co-expression result. Move it across rather than
@@ -2638,6 +2635,14 @@ sweepClusterK <- function(gobject = NULL,
         feat_type <- set_default_feat_type(gobject = gobject,
                                            spat_unit = spat_unit,
                                            feat_type = feat_type)
+        if (!is.null(view)) {
+            checkmate::assert_string(view)
+            gobject <- GiottoClass::resolveRecipe(gobject, view = view,
+                slots = switch(values_to_use,
+                               dim_reduction = "dimension_reduction",
+                               spatial_enrichment = "spatial_enrichment"),
+                spat_unit = spat_unit, feat_type = feat_type)
+        }
         if (identical(values_to_use, "dim_reduction")) {
             checkmate::assert_character(dim_reduction_to_use, len = 1L)
             linear <- c("pca", "nmf", "harmony", "lsi")
