@@ -12,8 +12,8 @@
 \alias{clusterData,igraph,LouvainMultinetClusParam-method}
 \alias{clusterData,igraph,LeidenPythonClusParam-method}
 \alias{clusterData,igraph,LeidenIgraphClusParam-method}
-\alias{clusterData,giotto,BlusterParam-method}
-\alias{clusterData,giotto,NNClusParam-method}
+\alias{clusterData,gAny,BlusterParam-method}
+\alias{clusterData,gAny,NNClusParam-method}
 \title{Data clustering}
 \usage{
 \S4method{clusterData}{allMatrix,BlusterParam}(
@@ -105,7 +105,7 @@
   ...
 )
 
-\S4method{clusterData}{giotto,BlusterParam}(
+\S4method{clusterData}{gAny,BlusterParam}(
   x,
   param,
   what = c("expression", "dimension_reduction", "spatial_enrichment"),
@@ -121,7 +121,7 @@
   ...
 )
 
-\S4method{clusterData}{giotto,NNClusParam}(
+\S4method{clusterData}{gAny,NNClusParam}(
   x,
   param,
   name = paste(class(param), "clusters", sep = "_"),

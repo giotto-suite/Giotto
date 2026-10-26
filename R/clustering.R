@@ -736,10 +736,10 @@ setMethod("clusterData", signature("igraph", "LeidenIgraphClusParam"), function(
     )
 })
 
-# * giotto / BlusterParam ####
+# * gAny / BlusterParam ####
 #' @rdname clusterData
 #' @export
-setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
+setMethod("clusterData", signature("gAny", "BlusterParam"), function(x, param,
     what = c("expression", "dimension_reduction", "spatial_enrichment"),
     name = paste(class(param), "clusters", sep = "_"),
     dim_reduction_to_use = "pca",
@@ -809,10 +809,10 @@ setMethod("clusterData", signature("giotto", "BlusterParam"), function(x, param,
     return(x)
 })
 
-# * giotto / NNClusParam ####
+# * gAny / NNClusParam ####
 #' @rdname clusterData
 #' @export
-setMethod("clusterData", signature("giotto", "NNClusParam"), function(x, param,
+setMethod("clusterData", signature("gAny", "NNClusParam"), function(x, param,
     name = paste(class(param), "clusters", sep = "_"),
     nn_network_to_use = "sNN",
     network_name = "sNN.pca",
