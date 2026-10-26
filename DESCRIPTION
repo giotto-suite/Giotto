@@ -53,6 +53,7 @@ Suggests:
     ArchR,
     arrow,
     biomaRt,
+    cluster,
     ClusterR,
     clustree,
     ComplexHeatmap (>= 1.20.0),

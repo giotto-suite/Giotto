@@ -22,6 +22,12 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   depth, as a bar per component for one covariate or a heatmap for several,
   to show whether a component tracks a technical variable before it is used
   downstream.
+- `sweepClusterK()` scores a partition at each k over a range (silhouette,
+  within-cluster sum of squares, gap statistic), so the number of clusters is
+  chosen from the data. It reads a linear reduction or a spatial enrichment
+  (for niches) from the giotto object, or takes a matrix, a `dist`, or a
+  `spatialCoexpression(return_gobject = FALSE)` result, whose own tree it cuts
+  to choose `n_modules`.
 
 ## breaking changes
 - Atera has no in-memory reader: `importAtera()` and
@@ -252,6 +258,17 @@ landed on `gsource` after it had moved to 4.3.0, so a 4.3.0 install may predate
 it. Downstream packages that import the motif param classes, or provide an
 `analyzeData()` method for a backed network carrier, should require
 `Giotto (>= 4.3.1)`.
+
+## bug fixes
+- **`runUMAP()` searched again instead of reusing the stored kNN.** Its
+  default `n_neighbors = 40` needs 39 neighbours per cell, but
+  `createNearestNetwork()` stores a `k = 30` kNN by default, so at defaults the
+  stored graph was always too narrow and a second graph was built. The default
+  is now `n_neighbors = NULL`: under `nn_engine = "giotto"` it reuses the
+  stored kNN at its full width (`k + 1`). With nothing to reuse, or another
+  `nn_engine`, it falls back to 31 -- the default `k = 30` plus the cell
+  itself. **Results-changing** for calls that left `n_neighbors` at its
+  default; calls that pass it explicitly are unchanged.
 
 # Giotto 4.3.0
 
