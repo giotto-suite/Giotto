@@ -94,6 +94,25 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   value is > 0, and return cells in the order of the expression matrix.
 - `makeSignMatrixRank()` ranks ties by `"average"` by default, as documented
   and as `runRankEnrich()` does; it used `"random"`.
+- **`runUMAP()` searched again instead of reusing the stored kNN.** Its
+  default `n_neighbors = 40` needs 39 neighbours per cell, but
+  `createNearestNetwork()` stores a `k = 30` kNN by default, so at defaults the
+  stored graph was always too narrow and a second graph was built. The default
+  is now `n_neighbors = NULL`: under `nn_engine = "giotto"` it reuses the
+  stored kNN at its full width (`k + 1`). With nothing to reuse, or another
+  `nn_engine`, it falls back to 31 -- the default `k = 30` plus the cell
+  itself. **Results-changing** for calls that left `n_neighbors` at its
+  default; calls that pass it explicitly are unchanged.
+- `runUMAP()` checks that a stored kNN was built from the same input before
+  reusing it. A name such as `kNN.pca` says only that the graph came from some
+  PCA, so a network built on PCs 1:20 was reused under a UMAP of PCs 1:10.
+  The reduction, dimensions and distance (or expression values and features)
+  are now compared with the record `createNearestNetwork()` stores on the
+  network; when they differ a graph is built, or `runUMAP()` stops if
+  `network_name` was given. Networks created before GiottoClass 0.7.26 have
+  no record and are reused with a warning. The order in which the graph is
+  chosen is in the new "Neighbor graph" section of `?runUMAP`. Requires
+  `GiottoClass (>= 0.7.26)`.
 
 # Giotto 4.3.4
 
@@ -253,17 +272,6 @@ landed on `gsource` after it had moved to 4.3.0, so a 4.3.0 install may predate
 it. Downstream packages that import the motif param classes, or provide an
 `analyzeData()` method for a backed network carrier, should require
 `Giotto (>= 4.3.1)`.
-
-## bug fixes
-- **`runUMAP()` searched again instead of reusing the stored kNN.** Its
-  default `n_neighbors = 40` needs 39 neighbours per cell, but
-  `createNearestNetwork()` stores a `k = 30` kNN by default, so at defaults the
-  stored graph was always too narrow and a second graph was built. The default
-  is now `n_neighbors = NULL`: under `nn_engine = "giotto"` it reuses the
-  stored kNN at its full width (`k + 1`). With nothing to reuse, or another
-  `nn_engine`, it falls back to 31 -- the default `k = 30` plus the cell
-  itself. **Results-changing** for calls that left `n_neighbors` at its
-  default; calls that pass it explicitly are unchanged.
 
 # Giotto 4.3.0
 
