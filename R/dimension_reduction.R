@@ -2023,6 +2023,345 @@ jackstrawPlot <- function(gobject,
 }
 
 
+#' @title Correlate reduced dimensions with cell covariates
+#' @name plotDimCovariateCor
+#' @description
+#' Correlates each component of a dimension reduction against one or more
+#' numeric cell covariates, to show whether a component is tracking a technical
+#' variable such as sequencing depth rather than biology.
+#'
+#' One covariate gives a bar per component. Several give a tile heatmap of
+#' components by covariate.
+#'
+#' @details
+#' Only linear reductions are accepted: PCA, NMF, Harmony-corrected PCs and
+#' LSI, whose components are the ones later steps choose from. UMAP and t-SNE
+#' are refused: their axes are coordinates of a nonlinear fit, not components
+#' that can be kept or dropped.
+
+#'
+#' `threshold` is advisory. With thousands of cells every correlation is
+#' statistically significant, so the only question is effect size. The default
+#' 0.6 means the covariate accounts for about a third of that component's
+#' variance. It colors bars and nothing else; deciding what to drop is still
+#' yours, and dropping several components risks discarding biology.
+#'
+#' @inheritParams data_access_params
+#' @inheritParams plot_output_params
+#' @param dim_reduction_to_use character. A linear reduction: "pca", "nmf",
+#'   "harmony" or "lsi".
+#' @param dim_reduction_name character. Name of the stored reduction. Defaults
+#'   to the first found for `dim_reduction_to_use`.
+#' @param covariates numeric cell metadata column names, or a matrix or
+#'   data.frame of numeric covariates whose rownames are cell IDs. The default
+#'   names are written by \code{addStatistics()}.
+#' @param dimensions_to_use numeric. Indices of the components to show, as
+#'   elsewhere in Giotto. Indices beyond the stored components are dropped.
+#' @param cor_method character. Correlation method for \code{stats::cor}.
+#' @param transform character, "log10" or "none", one value for all
+#'   covariates or one per covariate. "log10" uses `log10(pmax(x, 1))`. A
+#'   count wants a log and a coordinate must not have one, so mixed covariates
+#'   take one value each, in the order given. NULL (default) uses "log10" for
+#'   cell metadata columns and "none" for a supplied matrix.
+#' @param threshold numeric or NULL. Advisory line; NULL draws none.
+#' @param show_values logical, or NULL to print the values only where they
+#'   fit. Horizontal space is what runs out, so NULL counts the columns the
+#'   plot ends up with, after `dims_on_y` has been settled, and suppresses the
+#'   values past `max_value_cols`. Twenty components against four covariates
+#'   prints in either orientation; thirty components across the x axis does
+#'   not.
+#' @param max_value_cols numeric. Columns above which `show_values = NULL`
+#'   stops printing.
+#' @param value_text_angle numeric. Rotation of the printed values, matching
+#'   `x_text_angle` for the axis. 90 buys room on a wide, short grid.
+#' @param dims_on_y logical, or NULL to decide from the shape. TRUE puts the
+#'   components on the vertical axis, which is the readable orientation when
+#'   there are many components and few covariates.
+#' @param digits numeric. Decimal places for printed values.
+#' @param gradient_color character vector of two. Low and high heatmap colors.
+#' @param gradient_limits numeric of two. Color scale limits.
+#' @param bar_color character vector of two. Below- and above-threshold bars.
+#' @param title character. Plot title.
+#' @param xlab,ylab character. Axis titles. NULL names the reduction and the
+#'   covariate, which is usually what you want.
+#' @param x_text_size,y_text_size,x_text_angle numeric. Axis text.
+#' @param axis_text,axis_title numeric. Base sizes.
+#' @param show_legend logical.
+#' @param theme_param list. Passed to \code{ggplot2::theme}.
+#' @param verbose be verbose
+#' @param view character. Name of a \code{GiottoClass::giottoView} slotted on
+#'   `gobject`. Supplied, the object is narrowed once before either slot is
+#'   read, so the reduction and the metadata share one resolver pass.
+#' @returns ggplot
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' # does any principal component track depth or detected features?
+#' plotDimCovariateCor(g)
+#'
+#' # one covariate gives a bar per component
+#' plotDimCovariateCor(g, covariates = "total_expr", dimensions_to_use = 1:10)
+#' @export
+plotDimCovariateCor <- function(gobject,
+    spat_unit = NULL,
+    feat_type = NULL,
+    dim_reduction_to_use = "pca",
+    dim_reduction_name = NULL,
+    covariates = c("total_expr", "nr_feats"),
+    dimensions_to_use = 1:30,
+    cor_method = c("pearson", "spearman", "kendall"),
+    transform = NULL,
+    threshold = 0.6,
+    show_values = NULL,
+    max_value_cols = 20,
+    value_text_angle = 0,
+    dims_on_y = NULL,
+    digits = 2,
+    gradient_color = c("white", "#C44E52"),
+    gradient_limits = c(0, 1),
+    bar_color = c("grey75", "#C44E52"),
+    title = NULL,
+    xlab = NULL,
+    ylab = NULL,
+    x_text_size = 8,
+    y_text_size = 9,
+    x_text_angle = 0,
+    axis_text = 9,
+    axis_title = 10,
+    show_legend = TRUE,
+    theme_param = list(),
+    verbose = NULL,
+    view = NULL,
+    show_plot = NULL,
+    return_plot = NULL,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "plotDimCovariateCor") {
+    # NSE vars
+    dim <- abs_cor <- covariate <- flag <- NULL
+
+    fname <- "[plotDimCovariateCor]"
+    checkmate::assert_class(gobject, "giotto")
+    checkmate::assert_character(dim_reduction_to_use, len = 1L)
+    linear <- c("pca", "nmf", "harmony", "lsi")
+    if (!dim_reduction_to_use %in% linear) {
+        stop(fname, " '", dim_reduction_to_use, "' is not a linear reduction: ",
+             "its axes are not components that can be kept or dropped. Use ",
+             "one of: ", paste(linear, collapse = ", "), call. = FALSE)
+    }
+    checkmate::assert_character(dim_reduction_name, len = 1L, null.ok = TRUE)
+    checkmate::assert_integerish(dimensions_to_use, lower = 1,
+                                 any.missing = FALSE, min.len = 1L)
+    if (!is.null(transform)) {
+        checkmate::assert_subset(transform, choices = c("log10", "none"),
+                                 empty.ok = FALSE)
+    }
+    checkmate::assert_number(threshold, lower = 0, upper = 1, null.ok = TRUE)
+    checkmate::assert_flag(show_values, null.ok = TRUE)
+    checkmate::assert_flag(dims_on_y, null.ok = TRUE)
+    checkmate::assert_character(gradient_color, len = 2L)
+    checkmate::assert_numeric(gradient_limits, len = 2L, any.missing = FALSE)
+    checkmate::assert_character(bar_color, len = 2L)
+    checkmate::assert_flag(show_legend)
+    checkmate::assert_list(theme_param)
+    cor_method <- match.arg(cor_method,
+                            choices = c("pearson", "spearman", "kendall"))
+
+    spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
+    feat_type <- set_default_feat_type(gobject = gobject, spat_unit = spat_unit,
+                                       feat_type = feat_type)
+    if (!is.null(view)) {
+        checkmate::assert_string(view)
+        gobject <- GiottoClass::resolveRecipe(gobject, view = view,
+            slots = c("dimension_reduction", "cell_metadata"),
+            spat_unit = spat_unit, feat_type = feat_type)
+    }
+
+    if (is.null(dim_reduction_name)) {
+        avail <- list_dim_reductions(gobject, spat_unit = spat_unit,
+                                     feat_type = feat_type)
+        avail <- avail[avail$dim_type == dim_reduction_to_use, ]
+        if (!nrow(avail)) {
+            stop(fname, " no '", dim_reduction_to_use, "' reduction for [",
+                 spat_unit, "][", feat_type, "]", call. = FALSE)
+        }
+        dim_reduction_name <- avail$name[[1]]
+    }
+
+    coords <- getDimReduction(gobject, spat_unit = spat_unit,
+                              feat_type = feat_type,
+                              reduction_method = dim_reduction_to_use,
+                              name = dim_reduction_name, output = "matrix")
+    # Covariates arrive either as cell metadata column names or as a matrix
+    # keyed by cell ID. The second form is what lets enrichment scores, spatial
+    # coordinates and anything computed on the fly be correlated without this
+    # function knowing which slot they came from.
+    if (is.character(covariates)) {
+        meta <- getCellMetadata(gobject, spat_unit = spat_unit,
+                                feat_type = feat_type, output = "data.table")
+        absent <- setdiff(covariates, colnames(meta))
+        if (length(absent)) {
+            stat_cols <- c("total_expr", "nr_feats", "perc_feats")
+            hint <- if (any(absent %in% stat_cols)) {
+                "\n  addStatistics() writes these columns; it has not been run"
+            } else ""
+            stop(fname, " covariate(s) not in cell metadata: ",
+                 paste(absent, collapse = ", "), hint, call. = FALSE)
+        }
+        nonnum <- covariates[!vapply(covariates, function(x)
+            is.numeric(meta[[x]]), logical(1))]
+        if (length(nonnum)) {
+            stop(fname, " covariate(s) are not numeric: ",
+                 paste(nonnum, collapse = ", "), call. = FALSE)
+        }
+        cov_mat <- as.matrix(meta[, covariates, with = FALSE])
+        rownames(cov_mat) <- meta$cell_ID
+        if (is.null(transform)) transform <- "log10"
+    } else {
+        cov_mat <- as.matrix(covariates)
+        if (!is.numeric(cov_mat)) {
+            stop(fname, " covariates must be numeric", call. = FALSE)
+        }
+        if (is.null(rownames(cov_mat))) {
+            stop(fname, " a covariate matrix needs cell IDs as rownames",
+                 call. = FALSE)
+        }
+        if (is.null(colnames(cov_mat))) {
+            colnames(cov_mat) <- paste0("covariate", seq_len(ncol(cov_mat)))
+        }
+        covariates <- colnames(cov_mat)
+        if (is.null(transform)) transform <- "none"
+    }
+
+    n_cov <- length(covariates)
+    if (!length(transform) %in% c(1L, n_cov)) {
+        stop(fname, " transform takes one value, or one per covariate (",
+             n_cov, ")", call. = FALSE)
+    }
+    transform <- stats::setNames(rep_len(transform, n_cov), covariates)
+
+    cells <- intersect(rownames(coords), rownames(cov_mat))
+    if (!length(cells)) {
+        stop(fname, " no cell IDs shared between the reduction and the ",
+             "metadata", call. = FALSE)
+    }
+    if (length(cells) < nrow(coords)) {
+        GiottoUtils::vmsg(.v = verbose, fname, "correlating on",
+                          length(cells), "of", nrow(coords),
+                          "cells shared with the covariates")
+    }
+    coords <- coords[cells, , drop = FALSE]
+    cov_mat <- cov_mat[cells, , drop = FALSE]
+
+    dims <- intersect(as.integer(dimensions_to_use), seq_len(ncol(coords)))
+    if (!length(dims)) {
+        stop(fname, " none of dimensions_to_use are among the ",
+             ncol(coords), " stored components", call. = FALSE)
+    }
+    n_dims <- length(dims)
+    coords <- coords[, dims, drop = FALSE]
+
+    res <- data.table::rbindlist(lapply(covariates, function(cv) {
+        v <- cov_mat[, cv]
+        if (identical(transform[[cv]], "log10")) v <- log10(pmax(v, 1))
+        data.table::data.table(
+            dim = dims,
+            covariate = cv,
+            abs_cor = abs(as.numeric(stats::cor(coords, v,
+                                                method = cor_method,
+                                                use = "pairwise.complete.obs"))))
+    }))
+
+    # Thirty components across the short side of a two-row grid leaves about
+    # a fifth of an inch per tile, so decide the orientation from the shape
+    # rather than leaving the caller to discover the collision.
+    if (is.null(dims_on_y)) dims_on_y <- n_dims > (3L * n_cov)
+    if (is.null(show_values)) {
+        n_cols <- if (isTRUE(dims_on_y)) n_cov else n_dims
+        show_values <- n_cols <= max_value_cols
+    }
+
+    dim_lab <- sprintf("%s component", toupper(dim_reduction_to_use))
+    comp_prefix <- switch(dim_reduction_to_use, pca = "PC", nmf = "NMF",
+                          harmony = "Harmony", lsi = "LSI")
+    brks <- if (n_dims <= 12) dims else scales::breaks_pretty()
+
+    if (n_cov == 1L) {
+        res[, flag := if (is.null(threshold)) FALSE else abs_cor > threshold]
+        pl <- ggplot2::ggplot(res, ggplot2::aes(dim, abs_cor)) +
+            ggplot2::geom_col(ggplot2::aes(fill = flag), width = 0.75) +
+            ggplot2::scale_fill_manual(values = c(`FALSE` = bar_color[[1]],
+                                                  `TRUE` = bar_color[[2]]),
+                                       guide = "none") +
+            ggplot2::scale_x_continuous(breaks = brks) +
+            ggplot2::labs(x = if (is.null(xlab)) dim_lab else xlab,
+                          y = if (is.null(ylab)) {
+                              sprintf("|%s r| with %s", cor_method, covariates)
+                          } else ylab,
+                          subtitle = sprintf("%s%d |r| = %.3f", comp_prefix,
+                                             dims[[1]], res$abs_cor[[1]]))
+        if (!is.null(threshold)) {
+            pl <- pl + ggplot2::geom_hline(yintercept = threshold,
+                                           linetype = "dashed")
+        }
+    } else {
+        pl <- if (isTRUE(dims_on_y)) {
+            ggplot2::ggplot(res, ggplot2::aes(covariate, dim,
+                                              fill = abs_cor)) +
+                ggplot2::scale_y_reverse(breaks = brks, expand = c(0, 0)) +
+                ggplot2::scale_x_discrete(expand = c(0, 0)) +
+                ggplot2::labs(x = xlab,
+                              y = if (is.null(ylab)) dim_lab else ylab)
+        } else {
+            ggplot2::ggplot(res, ggplot2::aes(dim, covariate,
+                                              fill = abs_cor)) +
+                ggplot2::scale_x_continuous(breaks = brks, expand = c(0, 0)) +
+                ggplot2::scale_y_discrete(expand = c(0, 0)) +
+                ggplot2::labs(x = if (is.null(xlab)) dim_lab else xlab,
+                              y = ylab)
+        }
+        pl <- pl +
+            ggplot2::geom_tile(width = 1, height = 1, color = "white",
+                               linewidth = 0.3) +
+            ggplot2::scale_fill_gradient(low = gradient_color[[1]],
+                                         high = gradient_color[[2]],
+                                         limits = gradient_limits,
+                                         name = "|r|")
+        if (isTRUE(show_values)) {
+            pl <- pl + ggplot2::geom_text(
+                ggplot2::aes(label = formatC(abs_cor, format = "f",
+                                             digits = digits),
+                             color = abs_cor >
+                                 mean(gradient_limits)),
+                size = x_text_size / 3.2, angle = value_text_angle,
+                show.legend = FALSE) +
+                ggplot2::scale_color_manual(values = c(`FALSE` = "grey25",
+                                                        `TRUE` = "white"),
+                                             guide = "none")
+        }
+    }
+
+    if (!is.null(title)) pl <- pl + ggplot2::labs(title = title)
+
+    pl <- pl + ggplot2::theme_classic(base_size = axis_text) +
+        ggplot2::theme(
+            axis.text.x = ggplot2::element_text(size = x_text_size,
+                                                angle = x_text_angle,
+                                                hjust = if (x_text_angle) 1 else 0.5),
+            axis.text.y = ggplot2::element_text(size = y_text_size),
+            axis.title = ggplot2::element_text(size = axis_title),
+            legend.position = if (isTRUE(show_legend)) "right" else "none")
+    if (length(theme_param)) pl <- pl + do.call(ggplot2::theme, theme_param)
+
+    GiottoVisuals::plot_output_handler(
+        gobject = gobject, plot_object = pl,
+        save_plot = save_plot, return_plot = return_plot,
+        show_plot = show_plot,
+        default_save_name = default_save_name,
+        save_param = save_param, else_return = NULL)
+}
+
+
 #' @title signPCA
 #' @name signPCA
 #' @description identify significant prinicipal components (PCs)

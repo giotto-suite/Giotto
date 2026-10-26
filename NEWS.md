@@ -17,6 +17,11 @@ Downstream packages that stream PAGE (GiottoDisk) should require
   cells unassigned below a `min_score` or above a `max_padj`, and with
   `return_gobject = TRUE` writes the assignment to the cell metadata as
   `<enrichment_name>_type`.
+- `plotDimCovariateCor()` correlates each component of a linear reduction
+  (PCA, NMF, Harmony, LSI) with numeric cell covariates such as sequencing
+  depth, as a bar per component for one covariate or a heatmap for several,
+  to show whether a component tracks a technical variable before it is used
+  downstream.
 - `sweepClusterK()` scores a partition at each k over a range (silhouette,
   within-cluster sum of squares, gap statistic), so the number of clusters is
   chosen from the data. It reads a linear reduction or a spatial enrichment
