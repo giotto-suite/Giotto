@@ -2506,7 +2506,7 @@ doHclust <- function(
 #' @param theme_param list. Passed to \code{ggplot2::theme}.
 #' @param output character. "plot" (default) draws the scores; "data.table"
 #'   returns them instead: one row per k per criterion, with `k`, `value`,
-#'   `se` (the gap's standard error, NA for the others), `score` and `best`.
+#'   `se` (the gap's standard error, NA for the others), `score` and `selected`.
 #' @param verbose be verbose
 #' @param view character. Name of a \code{GiottoClass::giottoView} slotted on
 #'   `gobject`, resolved once before the matrix is read.
@@ -2563,7 +2563,7 @@ sweepClusterK <- function(gobject = NULL,
     save_param = list(),
     default_save_name = "sweepClusterK") {
     # NSE vars
-    k <- value <- se <- best <- score_lab <- NULL
+    k <- value <- se <- selected <- score_lab <- NULL
 
     fname <- "[sweepClusterK]"
     supplied <- names(match.call())[-1L]
@@ -2870,7 +2870,7 @@ sweepClusterK <- function(gobject = NULL,
         } else {
             tb$k[[which.max(tb$value)]]
         }
-        tb[, `:=`(score = s, best = k == b)]
+        tb[, `:=`(score = s, selected = k == b)]
         tb
     }))
 
@@ -2880,7 +2880,7 @@ sweepClusterK <- function(gobject = NULL,
               wss = "total within-cluster sum of squares",
               gap = "gap statistic")
     res[, score_lab := labs[score]]
-    picks <- res[res$best]
+    picks <- res[res$selected]
     sub_txt <- paste(sprintf("%s: k = %d", picks$score, picks$k),
                      collapse = "   |   ")
 

@@ -12,8 +12,8 @@ test_that("wss on the PCA is the k-means objective at each k", {
     wss <- vapply(2:6, function(k) stats::kmeans(pcs, centers = k, nstart = 5,
         iter.max = 50)$tot.withinss, numeric(1))
     expect_equal(tb$value, wss)
-    expect_identical(names(tb), c("k", "value", "se", "score", "best"))
-    expect_identical(sum(tb$best), 1L)
+    expect_identical(names(tb), c("k", "value", "se", "score", "selected"))
+    expect_identical(sum(tb$selected), 1L)
 })
 
 test_that("a co-expression result is swept along its own tree", {

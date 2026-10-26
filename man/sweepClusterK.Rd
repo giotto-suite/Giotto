@@ -116,7 +116,7 @@ otherwise.}
 
 \item{output}{character. "plot" (default) draws the scores; "data.table"
 returns them instead: one row per k per criterion, with `k`, `value`,
-`se` (the gap's standard error, NA for the others), `score` and `best`.}
+`se` (the gap's standard error, NA for the others), `score` and `selected`.}
 
 \item{verbose}{be verbose}
 
