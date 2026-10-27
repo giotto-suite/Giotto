@@ -10,7 +10,9 @@ importCosMx(
   fovs = NULL,
   micron = FALSE,
   px2um = 0.12028,
-  poly_pref = "mask"
+  poly_pref = "mask",
+  version = "default",
+  backend = NULL
 )
 }
 \arguments{
@@ -30,9 +32,16 @@ based on `CosMx-ReadMe.html` info. May be different depending on dataset.}
 \item{poly_pref}{character. Either "csv" (default) or "mask". Which format of
 data to load as polygon info. "csv" will use vector polygons from the
 `polygons.csv`. "mask" will load the mask images from `CellLabels` directory.}
+
+\item{version}{character. Version of CosMx output. Current selections are
+either "default", "v6", and "legacy" (for the NSCLC dataset).}
+
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+`giotto` object as a managed on-disk project.}
 }
 \value{
-CosmxReader object
+`CosmxReader` object, or `CosMxDiskReader` when `backend` is set
 }
 \description{
 Giotto import functionalities for CosMx datasets. This function generates

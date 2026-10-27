@@ -4,6 +4,12 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
 
 ## new
+- `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
+  `createGiottoCosMxObject(backend =)` creates the `giotto` object as a
+  managed on-disk project from the same arguments: polygons from the
+  `polygons.csv`, the expression matrix, cell metadata, transcripts and
+  images. `poly_read_fun` repairs a vendor polygon export as it is read; it
+  needs a `backend`.
 - `importMerscope()` creates a `MerscopeReader` with `load_transcripts()`,
   `load_polys()`, `load_expression()`, `load_cellmeta()`, `load_spatlocs()`,
   `load_image()` and `create_gobject()` for Vizgen MERSCOPE region
@@ -74,6 +80,11 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 - Rank p-values reuse the feature ranks instead of computing them again.
 
 ## bug fixes
+- CosMx images and label masks of AtoMx exports, whose file names pad the
+  FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
+  ("No images found matching fov [F033]"). The digits are now read from the
+  files, so both these and the three-digit names of older exports load
+  without setting `file_fov_fmt`.
 - `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
   `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
   to the first type instead of a random one.
