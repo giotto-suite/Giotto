@@ -4,6 +4,14 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
 
 ## new
+- `calculateImageFeatures()` computes features for every polygon of a
+  spatial unit (e.g. nuclei) from an image: a tile centred on each polygon,
+  at the image's resolution, and the polygon's mask go to a provider, and
+  the features are stored as the expression of that spatial unit. Providers:
+  `"uni2"` (the UNI2-h pathology foundation model through Python, patch
+  tokens averaged over the mask), `"morphology"` (R only: shape and stain
+  features), or any function of the tiles and masks. Works on
+  `giottoLargeImage` and `giottoAffineImage`, reading the image in blocks.
 - `runNucleusDeconv()` types every cell of a segmentation, such as H&E
   nuclei, from the spots it lies in. A classifier on per-cell features (e.g.
   image embeddings stored as the expression of the nucleus spatial unit) is
