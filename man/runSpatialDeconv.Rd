@@ -96,8 +96,10 @@ runSpatialDeconv(gobject = g, sign_matrix = sign_matrix)
 Other spatial deconvolution:
 \code{\link{deconv_dwls}},
 \code{\link{deconv_param}},
+\code{\link[=hierarchicalCellTypes]{hierarchicalCellTypes()}},
 \code{\link[=makeSignMatrixDWLS]{makeSignMatrixDWLS()}},
 \code{\link[=makeSignMatrixDWLSfromMatrix]{makeSignMatrixDWLSfromMatrix()}},
-\code{\link[=runDWLSDeconv]{runDWLSDeconv()}}
+\code{\link[=runDWLSDeconv]{runDWLSDeconv()}},
+\code{\link[=runNucleusDeconv]{runNucleusDeconv()}}
 }
 \concept{spatial deconvolution}

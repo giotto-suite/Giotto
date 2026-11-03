@@ -123,10 +123,12 @@ Remotes:
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
+    'bag-model.R'
     'basilisk.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
+    'nucleus-deconv.R'
     'clustering.R'
     'convenience_xenium.R'
     'convenience_atera.R'

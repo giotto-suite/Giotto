@@ -101,8 +101,10 @@ deconvolution method, and \doi{10.1186/s13059-021-02362-7} for
 Other spatial deconvolution:
 \code{\link{deconv_dwls}},
 \code{\link{deconv_param}},
+\code{\link[=hierarchicalCellTypes]{hierarchicalCellTypes()}},
 \code{\link[=makeSignMatrixDWLS]{makeSignMatrixDWLS()}},
 \code{\link[=makeSignMatrixDWLSfromMatrix]{makeSignMatrixDWLSfromMatrix()}},
+\code{\link[=runNucleusDeconv]{runNucleusDeconv()}},
 \code{\link[=runSpatialDeconv]{runSpatialDeconv()}}
 }
 \concept{spatial deconvolution}
