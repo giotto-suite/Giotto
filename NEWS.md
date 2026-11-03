@@ -74,6 +74,9 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 - Rank p-values reuse the feature ranks instead of computing them again.
 
 ## bug fixes
+- Clustering runs on a `giottoMulti`: `doLeidenCluster()` and
+  `clusterData()` write clusters to the multi's joint cell metadata.
+- `addStatistics()` on a `giottoMulti` computes polygon area per sample.
 - `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
   `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
   to the first type instead of a random one.
