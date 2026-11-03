@@ -80,9 +80,10 @@
 #' between that mean and the starting proportions; `confidence` the mean of
 #' `-log(max p)` over the cells, which makes each cell choose a type.
 #' @family spatial deconvolution
-#' @seealso [hierarchicalCellTypes()] to report a lineage and a confident
-#'   subtype; [calculateLabelProportions()] for the spot composition from the
-#'   typed cells.
+#' @seealso [calculateImageFeatures()] for the cell features from an image;
+#'   [hierarchicalCellTypes()] to report a lineage and a confident subtype;
+#'   [calculateLabelProportions()] for the spot composition from the typed
+#'   cells.
 #' @md
 #' @export
 runNucleusDeconv <- function(gobject,

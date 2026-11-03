@@ -129,9 +129,10 @@ between that mean and the starting proportions; \code{confidence} the mean of
 \verb{-log(max p)} over the cells, which makes each cell choose a type.
 }
 \seealso{
-\code{\link[=hierarchicalCellTypes]{hierarchicalCellTypes()}} to report a lineage and a confident
-subtype; \code{\link[GiottoClass:calculateLabelProportions]{calculateLabelProportions()}} for the spot composition from the
-typed cells.
+\code{\link[=calculateImageFeatures]{calculateImageFeatures()}} for the cell features from an image;
+\code{\link[=hierarchicalCellTypes]{hierarchicalCellTypes()}} to report a lineage and a confident subtype;
+\code{\link[GiottoClass:calculateLabelProportions]{calculateLabelProportions()}} for the spot composition from the typed
+cells.
 
 Other spatial deconvolution:
 \code{\link{deconv_dwls}},
