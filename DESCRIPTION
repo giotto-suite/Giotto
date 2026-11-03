@@ -149,6 +149,7 @@ Collate:
     'globals.R'
     'gstop.R'
     'suite_reexports.R'
+    'image-features.R'
     'image_registration.R'
     'interactivity.R'
     'kriging.R'
