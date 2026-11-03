@@ -81,3 +81,21 @@ test_that("micron = TRUE works with the detected (directory) paths", {
     expect_equal(sl$sdimy, -tp$pxl_row_in_fullres * mpp)
 })
 
+
+test_that("cell polygons load from a geojson path and in microns", {
+    mpp <- jsonlite::read_json(file.path(.so, "spatial",
+        "scalefactors_json.json"))$microns_per_pixel
+    xy <- function(g) terra::crds(getPolygonInfo(g, name = "cell",
+        return_giottoPolygon = TRUE)[])
+    px <- .q(createGiottoVisiumHDObjectCell(.so, load_image = FALSE,
+        verbose = FALSE))
+    # a direct .geojson path, as the outputs folder finds it
+    gj <- .q(createGiottoVisiumHDObjectCell(.so, load_image = FALSE,
+        load_polygons = "cell", verbose = FALSE,
+        geojson_path = file.path(.so, "cell_segmentations.geojson")))
+    expect_identical(xy(gj), xy(px))
+    # micron = TRUE with the outputs folder: scale factors found in it
+    um <- .q(createGiottoVisiumHDObjectCell(.so, load_image = FALSE,
+        micron = TRUE, verbose = FALSE))
+    expect_equal(xy(um), xy(px) * mpp)
+})

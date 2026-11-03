@@ -74,6 +74,9 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 - Rank p-values reuse the feature ranks instead of computing them again.
 
 ## bug fixes
+- `createGiottoVisiumHDObjectCell()` loads cell and nucleus polygons from a
+  direct `geojson_path`, and with `micron = TRUE` finds the scale factors in the
+  segmented outputs folder; both stopped with an error before.
 - `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
   `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
   to the first type instead of a random one.
