@@ -27,7 +27,7 @@ BugReports: https://github.com/giotto-suite/Giotto/issues
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.7.16)
+    GiottoClass (>= 0.7.26)
 Imports:
     BiocParallel,
     BiocSingular,
