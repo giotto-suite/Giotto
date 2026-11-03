@@ -4,6 +4,18 @@ Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
 
 ## new
+- `runNucleusDeconv()` types every cell of a segmentation, such as H&E
+  nuclei, from the spots it lies in. A classifier on per-cell features (e.g.
+  image embeddings stored as the expression of the nucleus spatial unit) is
+  trained so that the average prediction of each spot's cells explains the
+  spot's expression with spatialDWLS's dampened weights, starting from the
+  spot's deconvolved proportions. Cells between spots are typed too. Writes
+  the probabilities as a spatial enrichment of the cell unit and
+  `<name>_type`, `<name>_confidence` and `<name>_spot` to its metadata.
+  Needs spatialDWLS >= 0.1.2.
+- `hierarchicalCellTypes()` reads out cell type probabilities (from
+  `runNucleusDeconv()` or any deconvolution) as a lineage and, when it holds
+  at least `tau` of the lineage's probability, a subtype.
 - `importMerscope()` creates a `MerscopeReader` with `load_transcripts()`,
   `load_polys()`, `load_expression()`, `load_cellmeta()`, `load_spatlocs()`,
   `load_image()` and `create_gobject()` for Vizgen MERSCOPE region
