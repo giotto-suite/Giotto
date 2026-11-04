@@ -1700,7 +1700,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         type, ifelse(graphclust_annotated, " graphclust", "")))
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
-    if (".geojson" %in% GiottoUtils::file_extension(path)) { # direct filepath
+    if ("geojson" %in% GiottoUtils::file_extension(path)) { # direct filepath
         poly_path <- path
         if (micron && is.null(scalefactors_path)) {
             stop("[VisiumHD] <polygons> `scalefactors_path` needed for micron = TRUE\n",
@@ -1736,7 +1736,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     sv <- terra::vect(poly_path, crs = "local")
     
     if (micron) {
-        px2um <- GiottoUtils::read_json(scalefactors_path)$microns_per_pixel
+        px2um <- .visiumhd_micron_scale(
+            .visiumhd_scalefactors(scalefactors_path, verbose = FALSE))
         sv <- rescale(sv, px2um, x0 = 0, y0 = 0)
     }
     
