@@ -1,4 +1,19 @@
-# Giotto 4.3.5 (in development)
+# Giotto 4.3.6 (in development)
+
+Requires GiottoClass 0.7.27.
+
+## changes
+- Stereo-seq bin1 points (`load_binpoints = TRUE`) carry the DNB geometry and
+  `bin_overlap = "area"`: `calculateOverlap()` gives each DNB to the cell
+  outline that covers it, as the cellbin GEF counts it, instead of testing the
+  DNB's corner point. `calculateOverlap(bin_overlap = "inside")` keeps the old
+  assignment.
+- The Stereo-seq cellbin and `readPolygonVizgenParquet()` polygons are built
+  with `createGiottoPolygon()`, so invalid outlines are repaired as in every
+  other reader (option `giotto.make_valid`). `readPolygonVizgenParquet()` no
+  longer returns `NULL`s when `calc_centroids = FALSE`.
+
+# Giotto 4.3.5
 
 Downstream packages that stream PAGE (GiottoDisk) should require
 `Giotto (>= 4.3.5)` so both backends compute the same scores.
