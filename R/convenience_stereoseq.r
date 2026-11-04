@@ -866,10 +866,16 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         provenance      = spat_unit
     )
 
+    # a DNB covers [x, x + 1) along both axes of the GEF; with negative_y,
+    # the unit below its point. The cellbin GEF counts every DNB a cell
+    # covers, so cells take DNBs by area (GiottoClass::extract_bin_overlap())
     gbp <- createGiottoBinPoints(
         expr_values  = expr_obj,
         spatial_locs = sl,
-        feat_type    = "rna"
+        feat_type    = "rna",
+        bin_width    = 1,
+        bin_offset   = c(0.5, if (isTRUE(negative_y)) -0.5 else 0.5),
+        bin_overlap  = "area"
     )
     spatUnit(gbp) <- spat_unit
 
@@ -1093,22 +1099,10 @@ setMethod("$<-", signature("StereoSeqReader"), function(x, name, value) {
         "Finished cellBorder polygons: %d cells", ncells
     ))
 
-    gpoly <- new("giottoPolygon",
-        spatVector          = sv,
-        spatVectorCentroids = NULL,
-        overlaps            = NULL,
-        name                = "cell",
-        # Populate the ID cache, as every other polygon constructor does
-        # (e.g. createGiottoPolygonsFromMask()). Left at the prototype
-        # NA_character_, the IDs get recomputed downstream with
-        # `unique(<spatVector>$poly_ID)` -- which fails once the object is
-        # added to a backend-managed giotto, because setGiotto() has by then
-        # swapped the SpatVector for a parquetGeomStore and `unique()` does
-        # not apply to it.
-        unique_ID_cache     = as.character(sv$poly_ID)
-    )
-    gpoly <- centroids(gpoly, append_gpolygon = TRUE)
-    gpoly
+    # the constructor fills the ID cache and repairs self-intersecting
+    # outlines (option `giotto.make_valid`)
+    createGiottoPolygon(sv, name = "cell", calc_centroids = TRUE,
+        verbose = FALSE)
 }
 
 # Public-facing polygon loader from cellBorder.

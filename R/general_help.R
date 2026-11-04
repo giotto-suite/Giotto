@@ -1897,16 +1897,12 @@ readPolygonVizgenParquet <- function(file,
         sv$poly_ID <- poly_table$EntityID
         sv$z_level <- poly_table$ZLevel
 
-        gpoly <- giottoPolygon(
+        # repairs invalid outlines (option `giotto.make_valid`)
+        createGiottoPolygon(sv,
             name = names(multipolygons)[[i]],
-            spatVector = sv,
-            unique_ID_cache = poly_table$EntityID
+            calc_centroids = calc_centroids,
+            verbose = FALSE
         )
-
-        if (isTRUE(calc_centroids)) {
-            # NOTE: will not recalculate if centroids are already attached
-            gpoly <- GiottoClass::centroids(x = gpoly, append_gpolygon = TRUE)
-        }
     })
 
     return(out)

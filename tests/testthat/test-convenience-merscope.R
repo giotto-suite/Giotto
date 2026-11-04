@@ -81,3 +81,39 @@ test_that("calculate_overlap is deprecated", {
                                    calculate_overlap = TRUE, verbose = FALSE)
     )
 })
+
+
+# readPolygonVizgenParquet ####
+
+test_that("cell boundaries are repaired unless giotto.make_valid is FALSE", {
+    skip_if_not_installed("arrow")
+    skip_if_not_installed("sf")
+    skip_if_not_installed("dplyr")
+    withr::local_options(giotto.warn_sequential = FALSE,
+        arrow.pull_as_vector = TRUE)
+    # future_lapply() attaches packages (future itself) that later files see
+    attached <- search()
+    withr::defer(for (p in setdiff(search(), attached)) {
+        detach(p, character.only = TRUE)
+    })
+    f <- tempfile(fileext = ".parquet")
+    w <- c("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+        "POLYGON ((0 0, 2 2, 2 0, 0 2, 0 0))") # a bowtie
+    tb <- arrow::arrow_table(EntityID = c("1", "2"), ZIndex = 0L, ZLevel = 1.5)
+    tb$Geometry <- arrow::Array$create(
+        lapply(w, function(x) terra::geom(terra::vect(x), wkb = TRUE)[[1L]]),
+        type = arrow::binary()
+    )
+    arrow::write_parquet(tb, f)
+
+    gp <- readPolygonVizgenParquet(f, calc_centroids = FALSE,
+        verbose = FALSE)[[1L]]
+    expect_s4_class(gp, "giottoPolygon")
+    expect_identical(gp[]$poly_ID, c("1", "2"))
+    expect_true(all(terra::is.valid(gp[])))
+
+    withr::local_options(giotto.make_valid = FALSE)
+    gp <- readPolygonVizgenParquet(f, calc_centroids = FALSE,
+        verbose = FALSE)[[1L]]
+    expect_false(all(terra::is.valid(gp[])))
+})
