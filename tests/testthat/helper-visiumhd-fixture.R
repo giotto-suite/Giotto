@@ -54,12 +54,15 @@
                        file.path(mdir, "barcodes.tsv.gz"), col.names = FALSE)
 }
 
-.vhd_fx_write_spatial <- function(dir, positions = NULL, bin_um = NULL) {
+# `scalefactors` replaces the Visium HD json (e.g. a standard Visium one)
+.vhd_fx_write_spatial <- function(dir, positions = NULL, bin_um = NULL,
+                                  scalefactors = NULL) {
     sdir <- file.path(dir, "spatial")
     dir.create(sdir, recursive = TRUE, showWarnings = FALSE)
     sf <- list(microns_per_pixel = 1, tissue_lowres_scalef = 0.5,
                fiducial_diameter_fullres = 10, tissue_hires_scalef = 1,
                regist_target_img_scalef = 1)
+    if (!is.null(scalefactors)) sf <- scalefactors
     if (!is.null(bin_um)) {
         sf <- c(list(spot_diameter_fullres = bin_um, bin_size_um = bin_um), sf)
     }
