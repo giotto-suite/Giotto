@@ -29,6 +29,23 @@ Requires GiottoClass 0.7.27.
   `normParam("arcsinh", c =)` for `processData()`; each is cited on its help
   page (`?norm_clr`, `?norm_gamma_pearson`, `?norm_arcsinh`). `log(x + 1)`
   is `normParam("log", base = exp(1))`.
+- `runMisty()` explains each target feature (e.g. a protein) from views of
+  the same cell, its direct neighbours (juxtaview), the tissue around it
+  (paraview) and, optionally, the neighbourhood's cell-type composition and
+  other feature types (e.g. RNA), as MISTy (Tanevski et al. 2022) does. Views
+  are sparse network products and the meta-model's p-values are computed
+  without an N x N matrix, so it runs on whole slides and on GiottoDisk-backed
+  objects. On the same views it gives mistyR's results (random forest through
+  ranger, or linear models), writes mistyR's result files (read by
+  `mistyR::collect_results()`) and stores each target's R2 in the feature
+  metadata. `sample_by` fits one model per sample (e.g. per FOV) on views
+  built from the whole slide, as mistyR's `run_misty()` per sample and
+  `collect_results()`; samples run in parallel on a `future` plan.
+- `runBanksy()` finds spatial domains with BANKSY (Singhal et al. 2024,
+  package \pkg{Banksy}) from a stored dimension reduction and the spatial
+  locations; with `runBlockPCA()`'s joint embedding the domains use RNA and
+  protein together. Only the embedding is passed, so it works on whole slides
+  and GiottoDisk-backed objects.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and
