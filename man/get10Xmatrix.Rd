@@ -41,4 +41,9 @@ By default the first column of the features or genes .tsv file will be used,
 however if multiple
 annotations are provided (e.g. ensembl gene ids and gene symbols) the user
 can select another column.
+
+Repeated feature names get a \code{--N} suffix on every copy
+(e.g. \code{Ptp4a1--1}, \code{Ptp4a1--2}). With \code{split_by_type},
+repeats are counted within each feature type, so a gene keeps its name when
+an antibody shares it.
 }

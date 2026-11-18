@@ -878,6 +878,22 @@ gpoly_from_dfr_smoothed_wrapped <- function(segmdfr,
 
 ## 10X ####
 
+# Unique 10x feature names: every copy of a repeated name gets `--N`.
+# With `feat_types`, repeats are counted within each feature type. Shared by
+# get10Xmatrix() and get10Xmatrix_h5(); GiottoDisk's .disambiguate_feat_ids()
+# applies the same rule.
+.tenx_unique_feat_ids <- function(x, feat_types = NULL) {
+    x <- as.character(x)
+    key <- if (is.null(feat_types)) x else paste(feat_types, x, sep = "\r")
+    dup <- key %in% key[duplicated(key)]
+    if (!any(dup)) return(x)
+    n <- stats::ave(seq_along(key), key, FUN = seq_along)
+    x[dup] <- paste0(x[dup], "--", n[dup])
+    x
+}
+
+
+
 #' @title get10Xmatrix
 #' @name get10Xmatrix
 #' @description This function creates an expression matrix from a 10X
@@ -900,16 +916,17 @@ gpoly_from_dfr_smoothed_wrapped <- function(segmdfr,
 #' however if multiple
 #' annotations are provided (e.g. ensembl gene ids and gene symbols) the user
 #' can select another column.
+#'
+#' Repeated feature names get a \code{--N} suffix on every copy
+#' (e.g. \code{Ptp4a1--1}, \code{Ptp4a1--2}). With \code{split_by_type},
+#' repeats are counted within each feature type, so a gene keeps its name when
+#' an antibody shares it.
 #' @export
 get10Xmatrix <- function(
         path_to_data,
         gene_column_index = 1,
         remove_zero_rows = TRUE,
         split_by_type = TRUE) {
-    # data.table variables
-    total <- gene_symbol <- gene_id <- gene_id_num <- cell_id <-
-        cell_id_num <- sort_gene_id_num <- NULL
-
     # data directory
     files_10X <- list.files(path_to_data)
 
@@ -919,7 +936,6 @@ get10Xmatrix <- function(
         input = paste0(path_to_data, "/", barcodes_file), header = FALSE
     )
     barcodes_vec <- barcodesDT$V1
-    names(barcodes_vec) <- seq_len(nrow(barcodesDT))
 
     # get features and create vector
     features_file <- grep(files_10X, pattern = "features|genes", value = TRUE)
@@ -927,30 +943,21 @@ get10Xmatrix <- function(
         input = paste0(path_to_data, "/", features_file), header = FALSE
     )
 
-    g_name <- colnames(featuresDT)[gene_column_index]
-    ## convert ensembl gene id to gene symbol ##
-    ## TODO
-
-    # a character `by` groups by that column; `by = get(g_name)` errors in
-    # data.table 1.18 ("'by' appears to evaluate to column names")
-    featuresDT[, total := .N, by = g_name]
-    featuresDT[, gene_symbol := ifelse(
-        total > 1, paste0(get(g_name), "--", seq_len(.N)),
-        get(g_name)
-    ), by = g_name]
-    features_vec <- featuresDT$gene_symbol
-    names(features_vec) <- seq_len(nrow(featuresDT))
+    # Split by type of feature (features.tsv 3rd col)
+    feat_classes <- unique(featuresDT$V3)
+    by_type <- length(feat_classes) > 1 && isTRUE(split_by_type)
+    features_vec <- .tenx_unique_feat_ids(
+        featuresDT[[gene_column_index]],
+        feat_types = if (by_type) featuresDT$V3
+    )
 
     # get matrix
     matrix_file <- grep(files_10X, pattern = "matrix", value = TRUE)
     MMmatrix <- Matrix::readMM(paste0(path_to_data, "/", matrix_file))
-    rownames(MMmatrix) <- features_vec
-    colnames(MMmatrix) <- barcodes_vec
+    MMmatrix <- methods::as(MMmatrix, "CsparseMatrix")
+    dimnames(MMmatrix) <- list(features_vec, barcodes_vec)
 
-
-    # Split by type of feature (features.tsv 3rd col)
-    feat_classes <- unique(featuresDT$V3)
-    if (length(feat_classes) > 1 && isTRUE(split_by_type)) {
+    if (by_type) {
         result_list <- list()
 
         for (fclass in feat_classes) {
@@ -993,6 +1000,10 @@ get10Xmatrix <- function(
 #' @details If the .h5 10x file has multiple classes of features
 #' (e.g. expression vs QC probes) or modalities (e.g. RNA and protein), and
 #' \code{split_by_type} param is \code{TRUE}, multiple matrices will be returned
+#'
+#' Feature names follow [get10Xmatrix()]: repeated names get a \code{--N}
+#' suffix on every copy, counted within each feature type when
+#' \code{split_by_type} is \code{TRUE}.
 #' @export
 get10Xmatrix_h5 <- function(
         path_to_data,
@@ -1084,20 +1095,13 @@ get10Xmatrix_h5 <- function(
         }
     )
 
-    # create uniq name symbols
-    # duplicate gene symbols will be given a suffix '_1', '_2', ...
-
-    # data.table variables
-    nr_name <- name <- uniq_name <- NULL
-
-    features_dt[, nr_name := seq_len(.N), by = name]
-    features_dt[, uniq_name := ifelse(
-        nr_name == 1, name, paste0(name, "_", (nr_name - 1))
-    )]
-
-
-    # dimension names
-    dimnames <- list(feature_id, barcodes)
+    # feature names, as get10Xmatrix() gives them
+    by_type <- isTRUE(split_by_type) && length(unique(feature_types)) > 1L
+    feat_names <- .tenx_unique_feat_ids(
+        if (gene_ids == "symbols") feature_names else feature_id,
+        feat_types = if (by_type) feature_types
+    )
+    dimnames <- list(feat_names, barcodes)
 
     sparsemat <- Matrix::sparseMatrix(
         i = indices + 1,
@@ -1117,17 +1121,6 @@ get10Xmatrix_h5 <- function(
                 ,
                 drop = FALSE
             ]
-
-            # change names to gene symbols if it's expression
-            if ((fclass %in% c("Gene Expression", "Protein Expression")) && gene_ids == "symbols") {
-
-                conv_vector <- features_dt$uniq_name
-                names(conv_vector) <- features_dt$id
-
-                current_names <- rownames(result_list[[fclass]])
-                new_names <- conv_vector[current_names]
-                rownames(result_list[[fclass]]) <- new_names
-            }
         }
 
         if (isTRUE(remove_zero_rows)) {
@@ -1153,14 +1146,6 @@ get10Xmatrix_h5 <- function(
 
         return(result_list)
     } else {
-        # gene symbols, as the split branch gives them
-        if (gene_ids == "symbols") {
-            expr_rows <- features_dt$feature_type %in%
-                c("Gene Expression", "Protein Expression")
-            rn <- rownames(sparsemat)
-            rn[expr_rows] <- features_dt$uniq_name[expr_rows]
-            rownames(sparsemat) <- rn
-        }
         if (isTRUE(remove_zero_rows)) {
             rowsums_result <- rowSums_flex(sparsemat)
             rowsums_bool <- rowsums_result != 0

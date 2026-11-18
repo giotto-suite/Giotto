@@ -2,6 +2,19 @@
 
 Requires GiottoClass 0.7.27.
 
+## breaking changes
+- 10x feature names are the same whichever file they come from.
+  `get10Xmatrix_h5()` names repeated features like `get10Xmatrix()` and
+  GiottoDisk: every copy gets `--N` (`Ptp4a1--1`, `Ptp4a1--2`; it gave
+  `Ptp4a1`, `Ptp4a1_1`), and features of every type are named from the name
+  column in symbol mode (antibodies gave their ids). With
+  `split_by_type = TRUE` (the default) repeats are counted within each
+  feature type, so a gene keeps its name when an antibody shares it: CytAssist
+  protein runs read from the matrix directory gave `CD4--1` for the gene. This
+  reaches the Visium, Visium HD and Xenium readers.
+- `get10Xmatrix()` returns a `dgCMatrix` (it gave a `dgTMatrix`) without names
+  on its row and column names.
+
 ## changes
 - Stereo-seq bin1 points (`load_binpoints = TRUE`) carry the DNB geometry and
   `bin_overlap = "area"`: `calculateOverlap()` gives each DNB to the cell
