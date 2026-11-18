@@ -10,7 +10,8 @@ addVisiumPolygons(gobject, scalefactor_path = NULL)
 \item{gobject}{Giotto Object created with visium data, containing spatial
 locations corresponding to spots}
 
-\item{scalefactor_path}{path to scalefactors_json.json Visium output}
+\item{scalefactor_path}{path to scalefactors_json.json Visium output. Only
+used when the object has no `micron_scale` instruction.}
 }
 \value{
 Giotto Object with to-scale circular polygons added at each spatial

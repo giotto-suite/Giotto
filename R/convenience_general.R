@@ -251,6 +251,64 @@ NULL
 
 
 
+# 10x Visium / Visium HD spatial helpers ####
+
+# Warn when a scalefactors_json.json lacks expected entries; extra entries
+# are fine (newer Space Ranger versions add some).
+.tenx_check_json_names <- function(json_scalefactors, expected_names) {
+    if (!all(expected_names %in% names(json_scalefactors))) {
+        warning(GiottoUtils::wrap_txt(
+            "scalefactors json names differ from expected. [Expected]:", 
+            expected_names, "\n",
+            "[Actual]:", names(json_scalefactors)
+        ), call. = FALSE)
+    }
+}
+
+# Which 10x tissue image a file is ("lowres", "hires" or "unknown"), and
+# the scalefactor that maps it to fullres pixels.
+.tenx_image_type <- function(path) {
+    img_name <- basename(path)
+    possible_types <- c("lowres", "hires")
+    for (image_type in possible_types) {
+        if (grepl(image_type, img_name)) {
+            return(image_type)
+        }
+    }
+    return("unknown")
+}
+
+.tenx_image_scale_factor <- function(image_type, json_info) {
+    if (is.null(json_info)) {
+        warning(wrap_txt("No scalefactors json info provided.
+                Image scale_factor defaulting to 1."), call. = FALSE)
+        return(1)
+    }
+
+    checkmate::assert_list(json_info)
+
+    scale_factor <- switch(image_type,
+        "lowres" = json_info[["tissue_lowres_scalef"]],
+        "hires" = json_info[["tissue_hires_scalef"]],
+        "unknown" = {
+            vmsg("[image] not hires or lowres, assuming image scale = 1")
+            1
+        },
+        stop("Unexpected image type: ", image_type)
+    )
+
+    if (is.null(scale_factor)) {
+        stop(
+            "Scale factor for ", image_type,
+            " image not found in json_info."
+        )
+    }
+
+    return(scale_factor)
+}
+
+
+
 # *---- object creation ----* ####
 
 
