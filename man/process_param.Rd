@@ -12,6 +12,8 @@
 \alias{tfidfNormParam-class}
 \alias{l2NormParam-class}
 \alias{arcsinhNormParam-class}
+\alias{clrNormParam-class}
+\alias{gammaPearsonNormParam-class}
 \alias{defaultScaleParam-class}
 \alias{zscoreScaleParam-class}
 \alias{limmaAdjustParam-class}
@@ -156,6 +158,9 @@ normalization
 \item \code{\link[=norm_l2]{"l2"}} - L2 normalization (also known as Euclidean
 normalization)
 \item \code{\link[=norm_arcsinh]{"arcsinh"}} - arcsinh transformation
+\item \code{\link[=norm_clr]{"clr"}} - centred log-ratio across the features of each cell
+\item \code{\link[=norm_gamma_pearson]{"gamma_pearson"}} - Pearson residuals of a
+per-feature Gamma GLM
 }
 }
 

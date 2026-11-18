@@ -16,6 +16,19 @@ Requires GiottoClass 0.7.27.
   on its row and column names.
 
 ## new
+- `normalizeGiotto()` normalizes intensity data such as protein mean
+  intensities (CosMx and other imaging panels, e.g. `feat_type = "protein"`)
+  with `norm_methods = "clr"` (centred log-ratio per cell, as for CITE-seq
+  antibody tags, in the form of established packages), `"gamma_pearson"`
+  (per-feature Gamma GLM Pearson residuals with a total-intensity offset, as
+  in Bruker's reference code; `clip_quantile`) or `"arcsinh"` (`cofactor`:
+  one value, or one per feature). They write `"normalized"` unless `name` is
+  given, are linear in the number of cells, and run on GiottoDisk-backed
+  objects by reading the matrix into memory. The same methods are
+  `normParam("clr")`, `normParam("gamma_pearson")` and
+  `normParam("arcsinh", c =)` for `processData()`; each is cited on its help
+  page (`?norm_clr`, `?norm_gamma_pearson`, `?norm_arcsinh`). `log(x + 1)`
+  is `normParam("log", base = exp(1))`.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and
@@ -44,6 +57,8 @@ Requires GiottoClass 0.7.27.
   longer returns `NULL`s when `calc_centroids = FALSE`.
 
 ## bug fixes
+- `normParam("arcsinh", c = )` stopped with "invalid name for slot of class
+  arcsinhNormParam"; the cofactor is now set, also per feature.
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
