@@ -1488,16 +1488,6 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     sl
 }
 
-.visiumhd_validate_json_names <- function(json_scalefactors, expected_names) {
-    if (!all(expected_names %in% names(json_scalefactors))) {
-        warning(GiottoUtils::wrap_txt(
-            "scalefactors json names differ from expected. [Expected]:", 
-            expected_names, "\n",
-            "[Actual]:", names(json_scalefactors)
-        ), call. = FALSE)
-    }
-}
-
 .visiumhd_scalefactors <- function(path, 
     outdir = NULL, 
     bin = 8,
@@ -1538,7 +1528,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         "fiducial_diameter_fullres",
         "tissue_hires_scalef"
     )
-    .visiumhd_validate_json_names(json_scalefactors, expected_json_names)
+    .tenx_check_json_names(json_scalefactors, expected_json_names)
     json_scalefactors
 }
 
@@ -1554,46 +1544,6 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
     # Extract the microns_per_pixel value
     json_scalefactors$microns_per_pixel
-}
-
-.visiumhd_get_image_type <- function(path) {
-    img_name <- basename(path)
-    possible_types <- c("lowres", "hires")
-    for (image_type in possible_types) {
-        if (grepl(image_type, img_name)) {
-            return(image_type)
-        }
-    }
-    return("unknown")
-}
-
-.visiumhd_get_scale_factor <- function(image_type, json_info) {
-    if (is.null(json_info)) {
-        warning("No scalefactors json info provided. VisiumHD image
-                scale_factor defaulting to 1.")
-        return(1)
-    }
-
-    checkmate::assert_list(json_info)
-
-    scale_factor <- switch(image_type,
-        "lowres" = json_info[["tissue_lowres_scalef"]],
-        "hires" = json_info[["tissue_hires_scalef"]],
-        "unknown" = {
-            vmsg("[image] not hires or lowres, assuming image scale = 1")
-            1
-        },
-        stop("Unexpected image type: ", image_type)
-    )
-
-    if (is.null(scale_factor)) {
-        stop(
-            "Scale factor for ", image_type,
-            " image not found in json_info."
-        )
-    }
-
-    return(scale_factor)
 }
 
 .visiumhd_image <- function(path,
@@ -1641,7 +1591,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         path <- do.call(.visiumhd_untar_if_not, img_params)
     } else {
         # otherwise should be filepath -> pattern match from basename
-        image_type <- .visiumhd_get_image_type(path)
+        image_type <- .tenx_image_type(path)
     }
     
     scalef_params <- untar_params
@@ -1653,7 +1603,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     scalef_params$verbose2 <- FALSE
     json_info <- do.call(.visiumhd_scalefactors, scalef_params)
     
-    scalef <- .visiumhd_get_scale_factor(image_type, json_info)
+    scalef <- .tenx_image_scale_factor(image_type, json_info)
     
     # load image
     gimg <- createGiottoLargeImage(path,

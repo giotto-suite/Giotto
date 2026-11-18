@@ -15,7 +15,24 @@ Requires GiottoClass 0.7.27.
 - `get10Xmatrix()` returns a `dgCMatrix` (it gave a `dgTMatrix`) without names
   on its row and column names.
 
+## new
+- `importVisium()` creates a `VisiumReader` with `load_expression()`,
+  `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
+  `load_micron_scale()`, `load_image()`, `load_polygon()` and
+  `create_gobject()` for standard Visium
+  Space Ranger `outs` directories. `backend =` returns
+  `GiottoDisk::importVisiumDisk()`.
+- `createGiottoVisiumObject()` is built on `importVisium()` and gains
+  `backend =`. Its output is unchanged.
+
 ## changes
+- `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
+  (Space Ranger >= 2) when the spatial folder also holds other
+  `tissue_positions*` files, and falls back to the `.h5` when the matrix
+  directory is absent. h5 input without `h5_image_png_path` no longer errors.
+- Visium and Visium HD share one check of `scalefactors_json.json` (extra
+  entries are fine) and one image scalefactor lookup: a Visium image not named
+  `hires` / `lowres` loads at scale 1 with a message instead of erroring.
 - Stereo-seq bin1 points (`load_binpoints = TRUE`) carry the DNB geometry and
   `bin_overlap = "area"`: `calculateOverlap()` gives each DNB to the cell
   outline that covers it, as the cellbin GEF counts it, instead of testing the
@@ -25,6 +42,15 @@ Requires GiottoClass 0.7.27.
   with `createGiottoPolygon()`, so invalid outlines are repaired as in every
   other reader (option `giotto.make_valid`). `readPolygonVizgenParquet()` no
   longer returns `NULL`s when `calc_centroids = FALSE`.
+
+## bug fixes
+- Visium `micron_scale` is measured on the spot grid (spots two array columns
+  apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
+  10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
+  old value was 8% too large on CytAssist runs. Spot polygons are drawn 55 um
+  across from that scale (they were 8% small on CytAssist). Space Ranger 1
+  runs change by under 0.3%. Objects without scalefactors now get polygons
+  and `micron_scale` too.
 
 # Giotto 4.3.5
 
