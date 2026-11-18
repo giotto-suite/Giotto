@@ -58,7 +58,11 @@ test_that("create_gobject builds spots, metadata, image and polygons", {
     expect_length(getPolygonInfo(g, name = "cell", return_giottoPolygon = FALSE),
         16L)
     expect_identical(list_images_names(g), "image")
-    expect_equal(instructions(g, "micron_scale"), 65 / 40)
+    # spots two array columns apart are 100 px apart in the fixture
+    expect_equal(instructions(g, "micron_scale"), 1)
+    pe <- terra::ext(getPolygonInfo(g, name = "cell",
+                                    return_giottoPolygon = FALSE)[1])
+    expect_equal(pe$xmax - pe$xmin, 55, tolerance = 0.01, ignore_attr = TRUE)
 })
 
 test_that("filtered expression keeps the in-tissue spots", {
@@ -112,4 +116,40 @@ test_that("backend = returns the GiottoDisk reader", {
     skip_if_not("importVisiumDisk" %in% getNamespaceExports("GiottoDisk"))
     x <- importVisium(.fx$root, backend = withr::local_tempdir())
     expect_s4_class(x, "VisiumDiskReader")
+})
+
+test_that("the micron scale prefers microns_per_pixel, then the spot grid", {
+    pos <- .visium_tissue_positions(
+        file.path(.fx$root, "spatial", "tissue_positions.csv"))
+    sf <- list(spot_diameter_fullres = 40)
+    expect_equal(.visium_micron_scale(sf, pos), 1)
+    expect_equal(.visium_micron_scale(c(sf, microns_per_pixel = 0.5), pos), 0.5)
+    expect_warning(ms <- .visium_micron_scale(sf, pos[1:2]), "approximate")
+    expect_equal(ms, 65 / 40)
+    expect_error(.visium_micron_scale(NULL, NULL), "positions or scalefactors")
+})
+
+test_that("scalefactors with extra entries and oddly named images load", {
+    d <- .write_visium_fixture()$root
+    sdir <- file.path(d, "spatial")
+    sf <- jsonlite::read_json(file.path(sdir, "scalefactors_json.json"))
+    sf$some_new_entry <- 1
+    jsonlite::write_json(sf, file.path(sdir, "scalefactors_json.json"),
+                         auto_unbox = TRUE, digits = NA)
+    expect_no_warning(.visium_read_scalefactors(
+        file.path(sdir, "scalefactors_json.json")))
+    file.copy(file.path(sdir, "tissue_hires_image.png"),
+              file.path(sdir, "aligned_image.png"))
+    img <- .q(importVisium(d)$load_image(path = file.path(sdir, "aligned_image.png")))
+    expect_s4_class(img[[1L]], "giottoLargeImage")
+})
+
+test_that("addVisiumPolygons uses the object's micron scale", {
+    g <- .q(importVisium(.fx$root)$create_gobject(load_polygons = FALSE,
+        load_image = FALSE, verbose = FALSE))
+    expect_length(list_spatial_info_names(g), 0L)
+    g <- .q(addVisiumPolygons(g))
+    p <- getPolygonInfo(g, name = "cell", return_giottoPolygon = FALSE)
+    e <- terra::ext(p[1])
+    expect_equal(e$xmax - e$xmin, 55, tolerance = 0.01, ignore_attr = TRUE)
 })

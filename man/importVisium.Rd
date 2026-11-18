@@ -37,8 +37,13 @@ The reader loads the feature-barcode matrix (`<source>_feature_bc_matrix`
 directory, or its `.h5`), the spot positions (`spatial/tissue_positions.csv`,
 or `tissue_positions_list.csv` from Space Ranger 1), the scalefactors
 (`spatial/scalefactors_json.json`) and a tissue image (the first `.png` in
-`spatial/`). Visium has no vendor polygons; circular spot polygons are
-created from `spot_diameter_fullres`.
+`spatial/`). Visium has no vendor polygons; circular spot polygons, 55 um
+across, are created at the spot positions.
+
+The micron scale (`load_micron_scale()`, stored as the `micron_scale`
+instruction) is measured on the spot grid: spots two array columns apart
+are 100 um apart. `spot_diameter_fullres` is a drawing size of 60-70 um
+depending on slide design, so it is only a fallback.
 
 These functions should have all param values provided as defaults, but
 can be flexibly modified to do things such as look in alternative

@@ -138,19 +138,22 @@ setMethod(
         }
         obj@calls$load_image <- img_fun
 
-        # spot polygons
+        # microns per fullres pixel, measured on the spot grid
+        ms_fun <- function(
+        path = positions_path,
+        scalefactors = .visium_read_scalefactors(json_path)) {
+            .visium_micron_scale(
+                json_scalefactors = scalefactors,
+                positions = .visium_tissue_positions(path = path)
+            )
+        }
+        obj@calls$load_micron_scale <- ms_fun
+
+        # spot polygons, 55 um across
         poly_fun <- function(
         spatlocs = tp_fun(),
-        scalefactors = .visium_read_scalefactors(json_path)) {
-            if (is.null(scalefactors)) {
-                stop("[Visium] spot polygons need scalefactors_json.json",
-                    call. = FALSE
-                )
-            }
-            .visium_spot_poly(
-                spatlocs = spatlocs,
-                json_scalefactors = scalefactors
-            )
+        micron_scale = ms_fun()) {
+            .visium_spot_poly(spatlocs = spatlocs, micron_scale = micron_scale)
         }
         obj@calls$load_polygon <- poly_fun
 
@@ -207,20 +210,20 @@ setMethod(
                 g <- setGiotto(g, img, verbose = FALSE)
             }
 
-            if (!is.null(json)) {
-                if (load_polygons) {
-                    poly <- funs$load_polygon(spatlocs = sl, scalefactors = json)
-                    g <- setPolygonInfo(
-                        gobject = g,
-                        x = poly,
-                        centroids_to_spatlocs = FALSE,
-                        verbose = FALSE,
-                        initialize = TRUE
-                    )
-                }
-                instructions(g, "micron_scale") <-
-                    65 / json$spot_diameter_fullres
+            ms <- funs$load_micron_scale(
+                path = tissue_positions_path, scalefactors = json
+            )
+            if (load_polygons) {
+                poly <- funs$load_polygon(spatlocs = sl, micron_scale = ms)
+                g <- setPolygonInfo(
+                    gobject = g,
+                    x = poly,
+                    centroids_to_spatlocs = FALSE,
+                    verbose = FALSE,
+                    initialize = TRUE
+                )
             }
+            instructions(g, "micron_scale") <- ms
 
             return(g)
         }
@@ -280,8 +283,13 @@ setMethod("$<-", signature("VisiumReader"), function(x, name, value) {
 #' directory, or its `.h5`), the spot positions (`spatial/tissue_positions.csv`,
 #' or `tissue_positions_list.csv` from Space Ranger 1), the scalefactors
 #' (`spatial/scalefactors_json.json`) and a tissue image (the first `.png` in
-#' `spatial/`). Visium has no vendor polygons; circular spot polygons are
-#' created from `spot_diameter_fullres`.
+#' `spatial/`). Visium has no vendor polygons; circular spot polygons, 55 um
+#' across, are created at the spot positions.
+#'
+#' The micron scale (`load_micron_scale()`, stored as the `micron_scale`
+#' instruction) is measured on the spot grid: spots two array columns apart
+#' are 100 um apart. `spot_diameter_fullres` is a drawing size of 60-70 um
+#' depending on slide design, so it is only a fallback.
 #'
 #' These functions should have all param values provided as defaults, but
 #' can be flexibly modified to do things such as look in alternative
@@ -648,7 +656,8 @@ createGiottoVisiumObject <- function(visium_dir = NULL,
 #' @name addVisiumPolygons
 #' @param gobject Giotto Object created with visium data, containing spatial
 #' locations corresponding to spots
-#' @param scalefactor_path path to scalefactors_json.json Visium output
+#' @param scalefactor_path path to scalefactors_json.json Visium output. Only
+#' used when the object has no `micron_scale` instruction.
 #' @returns Giotto Object with to-scale circular polygons added at each spatial
 #' location
 #' @details
@@ -664,13 +673,19 @@ addVisiumPolygons <- function(gobject,
         spat_unit = "cell"
     )
 
-    scalefactors_list <- .visium_read_scalefactors(
-        json_path = scalefactor_path
+    # the readers record the measured micron scale
+    ms <- tryCatch(instructions(gobject, "micron_scale"),
+        error = function(e) NULL
     )
+    if (is.null(ms)) {
+        ms <- .visium_micron_scale(
+            .visium_read_scalefactors(json_path = scalefactor_path)
+        )
+    }
 
     visium_polygons <- .visium_spot_poly(
         spatlocs = visium_spat_locs,
-        json_scalefactors = scalefactors_list
+        micron_scale = ms
     )
 
     gobject <- addGiottoPolygons(
@@ -706,63 +721,52 @@ addVisiumPolygons <- function(gobject,
     }
 
     json_scalefactors <- read_json(json_path)
-
-    # Intial assertion that json dimensions are appropriate
-    checkmate::assert_list(
-        x = json_scalefactors,
-        types = "numeric",
-        min.len = 4L,
-        max.len = 5L
-    )
-
-    expected_json_names <- c(
-        "regist_target_img_scalef", # NEW as of 2023
-        "spot_diameter_fullres",
-        "tissue_hires_scalef",
-        "fiducial_diameter_fullres",
-        "tissue_lowres_scalef"
-    )
-
-    # Visium assay with chemistry v2 contains an additional
-    # keyword in the json file
-    new_format_2023 <- checkmate::test_list(
-        x = json_scalefactors,
-        types = "numeric",
-        len = 5L
-    )
-
-    # If the scalefactors are of size 4 (older assay), clip the new keyword
-    if (!new_format_2023) expected_json_names <- expected_json_names[2:5]
-
-    if (!setequal(names(json_scalefactors), expected_json_names)) {
-        warning(GiottoUtils::wrap_txt(
-            "h5 scalefactors json names differ from expected.
-            [Expected]:", expected_json_names, "\n",
-            "[Actual]:", names(json_scalefactors)
-        ))
-    }
-
+    .tenx_check_json_names(json_scalefactors, c(
+        "spot_diameter_fullres", "tissue_hires_scalef",
+        "fiducial_diameter_fullres", "tissue_lowres_scalef"
+    ))
     return(json_scalefactors)
 }
 
 
-#' @title Calculate Pixel to Micron Scalefactor
-#' @name visium_micron_scalefactor
-#' @param json_scalefactors list of scalefactors from
-#' .visium_read_scalefactors()
-#' @returns scale factor for converting pixel to micron
-#' @details
-#' Calculates pixel to micron scalefactor.
-#' Visium xy coordinates are based on the fullres image
-#' The values provided are directly usable for generating polygon information
-#' or calculating the micron size relative to spatial coordinates for this set
-#' of spatial information.
-#' @keywords internal
-.visium_micron_scale <- function(json_scalefactors) {
-    # visium spots diameter                       : 55 micron
-    # diameter of a spot at this spatial scaling  : scalefactor_list$spot_diameter_fullres
-    px_to_micron <- 55 / json_scalefactors$spot_diameter_fullres
-    return(px_to_micron)
+# Microns per fullres pixel. `microns_per_pixel` when the scalefactors carry
+# it; otherwise fitted from the spot grid: spots two array columns apart in
+# one array row are 100 um apart, centre to centre. `spot_diameter_fullres`
+# is only a fallback: 10x describes it as a drawing size of 60-70 um,
+# depending on slide design, not a measurement.
+.visium_micron_scale <- function(json_scalefactors = NULL, positions = NULL) {
+    # NSE vars
+    array_row <- array_col <- pxl_row <- pxl_col <- NULL
+
+    mpp <- json_scalefactors[["microns_per_pixel"]]
+    if (!is.null(mpp)) return(mpp)
+
+    if (!is.null(positions)) {
+        p <- data.table::as.data.table(positions)[
+            , list(array_row, array_col, pxl_row, pxl_col)
+        ]
+        nb <- p[p[, list(array_row, array_col = array_col + 2L,
+                         pxl_row2 = pxl_row, pxl_col2 = pxl_col)],
+            on = c("array_row", "array_col"), nomatch = NULL
+        ]
+        if (nrow(nb) >= 3L) {
+            d <- sqrt((nb$pxl_row - nb$pxl_row2)^2 +
+                (nb$pxl_col - nb$pxl_col2)^2)
+            return(100 / stats::median(d))
+        }
+    }
+
+    diam <- json_scalefactors[["spot_diameter_fullres"]]
+    if (is.null(diam)) {
+        stop("[Visium] micron scale needs spot positions or scalefactors",
+            call. = FALSE
+        )
+    }
+    warning(wrap_txt(
+        "[Visium] too few neighbouring spots to measure the micron scale;
+        assuming spot_diameter_fullres spans 65 um (approximate)"
+    ), call. = FALSE)
+    65 / diam
 }
 
 
@@ -770,24 +774,21 @@ addVisiumPolygons <- function(gobject,
 #' @name .visium_spot_poly
 #' @param spatlocs spatial locations data.table or `spatLocsObj` containing
 #' centroid locations of visium spots
-#' @param json_scalefactors list of scalefactors from
-#' .visium_read_scalefactors()
+#' @param micron_scale microns per spatial unit, from .visium_micron_scale()
 #' @returns giottoPolygon object
 #' @details
 #' Creates circular polygons for spatial representation of
-#' Visium spots.
+#' Visium spots, 55 um across.
 #' @keywords internal
 #' @md
 .visium_spot_poly <- function(spatlocs = NULL,
-    json_scalefactors) {
+    micron_scale) {
     if (inherits(spatlocs, "spatLocsObj")) {
         spatlocs <- spatlocs[]
     }
 
-    spot_adj <- 55 / 65
-
     vis_spot_poly <- GiottoClass::circleVertices(
-        radius = json_scalefactors$spot_diameter_fullres / 2 * spot_adj,
+        radius = 27.5 / micron_scale,
         npoints = 100
     )
 
@@ -809,59 +810,15 @@ addVisiumPolygons <- function(gobject,
 
 # json_info expects the list read output from .visium_read_scalefactors
 # image_path should be expected to be full filepath
-# should only be used when do_manual_adj (deprecated) is FALSE
 .visium_image <- function(
         image_path,
         json_info = NULL,
-        micron_scale = FALSE,
         verbose = NULL) {
     # assume image already checked
     vmsg(.v = verbose, .initial = " - ", "found image")
-
-    # 1. determine image scalefactor to use ---------------------------------- #
-    if (!is.null(json_info)) checkmate::assert_list(json_info)
-    png_name <- basename(image_path) # used for name pattern matching only
-
-    if (is.null(json_info)) { # if none provided
-        warning(wrap_txt(
-            "No scalefactors json info provided.
-            Visium image scale_factor defaulting to 1"
-        ))
-        scale_factor <- 1
-    } else { # if provided
-
-        scale_factor <- NULL # initial value
-
-        # determine type of visium image
-        visium_img_type <- NULL
-        possible_types <- c("lowres", "hires")
-        for (img_type in possible_types) {
-            if (grepl(img_type, png_name)) visium_img_type <- img_type
-        }
-
-        if (is.null(visium_img_type)) { # if not recognized visium image type
-            .gstop(
-                "\'image_path\' filename did not partial match either
-                \'lowres\' or \'hires\'. Ensure specified image is either the
-                Visium lowres or hires image and rename it accordingly"
-            )
-        }
-
-        vmsg(
-            .v = verbose, .initial = " - ",
-            "found scalefactors. attempting automatic alignment for the",
-            str_quote(visium_img_type), "image\n\n"
-        )
-
-        scale_factor <- switch(visium_img_type,
-            "lowres" = json_info[["tissue_lowres_scalef"]],
-            "hires" = json_info[["tissue_hires_scalef"]]
-        )
-    }
-
-    if (isTRUE(micron_scale)) {
-        scale_factor <- scale_factor * .visium_micron_scale(json_info)
-    }
+    scale_factor <- .tenx_image_scale_factor(
+        .tenx_image_type(image_path), json_info
+    )
 
     # 2. create image -------------------------------------------------------- #
     visium_img <- createGiottoLargeImage(

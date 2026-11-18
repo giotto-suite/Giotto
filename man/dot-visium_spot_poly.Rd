@@ -4,14 +4,13 @@
 \alias{.visium_spot_poly}
 \title{Create Polygons for Visium Data}
 \usage{
-.visium_spot_poly(spatlocs = NULL, json_scalefactors)
+.visium_spot_poly(spatlocs = NULL, micron_scale)
 }
 \arguments{
 \item{spatlocs}{spatial locations data.table or \code{spatLocsObj} containing
 centroid locations of visium spots}
 
-\item{json_scalefactors}{list of scalefactors from
-.visium_read_scalefactors()}
+\item{micron_scale}{microns per spatial unit, from .visium_micron_scale()}
 }
 \value{
 giottoPolygon object
@@ -21,6 +20,6 @@ Create Polygons for Visium Data
 }
 \details{
 Creates circular polygons for spatial representation of
-Visium spots.
+Visium spots, 55 um across.
 }
 \keyword{internal}
