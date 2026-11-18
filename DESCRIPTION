@@ -134,6 +134,7 @@ Collate:
     'convenience_general.R'
     'convenience_merscope.R'
     'convenience_stereoseq.r'
+    'convenience_visium.R'
     'convenience_visiumHD.R'
     'cross_section.R'
     'dd.R'

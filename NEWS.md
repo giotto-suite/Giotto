@@ -2,7 +2,20 @@
 
 Requires GiottoClass 0.7.27.
 
+## new
+- `importVisium()` creates a `VisiumReader` with `load_expression()`,
+  `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
+  `load_image()`, `load_polygon()` and `create_gobject()` for standard Visium
+  Space Ranger `outs` directories. `backend =` returns
+  `GiottoDisk::importVisiumDisk()`.
+- `createGiottoVisiumObject()` is built on `importVisium()` and gains
+  `backend =`. Its output is unchanged.
+
 ## changes
+- `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
+  (Space Ranger >= 2) when the spatial folder also holds other
+  `tissue_positions*` files, and falls back to the `.h5` when the matrix
+  directory is absent. h5 input without `h5_image_png_path` no longer errors.
 - Stereo-seq bin1 points (`load_binpoints = TRUE`) carry the DNB geometry and
   `bin_overlap = "area"`: `calculateOverlap()` gives each DNB to the cell
   outline that covers it, as the cellbin GEF counts it, instead of testing the
