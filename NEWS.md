@@ -56,6 +56,10 @@ Requires GiottoClass 0.7.27.
   `backend =`. Its output is unchanged.
 
 ## changes
+- `findInteractionChangedFeats()` works on GiottoDisk-backed objects: the
+  expression of `selected_feats` (all features when `NULL`) is read into
+  memory, as `runMisty()` and the intensity methods of `normalizeGiotto()`
+  read theirs.
 - `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
   (Space Ranger >= 2) when the spatial folder also holds other
   `tissue_positions*` files, and falls back to the `.h5` when the matrix
@@ -76,6 +80,10 @@ Requires GiottoClass 0.7.27.
 ## bug fixes
 - `normParam("arcsinh", c = )` stopped with "invalid name for slot of class
   arcsinhNormParam"; the cofactor is now set, also per feature.
+- `findInteractionChangedFeats()` with one `selected_feats` stopped with
+  `could not find function ":="`; it now gives one row per cell type pair,
+  the same values as for that feature tested with others (t.test, wilcox,
+  limma and permutation).
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
