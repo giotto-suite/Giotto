@@ -44,6 +44,11 @@ Requires GiottoClass 0.7.27.
   longer returns `NULL`s when `calc_centroids = FALSE`.
 
 ## bug fixes
+- CosMx images and label masks of AtoMx exports, whose file names pad the
+  FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
+  ("No images found matching fov [F033]"). The digits are now read from the
+  files, so both these and the three-digit names of older exports load
+  without setting `file_fov_fmt`.
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
