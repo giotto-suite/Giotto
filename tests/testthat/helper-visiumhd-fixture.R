@@ -24,10 +24,11 @@
     unlink(p)
 }
 
-# 10x feature-barcode h5 (CSC by barcode) + the mtx directory beside it
-.vhd_fx_write_matrix <- function(m, dir, stem) {
+# 10x feature-barcode h5 (CSC by barcode) + the mtx directory beside it.
+# `types`: feature type per row (recycled)
+.vhd_fx_write_matrix <- function(m, dir, stem, types = "Gene Expression") {
     genes <- data.frame(id = sprintf("ENSG%05d", seq_len(nrow(m))),
-                        name = rownames(m), type = "Gene Expression")
+                        name = rownames(m), type = types)
     h5 <- hdf5r::H5File$new(file.path(dir, paste0(stem, ".h5")), mode = "w")
     g <- h5$create_group("matrix")
     m <- methods::as(m, "CsparseMatrix")

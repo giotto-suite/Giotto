@@ -2,6 +2,19 @@
 
 Requires GiottoClass 0.7.27.
 
+## breaking changes
+- 10x feature names are the same whichever file they come from.
+  `get10Xmatrix_h5()` names repeated features like `get10Xmatrix()` and
+  GiottoDisk: every copy gets `--N` (`Ptp4a1--1`, `Ptp4a1--2`; it gave
+  `Ptp4a1`, `Ptp4a1_1`), and features of every type are named from the name
+  column in symbol mode (antibodies gave their ids). With
+  `split_by_type = TRUE` (the default) repeats are counted within each
+  feature type, so a gene keeps its name when an antibody shares it: CytAssist
+  protein runs read from the matrix directory gave `CD4--1` for the gene. This
+  reaches the Visium, Visium HD and Xenium readers.
+- `get10Xmatrix()` returns a `dgCMatrix` (it gave a `dgTMatrix`) without names
+  on its row and column names.
+
 ## new
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
@@ -20,15 +33,6 @@ Requires GiottoClass 0.7.27.
 - Visium and Visium HD share one check of `scalefactors_json.json` (extra
   entries are fine) and one image scalefactor lookup: a Visium image not named
   `hires` / `lowres` loads at scale 1 with a message instead of erroring.
-
-## bug fixes
-- Visium `micron_scale` is measured on the spot grid (spots two array columns
-  apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
-  10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
-  old value was 8% too large on CytAssist runs. Spot polygons are drawn 55 um
-  across from that scale (they were 8% small on CytAssist). Space Ranger 1
-  runs change by under 0.3%. Objects without scalefactors now get polygons
-  and `micron_scale` too.
 - Stereo-seq bin1 points (`load_binpoints = TRUE`) carry the DNB geometry and
   `bin_overlap = "area"`: `calculateOverlap()` gives each DNB to the cell
   outline that covers it, as the cellbin GEF counts it, instead of testing the
@@ -38,6 +42,15 @@ Requires GiottoClass 0.7.27.
   with `createGiottoPolygon()`, so invalid outlines are repaired as in every
   other reader (option `giotto.make_valid`). `readPolygonVizgenParquet()` no
   longer returns `NULL`s when `calc_centroids = FALSE`.
+
+## bug fixes
+- Visium `micron_scale` is measured on the spot grid (spots two array columns
+  apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
+  10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
+  old value was 8% too large on CytAssist runs. Spot polygons are drawn 55 um
+  across from that scale (they were 8% small on CytAssist). Space Ranger 1
+  runs change by under 0.3%. Objects without scalefactors now get polygons
+  and `micron_scale` too.
 
 # Giotto 4.3.5
 
