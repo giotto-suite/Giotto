@@ -1659,11 +1659,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     if (requireNamespace("tibble", quietly = TRUE)) tibble::as_tibble(out) else out
 }
 
-# per image...
-# if .ome : check that converted output path file exists.
-#   if exists && if overwrite : remove converted image
-#   if still not exist : create converted image
-# use image
+# One image file -> giottoLargeImage in microns. `.ome.tif` is read directly
+# (JPEG-2000 through a GDAL VRT); to_simple_tif() into `output_dir` is only the
+# fallback for codecs GDAL cannot reach.
 .xenium_image_single <- function(
         path,
         name = "image",
@@ -1690,45 +1688,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
         ome_ann <- try(.xenium_read_ome_annotations(path, collapse = TRUE, include_panel = TRUE), silent = TRUE)
         if (inherits(ome_ann, "try-error")) ome_ann <- NULL
     }
-    if ("ome" %in% file_extension(path)) {
-        if (output_dir == "default") {
-            output_dir <- file.path(dirname(path), "tif_exports")
-        }
-
-        bn <- basename(path)
-        # `.ome.tif` no longer needs converting -- GiottoClass reads it
-        # directly, routing JPEG-2000 tiles through a GDAL VRT. A tif left
-        # behind by an earlier run is still honoured so that repeat calls on
-        # a dataset converted by an older Giotto keep working.
-        # `to_simple_tif`'s current convention (GiottoClass 0.5.x+) appends
-        # `_page<NNNN>`; the un-suffixed path is from older installs.
-        tiff_path_new <- file.path(output_dir,
-            sub("(?i)\\.ome\\.tif{1,2}$", "_page0001.tif", bn, perl = TRUE))
-        tiff_path_legacy <- file.path(output_dir,
-            sub("(?i)\\.ome\\.tif{1,2}$", ".tif", bn, perl = TRUE))
-        tiff_path <- if (checkmate::test_file_exists(tiff_path_new)) {
-            tiff_path_new
-        } else if (checkmate::test_file_exists(tiff_path_legacy)) {
-            tiff_path_legacy
-        } else {
-            NA_character_
-        }
-
-        if (!is.na(tiff_path)) {
-            if (isTRUE(overwrite)) {
-                vmsg(.is_debug = TRUE, sprintf(
-                    "removing stale converted tiff\n%s", tiff_path
-                ))
-                unlink(tiff_path, force = TRUE)
-            } else {
-                vmsg(.is_debug = TRUE, sprintf(
-                    "using previously converted tiff\n%s", tiff_path
-                ))
-                path <- tiff_path
-            }
-        }
-    }
-
+    # A tif converted by an earlier Giotto (`tif_exports/`) is not used: it is
+    # a stripped page with no overviews, while the `.ome.tif` is tiled and
+    # pyramidal.
     img <- try(createGiottoLargeImage(path,
         name = name,
         flip_vertical = flip_vertical,

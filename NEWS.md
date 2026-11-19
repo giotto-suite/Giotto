@@ -58,7 +58,7 @@ under that version.
 * All nine topics in these families gained a real title; they previously repeated the function name.
 * `doFeatureSetEnrichment()` states plainly that it drives the external GSEA command-line application over ranked files and is not one of Giotto's spatial enrichment methods -- it takes no `giotto` object -- and gained an example.
 * Markdown is enabled across these topics. Only `runSpatialEnrich()` had `@md`, so backticks and `[fn()]` links rendered literally elsewhere.
-* `createGiottoXeniumObject()` reads `ome.tif` morphology images directly and no longer converts them through python, so no `tif_exports/` directory is written next to the data. A converted tif left by an earlier run is still used if present. JPEG-2000 images, which is what 10x actually ships, are read through a GDAL VRT rather than decoded up front.
+* `createGiottoXeniumObject()` reads `ome.tif` morphology images directly and no longer converts them through python, so no `tif_exports/` directory is written next to the data. A converted tif left by an earlier run is ignored in favour of the tiled, pyramidal `ome.tif`. JPEG-2000 images, which is what 10x actually ships, are read through a GDAL VRT rather than decoded up front.
 * gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
 ## New
