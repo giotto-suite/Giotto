@@ -34,8 +34,8 @@ setClass(
         calls = "list",
         paths = "list",
         # label used in path-detection messages. A subclass for a platform
-        # that shares this layout (see AteraReader) overrides it via its
-        # prototype so warnings name the right platform.
+        # that shares this layout can override it via its prototype so
+        # warnings name the right platform.
         platform = "character"
     ),
     prototype = list(
@@ -196,13 +196,15 @@ setMethod(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -369,13 +371,15 @@ setMethod(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         load_images = "focus",
         load_aligned_images = NULL,
@@ -521,8 +525,19 @@ setMethod(
 
 
             # images
+            # no morphology_focus output: skip the "focus" shortname instead
+            # of failing on a NULL path
+            if (!is.null(load_images) && is.null(img_focus_path) &&
+                    any(load_images == "focus")) {
+                warning(wrap_txt("No morphology_focus image found.",
+                    "Skipping the focus images; pass `load_images` paths",
+                    "to load other images."), call. = FALSE)
+                load_images <- load_images[load_images != "focus"]
+                if (!length(load_images)) load_images <- NULL
+            }
             if (!is.null(load_images)) {
                 load_images <- lapply(load_images, normalizePath, mustWork = FALSE)
+                if (is.null(img_focus_path)) img_focus_path <- ""
                 img_focus_path <- normalizePath(img_focus_path, mustWork = FALSE)
 
                 # replace shortname
@@ -555,6 +570,14 @@ setMethod(
                         marker <- ifelse(grepl("^ch\\d+_.*\\.ome\\.tif$", bn, ignore.case = TRUE),
                                          sub("^ch\\d+_(.*?)\\.ome\\.tif$", "\\1", bn, ignore.case = TRUE),
                                          NA_character_)
+                        # file names without the channel: read it from
+                        # the OME header
+                        ome_nm <- .xenium_focus_channel_names(
+                            focus_files[is.na(marker)])
+                        if (!is.null(ome_nm)) {
+                            na_m <- is.na(marker)
+                            marker[na_m] <- unname(ome_nm[bn[na_m]])
+                        }
                         is_dapi <- grepl("dapi", bn, ignore.case = TRUE) |
                             (!is.na(marker) & grepl("^dapi$", marker, ignore.case = TRUE))
 
@@ -897,13 +920,15 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         flip_vertical = TRUE,
         dropcols = c(),
@@ -1412,19 +1437,7 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     fname <- "rna"
     if (length(names(ex_list)) > 1L) fname <- names(ex_list)
 
-    # specific feat type naming updates
-    fname[fname == "Gene Expression"] <- "rna"
-    fname[fname == "Protein Expression"] <- "protein"
-    fname[fname == "Negative Control Codeword"] <- "NegControlCodeword"
-    fname[fname == "Negative Control Probe"] <- "NegControlProbe"
-    fname[fname == "Blank Codeword"] <- "UnassignedCodeword" # from legacy Xenium pipeline
-    fname[fname == "Genomic Control"] <- "GenomicControl"
-    fname[fname == "Unassigned Codeword"] <- "UnassignedCodeword"
-    fname[fname == "Deprecated Codeword"] <- "DeprecatedCodeword"
-
-    # catch for " " characters in feat type
-    # (no major reason for doing this. spaces just make it harder to read)
-    fname <- gsub(" ", "_", fname)
+    fname <- .tenx_feat_type_names(fname)
 
     # lapply to process more than one if present
     eo_list <- lapply(seq_along(ex_list), function(ex_i) {
@@ -1578,6 +1591,25 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
     })
     return(gimg_list)
 }
+# Channel names of Xenium focus OME-TIFFs whose file names do not carry them
+# (Xenium Onboard Analysis 2.x writes morphology_focus_0000.ome.tif, ...).
+# Every file's OME-XML lists all channels and the file holding each, so the
+# first file names them all. Returns names keyed by file name, spelled as
+# XOA 3.x file names spell them ("ATP1A1/CD45/E-Cadherin" ->
+# "atp1a1_cd45_e-cadherin"), or NULL when the header cannot be read.
+.xenium_focus_channel_names <- function(files) {
+    ome <- files[grepl("\\.ome\\.tif$", files, ignore.case = TRUE)]
+    if (!length(ome)) return(NULL)
+    tryCatch({
+        ch <- GiottoClass::tif_metadata(ome[[1L]], node = "Channel")
+        td <- GiottoClass::tif_metadata(ome[[1L]], node = "TiffData")
+        fl <- GiottoClass::tif_metadata(ome[[1L]], node = "UUID")
+        nm <- ch$Name[as.integer(td$FirstC) + 1L]
+        if (!length(nm) || length(nm) != length(fl$FileName)) return(NULL)
+        stats::setNames(tolower(gsub("[/[:space:]]+", "_", nm)), fl$FileName)
+    }, error = function(e) NULL)
+}
+
 ### OME-XML -> LUT helper (channel-scoped)
 .xenium_read_ome_annotations <- function(path,
                                          collapse = TRUE,
@@ -1805,8 +1837,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' \[\strong{QC feature types}\]
 #' Xenium provides info on feature detections that include more than only the
 #' Gene Expression specific probes. Additional probes for QC are included:
-#' \emph{blank codeword}, \emph{negative control codeword}, and
-#' \emph{negative control probe}. These additional QC probes each occupy and
+#' \emph{blank codeword}, \emph{negative control codeword},
+#' \emph{negative control probe}, \emph{genomic control} and
+#' \emph{deprecated codeword}. These additional QC probes each occupy and
 #' are treated as their own feature types so that they can largely remain
 #' independent of the gene expression information.
 #'
@@ -1815,7 +1848,9 @@ importXenium <- function(xenium_dir = NULL, qv_threshold = 20, backend = NULL) {
 #' information and must be separated from the gene expression information
 #' during processing.
 #' The QC probes have prefixes that allow them to be selected from the rest of
-#' the feature IDs.
+#' the feature IDs. Genomic control probes are named either `GenomicControl*`
+#' or, in whole-transcriptome panels (Atera WTA), `Intergenic_Region_*`; the
+#' default `split_keyword` matches both.
 #' Giotto uses `feat_type` and `split_keyword` params to select these QC
 #' probes out as separate feature types. See examples in
 #' `[GiottoClass::createGiottoPoints]` for how this works.
@@ -1840,13 +1875,15 @@ createGiottoXeniumObject <- function(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            "GenomicControl",
+            "DeprecatedCodeword"
         ),
         split_keyword = list(
             "NegControlProbe",
             "UnassignedCodeword",
             "NegControlCodeword",
-            "GenomicControl"
+            c("GenomicControl", "Intergenic_Region"),
+            "DeprecatedCodeword"
         ),
         qv_threshold = 20,
         load_images = "focus",

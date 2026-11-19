@@ -99,6 +99,20 @@ adjustGiottoMatrix <- function(gobject,
     )
 
 
+    # Alignment guard -- limma::removeBatchEffect pairs `batch` and
+    # `covariates` with the columns of `x` by position. Expression and cell
+    # metadata are fetched through independent accessors, and the object
+    # model neither guarantees a shared cell order nor restores one, so key
+    # the metadata onto the expression cell axis before pulling columns off
+    # it. Without this, a cell can be corrected against another cell's batch
+    # and the result looks entirely normal.
+    ord <- match(colnames(expr_data[]), cell_metadata$cell_ID)
+    if (anyNA(ord)) {
+        stop("[adjustGiottoMatrix] expression matrix columns and ",
+            "cell_metadata cell_IDs do not all match", call. = FALSE)
+    }
+    cell_metadata <- cell_metadata[ord, ]
+
     # batch columns
     if (!is.null(batch_columns)) {
         batch_column_1 <- cell_metadata[[batch_columns[1]]]
@@ -916,43 +930,4 @@ findNetworkNeighbors <- function(gobject,
     data.table::setnames(nb_annot, "nb_cells", name)
 
     return(nb_annot)
-}
-
-
-# internals ####
-
-
-
-#' @title Mean expression detected test
-#' @param mymatrix matrix of expression info
-#' @param detection_threshold detection threshold. Defaults to 1 count.
-#' @returns numeric
-#' @keywords internal
-#' @noRd
-.mean_expr_det_test <- function(mymatrix, detection_threshold = 1) {
-  if (inherits(mymatrix, "IterableMatrix")) {
-      count_detected <- rowSums_flex(mymatrix > detection_threshold)
-      if (detection_threshold > 0) {
-          # BPCells does not support IterableMatrix * IterableMatrix. Use identity:
-          # sum(x[x>t]) = rowSums(x) - rowSums(min_scalar(x,t)) + count_detected * t
-          # min_scalar requires upper > 0
-          sum_detected <- rowSums_flex(mymatrix) -
-              rowSums_flex(
-                  processData(mymatrix,
-                      thresholdParam("minmax", upper = detection_threshold)
-                  )
-              ) + count_detected * detection_threshold
-      } else {
-          # expression values are non-negative; all stored values pass threshold
-          sum_detected <- rowSums_flex(mymatrix)
-      }
-  } else {
-      mask <- mymatrix > detection_threshold
-      sum_detected   <- rowSums_flex(mymatrix * mask)
-      count_detected <- rowSums_flex(mask)
-  }
-
-  out <- sum_detected / count_detected
-  out[count_detected == 0] <- NaN
-  out
 }

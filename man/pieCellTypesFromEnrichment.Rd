@@ -8,7 +8,9 @@ pieCellTypesFromEnrichment(
   gobject = NULL,
   spat_unit = NULL,
   feat_type = NULL,
-  enrichment_name = "PAGE_z_score",
+  enrichment_name = "PAGE",
+  min_score = NULL,
+  max_padj = NULL,
   title = NULL,
   save_param = list(),
   default_save_name = "cell_types_from_enrichment_pie",
@@ -25,9 +27,15 @@ pieCellTypesFromEnrichment(
 \item{feat_type}{feature type for which the enrichment information was
 calculated}
 
-\item{enrichment_name}{name of the spatial enrichment
-i.e. output from GiottoClass::list_spatial_enrichment_names()
-Default value is "PAGE_Z_score"}
+\item{enrichment_name}{name of the spatial enrichment, as listed by
+\code{list_spatial_enrichments_names()} (default "PAGE")}
+
+\item{min_score}{leave a cell unassigned (\code{NA}) when its top score is below
+this (default NULL: no threshold). Not used for an enrichment of p-values.}
+
+\item{max_padj}{leave a cell unassigned (\code{NA}) when the adjusted p-value of
+its top type, from the \verb{<enrichment_name>_padj} enrichment that
+\code{p_value = TRUE} stores, is above this (default NULL: no threshold)}
 
 \item{title}{Title of the generated plot.
 Default `paste0(spat_unit,"cell types (maximum", enrichment_name, ")")`}

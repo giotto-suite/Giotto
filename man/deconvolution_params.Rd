@@ -15,10 +15,13 @@ the enrichment methods take.}
 \item{cluster_column}{character. Cell metadata column holding the cluster
 assignment used to group cells.}
 
-\item{n_cell}{numeric. Number of cells per spot (default = 50).}
+\item{n_cell}{numeric. Expected number of cells per spot (default = 50). In
+the second round a cell type is kept for a spot only when its first-round
+proportion is at least \code{1 / n_cell}.}
 
-\item{cutoff}{numeric. Expression cutoff below which a value is treated as
-absent (default = 2).}
+\item{cutoff}{numeric. PAGE enrichment z-score a cell type must reach in at
+least one spot of a cluster to be a candidate for that cluster
+(default = 2). The two highest-scoring types are always candidates.}
 }
 \value{
 cell type proportions, one row per cell, summing to 1

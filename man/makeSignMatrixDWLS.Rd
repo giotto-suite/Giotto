@@ -64,6 +64,8 @@ makeSignMatrixDWLS(
 \code{\link{runDWLSDeconv}}
 
 Other spatial deconvolution:
+\code{\link{deconv_dwls}},
+\code{\link{deconv_param}},
 \code{\link[=makeSignMatrixDWLSfromMatrix]{makeSignMatrixDWLSfromMatrix()}},
 \code{\link[=runDWLSDeconv]{runDWLSDeconv()}},
 \code{\link[=runSpatialDeconv]{runSpatialDeconv()}}

@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.3.0
+Version: 4.3.6
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -27,7 +27,7 @@ BugReports: https://github.com/giotto-suite/Giotto/issues
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.5.0)
+    GiottoClass (>= 0.7.27)
 Imports:
     BiocParallel,
     BiocSingular,
@@ -53,6 +53,7 @@ Suggests:
     ArchR,
     arrow,
     biomaRt,
+    cluster,
     ClusterR,
     clustree,
     ComplexHeatmap (>= 1.20.0),
@@ -71,6 +72,7 @@ Suggests:
     ggalluvial,
     ggdendro,
     ggforce,
+    ggrepel,
     ggspavis,
     graphcoloring,
     HDF5Array (>= 1.18.1),
@@ -84,12 +86,10 @@ Suggests:
     networkD3,
     pheatmap,
     plotly,
-    quadprog,
     harmony,
     R.utils,
     RcppHNSW,
     remotes,
-    Rfast,
     rlang,
     rhdf5,
     rnndescent,
@@ -103,6 +103,9 @@ Suggests:
     shiny,
     SingleCellExperiment,
     smfishHmrf,
+    smotif,
+    smotifrs,
+    spatialDWLS,
     SPARK,
     SpatialExperiment,
     spdep,
@@ -115,7 +118,8 @@ Suggests:
 Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
-    giotto-suite/GiottoVisuals
+    giotto-suite/GiottoVisuals,
+    drieslab/spatialDWLS
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
@@ -124,14 +128,17 @@ Collate:
     'package_imports.R'
     'normalize.R'
     'clustering.R'
-    'convenience_cosmx.R'
-    'convenience_general.R'
-    'convenience_stereoseq.r'
-    'convenience_visiumHD.R'
     'convenience_xenium.R'
     'convenience_atera.R'
+    'convenience_cosmx.R'
+    'convenience_general.R'
+    'convenience_merscope.R'
+    'convenience_stereoseq.r'
+    'convenience_visium.R'
+    'convenience_visiumHD.R'
     'cross_section.R'
     'dd.R'
+    'deconv-param.R'
     'differential_expression.R'
     'dimension_reduction.R'
     'enrich-param.R'
@@ -150,13 +157,19 @@ Collate:
     'poly_influence.R'
     'python_hmrf.R'
     'python_scrublet.R'
+    'spatautocor-stats.R'
+    'spatautocor-param.R'
+    'spatautocor-methods.R'
     'spatial_clusters.R'
+    'spatial_coexpression.R'
     'spatial_enrichment.R'
     'spatial_enrichment_visuals.R'
     'spatial_genes.R'
     'spatial_interaction.R'
     'spatial_interaction_spot.R'
     'spatial_interaction_visuals.R'
+    'spatial_motif.R'
+    'spatial_motif_visuals.R'
     'spdep.R'
     'variable_genes.R'
     'wnn.R'

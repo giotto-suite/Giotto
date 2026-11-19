@@ -34,37 +34,96 @@ skip_if_no_mini <- function() {
 }
 
 
-test_that("runPAGEEnrich output is unchanged", {
+# Written-out references for PAGE and hypergeometric: the statistics as the
+# methods define them, computed directly on a dense matrix, one cell at a
+# time. They are the ground truth the implementations are checked against.
+
+# fold change of each feature over its reference level: the mean of the
+# de-logged values, logged back in the same base
+.ref_fc <- function(x, base = 2) {
+    x <- as.matrix(x)
+    x - log(rowMeans(base^x - 1) + 1, base = base)
+}
+
+.ref_page <- function(x, sm, min_overlap = 5) {
+    fc <- .ref_fc(x)
+    types <- colnames(sm)[colSums(sm[intersect(rownames(sm), rownames(fc)), ,
+        drop = FALSE] > 0) > min_overlap]
+    sapply(types, function(t) {
+        g <- intersect(rownames(sm)[sm[, t] > 0], rownames(fc))
+        apply(fc, 2, function(v) (mean(v[g]) - mean(v)) * sqrt(length(g)) / sd(v))
+    })
+}
+
+.ref_hyper <- function(x, sm, top = 5, fc = .ref_fc(x)) {
+    u <- intersect(rownames(sm), rownames(fc))
+    sapply(colnames(sm), function(t) {
+        g <- intersect(rownames(sm)[sm[, t] > 0], u)
+        apply(fc, 2, function(v) {
+            on <- names(v)[v > stats::quantile(v, 1 - top / 100)]
+            on <- intersect(on, u)
+            -log10(stats::phyper(length(intersect(on, g)) - 1, length(g),
+                length(u) - length(g), length(on), lower.tail = FALSE))
+        })
+    })
+}
+
+# score columns of a result table, in type order
+.scores <- function(dt) {
+    as.matrix(dt[, setdiff(names(dt), "cell_ID"), with = FALSE])
+}
+
+.ref_hyper_plain <- function(x, sm, top) {
+    .ref_hyper(x, sm, top, fc = x - rowMeans(x))
+}
+
+test_that("runPAGEEnrich matches the written-out PAGE z-score", {
     skip_if_no_mini()
     f <- .enrich_fixture()
 
     res <- runPAGEEnrich(f$g, sign_matrix = f$sm,
                          return_gobject = FALSE, verbose = FALSE)
-
-    # PAGE is the odd one out: it returns list(DT=, matrix=) where the three
-    # siblings return a bare spatEnrObj. Pinned so the refactor has to make a
-    # deliberate choice about it rather than an accidental one.
-    expect_type(res, "list")
-    expect_named(res, c("DT", "matrix"))
-    expect_s4_class(res$matrix, "spatEnrObj")
-
-    dt <- res$matrix[]
-    expect_identical(nrow(dt), 624L)
+    expect_s4_class(res, "spatEnrObj")
+    dt <- res[]
+    x <- getExpression(f$g, values = "normalized", output = "matrix")
+    expect_identical(dt$cell_ID, colnames(x))
     expect_setequal(names(dt), c("cell_ID", "typeA", "typeB", "typeC"))
-    expect_equal(head(dt$typeA, 3),
-                 c(1.660300, -0.065675, -0.416552), tolerance = 1e-5)
-    expect_equal(head(dt$typeB, 3),
-                 c(0.411777, 1.100740, -0.997041), tolerance = 1e-5)
-    expect_equal(head(dt$typeC, 3),
-                 c(0.167189, 0.625430, 0.233294), tolerance = 1e-5)
+    expect_equal(.scores(dt), .ref_page(x, f$sm),
+        tolerance = 1e-10, ignore_attr = TRUE)
 
-    expect_identical(res$matrix@method, "PAGE")
-    expect_identical(res$matrix@name, "PAGE")
-    expect_setequal(names(res$matrix@misc), c(
+    expect_identical(res@method, "PAGE")
+    expect_identical(res@name, "PAGE")
+    expect_setequal(names(res@misc), c(
         "expr_values_used", "reverse_log_scale", "logbase",
         "p_values_calculated", "output_enrichment_scores",
-        "include_depletion", "nr_permutations"
+        "include_depletion"
     ))
+})
+
+test_that("PAGE p-values are the permutation null in closed form", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    x <- getExpression(f$g, values = "normalized", output = "matrix")
+    got <- analyzeData(x, enrichParam("PAGE", p_value = TRUE,
+        verbose = FALSE), sign_matrix = f$sm)
+    z <- .ref_page(x, f$sm)
+    G <- nrow(x)
+    k <- colSums(f$sm > 0)
+    ref <- stats::pnorm(t(t(z) / sqrt((G - k) / G)), lower.tail = FALSE)
+    expect_equal(.scores(got), ref, tolerance = 1e-10, ignore_attr = TRUE)
+
+    # against brute-force permutations on a few cells: random sets of the
+    # type's size, their z's mean and sd per cell, and the normal tail
+    fc <- .ref_fc(x)[, 1:5]
+    set.seed(3)
+    zp <- replicate(20000, {
+        g <- sample(nrow(fc), k[["typeA"]])
+        (colMeans(fc[g, , drop = FALSE]) - colMeans(fc)) *
+            sqrt(k[["typeA"]]) / apply(fc, 2, sd)
+    })
+    perm <- stats::pnorm(z[1:5, "typeA"], rowMeans(zp), apply(zp, 1, sd),
+        lower.tail = FALSE)
+    expect_equal(got$typeA[1:5], unname(perm), tolerance = 0.02)
 })
 
 
@@ -94,26 +153,117 @@ test_that("runRankEnrich output is unchanged", {
 })
 
 
-test_that("runHyperGeometricEnrich output is unchanged", {
+test_that("runHyperGeometricEnrich matches the written-out test", {
     skip_if_no_mini()
     f <- .enrich_fixture()
 
     res <- runHyperGeometricEnrich(f$g, sign_matrix = f$sm,
                                    return_gobject = FALSE)
-
     expect_s4_class(res, "spatEnrObj")
     dt <- res[]
-    expect_identical(nrow(dt), 624L)
-    expect_setequal(names(dt), c("cell_ID", "typeA", "typeB", "typeC"))
-    expect_equal(head(dt$typeA, 3),
-                 c(1.288880, 0.326247, 0.427120), tolerance = 1e-5)
-    expect_equal(head(dt$typeB, 3),
-                 c(2.091817, 1.166187, 0.886146), tolerance = 1e-5)
-    expect_equal(head(dt$typeC, 3),
-                 c(0.694707, 0.819049, 0.632128), tolerance = 1e-5)
+    x <- getExpression(f$g, values = "normalized", output = "matrix")
+    expect_identical(dt$cell_ID, colnames(x))
+    expect_equal(.scores(dt), .ref_hyper(x, f$sm),
+        tolerance = 1e-10, ignore_attr = TRUE)
+
+    both <- runHyperGeometricEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+        return_gobject = FALSE)
+    expect_equal(both$hypergeometric[], dt)
+    p <- both$hypergeometric_p[]
+    expect_equal(.scores(p), 10^-.ref_hyper(x, f$sm),
+        tolerance = 1e-10, ignore_attr = TRUE)
 
     expect_identical(res@method, "hypergeometric")
     expect_identical(res@name, "hypergeometric")
+})
+
+test_that("p_value = TRUE stores scores, p-values and adjusted p-values", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+
+    plain <- runPAGEEnrich(f$g, sign_matrix = f$sm, verbose = FALSE,
+                           return_gobject = FALSE)
+    g <- runPAGEEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+                       verbose = FALSE)
+    expect_true(all(c("PAGE", "PAGE_p", "PAGE_padj") %in%
+        list_spatial_enrichments_names(g, spat_unit = "cell",
+                                       feat_type = "rna")))
+    get <- function(n) getSpatialEnrichment(g, name = n,
+                                            output = "spatEnrObj")
+    expect_equal(get("PAGE")[], plain[])
+    expect_false(isTRUE(get("PAGE")@misc$p_values_calculated))
+    expect_true(get("PAGE_p")@misc$p_values_calculated)
+
+    p <- as.matrix(get("PAGE_p")[][, -"cell_ID"])
+    padj <- as.matrix(get("PAGE_padj")[][, -"cell_ID"])
+    expect_equal(as.vector(padj), stats::p.adjust(as.vector(p), "BH"))
+
+    # zscore scales the scores; the p-values stay those of the raw scores
+    z <- runPAGEEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+        output_enrichment = "zscore", verbose = FALSE,
+        return_gobject = FALSE)
+    expect_equal(z$PAGE_p[], get("PAGE_p")[])
+    expect_equal(.scores(z$PAGE[]), scale(.scores(plain[])),
+                 ignore_attr = TRUE)
+})
+
+test_that("each cell gets its top type, unless it is not confident", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    g <- runPAGEEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
+                       verbose = FALSE)
+    s <- getSpatialEnrichment(g, name = "PAGE", output = "data.table")
+    types <- c("typeA", "typeB", "typeC")
+    top <- types[max.col(as.matrix(s[, types, with = FALSE]), "first")]
+
+    a <- findCellTypesFromEnrichment(g)
+    expect_identical(a$cell_ID, s$cell_ID)
+    expect_identical(a$probable_cell_type, top)
+
+    # an enrichment of p-values picks the smallest
+    p <- getSpatialEnrichment(g, name = "PAGE_p", output = "data.table")
+    expect_identical(
+        findCellTypesFromEnrichment(g, enrichment_name = "PAGE_p")$
+            probable_cell_type,
+        types[max.col(-as.matrix(p[, types, with = FALSE]), "first")])
+
+    best <- apply(as.matrix(s[, types, with = FALSE]), 1L, max)
+    b <- findCellTypesFromEnrichment(g, min_score = 1)
+    expect_identical(is.na(b$probable_cell_type), best < 1)
+
+    padj <- as.matrix(getSpatialEnrichment(g, name = "PAGE_padj",
+        output = "data.table")[, types, with = FALSE])
+    top_padj <- padj[cbind(seq_along(top), match(top, types))]
+    # the fixture's signatures are random genes, so cut at the median rather
+    # than at a conventional level, which no cell would pass
+    cut <- stats::median(top_padj)
+    c_ <- findCellTypesFromEnrichment(g, max_padj = cut)
+    expect_identical(is.na(c_$probable_cell_type), top_padj > cut)
+    expect_gt(sum(!is.na(c_$probable_cell_type)), 0)
+
+    g2 <- findCellTypesFromEnrichment(g, max_padj = cut,
+                                      return_gobject = TRUE)
+    expect_identical(pDataDT(g2)$PAGE_type[
+        match(c_$cell_ID, pDataDT(g2)$cell_ID)], c_$probable_cell_type)
+    expect_error(findCellTypesFromEnrichment(g, enrichment_name = "PAGE_p",
+        min_score = 1), "holds p-values")
+})
+
+test_that("each cell is cut at its own top percentage", {
+    # the cut used to be recycled down the rows, comparing cells against
+    # other cells' thresholds
+    x <- matrix(c(1:20, 20:1, rep(5, 19), 30), nrow = 20,
+        dimnames = list(paste0("g", 1:20), c("a", "b", "c")))
+    sm <- matrix(0, 20, 2, dimnames = list(rownames(x), c("hi", "lo")))
+    sm[16:20, "hi"] <- 1
+    sm[1:5, "lo"] <- 1
+    got <- analyzeData(x, enrichParam("hypergeometric", top_percentage = 25,
+        reverse_log_scale = FALSE), sign_matrix = sm)
+    expect_equal(.scores(got), .ref_hyper_plain(x, sm, 25),
+        ignore_attr = TRUE)
+    # cell a's top quarter is g16..g20, cell b's g1..g5
+    expect_gt(got$hi[1], got$lo[1])
+    expect_gt(got$lo[2], got$hi[2])
 })
 
 
@@ -129,7 +279,7 @@ test_that("the enrichment result lands in the gobject", {
 
     enr <- getSpatialEnrichment(g2, name = "PAGE", output = "spatEnrObj")
     direct <- runPAGEEnrich(f$g, sign_matrix = f$sm,
-                            return_gobject = FALSE, verbose = FALSE)$matrix
+                            return_gobject = FALSE, verbose = FALSE)
     expect_equal(enr[], direct[])
 
     # every run appends one parameter-history entry
@@ -150,13 +300,12 @@ test_that("runSpatialEnrich routes to the same result as the direct call", {
         direct <- switch(m,
             PAGE = runPAGEEnrich(f$g, sign_matrix = f$sm,
                 expression_values = "normalized",
-                return_gobject = FALSE, verbose = FALSE)$matrix,
+                return_gobject = FALSE, verbose = FALSE),
             rank = runRankEnrich(f$g, sign_matrix = f$sm,
                 expression_values = "normalized", return_gobject = FALSE),
             hypergeometric = runHyperGeometricEnrich(f$g, sign_matrix = f$sm,
                 expression_values = "normalized", return_gobject = FALSE)
         )
-        if (m == "PAGE") via <- via$matrix
         expect_equal(via[], direct[], info = m)
     }
 })
@@ -190,9 +339,9 @@ test_that("runPAGEEnrich honours output_enrichment", {
     # .page_dt_method(), which match.arg'd it back to "original". The user's
     # choice was discarded, so PAGE always returned unscaled scores.
     orig <- runPAGEEnrich(f$g, sign_matrix = f$sm, output_enrichment = "original",
-        return_gobject = FALSE, verbose = FALSE)$matrix[]
+        return_gobject = FALSE, verbose = FALSE)[]
     zsc <- runPAGEEnrich(f$g, sign_matrix = f$sm, output_enrichment = "zscore",
-        return_gobject = FALSE, verbose = FALSE)$matrix[]
+        return_gobject = FALSE, verbose = FALSE)[]
 
     expect_false(isTRUE(all.equal(orig$typeA, zsc$typeA)))
     # "zscore" standardizes within cell type
@@ -201,7 +350,7 @@ test_that("runPAGEEnrich honours output_enrichment", {
     # the default is still "original"
     expect_equal(
         runPAGEEnrich(f$g, sign_matrix = f$sm,
-            return_gobject = FALSE, verbose = FALSE)$matrix[],
+            return_gobject = FALSE, verbose = FALSE)[],
         orig
     )
 })
@@ -215,7 +364,7 @@ test_that("runRankEnrich(p_value = TRUE) returns p-values", {
     # return_gobject = FALSE, so it got a giotto object back and then subset it
     # as a table. p_value = TRUE errored in fitdistrplus every time.
     res <- runRankEnrich(f$g, sign_matrix = f$sm, p_value = TRUE,
-                         n_times = 20, return_gobject = FALSE)
+                         n_times = 20, return_gobject = FALSE)$rank_p
     expect_s4_class(res, "spatEnrObj")
 
     dt <- res[]
@@ -247,9 +396,9 @@ test_that("runSpatialEnrich forwards the PAGE-only arguments it accepts", {
     sm[sample(nrow(sm), 20), "typeD"] <- 1L
 
     via <- runSpatialEnrich(f$g, enrich_method = "PAGE", sign_matrix = sm,
-        min_overlap_genes = 30, return_gobject = FALSE, verbose = FALSE)$matrix[]
+        min_overlap_genes = 30, return_gobject = FALSE, verbose = FALSE)[]
     direct <- runPAGEEnrich(f$g, sign_matrix = sm,
-        min_overlap_genes = 30, return_gobject = FALSE, verbose = FALSE)$matrix[]
+        min_overlap_genes = 30, return_gobject = FALSE, verbose = FALSE)[]
 
     # typeD has 20 markers and is dropped by both
     expect_false("typeD" %in% names(via))
@@ -259,7 +408,7 @@ test_that("runSpatialEnrich forwards the PAGE-only arguments it accepts", {
     # and at the default threshold it is kept, so the test above is
     # discriminating rather than vacuous
     kept <- runSpatialEnrich(f$g, enrich_method = "PAGE", sign_matrix = sm,
-        return_gobject = FALSE, verbose = FALSE)$matrix[]
+        return_gobject = FALSE, verbose = FALSE)[]
     expect_true("typeD" %in% names(kept))
 })
 
@@ -428,6 +577,64 @@ test_that("the verb runs on a bare matrix, with no gobject", {
     }
 })
 
+
+test_that("cells scored in parts against a shared reference match all at once", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    m <- getExpression(f$g, values = "normalized", output = "matrix")
+    ref <- log(Matrix::rowMeans(2^m - 1) + 1, base = 2)
+    parts <- split(seq_len(ncol(m)), seq_len(ncol(m)) > 300)
+
+    # what a disk-backed engine does: score each window of cells against the
+    # reference of all of them
+    for (p in list(
+        enrichParam("PAGE", verbose = FALSE),
+        enrichParam("PAGE", p_value = TRUE, verbose = FALSE),
+        enrichParam("hypergeometric"),
+        enrichParam("hypergeometric", p_value = TRUE)
+    )) {
+        whole <- analyzeData(m, p, sign_matrix = f$sm)
+        pieces <- data.table::rbindlist(lapply(parts, function(j) {
+            analyzeData(m[, j], p, sign_matrix = f$sm, reference = ref)
+        }))
+        expect_equal(pieces, whole, tolerance = 1e-12, ignore_attr = TRUE,
+                     info = class(p))
+    }
+    expect_error(
+        analyzeData(m, enrichParam("PAGE"), sign_matrix = f$sm,
+                    reference = unname(ref)),
+        "named by feature"
+    )
+})
+
+test_that("rank scores cells in parts from the ranks of all of them", {
+    skip_if_no_mini()
+    f <- .enrich_fixture()
+    m <- getExpression(f$g, values = "normalized", output = "matrix")
+    set.seed(3)
+    rm_ <- sapply(1:3, function(j) sample(nrow(m)))
+    dimnames(rm_) <- list(rownames(m), paste0("t", 1:3))
+    parts <- split(seq_len(ncol(m)), seq_len(ncol(m)) > 300)
+
+    for (ties in c("average", "max")) {
+        p <- enrichParam("rank", ties_method = ties)
+        ranks <- t(apply(as.matrix(m), 1L, rank,
+            ties.method = if (ties == "max") "min" else "average"))
+        whole <- analyzeData(m, p, sign_matrix = rm_)
+        expect_equal(analyzeData(m, p, sign_matrix = rm_, ranks = ranks),
+                     whole, info = ties)
+        pieces <- data.table::rbindlist(lapply(parts, function(j) {
+            analyzeData(m[, j], p, sign_matrix = rm_,
+                        ranks = ranks[, j, drop = FALSE])
+        }))
+        expect_equal(pieces, whole, tolerance = 1e-12, info = ties)
+    }
+    expect_error(
+        analyzeData(m, enrichParam("rank"), sign_matrix = rm_,
+                    ranks = matrix(0, 2, 2)),
+        "same order"
+    )
+})
 
 test_that("rank's reverse_log_scale and logbase are inert, and say so", {
     skip_if_no_mini()

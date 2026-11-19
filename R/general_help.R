@@ -225,19 +225,24 @@ mygini_fun <- function(
         sample_nr = 200,
         seed = NULL) {
     length_x <- length(x)
-
-    vector_x <- sort(x)
-    first_set <- vector_x[seq_len(extreme_nr)]
-    last_set <- vector_x[(length_x - (extreme_nr - 1)):length_x]
-    random_set <- sample(
-        vector_x[(extreme_nr + 1):(length_x - extreme_nr)],
-        size = sample_nr
-    )
-    testset <- c(first_set, last_set, random_set)
-
+    # seeded before the subset is drawn, so the seed decides it
     if (!is.null(seed)) {
         on.exit(random_seed(), add = TRUE)
         GiottoUtils::local_seed(seed)
+    }
+
+    vector_x <- sort(x)
+    if (length_x < 2L * extreme_nr + sample_nr) {
+        # too few cells to subset: fit on all of them
+        testset <- vector_x
+    } else {
+        first_set <- vector_x[seq_len(extreme_nr)]
+        last_set <- vector_x[(length_x - (extreme_nr - 1)):length_x]
+        random_set <- sample(
+            vector_x[(extreme_nr + 1):(length_x - extreme_nr)],
+            size = sample_nr
+        )
+        testset <- c(first_set, last_set, random_set)
     }
     sel_gene_km_res <- ClusterR::KMeans_arma(
         data = as.matrix(testset),
@@ -293,17 +298,21 @@ kmeans_binarize_wrapper <- function(expr_values,
         choices = c("kmeans", "kmeans_arma", "kmeans_arma_subset")
     )
 
+    # a constant feature has no split; call it off rather than let kmeans fail
+    guard <- function(f) {
+        function(x, ...) if (length(unique(x)) < 2L) numeric(length(x)) else f(x, ...)
+    }
     bin_matrix <- switch(kmeans_algo,
         "kmeans" = t_flex(apply(
-            X = expr_values, MARGIN = 1, FUN = .kmeans_binarize,
+            X = expr_values, MARGIN = 1, FUN = guard(.kmeans_binarize),
             nstart = nstart, iter.max = iter_max, seed = seed
         )),
         "kmeans_arma" = t_flex(apply(
-            X = expr_values, MARGIN = 1, FUN = .kmeans_arma_binarize,
+            X = expr_values, MARGIN = 1, FUN = guard(.kmeans_arma_binarize),
             n_iter = iter_max, seed = seed
         )),
         "kmeans_arma_subset" = t_flex(apply(
-            X = expr_values, MARGIN = 1, FUN = .kmeans_arma_subset_binarize,
+            X = expr_values, MARGIN = 1, FUN = guard(.kmeans_arma_subset_binarize),
             n_iter = iter_max,
             extreme_nr = extreme_nr,
             sample_nr = sample_nr,
@@ -357,6 +366,292 @@ rank_binarize_wrapper <- function(
 
 
 ## chatgpt queries ####
+
+#' @title writeClusterTreeQuery
+#' @name writeClusterTreeQuery
+#' @description Build the annotation query for a cluster tree: the tree itself,
+#' the markers separating the two sides of every branch, and the per-cluster
+#' markers with a specificity flag.
+#' @param gobject giotto object
+#' @param tree a `giottoTree` from [calculateClusterTree()], or any `hclust`
+#' over the clusters
+#' @param spat_unit,feat_type,expression_values,cluster_column,view default to
+#' those recorded on a `giottoTree`; see the giottoTree section of
+#' [calculateClusterTree()]. An explicit value overrides the tree's, with a
+#' warning when they differ. `cluster_column` is required for a plain `hclust`.
+#' `expression_values` and `view` apply only to the evidence layers this
+#' function computes itself: cell counts and any marker table not supplied.
+#' @param markers one-vs-all marker table, from [findMarkers_one_vs_all()].
+#' Computed when not supplied.
+#' @param gini_markers gini marker table, from [findGiniMarkers_one_vs_all()].
+#' Computed when not supplied; supplies the specificity flag.
+#' @param node_markers output of [findClusterTreeMarkers()]. Computed when
+#' not supplied.
+#' @param context named list of whatever is known about the sample --
+#' `tissue`, `disease`, `assay`, anything else. Rendered as `Name: value`
+#' lines at the top of the query.
+#' @param margin_cut detection margin, in percentage points, below which a
+#' cluster is flagged as having no feature of its own
+#' @param top_markers,top_gini,top_node how many genes to list per cluster and
+#' per branch side
+#' @param file_name optional path to write the query to. The text is returned
+#' either way.
+#' @returns the query, as a character vector, invisibly
+#' @details
+#' Runs no LLM. It assembles the text to hand to one, exactly as
+#' [writeChatGPTqueryDEG()] does for a flat marker list.
+#'
+#' What it adds over a flat list is structure. The query asks for a label at
+#' **every internal node** as well as every leaf, and a node's label must name
+#' the clade beneath it rather than describe the split. That is what lets
+#' [annotateClusterTree()] cut the answer at any granularity afterwards without
+#' asking the model again.
+#' @seealso [calculateClusterTree()], [findClusterTreeMarkers()],
+#' [annotateClusterTree()]
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' q <- writeClusterTreeQuery(g, tree,
+#'     context = list(tissue = "mouse brain")
+#' )
+#' head(q, 20)
+#' @export
+writeClusterTreeQuery <- function(gobject,
+        tree,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column = NULL,
+        view = NULL,
+        markers = NULL,
+        gini_markers = NULL,
+        node_markers = NULL,
+        context = list(),
+        margin_cut = 25,
+        top_markers = 20L,
+        top_gini = 5L,
+        top_node = 10L,
+        file_name = NULL) {
+    # data.table variables
+    cluster <- feats <- detection_margin <- comb_score <- nodeID <- NULL
+    side <- pi <- logFC <- p.value <- NULL
+
+    site <- "writeClusterTreeQuery"
+    ctx <- .tree_context(tree,
+        args = list(spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = expression_values,
+            cluster_column = cluster_column, view = view),
+        supplied = c(spat_unit = !is.null(spat_unit),
+            feat_type = !is.null(feat_type),
+            expression_values = !missing(expression_values),
+            cluster_column = !is.null(cluster_column),
+            view = !is.null(view)),
+        site = site
+    )
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = ctx$spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = ctx$feat_type
+    )
+    values <- match.arg(
+        ctx$expression_values,
+        unique(c("normalized", "scaled", "custom", ctx$expression_values))
+    )
+    cluster_column <- .tree_need_column(ctx$cluster_column, site)
+    gobject <- .tree_resolve_view(gobject, ctx$view, spat_unit, feat_type)
+
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = TRUE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[writeClusterTreeQuery] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    .check_tree_leaves(tree, cell_meta[[cluster_column]], site)
+    clus <- as.character(cell_meta[[cluster_column]])
+    lvls <- tree$labels
+    ncell <- vapply(lvls, function(k) sum(clus == k), integer(1L))
+
+    # Each evidence layer is computed only if the caller did not bring it. The
+    # message is deliberate: these are full passes over the expression values,
+    # and a caller who already has them should not pay for them twice.
+    if (is.null(markers)) {
+        vmsg(.v = TRUE, "computing one-vs-all markers")
+        markers <- findMarkers_one_vs_all(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column, method = "scran",
+            min_feats = 10, verbose = FALSE
+        )
+    }
+    if (is.null(gini_markers)) {
+        vmsg(.v = TRUE, "computing gini markers")
+        gini_markers <- findGiniMarkers_one_vs_all(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column, min_feats = 10, verbose = FALSE
+        )
+    }
+    if (is.null(node_markers)) {
+        vmsg(.v = TRUE, "computing node markers")
+        # the worker, not the exported function: the tree's defaults and
+        # the view are already resolved above and must not be re-applied
+        node_markers <- .cluster_tree_markers(gobject, tree,
+            spat_unit, feat_type, values, cluster_column,
+            method = "scran", lfc_cut = 0.25, fdr_cut = 0.01,
+            verbose = FALSE
+        )
+    }
+    markers <- data.table::as.data.table(markers)
+    gini_markers <- data.table::as.data.table(gini_markers)
+
+    spec <- gini_markers[, list(
+        margin = max(detection_margin),
+        best_gene = feats[which.max(detection_margin)]
+    ), by = cluster]
+
+    P <- character(0L)
+    add <- function(...) P <<- c(P, sprintf(...))
+    .genes <- function(x) paste(x, collapse = ", ")
+
+    add("# Cell type annotation task"); add("")
+    for (nm in names(context)) {
+        add("%s: %s", nm, paste(as.character(context[[nm]]), collapse = ", "))
+    }
+    add("%s cells in %d transcriptional clusters.",
+        format(length(clus), big.mark = ","), length(lvls))
+    add("Fix broad lineages at the TOP of the tree first, then refine downward")
+    add("to one cell type per cluster."); add("")
+
+    add("## 1. Cluster tree (root first; indentation = depth)"); add("")
+    .render <- function(nd, depth) {
+        if (stats::is.leaf(nd)) {
+            lab <- attr(nd, "label")
+            add("%s- cluster %s (%s cells)", strrep("  ", depth), lab,
+                format(ncell[[lab]], big.mark = ","))
+        } else {
+            add("%snode %s (height %.3f)", strrep("  ", depth),
+                attr(nd, "nodeID") %null% "", attr(nd, "height"))
+            for (i in seq_along(nd)) .render(nd[[i]], depth + 1L)
+        }
+    }
+    .render(.label_tree_nodes(tree), 0L); add("")
+
+    add("## 2. Markers at each split"); add("")
+    add("Left branch versus right: what separates these siblings. A gene that")
+    add("is uninformative at the root can be decisive deeper in the tree.")
+    add("")
+    mk_node <- data.table::as.data.table(node_markers$markers)
+    if (!"pi" %in% names(mk_node)) {
+        mk_node[, "pi" := logFC *
+            -log10(pmax(p.value, .Machine$double.xmin))]
+    }
+    nodes <- data.table::as.data.table(node_markers$nodes)
+    weak <- nodes$n_strong < stats::quantile(nodes$n_strong, 0.2, na.rm = TRUE)
+    for (i in seq_len(nrow(nodes))) {
+        nid <- nodes$nodeID[i]
+        add("### Node %s%s", nid, if (isTRUE(weak[i])) "  [WEAK SPLIT]" else "")
+        add("left  = clusters %s", nodes$left[i])
+        add("right = clusters %s", nodes$right[i])
+        add("separating genes: %s", nodes$n_strong[i])
+        d <- mk_node[nodeID == nid]
+        add("up in LEFT : %s",
+            .genes(utils::head(d[side == "left"][order(-pi)]$feats, top_node)))
+        add("up in RIGHT: %s",
+            .genes(utils::head(d[side == "right"][order(pi)]$feats, top_node)))
+        if (isTRUE(weak[i])) {
+            add("NOTE: among the weakest splits here. Merge candidate.")
+        }
+        add("")
+    }
+
+    add("## 3. Per-cluster markers"); add("")
+    add("LOW SPECIFICITY means no gene is detected in at least %g percentage",
+        margin_cut)
+    add("points more of this cluster's cells than of any other single")
+    add("cluster's -- a fragment or a cell state rather than a distinct type.")
+    add("")
+    cc <- attr(tree, "cor_matrix")
+    if (!is.null(cc)) diag(cc) <- -Inf
+    for (cl in lvls) {
+        sp <- spec[cluster == cl]
+        low <- nrow(sp) > 0L && sp$margin[1L] < margin_cut
+        add("### Cluster %s (%s cells)%s", cl,
+            format(ncell[[cl]], big.mark = ","),
+            if (low) "  [LOW SPECIFICITY]" else "")
+        if (!is.null(cc)) {
+            add("most correlated cluster: %s (r = %.3f)",
+                colnames(cc)[which.max(cc[cl, ])], max(cc[cl, ]))
+        }
+        if (nrow(sp) > 0L) {
+            add("best detection margin: %s, %+.0f points",
+                sp$best_gene[1L], sp$margin[1L])
+        }
+        add("markers    : %s",
+            .genes(utils::head(markers[cluster == cl]$feats, top_markers)))
+        add("gini markers: %s", .genes(utils::head(
+            gini_markers[cluster == cl][order(-comb_score)]$feats, top_gini)))
+        add("")
+    }
+
+    add("## 4. Required output"); add("")
+    add("Return ONLY a JSON object, no prose around it:"); add("")
+    add('{ "nodes":    [ {"node": <int>, "short": "<tag>",')
+    add('                 "label": "<name for the clade BELOW this node>"} ],')
+    add('  "clusters": [ {"cluster": "<id>", "cell_type": "<one type>",')
+    add('                 "confidence": "high"|"medium"|"low",')
+    add('                 "markers": ["<genes you used>"],')
+    add('                 "merge_with": "<cluster id or null>"} ] }'); add("")
+    add("Rules:")
+    add("- EXACTLY ONE cell type per cluster; all %d clusters must appear.",
+        length(lvls))
+    add("- EVERY internal node must appear in `nodes`, all %d of them.",
+        nrow(nodes))
+    add("- A node's `label` names the group of clusters BENEATH it, as a cell")
+    add("  population (\"myeloid\", \"luminal epithelium\"). It is not a")
+    add("  description of the split and must not name both sides.")
+    add("- Cite only genes listed above.")
+    add("- A leaf label must be consistent with the labels above it.")
+    add("- Suggest a merge where a split is weak or specificity is low.")
+
+    if (!is.null(file_name)) writeLines(P, file_name)
+    invisible(P)
+}
+
+
+# `stats::as.dendrogram()` drops the merge-row identity, but the query has to
+# name nodes in the same terms `findClusterTreeMarkers()` and `as.data.table(tree)`
+# report them, or the answer cannot be joined back. Walk the merge matrix and
+# stamp each internal node with its row.
+#' @keywords internal
+#' @noRd
+.label_tree_nodes <- function(hc) {
+    dend <- stats::as.dendrogram(hc)
+    # leaves under each merge row, so a subtree can be recognised by its label
+    # set rather than by traversal order
+    leaves_of <- function(node) {
+        if (node < 0L) return(hc$labels[-node])
+        c(leaves_of(hc$merge[node, 1L]), leaves_of(hc$merge[node, 2L]))
+    }
+    key <- vapply(seq_len(nrow(hc$merge)),
+        function(i) paste(sort(leaves_of(i)), collapse = "\r"), character(1L))
+
+    stamp <- function(nd) {
+        if (stats::is.leaf(nd)) return(nd)
+        labs <- paste(sort(unlist(stats::dendrapply(nd, function(x) {
+            if (stats::is.leaf(x)) attr(x, "label") else NULL
+        }))), collapse = "\r")
+        hit <- match(labs, key)
+        if (!is.na(hit)) attr(nd, "nodeID") <- hit
+        for (i in seq_along(nd)) nd[[i]] <- stamp(nd[[i]])
+        nd
+    }
+    stamp(dend)
+}
+
 
 #' @title writeChatGPTqueryDEG
 #' @name writeChatGPTqueryDEG
@@ -583,6 +878,22 @@ gpoly_from_dfr_smoothed_wrapped <- function(segmdfr,
 
 ## 10X ####
 
+# Unique 10x feature names: every copy of a repeated name gets `--N`.
+# With `feat_types`, repeats are counted within each feature type. Shared by
+# get10Xmatrix() and get10Xmatrix_h5(); GiottoDisk's .disambiguate_feat_ids()
+# applies the same rule.
+.tenx_unique_feat_ids <- function(x, feat_types = NULL) {
+    x <- as.character(x)
+    key <- if (is.null(feat_types)) x else paste(feat_types, x, sep = "\r")
+    dup <- key %in% key[duplicated(key)]
+    if (!any(dup)) return(x)
+    n <- stats::ave(seq_along(key), key, FUN = seq_along)
+    x[dup] <- paste0(x[dup], "--", n[dup])
+    x
+}
+
+
+
 #' @title get10Xmatrix
 #' @name get10Xmatrix
 #' @description This function creates an expression matrix from a 10X
@@ -605,16 +916,17 @@ gpoly_from_dfr_smoothed_wrapped <- function(segmdfr,
 #' however if multiple
 #' annotations are provided (e.g. ensembl gene ids and gene symbols) the user
 #' can select another column.
+#'
+#' Repeated feature names get a \code{--N} suffix on every copy
+#' (e.g. \code{Ptp4a1--1}, \code{Ptp4a1--2}). With \code{split_by_type},
+#' repeats are counted within each feature type, so a gene keeps its name when
+#' an antibody shares it.
 #' @export
 get10Xmatrix <- function(
         path_to_data,
         gene_column_index = 1,
         remove_zero_rows = TRUE,
         split_by_type = TRUE) {
-    # data.table variables
-    total <- gene_symbol <- gene_id <- gene_id_num <- cell_id <-
-        cell_id_num <- sort_gene_id_num <- NULL
-
     # data directory
     files_10X <- list.files(path_to_data)
 
@@ -624,7 +936,6 @@ get10Xmatrix <- function(
         input = paste0(path_to_data, "/", barcodes_file), header = FALSE
     )
     barcodes_vec <- barcodesDT$V1
-    names(barcodes_vec) <- seq_len(nrow(barcodesDT))
 
     # get features and create vector
     features_file <- grep(files_10X, pattern = "features|genes", value = TRUE)
@@ -632,28 +943,21 @@ get10Xmatrix <- function(
         input = paste0(path_to_data, "/", features_file), header = FALSE
     )
 
-    g_name <- colnames(featuresDT)[gene_column_index]
-    ## convert ensembl gene id to gene symbol ##
-    ## TODO
-
-    featuresDT[, total := .N, by = get(g_name)]
-    featuresDT[, gene_symbol := ifelse(
-        total > 1, paste0(get(g_name), "--", seq_len(.N)),
-        get(g_name)
-    ), by = get(g_name)]
-    features_vec <- featuresDT$gene_symbol
-    names(features_vec) <- seq_len(nrow(featuresDT))
+    # Split by type of feature (features.tsv 3rd col)
+    feat_classes <- unique(featuresDT$V3)
+    by_type <- length(feat_classes) > 1 && isTRUE(split_by_type)
+    features_vec <- .tenx_unique_feat_ids(
+        featuresDT[[gene_column_index]],
+        feat_types = if (by_type) featuresDT$V3
+    )
 
     # get matrix
     matrix_file <- grep(files_10X, pattern = "matrix", value = TRUE)
     MMmatrix <- Matrix::readMM(paste0(path_to_data, "/", matrix_file))
-    rownames(MMmatrix) <- features_vec
-    colnames(MMmatrix) <- barcodes_vec
+    MMmatrix <- methods::as(MMmatrix, "CsparseMatrix")
+    dimnames(MMmatrix) <- list(features_vec, barcodes_vec)
 
-
-    # Split by type of feature (features.tsv 3rd col)
-    feat_classes <- unique(featuresDT$V3)
-    if (length(feat_classes) > 1 && isTRUE(split_by_type)) {
+    if (by_type) {
         result_list <- list()
 
         for (fclass in feat_classes) {
@@ -696,6 +1000,10 @@ get10Xmatrix <- function(
 #' @details If the .h5 10x file has multiple classes of features
 #' (e.g. expression vs QC probes) or modalities (e.g. RNA and protein), and
 #' \code{split_by_type} param is \code{TRUE}, multiple matrices will be returned
+#'
+#' Feature names follow [get10Xmatrix()]: repeated names get a \code{--N}
+#' suffix on every copy, counted within each feature type when
+#' \code{split_by_type} is \code{TRUE}.
 #' @export
 get10Xmatrix_h5 <- function(
         path_to_data,
@@ -787,20 +1095,13 @@ get10Xmatrix_h5 <- function(
         }
     )
 
-    # create uniq name symbols
-    # duplicate gene symbols will be given a suffix '_1', '_2', ...
-
-    # data.table variables
-    nr_name <- name <- uniq_name <- NULL
-
-    features_dt[, nr_name := seq_len(.N), by = name]
-    features_dt[, uniq_name := ifelse(
-        nr_name == 1, name, paste0(name, "_", (nr_name - 1))
-    )]
-
-
-    # dimension names
-    dimnames <- list(feature_id, barcodes)
+    # feature names, as get10Xmatrix() gives them
+    by_type <- isTRUE(split_by_type) && length(unique(feature_types)) > 1L
+    feat_names <- .tenx_unique_feat_ids(
+        if (gene_ids == "symbols") feature_names else feature_id,
+        feat_types = if (by_type) feature_types
+    )
+    dimnames <- list(feat_names, barcodes)
 
     sparsemat <- Matrix::sparseMatrix(
         i = indices + 1,
@@ -820,17 +1121,6 @@ get10Xmatrix_h5 <- function(
                 ,
                 drop = FALSE
             ]
-
-            # change names to gene symbols if it's expression
-            if ((fclass %in% c("Gene Expression", "Protein Expression")) && gene_ids == "symbols") {
-
-                conv_vector <- features_dt$uniq_name
-                names(conv_vector) <- features_dt$id
-
-                current_names <- rownames(result_list[[fclass]])
-                new_names <- conv_vector[current_names]
-                rownames(result_list[[fclass]]) <- new_names
-            }
         }
 
         if (isTRUE(remove_zero_rows)) {
@@ -864,6 +1154,25 @@ get10Xmatrix_h5 <- function(
 
         return(list("Gene Expression" = sparsemat))
     }
+}
+
+# 10x feature classes (`features/feature_type`, features.tsv column 3) to
+# Giotto feat_type names. Shared by the 10x readers.
+.tenx_feat_type_names <- function(x) {
+    map <- c(
+        "Gene Expression" = "rna",
+        "Protein Expression" = "protein",
+        "Negative Control Codeword" = "NegControlCodeword",
+        "Negative Control Probe" = "NegControlProbe",
+        "Blank Codeword" = "UnassignedCodeword", # from legacy Xenium pipeline
+        "Genomic Control" = "GenomicControl",
+        "Unassigned Codeword" = "UnassignedCodeword",
+        "Deprecated Codeword" = "DeprecatedCodeword"
+    )
+    hit <- x %in% names(map)
+    x[hit] <- map[x[hit]]
+    # spaces make feat types harder to read
+    gsub(" ", "_", x)
 }
 
 #' read10xAffineImage
@@ -1573,16 +1882,12 @@ readPolygonVizgenParquet <- function(file,
         sv$poly_ID <- poly_table$EntityID
         sv$z_level <- poly_table$ZLevel
 
-        gpoly <- giottoPolygon(
+        # repairs invalid outlines (option `giotto.make_valid`)
+        createGiottoPolygon(sv,
             name = names(multipolygons)[[i]],
-            spatVector = sv,
-            unique_ID_cache = poly_table$EntityID
+            calc_centroids = calc_centroids,
+            verbose = FALSE
         )
-
-        if (isTRUE(calc_centroids)) {
-            # NOTE: will not recalculate if centroids are already attached
-            gpoly <- GiottoClass::centroids(x = gpoly, append_gpolygon = TRUE)
-        }
     })
 
     return(out)

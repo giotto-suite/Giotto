@@ -24,7 +24,8 @@ createGiottoVisiumHDObjectCell(
   image_path = NULL,
   geojson_path = NULL,
   instructions = NULL,
-  verbose = NULL
+  verbose = NULL,
+  backend = NULL
 )
 }
 \arguments{
@@ -77,6 +78,10 @@ files.}
 \item{instructions}{giotto instructions to apply.}
 
 \item{verbose}{verbosity}
+
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, the `giotto`
+object is created as a managed on-disk project; see [importVisiumHD()].}
 }
 \value{
 giotto object

@@ -312,17 +312,19 @@ addPolygonCells <- function(
     )
     new_cell_metadata[, c(polygon_name) := selection_values]
 
-    ## keep original order of cells
-    new_cell_metadata <- new_cell_metadata[match(
-        cell_metadata$cell_ID,
-        new_cell_metadata$cell_ID
-    ), ]
-
+    ## add just the new column, keyed by cell_ID. The merge above may
+    ## reorder rows, which is why this used to re-sort them to the
+    ## original order and hand over a bare table; keying instead means
+    ## the order it arrives in does not matter.
     gobject <- addCellMetadata(
         gobject = gobject,
         spat_unit = spat_unit,
         feat_type = feat_type,
-        new_metadata = new_cell_metadata[, -1]
+        new_metadata = new_cell_metadata[
+            , c("cell_ID", polygon_name), with = FALSE
+        ],
+        by_column = TRUE,
+        column_cell_ID = "cell_ID"
     )
 
     return(gobject)

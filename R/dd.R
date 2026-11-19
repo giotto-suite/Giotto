@@ -284,8 +284,9 @@ NULL
 
 #' Params documentation template: enrichment_params
 #' @name enrichment_params
-#' @param sign_matrix binary matrix of signature features (rows) by cell type
-#' or process (columns), 1 where the feature marks the type. Build one with
+#' @param sign_matrix matrix of signature features (rows) by cell type or
+#' process (columns); a feature marks a type where its value is > 0. Build one
+#' with
 #' \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.
 #' @param reverse_log_scale logical. Undo a log transform before averaging
 #' (default = TRUE).
@@ -293,7 +294,11 @@ NULL
 #' (default = 2).
 #' @param output_enrichment character. "original" (default) or "zscore", which
 #' standardizes the scores within each cell type.
-#' @param p_value logical. Calculate p-values (default = FALSE).
+#' @param p_value logical. Also compute p-values, from the unscaled scores
+#' (default = FALSE). The `run*Enrich()` functions store them beside the
+#' scores as `<name>_p`, with Benjamini-Hochberg adjusted p-values over all
+#' cells and types as `<name>_padj`; `analyzeData()` returns the p-values,
+#' carrying the scores as their `"scores"` attribute.
 #' @md
 #' @returns spatial enrichment scores, one per cell per signature
 #' @keywords internal
@@ -309,9 +314,12 @@ NULL
 #' @param logbase numeric. Log base of the expression values (default = 2).
 #' @param cluster_column character. Cell metadata column holding the cluster
 #' assignment used to group cells.
-#' @param n_cell numeric. Number of cells per spot (default = 50).
-#' @param cutoff numeric. Expression cutoff below which a value is treated as
-#' absent (default = 2).
+#' @param n_cell numeric. Expected number of cells per spot (default = 50). In
+#' the second round a cell type is kept for a spot only when its first-round
+#' proportion is at least `1 / n_cell`.
+#' @param cutoff numeric. PAGE enrichment z-score a cell type must reach in at
+#' least one spot of a cluster to be a candidate for that cluster
+#' (default = 2). The two highest-scoring types are always candidates.
 #' @md
 #' @returns cell type proportions, one row per cell, summing to 1
 #' @keywords internal

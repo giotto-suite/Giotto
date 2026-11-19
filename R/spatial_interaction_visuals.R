@@ -35,7 +35,7 @@ cellProximityBarplot <- function(
 
     # data.table variables
     original <- simulations <- p_higher_orig <- p_lower_orig <- enrichm <-
-        type_int <- unified_int <- NULL
+        type_int <- unified_int <- significant <- NULL
 
     table_mean_results_dc_filter <- table_mean_results_dc[
         original >= min_orig_ints & simulations >= min_sim_ints,
@@ -44,29 +44,45 @@ cellProximityBarplot <- function(
         p_higher_orig <= p_val | p_lower_orig <= p_val,
     ]
 
-    pl <- ggplot2::ggplot()
-    pl <- pl + ggplot2::geom_bar(
-        data = table_mean_results_dc_filter,
-        ggplot2::aes(x = unified_int, y = enrichm, fill = type_int),
-        stat = "identity", show.legend = FALSE
-    )
-    pl <- pl + ggplot2::coord_flip()
-    pl <- pl + ggplot2::theme_bw()
-    pl <- pl + ggplot2::labs(y = "enrichment/depletion")
-    pl
+    # Significance is currently only a filter -- a bar that squeaked past the
+    # threshold looks identical to one that cleared it by orders of magnitude.
+    # Encode it as outline weight so effect size (bar length) and confidence
+    # (outline) are readable separately.
+    d <- table_mean_results_dc_filter
+    best_p <- pmin(d$p.adj_higher, d$p.adj_lower)
+    d$significant <- best_p <= p_val
+    fills <- c(homo = "#4C72B0", hetero = "#DD8452")
 
-    bpl <- ggplot2::ggplot()
-    bpl <- bpl + ggplot2::geom_bar(
-        data = table_mean_results_dc_filter,
-        ggplot2::aes(x = unified_int, y = original, fill = type_int),
-        stat = "identity", show.legend = TRUE
-    )
-    bpl <- bpl + ggplot2::coord_flip()
-    bpl <- bpl + ggplot2::theme_bw() + ggplot2::theme(
-        axis.text.y = element_blank()
-    )
-    bpl <- bpl + ggplot2::labs(y = "# of interactions")
-    bpl
+    pl <- ggplot2::ggplot() +
+        ggplot2::geom_hline(
+            yintercept = 0, linewidth = 0.3, colour = "grey60"
+        ) +
+        ggplot2::geom_bar(
+            data = d,
+            ggplot2::aes(
+                x = unified_int, y = enrichm, fill = type_int,
+                linewidth = significant
+            ),
+            stat = "identity", show.legend = FALSE, colour = "grey15"
+        ) +
+        ggplot2::scale_fill_manual(values = fills, drop = FALSE) +
+        ggplot2::scale_linewidth_manual(
+            values = c(`FALSE` = 0, `TRUE` = 0.45)
+        ) +
+        ggplot2::coord_flip() +
+        .motif_theme() +
+        ggplot2::labs(y = "enrichment/depletion", x = NULL)
+
+    bpl <- ggplot2::ggplot() +
+        ggplot2::geom_bar(
+            data = d,
+            ggplot2::aes(x = unified_int, y = original, fill = type_int),
+            stat = "identity", show.legend = TRUE
+        ) +
+        ggplot2::scale_fill_manual(values = fills, drop = FALSE, name = NULL) +
+        ggplot2::coord_flip() +
+        .motif_theme(axis.text.y = ggplot2::element_blank()) +
+        ggplot2::labs(y = "# of interactions", x = NULL)
 
     combo_plot <- plot_grid(
         pl, bpl,
@@ -120,7 +136,9 @@ cellProximityHeatmap <- function(
         save_plot = NULL,
         save_param = list(),
         default_save_name = "cellProximityHeatmap") {
-    enrich_res <- CPscore$enrichm_res
+    # `:=` below would otherwise add first_type/second_type to the caller's
+    # own CPscore$enrichm_res by reference -- data.table modifies in place.
+    enrich_res <- data.table::copy(CPscore$enrichm_res)
 
     # data.table variables
     first_type <- second_type <- unified_int <- NULL
@@ -200,10 +218,22 @@ cellProximityHeatmap <- function(
             )
         )
     } else {
+        # Enrichment is a diverging quantity centred on 0 -- no enrichment and
+        # no depletion. ComplexHeatmap's default is a sequential ramp fitted to
+        # the data range, which puts the neutral point wherever the data happen
+        # to sit and makes depletion and weak enrichment hard to tell apart. A
+        # symmetric ramp around 0 keeps the midpoint meaningful.
+        lim <- max(abs(range(final_matrix, finite = TRUE)), na.rm = TRUE)
+        if (!is.finite(lim) || lim == 0) lim <- 1
         heatm <- ComplexHeatmap::Heatmap(
             matrix = final_matrix,
             cluster_rows = FALSE,
-            cluster_columns = FALSE
+            cluster_columns = FALSE,
+            name = if (isTRUE(scale)) "scaled\nenrichment" else "enrichment",
+            col = GiottoVisuals::colorRamp2(
+                breaks = c(-lim, 0, lim),
+                colors = c("#2166AC", "#F7F7F7", "#B2182B")
+            )
         )
     }
 
@@ -399,18 +429,20 @@ cellProximityNetwork <- function(
     )
     gpl <- gpl + ggraph::scale_edge_width(range = edge_width_range)
     gpl <- gpl + ggraph::scale_edge_alpha(range = c(0.1, 1))
-    gpl <- gpl + ggraph::geom_node_text(
-        ggplot2::aes(label = name),
-        repel = TRUE, size = node_text_size
-    )
+    # points before text: drawn the other way round, every node label ends up
+    # underneath its own node
     gpl <- gpl + ggraph::geom_node_point(
         ggplot2::aes(color = name),
         size = node_size
     )
+    gpl <- gpl + ggraph::geom_node_text(
+        ggplot2::aes(label = name),
+        repel = TRUE, size = node_text_size
+    )
     if (!is.null(node_color_code)) {
         gpl <- gpl + ggplot2::scale_color_manual(values = node_color_code)
     }
-    gpl <- gpl + ggplot2::theme_bw() + ggplot2::theme(
+    gpl <- gpl + .motif_theme(
         panel.grid = ggplot2::element_blank(),
         panel.border = ggplot2::element_blank(),
         axis.title = ggplot2::element_blank(),

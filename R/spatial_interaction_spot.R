@@ -285,7 +285,11 @@ cellProximityEnrichmentSpots <- function(
     )
     data.table::setDF(dwls_values)
     rownames_dwls <- dwls_values[, "cell_ID"]
-    dwls_values <- as.matrix(dwls_values[, -1])
+    # by name: the stored enrichment keeps cell_ID last, so dropping the first
+    # column lost a cell type and left the character IDs in the matrix
+    dwls_values <- as.matrix(
+        dwls_values[, setdiff(names(dwls_values), "cell_ID"), drop = FALSE]
+    )
     rownames(dwls_values) <- rownames_dwls
     dwls_values_adjust <- dwls_values * cells_in_spot
 

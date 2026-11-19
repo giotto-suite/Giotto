@@ -48,11 +48,28 @@ Compute cell-cell interaction enrichment (observed vs expected)
 }
 \details{
 Spatial proximity enrichment or depletion between pairs of cell
-types is calculated by calculating the observed over the expected frequency
-of cell-cell proximity interactions. The expected frequency is the average
-frequency calculated from a number of spatial network simulations. Each
-individual simulation is obtained by reshuffling the cell type labels of
-each node (cell) in the spatial network.
+types is calculated from the observed over the expected frequency of
+cell-cell proximity interactions. The expected frequency is the average
+frequency across `number_of_simulations` spatial network simulations. Each
+simulation reshuffles the cell type labels over the nodes (cells) of the
+spatial network, holding the network topology fixed; every cell therefore
+carries a single label across all of its edges.
+
+Empirical p-values use the unbiased estimator
+`(1 + #{simulated >= observed}) / (1 + number_of_simulations)`, so they lie
+in `(0, 1]` and can never be exactly zero.
+
+Alongside the enrichment score `enrichm`, the result carries the standard
+deviation of the simulated counts (`sd_sim`) and a standardized effect size
+(`z`).
+
+The result is only as good as the network it is given. On a large section
+pass `delaunay_method = "delaunayn_geometry"` to
+[GiottoClass::createSpatialNetwork()] -- an identical triangulation, orders
+of magnitude faster -- and set `maximum_distance_delaunay` explicitly, so
+that edges spanning empty tissue are not counted as proximity. See the
+*Building the network for a large section* section of
+[cellProximityMotifs()].
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")

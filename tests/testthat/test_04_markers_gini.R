@@ -138,7 +138,7 @@ test_that("the returned columns are unchanged", {
     expect_named(.gini(), c(
         "feats", "cluster", "expression", "expression_gini",
         "detection", "detection_gini", "expression_rank",
-        "detection_rank", "comb_score", "comb_rank"
+        "detection_rank", "comb_score", "comb_rank", "detection_margin"
     ))
 })
 
@@ -155,7 +155,7 @@ test_that("findMarkers_one_vs_all keeps the same column contract", {
         c(
             "feats", "cluster", "expression", "expression_gini",
             "detection", "detection_gini", "expression_rank",
-            "detection_rank", "comb_score", "comb_rank"
+            "detection_rank", "comb_score", "comb_rank", "detection_margin"
         )
     )
 })

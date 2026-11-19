@@ -16,14 +16,16 @@
 #' @param sign_list list of feats in signature
 #' @param min_overlap_genes minimum number of overlapping features in
 #' `sign_matrix` required to calculate enrichment (PAGE)
-#' @param include_depletion also test for depletion, not enrichment only
-#' (default = FALSE)
-#' @param n_times number of permutation iterations to calculate p-value
-#' @param max_block number of lines to process together (default = 20e6)
+#' @param include_depletion test depletion as well as enrichment, on the
+#' absolute z-score (default = FALSE)
+#' @param n_times no longer used: PAGE p-values come from the permutation null
+#' in closed form; kept so existing calls still run
+#' @param max_block no longer used; kept so existing calls still run
 #' @param verbose be verbose
-#' @returns `matrix` (`makeSignMatrixPAGE()`) and
-#' `giotto` (`runPAGEEnrich(return_gobject = TRUE)`) or
-#' `data.table` (`runPAGEEnrich(return_gobject = FALSE)`)
+#' @returns `matrix` (`makeSignMatrixPAGE()`); `runPAGEEnrich()` returns a
+#' `giotto` (`return_gobject = TRUE`), else a `spatEnrObj`, or with
+#' `p_value = TRUE` a list of them named by enrichment: the scores, `_p` and
+#' `_padj`
 #' @details
 #' The enrichment Z score is calculated by using method (PAGE) from
 #' Kim SY et al., BMC bioinformatics, 2005 as \cr
@@ -284,7 +286,7 @@ makeSignMatrixDWLS <- function(
 #' @param sc_matrix matrix of single-cell RNAseq expression data
 #' @param sc_cluster_ids vector of cluster ids
 #' @param ties_method how to rank tied expression values, `"average"`
-#' (default) or `"max"`
+#' (default) or `"max"`; `"random"` is also accepted here
 #' @param gobject giotto object. When given, only features present in both
 #' datasets are kept.
 #' @returns matrix
@@ -311,7 +313,7 @@ makeSignMatrixDWLS <- function(
 makeSignMatrixRank <- function(
         sc_matrix,
         sc_cluster_ids,
-        ties_method = c("random", "max"),
+        ties_method = c("average", "random", "max"),
         gobject = NULL) {
     if (inherits(sc_matrix, "exprObj")) {
         sc_matrix <- sc_matrix[]
@@ -321,7 +323,8 @@ makeSignMatrixRank <- function(
     }
 
     # select ties_method
-    ties_method <- match.arg(ties_method, choices = c("random", "max"))
+    ties_method <- match.arg(ties_method,
+        choices = c("average", "random", "max"))
 
     # check input
     if (length(sc_cluster_ids) != ncol(sc_matrix)) {
@@ -389,330 +392,6 @@ makeSignMatrixRank <- function(
 ## spatial enrichment functions ####
 
 
-#' @title PAGE permutation
-#' @description creates permutation for the PAGEEnrich test
-#' @returns PAGEEnrich test
-#' @keywords internal
-.do_page_permutation <- function(
-        gobject,
-        sig_gene,
-        ntimes) {
-    # check available gene
-    available_ct <- c()
-    for (i in colnames(sig_gene)) {
-        gene_i <- rownames(sig_gene)[which(sig_gene[, i] == 1)]
-        overlap_i <- intersect(
-            gene_i, rownames(gobject@expression$rna$normalized)
-        )
-        if (length(overlap_i) <= 5) {
-            output <- paste0(
-                "Warning, ", i, " only has ", length(overlap_i),
-                " overlapped genes. Will remove it."
-            )
-        } else {
-            available_ct <- c(available_ct, i)
-        }
-    }
-    if (length(available_ct) == 1) {
-        stop("Only one cell type available.")
-    }
-    # only continue with genes present in both datasets
-    interGene <- intersect(
-        rownames(sig_gene), rownames(gobject@expression$rna$normalized)
-    )
-    sign_matrix <- sig_gene[interGene, available_ct]
-
-    ct_gene_counts <- NULL
-    for (i in seq_len(dim(sign_matrix)[2])) {
-        a <- length(which(sign_matrix[, i] == 1))
-        ct_gene_counts <- c(ct_gene_counts, a)
-    }
-    uniq_ct_gene_counts <- unique(ct_gene_counts)
-    background_mean_sd <- matrix(
-        data = NA, nrow = length(uniq_ct_gene_counts) + 1, ncol = 3
-    )
-    for (i in seq_along(uniq_ct_gene_counts)) {
-        gene_num <- uniq_ct_gene_counts[i]
-        all_sample_names <- NULL
-        all_sample_list <- NULL
-        for (j in seq_len(ntimes)) {
-            GiottoUtils::local_seed(j)
-            random_gene <- sample(rownames(
-                gobject@expression$rna$normalized
-            ), gene_num, replace = FALSE)
-            ct_name <- paste("ct", j, sep = "")
-            all_sample_names <- c(all_sample_names, ct_name)
-            all_sample_list <- c(all_sample_list, list(random_gene))
-        }
-        random_sig <- makeSignMatrixPAGE(all_sample_names, all_sample_list)
-        random_DT <- runPAGEEnrich(
-            gobject,
-            sign_matrix = random_sig,
-            p_value = FALSE
-        )
-        background <- unlist(random_DT[, 2:dim(random_DT)[2]])
-        df_row_name <- paste("gene_num_", uniq_ct_gene_counts[i], sep = "")
-        list_back_i <- c(df_row_name, mean(background), stats::sd(background))
-        background_mean_sd[i, ] <- list_back_i
-    }
-    background_mean_sd[length(uniq_ct_gene_counts) + 1, ] <- c("temp", "0", "1")
-    df_back <- data.frame(background_mean_sd, row.names = 1)
-    colnames(df_back) <- c("mean", "sd")
-    return(df_back)
-}
-
-
-
-
-
-#' @title PAGE data.table method
-#' @param expr_values matrix of expression values
-#' @returns data.table
-#' @keywords internal
-.page_dt_method <- function(
-        sign_matrix,
-        expr_values,
-        min_overlap_genes = 5,
-        logbase = 2,
-        reverse_log_scale = TRUE,
-        output_enrichment = c("original", "zscore"),
-        p_value = FALSE,
-        include_depletion = FALSE,
-        n_times = 1000,
-        max_block = 20e6,
-        verbose = TRUE) {
-    # data.table variables
-    Var1 <- value <- Var2 <- V1 <- marker <- nr_markers <- fc <- cell_ID <-
-        zscore <- colmean <- colSd <- pval <- NULL
-    mean_zscore <- sd_zscore <- pval_score <- NULL
-
-    # output enrichment
-    output_enrichment <- match.arg(
-        output_enrichment,
-        choices = c("original", "zscore")
-    )
-
-    ## identify available cell types
-    all_genes <- rownames(expr_values)
-    sign_matrix <- as.matrix(sign_matrix)
-    sign_matrix_DT <- melt_matrix(sign_matrix)
-    sign_matrix_DT <- sign_matrix_DT[Var1 %in% all_genes]
-    detected_DT <- sign_matrix_DT[, sum(value), by = Var2]
-
-    lost_cell_types_DT <- detected_DT[V1 <= min_overlap_genes]
-    if (nrow(lost_cell_types_DT) > 0) {
-        for (row in seq_len(nrow(lost_cell_types_DT))) {
-            output <- paste0(
-                "Warning, ", lost_cell_types_DT[row][["Var2"]], " only has ",
-                lost_cell_types_DT[row][["V1"]],
-                " overlapping genes. Will be removed."
-            )
-            if (verbose) print(output)
-        }
-    }
-    available_ct <- as.character(detected_DT[V1 > min_overlap_genes][["Var2"]])
-
-    if (length(available_ct) == 1) {
-        stop("Only one cell type available.")
-    }
-
-    # create subset of signature matrix
-    interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
-    filterSig <- sign_matrix[interGene, available_ct]
-
-    # create fold expression for each gene in each spot
-    # calculate mean gene expression
-    if (reverse_log_scale == TRUE) {
-        mean_gene_expr <- log(rowMeans(logbase^expr_values - 1, dims = 1) + 1)
-    } else {
-        mean_gene_expr <- rowMeans(expr_values)
-    }
-    geneFold <- expr_values - mean_gene_expr
-
-    # calculate sample/spot mean and sd
-    cellColMean <- colMeans(geneFold)
-    cellColSd <- apply(geneFold, 2, stats::sd)
-    cellColMeanSd <- data.table::data.table(
-        cell_ID = names(cellColMean),
-        colmean = cellColMean,
-        colSd = cellColSd
-    )
-
-    filterSig_DT <- melt_matrix(filterSig)
-    colnames(filterSig_DT) <- c("gene", "cell_type", "marker")
-    sub_ct_DT <- filterSig_DT[marker == 1]
-    sub_ct_DT[, nr_markers := .N, by = cell_type]
-
-    ## reshape gene fold-expression
-    geneFold_DT <- melt_matrix(geneFold)
-    colnames(geneFold_DT) <- c("gene", "cell_ID", "fc")
-
-    mergetest <- data.table::merge.data.table(
-        sub_ct_DT, geneFold_DT,
-        by = "gene"
-    )
-    mergetest <- mergetest[, mean(fc), by = .(cell_type, cell_ID, nr_markers)]
-    if (is.integer(mergetest$cell_ID) && is.character(cellColMeanSd$cell_ID)) {
-        mergetest$cell_ID <- as.character(mergetest$cell_ID)
-    }
-    mergetest <- data.table::merge.data.table(
-        mergetest, cellColMeanSd,
-        by = "cell_ID"
-    )
-    mergetest[, zscore := ((V1 - colmean) * nr_markers^(1 / 2)) / colSd]
-
-    if (output_enrichment == "zscore") {
-        mergetest[, zscore := scale(zscore), by = "cell_type"]
-    }
-
-
-
-
-    ## return p-values based on permutations ##
-    if (p_value == TRUE) {
-        ## 1. get number of markers instructions ##
-        sample_intrs <- unique(sub_ct_DT[, .(cell_type, nr_markers)])
-
-
-        ## 2. first create the random samples all together ##
-        cell_type_list <- list()
-        perm_type_list <- list()
-        for (row in seq_len(nrow(sample_intrs))) {
-            cell_type <- sample_intrs[row][["cell_type"]]
-            nr_genes <- as.numeric(sample_intrs[row][["nr_markers"]])
-
-            gene_list <- list()
-            perm_list <- list()
-            for (i in seq_len(n_times)) {
-                sampled_genes <- sample(rownames(expr_values), size = nr_genes)
-                gene_list[[i]] <- sampled_genes
-                perm_list[[i]] <- rep(paste0("p_", i), nr_genes)
-            }
-
-            gene_res <- unlist(gene_list)
-            names(gene_res) <- rep(cell_type, length(gene_res))
-            cell_type_list[[row]] <- gene_res
-
-            perm_res <- unlist(perm_list)
-            perm_type_list[[row]] <- perm_res
-        }
-
-        cell_type_perm <- unlist(cell_type_list)
-        perm_round <- unlist(perm_type_list)
-
-        cell_type_perm_DT <- data.table::data.table(
-            cell_type = names(cell_type_perm),
-            gene = cell_type_perm,
-            round = perm_round
-        )
-
-        sample_intrs_vec <- sample_intrs$nr_markers
-        names(sample_intrs_vec) <- sample_intrs$cell_type
-        cell_type_perm_DT[, nr_markers := sample_intrs_vec[cell_type]]
-
-
-        ## 3. decide on number of blocks to process ##
-        nr_perm_lines <- as.numeric(nrow(cell_type_perm_DT))
-        nr_spots <- as.numeric(ncol(expr_values))
-        total_lines <- nr_spots * nr_perm_lines
-        nr_groups <- round(total_lines / max_block)
-
-        ## 4. create groups
-        all_perms <- unique(perm_round)
-        all_perms_num <- seq_along(all_perms)
-        names(all_perms_num) <- all_perms
-        group_labels <- paste0("group_", seq_len(nr_groups))
-        groups_vec <- cut(
-            all_perms_num,
-            breaks = nr_groups, labels = group_labels
-        )
-        names(all_perms) <- groups_vec
-
-
-        ## 5. do random enrichment per block
-        res_list <- list()
-        for (group_i in seq_along(group_labels)) {
-            group <- group_labels[group_i]
-            sub_perms <- all_perms[names(all_perms) == group]
-            cell_type_perm_DT_sub <- cell_type_perm_DT[round %in% sub_perms]
-
-            mergetest_perm_sub <- data.table::merge.data.table(
-                cell_type_perm_DT_sub, geneFold_DT,
-                allow.cartesian = TRUE
-            )
-            mergetest_perm_sub <- mergetest_perm_sub[
-                , mean(fc),
-                by = .(cell_type, cell_ID, nr_markers, round)
-            ]
-            if (is.integer(mergetest_perm_sub$cell_ID) && is.character(
-                cellColMeanSd$cell_ID
-            )) {
-                mergetest_perm_sub$cell_ID <- as.character(
-                    mergetest_perm_sub$cell_ID
-                )
-            }
-            mergetest_perm_sub <- data.table::merge.data.table(
-                mergetest_perm_sub, cellColMeanSd,
-                by = "cell_ID"
-            )
-            mergetest_perm_sub[, zscore := ((
-                V1 - colmean) * nr_markers^(1 / 2)) / colSd]
-
-            res_list[[group_i]] <- mergetest_perm_sub
-        }
-
-        res_list_comb <- do.call("rbind", res_list)
-        res_list_comb_average <- res_list_comb[
-            , .(mean_zscore = mean(zscore), sd_zscore = stats::sd(zscore)),
-            by = c("cell_ID", "cell_type")
-        ]
-        mergetest_final <- data.table::merge.data.table(
-            mergetest, res_list_comb_average,
-            by = c("cell_ID", "cell_type")
-        )
-
-        ## calculate p.values based on normal distribution
-        if (include_depletion == TRUE) {
-            mergetest_final[, pval := stats::pnorm(
-                abs(zscore),
-                mean = mean_zscore, sd = sd_zscore,
-                lower.tail = FALSE, log.p = FALSE
-            )]
-        } else {
-            mergetest_final[, pval := stats::pnorm(
-                zscore,
-                mean = mean_zscore, sd = sd_zscore,
-                lower.tail = FALSE, log.p = FALSE
-            )]
-        }
-
-        data.table::setorder(mergetest_final, pval)
-
-        ## calculate pval_score
-        if (include_depletion == TRUE) {
-            mergetest_final[, pval_score := sign(zscore) * -log10(pval)]
-        } else {
-            mergetest_final[, pval_score := -log10(pval)]
-        }
-
-
-        resultmatrix <- data.table::dcast(
-            mergetest_final,
-            formula = cell_ID ~ cell_type,
-            value.var = "pval_score"
-        )
-        return(list(DT = mergetest_final, matrix = resultmatrix))
-    } else {
-        resultmatrix <- data.table::dcast(
-            mergetest,
-            formula = cell_ID ~ cell_type, value.var = "zscore"
-        )
-        return(list(DT = mergetest, matrix = resultmatrix))
-    }
-}
-
-
-
 #' @rdname enrichment_PAGE
 #' @export
 runPAGEEnrich <- function(
@@ -764,15 +443,13 @@ runPAGEEnrich <- function(
         method = "PAGE", name = name,
         spat_unit = spat_unit, feat_type = feat_type,
         values = values, expression_values = expression_values,
-        densify = TRUE,
         misc = list(
             expr_values_used = expression_values,
             reverse_log_scale = reverse_log_scale,
             logbase = logbase,
             p_values_calculated = p_value,
             output_enrichment_scores = output_enrichment,
-            include_depletion = include_depletion,
-            nr_permutations = n_times
+            include_depletion = include_depletion
         ),
         history = c(
             "method used" = "PAGE",
@@ -782,17 +459,12 @@ runPAGEEnrich <- function(
             "logbase" = logbase,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value,
-            "include depletion" = include_depletion,
-            "nr permutations" = n_times
+            "include depletion" = include_depletion
         ),
         return_gobject = return_gobject
     )
 
-    if (isTRUE(return_gobject)) return(out$gobject)
-    # PAGE is the only one of the four that returns a list. Kept as it was:
-    # changing it is a breaking change to a public return value and belongs in
-    # its own commit, not in a refactor that is meant to be a no-op.
-    list(DT = out$detail, matrix = out$enrObj)
+    if (isTRUE(return_gobject)) out$gobject else out$enrObj
 }
 
 
@@ -830,7 +502,9 @@ runPAGEEnrich <- function(
 #' @param n_times number of permutation iterations to calculate p-value
 #' @param rbp_p fractional binarization threshold (default = 0.99)
 #' @param num_agg number of top genes to aggregate (default = 100)
-#' @returns data.table with enrichment results
+#' @returns `giotto` (`return_gobject = TRUE`), else a `spatEnrObj`, or with
+#' `p_value = TRUE` a list of them named by enrichment: the scores, `_p` and
+#' `_padj`
 #' @details
 #' sign_matrix: a rank-fold matrix with genes as row names and cell-types as
 #' column names.
@@ -958,7 +632,6 @@ runRankEnrich <- function(
             "expression values" = expression_values,
             "reverse log scale" = reverse_log_scale,
             "logbase" = logbase,
-            "p-values calculated" = p_value,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value,
             "nr permutations" = n_times
@@ -981,7 +654,9 @@ runRankEnrich <- function(
 #' @inheritParams enrichment_params
 #' @param top_percentage percentage of features per cell treated as expressed
 #' when binarizing (default = 5)
-#' @returns data.table with enrichment results
+#' @returns `giotto` (`return_gobject = TRUE`), else a `spatEnrObj`, or with
+#' `p_value = TRUE` a list of them named by enrichment: the scores, `_p` and
+#' `_padj`
 #' @details The enrichment score is calculated based on the p-value from the
 #' hypergeometric test, -log10(p-value).
 #' @md
@@ -1057,7 +732,6 @@ runHyperGeometricEnrich <- function(
             "reverse log scale" = reverse_log_scale,
             "logbase" = logbase,
             "top percentage" = top_percentage,
-            "p-values calculated" = p_value,
             "output enrichment scores" = output_enrichment,
             "p values calculated" = p_value
         ),
@@ -1081,15 +755,15 @@ runHyperGeometricEnrich <- function(
 #' @param enrich_method method for gene signature enrichment calculation
 #' @param min_overlap_genes minimum number of overlapping features in
 #' `sign_matrix` required to calculate enrichment (PAGE)
-#' @param include_depletion (PAGE) also test for depletion, not enrichment
-#' only (default = FALSE)
+#' @param include_depletion (PAGE) test depletion as well as enrichment, on
+#' the absolute z-score (default = FALSE)
 #' @param ties_method (rank) how to rank tied expression values, `"average"`
 #' (default) or `"max"`
-#' @param n_times (page/rank) number of permutation iterations to calculate
+#' @param n_times (rank) number of permutation iterations to calculate
 #' p-value
 #' @param rbp_p (rank) fractional binarization threshold (default = 0.99)
 #' @param num_agg (rank) number of top genes to aggregate (default = 100)
-#' @param max_block number of lines to process together (default = 20e6)
+#' @param max_block no longer used; kept so existing calls still run
 #' @param top_percentage (hyper) percentage of features per cell treated as
 #' expressed when binarizing (default = 5)
 #' @param verbose be verbose
@@ -1222,7 +896,7 @@ runSpatialEnrich <- function(
 
 
 #' @title Spatial autocorrelation
-#' @name spatialAutoCor
+#' @name spatialAutoCorGlobalLocal
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
@@ -1242,7 +916,10 @@ runSpatialEnrich <- function(
 #' @param weight_matrix alternative method of directly supplying a spatial
 #' weight matrix
 #' @param test_method method to test values for significance (default is no
-#' testing)
+#' testing). `"monte_carlo"` permutes the values `mc_nsim` times;
+#' `"analytic"` uses the closed-form randomisation null (the exact mean and
+#' variance over all permutations, Cliff and Ord 1981) and returns its
+#' one-sided p-value for positive autocorrelation (see [spatAutoCorParam()])
 #' @param verbose be verbose
 #' @returns spatial autocorrelation
 #' @description Find spatial autocorrelation. Note that
@@ -1271,7 +948,7 @@ NULL
 
 
 
-#' @describeIn spatialAutoCor Global autocorrelation (single value returned)
+#' @describeIn spatialAutoCorGlobalLocal Global autocorrelation (single value returned)
 #'
 #' @param mc_nsim when \code{test_method = 'monte_carlo'} this is number of
 #' simulations to perform
@@ -1299,14 +976,15 @@ spatialAutoCorGlobal <- function(
         wm_name = "spat_weights",
         node_values = NULL,
         weight_matrix = NULL,
-        test_method = c("none", "monte_carlo"),
+        test_method = c("none", "monte_carlo", "analytic"),
         mc_nsim = 99,
         cor_name = NULL,
         return_gobject = FALSE,
         verbose = TRUE) {
     # 0. determine inputs
     method <- match.arg(method, choices = c("moran", "geary"))
-    test_method <- match.arg(test_method, choices = c("none", "monte_carlo"))
+    test_method <- match.arg(test_method,
+        choices = c("none", "monte_carlo", "analytic"))
     data_to_use <- match.arg(
         data_to_use,
         choices = c("expression", "cell_meta")
@@ -1407,15 +1085,27 @@ spatialAutoCorGlobal <- function(
 
 
     # 2. perform autocor
-    res_dt <- .run_spat_autocor_global(
-        use_values = use_values,
-        feats = feats,
-        weight_matrix = weight_matrix,
-        method = method,
-        test_method = test_method,
-        mc_nsim = mc_nsim,
-        cor_name = cor_name
-    )
+    if (test_method == "analytic") {
+        ac <- .spat_autocor_weights(
+            use_values = use_values, feats = feats,
+            weight_matrix = weight_matrix, method = method
+        )
+        res_dt <- data.table::data.table(
+            feat_ID = ac$feats, statistic = ac$statistic, p = ac$p.value
+        )
+        data.table::setnames(res_dt, c("statistic", "p"),
+            c(cor_name, paste0(cor_name, "_analytic")))
+    } else {
+        res_dt <- .run_spat_autocor_global(
+            use_values = use_values,
+            feats = feats,
+            weight_matrix = weight_matrix,
+            method = method,
+            test_method = test_method,
+            mc_nsim = mc_nsim,
+            cor_name = cor_name
+        )
+    }
 
     # return info
     if (isTRUE(return_gobject)) {
@@ -1441,7 +1131,7 @@ spatialAutoCorGlobal <- function(
 }
 
 
-#' @describeIn spatialAutoCor Local autocorrelation
+#' @describeIn spatialAutoCorGlobalLocal Local autocorrelation
 #' (values generated for each spatial ID)
 #'
 #' @param enrich_name name to assign local autocorrelation spatial enrichment
@@ -1993,490 +1683,6 @@ spatialAutoCorLocal <- function(
 ## spatial deconvolution functions ####
 
 
-#' @title enrich_deconvolution
-#' @description Rui to fill in
-#' @returns matrix
-#' @keywords internal
-enrich_deconvolution <- function(
-        expr,
-        log_expr,
-        cluster_info,
-        ct_exp,
-        cutoff) {
-    ##### generate enrich 0/1 matrix based on expression matrix
-    ct_exp <- ct_exp[rowSums(ct_exp) > 0, , drop = FALSE]
-    enrich_matrix <- matrix(0, nrow = dim(ct_exp)[1], ncol = dim(ct_exp)[2])
-    rowmax_col <- Rfast::rowMaxs(ct_exp)
-    for (i in seq_along(rowmax_col)) {
-        enrich_matrix[i, rowmax_col[i]] <- 1
-    }
-    colsum_ct_binary <- colSums(enrich_matrix)
-    for (i in seq_along(colsum_ct_binary)) {
-        if (colsum_ct_binary[i] <= 2) {
-            rank <- rank(-ct_exp[, i])
-            enrich_matrix[rank <= 2, i] <- 1
-        }
-    }
-    rownames(enrich_matrix) <- rownames(ct_exp)
-    colnames(enrich_matrix) <- colnames(ct_exp)
-
-    ##### page enrich
-    enrich_result <- enrich_analysis(log_expr, enrich_matrix)
-    ##### initialize dwls matrix
-    dwls_results <- matrix(0, nrow = dim(enrich_matrix)[2], ncol = dim(expr)[2])
-    rownames(dwls_results) <- colnames(enrich_matrix)
-    colnames(dwls_results) <- colnames(expr)
-    cluster_sort <- mixedsort(unique(cluster_info))
-    cluster_info <- cluster_info
-    for (i in seq_along(cluster_sort)) {
-        cluster_i_enrich <- enrich_result[
-            , which(cluster_info == cluster_sort[i])
-        ]
-        row_i_max <- Rfast::rowMaxs(cluster_i_enrich, value = TRUE)
-        ct <- rownames(enrich_result)[which(row_i_max > cutoff)]
-        if (length(ct) < 2) {
-            sort_rank <- sort(row_i_max, decreasing = TRUE)
-            ct <- rownames(enrich_result)[which(row_i_max >= sort_rank[2])]
-        }
-        ct_gene <- c()
-        for (j in seq_along(ct)) {
-            sig_gene_j <- rownames(enrich_matrix)[
-                which(enrich_matrix[, ct[j]] == 1)
-            ]
-            ct_gene <- c(ct_gene, sig_gene_j)
-        }
-        uniq_ct_gene <- intersect(rownames(expr), unique(ct_gene))
-        select_sig_exp <- ct_exp[uniq_ct_gene, ct, drop = FALSE]
-        cluster_i_cell <- which(cluster_info == cluster_sort[i])
-        cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell, drop = FALSE]
-
-        cluster_i_dwls <- optimize_deconvolute_dwls(
-            cluster_cell_exp, select_sig_exp
-        )
-        dwls_results[ct, cluster_i_cell] <- cluster_i_dwls
-    }
-    ##### remove negative values
-    for (i in dim(dwls_results)[1]) {
-        negtive_index <- which(dwls_results[i, ] < 0)
-        dwls_results[i, negtive_index] <- 0
-        ####* fixed a typo, with "==" the negative values weren't removed
-    }
-    return(dwls_results)
-}
-
-
-#' @title spot_deconvolution
-#' @description Rui to fill in
-#' @returns matrix
-#' @keywords internal
-spot_deconvolution <- function(
-        expr,
-        cluster_info,
-        ct_exp,
-        binary_matrix) {
-    ##### generate enrich 0/1 matrix based on expression matrix
-    enrich_matrix <- matrix(0, nrow = dim(ct_exp)[1], ncol = dim(ct_exp)[2])
-    rowmax_col <- Rfast::rowMaxs(ct_exp)
-    for (i in seq_along(rowmax_col)) {
-        enrich_matrix[i, rowmax_col[i]] <- 1
-    }
-    rownames(enrich_matrix) <- rownames(ct_exp)
-    colnames(enrich_matrix) <- colnames(ct_exp)
-
-    cluster_sort <- mixedsort(unique(cluster_info))
-    #### initialize dwls matrix
-    dwls_results <- matrix(0, nrow = dim(ct_exp)[2], ncol = dim(expr)[2])
-    rownames(dwls_results) <- colnames(ct_exp)
-    colnames(dwls_results) <- colnames(expr)
-
-    for (i in seq_along(cluster_sort)) {
-        cluster_i_matrix <- binary_matrix[
-            , which(cluster_info == cluster_sort[i])
-        ]
-        row_i_max <- Rfast::rowMaxs(cluster_i_matrix, value = TRUE)
-        ct_i <- rownames(cluster_i_matrix)[which(row_i_max == 1)]
-        ######## calculate proportion based on binarized deconvolution
-        ######## results at first step
-        if (length(ct_i) == 1) {
-            dwls_results[ct_i[1], which(cluster_info == cluster_sort[i])] == 1
-        } else {
-            ct_gene <- c()
-            for (j in seq_along(ct_i)) {
-                sig_gene_j <- rownames(enrich_matrix)[
-                    which(enrich_matrix[, ct_i[j]] == 1)
-                ]
-                ct_gene <- c(ct_gene, sig_gene_j)
-            }
-            uniq_ct_gene <- intersect(rownames(expr), unique(ct_gene))
-            select_sig_exp <- ct_exp[uniq_ct_gene, ct_i, drop = FALSE]
-            cluster_i_cell <- which(cluster_info == cluster_sort[i])
-            cluster_cell_exp <- expr[uniq_ct_gene, cluster_i_cell, drop = FALSE]
-            ###### calculate
-            ###### overlap signature with spatial genes
-            all_exp <- Matrix::rowMeans(cluster_cell_exp)
-            solution_all_exp <- solve_OLS_internal(select_sig_exp, all_exp)
-            constant_J <- find_dampening_constant(
-                select_sig_exp, all_exp, solution_all_exp
-            )
-            ###### deconvolution for each spot
-            for (k in seq_len(dim(cluster_cell_exp)[2])) {
-                B <- Matrix::as.matrix(cluster_cell_exp[, k])
-                ct_spot_k <- rownames(cluster_i_matrix)[
-                    which(cluster_i_matrix[, k] == 1)
-                ]
-                if (sum(B) == 0 || length(ct_spot_k) == 0) {
-                    ####* must include the case where all genes are 0
-                    dwls_results[, colnames(cluster_cell_exp)[k]] <- NA
-                    ####* will produce NAs for some spots in the output
-                    next ####* no need to look into this spot any more
-                }
-                if (length(ct_spot_k) == 1) {
-                    dwls_results[
-                        ct_spot_k[1], colnames(cluster_cell_exp)[k]
-                    ] <- 1
-                } else {
-                    ct_k_gene <- c()
-                    for (m in seq_along(ct_spot_k)) {
-                        sig_gene_k <- rownames(enrich_matrix)[which(
-                            enrich_matrix[, ct_spot_k[m]] == 1
-                        )]
-                        ct_k_gene <- c(ct_k_gene, sig_gene_k)
-                    }
-                    uniq_ct_k_gene <- intersect(
-                        rownames(ct_exp), unique(ct_k_gene)
-                    )
-                    S_k <- Matrix::as.matrix(ct_exp[uniq_ct_k_gene, ct_spot_k])
-                    if (sum(B[uniq_ct_k_gene, ]) == 0) {
-                        ####* must include the case all genes are 0
-                        dwls_results[, colnames(cluster_cell_exp)[k]] <- NA
-                        ####* will produce NAs for some spots in the output
-                    } else {
-                        solDWLS <- optimize_solveDampenedWLS(S_k, B[
-                            uniq_ct_k_gene,
-                        ], constant_J)
-                        dwls_results[
-                            names(solDWLS),
-                            colnames(cluster_cell_exp)[k]
-                        ] <- solDWLS
-                    }
-                }
-            }
-        }
-    }
-    ##### remove negative values
-    for (i in dim(dwls_results)[1]) {
-        negtive_index <- which(dwls_results[i, ] < 0)
-        dwls_results[i, negtive_index] <- 0
-    }
-    return(dwls_results)
-}
-
-
-
-#' @title cluster_enrich_analysis
-#' @description Rui to fill in
-#' @returns enrichment values
-#' @keywords internal
-cluster_enrich_analysis <- function(
-        exp_matrix,
-        cluster_info,
-        enrich_sig_matrix) {
-    uniq_cluster <- mixedsort(unique(cluster_info))
-    if (length(uniq_cluster) == 1) {
-        stop("Only one cluster identified, need at least two.")
-    }
-    cluster_exp <- NULL
-    for (i in uniq_cluster) {
-        cluster_exp <- cbind(
-            cluster_exp,
-            (apply(
-                exp_matrix, 1,
-                function(y) mean(y[which(cluster_info == i)])
-            ))
-        )
-    }
-    log_cluster_exp <- log2(cluster_exp + 1)
-    colnames(log_cluster_exp) <- uniq_cluster
-    cluster_enrich <- enrich_analysis(log_cluster_exp, enrich_sig_matrix)
-    return(cluster_enrich)
-}
-
-
-#' @title enrich_analysis
-#' @description Rui to fill in
-#' @returns enrichment matrix
-#' @keywords internal
-enrich_analysis <- function(
-        expr_values,
-        sign_matrix) {
-    # output enrichment
-    # only continue with genes present in both datasets
-    interGene <- intersect(rownames(sign_matrix), rownames(expr_values))
-    filterSig <- sign_matrix[interGene, ]
-    signames <- rownames(filterSig)[which(filterSig[, 1] == 1)]
-    # calculate mean gene expression
-    # mean_gene_expr = rowMeans(expr_values)
-    mean_gene_expr <- log2(Matrix::rowMeans(2^expr_values - 1, dims = 1) + 1)
-    geneFold <- expr_values - mean_gene_expr
-    # calculate sample/spot mean and sd
-    cellColMean <- apply(geneFold, 2, mean)
-    cellColSd <- apply(geneFold, 2, stats::sd)
-
-    # get enrichment scores
-    enrichment <- matrix(
-        data = NA, nrow = dim(filterSig)[2], ncol = length(cellColMean)
-    )
-    for (i in seq_len(dim(filterSig)[2])) {
-        signames <- rownames(filterSig)[which(filterSig[, i] == 1)]
-        sigColMean <- apply(geneFold[signames, ], 2, mean)
-        m <- length(signames)
-        vectorX <- NULL
-        for (j in (seq_along(cellColMean))) {
-            Sm <- sigColMean[j]
-            u <- cellColMean[j]
-            sigma <- cellColSd[j]
-            zscore <- (Sm - u) * m^(1 / 2) / sigma
-            vectorX <- append(vectorX, zscore)
-        }
-        enrichment[i, ] <- vectorX
-    }
-    rownames(enrichment) <- colnames(filterSig)
-    colnames(enrichment) <- names(cellColMean)
-    return(enrichment)
-}
-
-
-
-#' @title optimize_deconvolute_dwls
-#' @description Rui to fill in
-#' @returns matrix
-#' @keywords internal
-optimize_deconvolute_dwls <- function(
-        exp,
-        Signature) {
-    ###### overlap signature with spatial genes
-    Genes <- intersect(rownames(Signature), rownames(exp))
-    S <- Signature[Genes, ]
-    S <- Matrix::as.matrix(S)
-    Bulk <- Matrix::as.matrix(exp)
-    subBulk <- Bulk[Genes, ]
-    allCounts_DWLS <- NULL
-    all_exp <- Matrix::rowMeans(exp)
-
-    solution_all_exp <- solve_OLS_internal(S, all_exp[Genes])
-
-    constant_J <- find_dampening_constant(S, all_exp[Genes], solution_all_exp)
-    for (j in seq_len(dim(subBulk)[2])) {
-        B <- subBulk[, j]
-        if (sum(B) > 0) {
-            solDWLS <- optimize_solveDampenedWLS(S, B, constant_J)
-        } else {
-            # solDWLS <- rep(0, length(B))  ####*  wrong dimension,
-            # causes warnings
-            solDWLS <- rep(0, ncol(S)) ####* corrected dim
-            # names(solDWLS) <- names(B)  ####*  wrong dim name
-            names(solDWLS) <- colnames(S) ####* corrected dim name
-        }
-        allCounts_DWLS <- cbind(allCounts_DWLS, solDWLS)
-    }
-    colnames(allCounts_DWLS) <- colnames(exp)
-    return(allCounts_DWLS)
-}
-
-
-#' @title optimize_solveDampenedWLS
-#' @returns numeric
-#' @keywords internal
-optimize_solveDampenedWLS <- function(
-        S,
-        B,
-        constant_J) {
-    # first solve OLS, use this solution to find a starting point for the
-    # weights
-    solution <- solve_OLS_internal(S, B)
-    # now use dampened WLS, iterate weights until convergence
-    iterations <- 0
-    changes <- c()
-    # find dampening constant for weights using cross-validation
-    j <- constant_J
-    change <- 1
-
-    while (change > .01 & iterations < 1000) {
-        newsolution <- solve_dampened_WLSj(S, B, solution, j)
-        # decrease step size for convergence
-        solutionAverage <- rowMeans(cbind(
-            newsolution,
-            matrix(solution,
-                nrow = length(solution),
-                ncol = 4
-            )
-        ))
-        change <- norm(Matrix::as.matrix(solutionAverage - solution))
-        solution <- solutionAverage
-        iterations <- iterations + 1
-        changes <- c(changes, change)
-    }
-
-
-    return(solution / sum(solution))
-}
-
-
-#' @title find_dampening_constant
-#' @description find a dampening constant for the weights using cross-validation
-#' @returns numeric
-#' @keywords internal
-find_dampening_constant <- function(
-        S,
-        B,
-        goldStandard) {
-    solutionsSd <- NULL
-
-    # goldStandard is used to define the weights
-    sol <- goldStandard
-    ws <- as.vector((1 / (S %*% sol))^2)
-    wsScaled <- ws / min(ws)
-    wsScaledMinusInf <- wsScaled
-
-    # ignore infinite weights
-    if (max(wsScaled) == "Inf") {
-        wsScaledMinusInf <- wsScaled[-which(wsScaled == "Inf")]
-    }
-
-    # try multiple values of the dampening constant (multiplier)
-    # for each, calculate the variance of the dampened weighted solution for
-    # a subset of genes
-    for (j in seq_len(ceiling(log2(max(wsScaledMinusInf))))) {
-        multiplier <- 1 * 2^(j - 1)
-        wsDampened <- wsScaled
-        wsDampened[which(wsScaled > multiplier)] <- multiplier
-        solutions <- NULL
-        seeds <- seq_len(100)
-        for (i in seq_len(100)) {
-            GiottoUtils::local_seed(seeds[i]) # make nondeterministic
-            subset <- sample(length(ws), size = length(ws) * 0.5)
-            # randomly select half of gene set
-
-            # solve dampened weighted least squares for subset
-            fit <- stats::lm(
-                B[subset] ~ -1 + S[subset, , drop = FALSE],
-                weights = wsDampened[subset]
-            )
-            sol <- fit$coef * sum(goldStandard) / sum(fit$coef)
-            solutions <- cbind(solutions, sol)
-        }
-        solutionsSd <- cbind(solutionsSd, apply(solutions, 1, stats::sd))
-    }
-
-    # choose dampening constant that results in least cross-validation variance
-    j <- which.min(colMeans(solutionsSd^2))
-    return(j)
-}
-
-
-#' @title solve_OLS_internal
-#' @description basic functions for dwls
-#' @returns numeric
-#' @keywords internal
-solve_OLS_internal <- function(
-        S,
-        B) {
-    D <- t(S) %*% S
-    d <- t(S) %*% B
-    A <- cbind(diag(dim(S)[2]))
-    bzero <- c(rep(0, dim(S)[2]))
-
-
-    out <- tryCatch(
-        expr = {
-            quadprog::solve.QP(
-                Dmat = D,
-                dvec = d,
-                Amat = A,
-                bvec = bzero
-            )$solution
-        },
-        error = function(cond) {
-            message("Original error message:")
-            message(cond)
-
-            message("Will try to fix error with Matrix::nearPD()")
-            return(NULL)
-        }
-    )
-
-
-    if (is.null(out)) {
-        D <- Matrix::nearPD(D)
-        D <- as.matrix(D$mat)
-
-        out <- tryCatch(
-            expr = {
-                quadprog::solve.QP(
-                    Dmat = D,
-                    dvec = d,
-                    Amat = A,
-                    bvec = bzero
-                )$solution
-            },
-            error = function(cond) {
-                message("Original error message:")
-                message(cond)
-
-                message("nearPD() did not fix the error")
-                return(NULL)
-            }
-        )
-
-        if (is.null(out)) {
-            stop("Errors could not be fixed")
-        } else {
-            names(out) <- colnames(S)
-        }
-    } else {
-        names(out) <- colnames(S)
-    }
-
-    return(out)
-}
-
-#
-#' @title solve_dampened_WLSj
-#' @description solve WLS given a dampening constant
-#' @returns matrix
-#' @keywords internal
-solve_dampened_WLSj <- function(
-        S,
-        B,
-        goldStandard,
-        j) {
-    multiplier <- 1 * 2^(j - 1)
-    sol <- goldStandard
-    ws <- as.vector((1 / (S %*% sol))^2)
-    wsScaled <- ws / min(ws)
-    wsDampened <- wsScaled
-    wsDampened[which(wsScaled > multiplier)] <- multiplier
-    W <- diag(wsDampened)
-    D <- t(S) %*% W %*% S
-    d <- t(S) %*% W %*% B
-    A <- cbind(diag(dim(S)[2]))
-    bzero <- c(rep(0, dim(S)[2]))
-    sc <- norm(D, "2")
-
-    D_positive_definite <- Matrix::nearPD(x = D / sc)
-
-    solution <- quadprog::solve.QP(
-        Dmat = as.matrix(D_positive_definite$mat),
-        dvec = d / sc,
-        Amat = A,
-        bvec = bzero
-    )$solution
-
-    names(solution) <- colnames(S)
-    return(solution)
-}
-
-
 #' @title Estimate cell type proportions with spatialDWLS
 #' @description Estimate what fraction of each spatial position is made up of
 #' each cell type, given a mean-expression reference from single-cell data.
@@ -2484,7 +1690,17 @@ solve_dampened_WLSj <- function(
 #' composition: the values for a position sum to one.
 #' @inheritParams signature_analysis_params
 #' @inheritParams deconvolution_params
+#' @param na_as_zero logical. Positions with no signal on the signature
+#' features cannot be solved and are `NA` by default; `TRUE` returns them as
+#' 0 instead.
+#' @param BPPARAM a `BiocParallelParam` used for the per-position solves.
+#' `NULL` (default) uses `getOption("giotto.bpparam")` when that is a parallel
+#' param and runs serially otherwise.
 #' @returns giotto object or deconvolution results
+#' @details
+#' The work is done by [analyzeData()] with a [deconvParam()], dispatched on
+#' the expression object, so a disk-backed expression store can supply its
+#' own streaming implementation.
 #' @md
 #' @family spatial deconvolution
 #' @seealso \url{https://github.com/dtsoucas/DWLS} for the \emph{DWLS} bulk
@@ -2516,16 +1732,11 @@ runDWLSDeconv <- function(
         n_cell = 50,
         cutoff = 2,
         name = NULL,
-        return_gobject = TRUE) {
-    # verify if optional package is installed
-    package_check(pkg_name = "quadprog", repository = "CRAN")
-    package_check(pkg_name = "Rfast", repository = "CRAN")
-
-    ## check parameters ##
+        return_gobject = TRUE,
+        na_as_zero = FALSE,
+        BPPARAM = NULL) {
     if (is.null(name)) name <- "DWLS"
 
-
-    # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
         spat_unit = spat_unit
@@ -2535,11 +1746,39 @@ runDWLSDeconv <- function(
         spat_unit = spat_unit,
         feat_type = feat_type
     )
-
     values <- match.arg(
         expression_values,
         unique(c("normalized", "scaled", "custom", expression_values))
     )
+
+    # Keyed by cell_ID rather than handed over positionally: expression and
+    # metadata come from independent accessors and need not share an order.
+    cell_metadata <- pDataDT(gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type
+    )
+    if (!cluster_column %in% colnames(cell_metadata)) {
+        stop("cluster column not found")
+    }
+    clusters <- stats::setNames(
+        cell_metadata[[cluster_column]], cell_metadata$cell_ID
+    )
+
+    param <- deconvParam("DWLS",
+        logbase = logbase,
+        n_cell = n_cell,
+        cutoff = cutoff,
+        na_as_zero = na_as_zero,
+        BPPARAM = BPPARAM
+    )
+    misc <- list(
+        expr_values_used = expression_values,
+        logbase = logbase,
+        cluster_column_used = cluster_column,
+        number_of_cells_per_spot = n_cell,
+        used_cut_off = cutoff
+    )
+
     expr_values <- getExpression(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -2548,106 +1787,49 @@ runDWLSDeconv <- function(
         output = "exprObj"
     )
 
-    # #transform expression data to no log data
-    nolog_expr <- logbase^(expr_values[]) - 1
-
-    # cluster column
-    cell_metadata <- pDataDT(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-    if (!cluster_column %in% colnames(cell_metadata)) {
-        stop("cluster column not found")
-    }
-    cluster <- cell_metadata[[cluster_column]]
-
-
-    ##### getting overlapped gene lists
-    sign_matrix <- as.matrix(sign_matrix)
-    intersect_gene <- intersect(rownames(sign_matrix), rownames(nolog_expr))
-    filter_Sig <- sign_matrix[intersect_gene, ]
-    filter_expr <- nolog_expr[intersect_gene, ]
-    filter_log_expr <- expr_values[][intersect_gene, ]
-
-    ##### first round spatial deconvolution ##spot or cluster
-    enrich_spot_proportion <- enrich_deconvolution(
-        expr = filter_expr,
-        log_expr = filter_log_expr,
-        cluster_info = cluster,
-        ct_exp = filter_Sig,
-        cutoff = cutoff
+    # Dispatched on the expression object: a disk-backed store arrives intact
+    # and routes to its own streaming method.
+    res <- analyzeData(
+        x = expr_values[], param = param,
+        sign_matrix = sign_matrix, cell_clusters = clusters
     )
 
-    #### re-deconvolution based on spatial resolution
-    resolution <- (1 / n_cell)
-    binarize_proportion <- ifelse(enrich_spot_proportion >= resolution, 1, 0)
-    spot_proportion <- spot_deconvolution(
-        expr = filter_expr,
-        cluster_info = cluster,
-        ct_exp = filter_Sig,
-        binary_matrix = binarize_proportion
-    )
-    deconvolutionDT <- data.table::data.table(
-        cell_ID = colnames(spot_proportion)
-    )
-    deconvolutionDT <- cbind(
-        deconvolutionDT, data.table::as.data.table(t(spot_proportion))
-    )
-
-    # create spatial enrichment object
     enrObj <- createSpatEnrObj(
         name = name,
         method = "DWLS",
-        enrichment_data =deconvolutionDT,
+        enrichment_data = res,
         spat_unit = spat_unit,
         feat_type = feat_type,
         provenance = expr_values@provenance,
-        misc = list(
-            expr_values_used = expression_values,
-            logbase = logbase,
-            cluster_column_used = cluster_column,
-            number_of_cells_per_spot = n_cell,
-            used_cut_off = cutoff
-        )
+        misc = misc
     )
 
-    ## return object or results ##
-    if (return_gobject == TRUE) {
-        spenr_names <- list_spatial_enrichments_names(gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type
-        )
-
-        if (name %in% spenr_names) {
-            cat(name, " has already been used, will be overwritten")
-        }
-
-        ## update parameters used ##
-        parameters_list <- gobject@parameters
-        number_of_rounds <- length(parameters_list)
-        update_name <- paste0(number_of_rounds, "_spatial_deconvolution")
-
-        # parameters to include
-        parameters_list[[update_name]] <- c(
-            "method used" = "DWLS",
-            "deconvolution name" = name,
-            "expression values" = expression_values,
-            "logbase" = logbase,
-            "cluster column used" = cluster_column,
-            "number of cells per spot" = n_cell,
-            "used cut off" = cutoff
-        )
-
-        gobject@parameters <- parameters_list
-
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        gobject <- setGiotto(gobject, enrObj)
-        ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-        return(gobject)
-    } else {
+    if (!isTRUE(return_gobject)) {
         return(enrObj)
     }
+
+    spenr_names <- list_spatial_enrichments_names(gobject,
+        spat_unit = spat_unit,
+        feat_type = feat_type
+    )
+    if (name %in% spenr_names) {
+        cat(name, " has already been used, will be overwritten")
+    }
+
+    parameters_list <- gobject@parameters
+    update_name <- paste0(length(parameters_list), "_spatial_deconvolution")
+    parameters_list[[update_name]] <- c(
+        "method used" = "DWLS",
+        "deconvolution name" = name,
+        "expression values" = expression_values,
+        "logbase" = logbase,
+        "cluster column used" = cluster_column,
+        "number of cells per spot" = n_cell,
+        "used cut off" = cutoff
+    )
+    gobject@parameters <- parameters_list
+
+    setGiotto(gobject, enrObj)
 }
 
 
@@ -2659,6 +1841,7 @@ runDWLSDeconv <- function(
 #' argument is forwarded to the chosen method.
 #' @inheritParams signature_analysis_params
 #' @inheritParams deconvolution_params
+#' @inheritParams runDWLSDeconv
 #' @param deconv_method method to use for deconvolution
 #' @returns giotto object or deconvolution results
 #' @md
@@ -2691,7 +1874,9 @@ runSpatialDeconv <- function(
         n_cell = 50,
         cutoff = 2,
         name = NULL,
-        return_gobject = TRUE) {
+        return_gobject = TRUE,
+        na_as_zero = FALSE,
+        BPPARAM = NULL) {
     deconv_method <- match.arg(deconv_method, choices = c("DWLS"))
 
 
@@ -2707,7 +1892,9 @@ runSpatialDeconv <- function(
             n_cell = n_cell,
             cutoff = cutoff,
             name = name,
-            return_gobject = return_gobject
+            return_gobject = return_gobject,
+            na_as_zero = na_as_zero,
+            BPPARAM = BPPARAM
         )
     }
 

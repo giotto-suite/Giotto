@@ -90,6 +90,30 @@ group regardless of the gates, so a group is never empty.
 
 The gates are OR'd with \code{min_feats}, so tightening them shrinks the result
 toward \code{min_feats} per group and never below it.
+}
+
+\section{detection_margin}{
+
+
+Both comparisons also return a \code{detection_margin} column: per (feature,
+group), how many percentage points more of that group's cells detect the
+feature than of the next-highest \strong{single} group's.
+
+\deqn{\LARGE \mathrm{margin}(g,k) = d_{gk} - \max_{j \neq k} d_{gj}}
+
+It answers a different question from the coefficients beside it. The gini
+columns rank features \emph{within} a group; this measures whether a group has any
+feature of its own at all, which is what distinguishes a real population from
+an overclustered fragment. Two properties make it comparable across groups
+where \code{comb_score} is not: the contrast is against one other group rather
+than the pooled remainder, so it does not inherit the \eqn{N - n_k} term that
+makes the one-vs-rest coefficients fall as a group grows; and it is not
+rescaled within group, so \code{max(detection_margin)} per group means the same
+thing in every group.
+
+It is measured in percentage points and is negative where another group
+detects the feature more often. A value of zero for a group's best feature
+means no feature is more detected there than everywhere else.
 
 Defaults here are \code{\link[=findGiniMarkers]{findGiniMarkers()}}'s. \code{\link[=findGiniMarkers_one_vs_all]{findGiniMarkers_one_vs_all()}}
 passes \code{min_expression = 0.5}, \code{min_detection = 0.5} and \code{min_feats = 4}

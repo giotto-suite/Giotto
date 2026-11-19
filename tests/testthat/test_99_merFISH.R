@@ -243,7 +243,7 @@ describe("Integrative testing with merfish dataset", {
         expect_named(markers, c(
             "feats", "cluster", "expression", "expression_gini",
             "detection", "detection_gini", "expression_rank",
-            "detection_rank", "comb_score", "comb_rank"
+            "detection_rank", "comb_score", "comb_rank", "detection_margin"
         ))
         
         # number of markers

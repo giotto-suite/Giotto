@@ -210,3 +210,40 @@ test_that("MAST labels comparisons rather than bare clusters", {
     expect_type(res$cluster, "character")
     expect_true(all(grepl("_vs_others$", res$cluster)))
 })
+
+
+test_that("findScranMarkers_one_vs_all reports pi and orders by it", {
+    skip_if_not_installed("scran")
+    fx <- .mk_gobject()
+
+    res <- findScranMarkers_one_vs_all(fx$gobject, cluster_column = "clus",
+        expression_values = "raw", min_feats = 3, verbose = FALSE)
+
+    expect_true("pi" %in% colnames(res))
+    # the whole point of the pmax guard: the strongest markers underflow to
+    # p == 0, and -log10(0) would make pi infinite and the ordering arbitrary
+    expect_true(all(is.finite(res$pi)))
+
+    # pi is effect size times significance, computed on the guarded p-value
+    expect_equal(res$pi,
+        res$logFC * -log10(pmax(res$p.value, .Machine$double.xmin)))
+
+    # each cluster's block is ordered by pi, descending
+    for (k in unique(res$cluster)) {
+        expect_false(is.unsorted(rev(res[cluster == k]$pi)), info = k)
+    }
+
+    # `ranking` still gates the min_feats rescue, so it must survive unchanged
+    expect_true("ranking" %in% colnames(res))
+})
+
+
+test_that("pi survives a p-value of exactly zero", {
+    # the guard in isolation, with no dependence on whether the fixture
+    # happens to produce an underflow
+    p <- c(0, 1e-300, 0.05)
+    lfc <- c(2, -1, 0.5)
+    pi <- lfc * -log10(pmax(p, .Machine$double.xmin))
+    expect_true(all(is.finite(pi)))
+    expect_gt(pi[1], pi[3])
+})

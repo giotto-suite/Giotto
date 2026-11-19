@@ -28,7 +28,7 @@ setClass(
     prototype = list(
         bin = 8L,
         expression_source = "raw",
-        feature_id_type = "symbols",
+        feature_id_type = "symbol",
         tissue_only = FALSE,
         barcodes = NULL,
         array_subset_row = NULL,
@@ -187,8 +187,12 @@ setMethod("print", signature("VisiumHDReader"), function(x, ...) show(x))
 #'   spatially filter the data by.
 #' @param filter_coverage_cutoff numeric between 0 and 1. Minimal fraction of
 #'   pixel coverage by `filter` in order to be selected.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
 #' @details Loading functions are generated after the `visiumhd_dir` is added.
-#' @returns `VisiumHDReader` object
+#' @returns `VisiumHDReader` object, or `VisiumHDDiskReader` when `backend` is
+#' set
 #' @examples
 #' \dontrun{
 #' # Create a `VisiumHDReader` object
@@ -237,7 +241,32 @@ importVisiumHD <- function(
     pxl_subset_row = NULL,
     pxl_subset_col = NULL,
     filter = NULL,
-    filter_coverage_cutoff = 0.5) {
+    filter_coverage_cutoff = 0.5,
+    backend = NULL) {
+    if (!is.null(backend)) {
+        package_check(
+            "GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk"
+        )
+        return(GiottoDisk::importVisiumHDDisk(
+            visiumhd_dir = visiumhd_dir,
+            backend = backend,
+            bin = bin,
+            micron = micron,
+            outdir = outdir,
+            expression_source = expression_source,
+            feature_id_type = feature_id_type,
+            tissue_only = tissue_only,
+            barcodes = barcodes,
+            array_subset_row = array_subset_row,
+            array_subset_col = array_subset_col,
+            pxl_subset_row = pxl_subset_row,
+            pxl_subset_col = pxl_subset_col,
+            filter = filter,
+            filter_coverage_cutoff = filter_coverage_cutoff
+        ))
+    }
+
     # get params
     a <- list(Class = "VisiumHDReader")
 
@@ -742,8 +771,6 @@ setMethod("initialize", signature("VisiumHDReader"), function(.Object,
                 res <- do.call(funs$load_transcripts, 
                                args = c(tx_params, scalef_params, mat_params))
                 tx_list <- res$gpoints
-                # extract and update barcodes
-                barcodes <- spatIDs(res$tissue_positions)
                 rm(res) # cleanup
             }
             
@@ -1172,6 +1199,14 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     }
     vmsg(.v = verbose, .is_debug = TRUE, path)
     
+    # segmented (cell) or binned output, from the output dir or tar name, or
+    # from the matrix name when the path points at the matrix itself
+    agg_type <- if (grepl("segmented|feature_cell_matrix", basename(path))) {
+        "seg"
+    } else {
+        "bin"
+    }
+
     # determine expression source
     expression_path <- NULL
     if ((.is_tar(path) || checkmate::test_directory_exists(path)) &&
@@ -1180,7 +1215,6 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         # - `expression_source` param not needed in other cases
         if (is.null(expression_source)) expression_source <- "raw" # default
         
-        agg_type <- ifelse(grepl("segmented", basename(path)), "seg", "bin")
         expression_source <- paste(expression_source, agg_type, sep = "_")
         
         expression_path <- switch(expression_source,
@@ -1218,6 +1252,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         stop("[VisiumHD] unrecognized expression matrix format", call. = FALSE)
     }
     if (!is.list(m)) m <- list(rna = m)
+    names(m) <- .tenx_feat_type_names(names(m))
     
     # `m` may be a list depending on split_by_type and the data contained.
     lapply(names(m), function(feat_type) {
@@ -1365,7 +1400,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     
     # get micron info if needed
     if (micron) {
-        if (!checkmate::test_file_exists(scalefactors_path)) {
+        # a bin output directory or its tar is resolved below, as a json is
+        if (is.null(scalefactors_path) || !file.exists(scalefactors_path)) {
             stop("[VisiumHD] if micron = TRUE, scalefactors_path must be filepath to scalefactors_json.json or the bin output h5 or its exported data.")
         }
         json_info <- .visiumhd_scalefactors(scalefactors_path, 
@@ -1452,16 +1488,6 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     sl
 }
 
-.visiumhd_validate_json_names <- function(json_scalefactors, expected_names) {
-    if (!all(expected_names %in% names(json_scalefactors))) {
-        warning(GiottoUtils::wrap_txt(
-            "scalefactors json names differ from expected. [Expected]:", 
-            expected_names, "\n",
-            "[Actual]:", names(json_scalefactors)
-        ), call. = FALSE)
-    }
-}
-
 .visiumhd_scalefactors <- function(path, 
     outdir = NULL, 
     bin = 8,
@@ -1502,7 +1528,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         "fiducial_diameter_fullres",
         "tissue_hires_scalef"
     )
-    .visiumhd_validate_json_names(json_scalefactors, expected_json_names)
+    .tenx_check_json_names(json_scalefactors, expected_json_names)
     json_scalefactors
 }
 
@@ -1518,46 +1544,6 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
 
     # Extract the microns_per_pixel value
     json_scalefactors$microns_per_pixel
-}
-
-.visiumhd_get_image_type <- function(path) {
-    img_name <- basename(path)
-    possible_types <- c("lowres", "hires")
-    for (image_type in possible_types) {
-        if (grepl(image_type, img_name)) {
-            return(image_type)
-        }
-    }
-    return("unknown")
-}
-
-.visiumhd_get_scale_factor <- function(image_type, json_info) {
-    if (is.null(json_info)) {
-        warning("No scalefactors json info provided. VisiumHD image
-                scale_factor defaulting to 1.")
-        return(1)
-    }
-
-    checkmate::assert_list(json_info)
-
-    scale_factor <- switch(image_type,
-        "lowres" = json_info[["tissue_lowres_scalef"]],
-        "hires" = json_info[["tissue_hires_scalef"]],
-        "unknown" = {
-            vmsg("[image] not hires or lowres, assuming image scale = 1")
-            1
-        },
-        stop("Unexpected image type: ", image_type)
-    )
-
-    if (is.null(scale_factor)) {
-        stop(
-            "Scale factor for ", image_type,
-            " image not found in json_info."
-        )
-    }
-
-    return(scale_factor)
 }
 
 .visiumhd_image <- function(path,
@@ -1605,7 +1591,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         path <- do.call(.visiumhd_untar_if_not, img_params)
     } else {
         # otherwise should be filepath -> pattern match from basename
-        image_type <- .visiumhd_get_image_type(path)
+        image_type <- .tenx_image_type(path)
     }
     
     scalef_params <- untar_params
@@ -1617,7 +1603,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     scalef_params$verbose2 <- FALSE
     json_info <- do.call(.visiumhd_scalefactors, scalef_params)
     
-    scalef <- .visiumhd_get_scale_factor(image_type, json_info)
+    scalef <- .tenx_image_scale_factor(image_type, json_info)
     
     # load image
     gimg <- createGiottoLargeImage(path,
@@ -1664,7 +1650,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         type, ifelse(graphclust_annotated, " graphclust", "")))
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
-    if (".geojson" %in% GiottoUtils::file_extension(path)) { # direct filepath
+    if ("geojson" %in% GiottoUtils::file_extension(path)) { # direct filepath
         poly_path <- path
         if (micron && is.null(scalefactors_path)) {
             stop("[VisiumHD] <polygons> `scalefactors_path` needed for micron = TRUE\n",
@@ -1700,7 +1686,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     sv <- terra::vect(poly_path, crs = "local")
     
     if (micron) {
-        px2um <- GiottoUtils::read_json(scalefactors_path)$microns_per_pixel
+        px2um <- .visiumhd_micron_scale(
+            .visiumhd_scalefactors(scalefactors_path, verbose = FALSE))
         sv <- rescale(sv, px2um, x0 = 0, y0 = 0)
     }
     
@@ -1750,7 +1737,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     }
     
     vmsg(.v = verbose, "building tessellated polygons ...")
-    vmsg(.v = verbose, .is_debug = TRUE, path)
+    vmsg(.v = verbose, .is_debug = TRUE, tissue_positions_path)
 
     tp_params <- untar_params
     tp_params$path <- tissue_positions_path
@@ -1811,6 +1798,10 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         dplyr::select(c("cell_ID" = "barcode", "in_tissue", "array_col", "array_row")) |>
         dplyr::collect() |>
         data.table::as.data.table()
+    # arrow scan order is not stable; follow `barcodes`
+    if (!is.null(barcodes)) {
+        cx_dt <- cx_dt[match(barcodes, cx_dt$cell_ID, nomatch = 0L)]
+    }
 
     su <- sprintf("bin%03d", as.integer(bin))
     createCellMetaObj(cx_dt,
@@ -1860,7 +1851,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     }
     
     vmsg(.v = verbose, "creating point detections ...")
-    vmsg(.v = verbose, .is_debug = TRUE, path)
+    vmsg(.v = verbose, .is_debug = TRUE, expr_path, tissue_positions_path)
 
     # common params
     untar_params$outdir <- outdir
@@ -2038,9 +2029,8 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
     
     # check if data already has been extracted
     # spatial may already be extracted separately from everything else
-    # set 2 as the default min
     data_info <- list.files(data_subdir, include.dirs = TRUE, recursive = FALSE)
-    if (setequal(data_info, "spatial")) force <- TRUE
+    if (!length(data_info) || setequal(data_info, "spatial")) force <- TRUE
     
     if (!force) return(data_subdir) # return early if no need to untar
     
@@ -2526,6 +2516,9 @@ createGiottoVisiumHDObject <- function(visiumhd_dir,
 #' @param untar_params list. Additional named params to pass to [untar()].
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, the `giotto`
+#' object is created as a managed on-disk project; see [importVisiumHD()].
 #' @returns giotto object
 #' @examples
 #' if (FALSE) {
@@ -2568,7 +2561,8 @@ createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
     force_untar = FALSE,
     untar_params = list(),
     instructions = NULL,
-    verbose = NULL) {
+    verbose = NULL,
+    backend = NULL) {
 
     reader <- importVisiumHD(
         visiumhd_dir = binned_outputs_dir,
@@ -2584,7 +2578,8 @@ createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
         pxl_subset_row = pxl_subset_row,
         pxl_subset_col = pxl_subset_col,
         filter = filter,
-        filter_coverage_cutoff = filter_coverage_cutoff
+        filter_coverage_cutoff = filter_coverage_cutoff,
+        backend = backend
     )
 
     read_args <- list(
@@ -2669,6 +2664,9 @@ createGiottoVisiumHDObjectBin <- function(binned_outputs_dir,
 #' files.
 #' @param instructions giotto instructions to apply.
 #' @param verbose verbosity
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, the `giotto`
+#' object is created as a managed on-disk project; see [importVisiumHD()].
 #' @returns giotto object
 #' @examples
 #' if (FALSE) {
@@ -2705,7 +2703,8 @@ createGiottoVisiumHDObjectCell <- function(segmented_outputs_dir,
     image_path = NULL,
     geojson_path = NULL,
     instructions = NULL,
-    verbose = NULL) {
+    verbose = NULL,
+    backend = NULL) {
 
     # resolve binned_outputs_dir for transcript loading
     if (load_transcripts) {
@@ -2733,7 +2732,8 @@ createGiottoVisiumHDObjectCell <- function(segmented_outputs_dir,
         micron = micron,
         expression_source = expression_source,
         feature_id_type = feature_id_type,
-        barcodes = barcodes
+        barcodes = barcodes,
+        backend = backend
     )
 
     read_args <- list(
@@ -2769,7 +2769,8 @@ createGiottoVisiumHDObjectCell <- function(segmented_outputs_dir,
             bin = 2L,
             micron = micron,
             expression_source = expression_source,
-            feature_id_type = feature_id_type
+            feature_id_type = feature_id_type,
+            backend = backend
         )
         tx_list <- bin_reader$load_transcripts()
         g <- setGiotto(g, tx_list, verbose = verbose)

@@ -18,7 +18,9 @@ importStereoSeq(
 \S4method{plot}{StereoSeqReader,missing}(x, y, ...)
 }
 \arguments{
-\item{stereoseq_dir}{filepath to the Stereo-seq `outs` directory.}
+\item{stereoseq_dir}{filepath to the Stereo-seq `outs` directory, with
+`feature_expression/` and `image/` subdirectories, or to a folder holding
+the GEF and registered image files directly (as downloaded from STOmics).}
 
 \item{type}{character. One of `"bin"` (square bin, default) or `"cell"`
 (cell bin / cellbin).}

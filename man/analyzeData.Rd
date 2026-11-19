@@ -2,20 +2,11 @@
 % Please edit documentation in R/variable_genes.R
 \name{analyzeData}
 \alias{analyzeData}
-\alias{analyzeData,exprObj,analyzeParam-method}
-\alias{analyzeData,allMatrix,featStatsParam-method}
-\alias{analyzeData,allMatrix,cellStatsParam-method}
 \alias{analyzeData,allMatrix,covGroupsParam-method}
 \alias{analyzeData,allMatrix,covLoessParam-method}
 \alias{analyzeData,allMatrix,varParam-method}
 \title{Data Analysis via Parameter Dispatch}
 \usage{
-\S4method{analyzeData}{exprObj,analyzeParam}(x, param, ...)
-
-\S4method{analyzeData}{allMatrix,featStatsParam}(x, param, ..., groups = NULL, stats = NULL)
-
-\S4method{analyzeData}{allMatrix,cellStatsParam}(x, param, ...)
-
 \S4method{analyzeData}{allMatrix,covGroupsParam}(x, param, ...)
 
 \S4method{analyzeData}{allMatrix,covLoessParam}(x, param, ...)
@@ -29,15 +20,6 @@
 operation and its settings}
 
 \item{\dots}{additional params passed to specific methods}
-
-\item{groups}{optional vector of group assignments, one per column of `x`,
-`NA` to exclude. When supplied, the statistics are taken per
-(feature, group) instead of over every cell, and the result gains `group`
-and `n_cells` columns.}
-
-\item{stats}{optional character vector of accumulators to compute, any of
-`"sum"`, `"sumsq"`, `"nnz"`, `"sum_det"`. Grouped path only; emitted columns
-are whichever the requested accumulators support.}
 }
 \value{
 a `data.table` of computed values

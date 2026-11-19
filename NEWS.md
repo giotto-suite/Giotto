@@ -1,4 +1,333 @@
-# Giotto 4.3.0 (in development)
+# Giotto 4.3.6 (in development)
+
+Requires GiottoClass 0.7.27.
+
+## breaking changes
+- 10x feature names are the same whichever file they come from.
+  `get10Xmatrix_h5()` names repeated features like `get10Xmatrix()` and
+  GiottoDisk: every copy gets `--N` (`Ptp4a1--1`, `Ptp4a1--2`; it gave
+  `Ptp4a1`, `Ptp4a1_1`), and features of every type are named from the name
+  column in symbol mode (antibodies gave their ids). With
+  `split_by_type = TRUE` (the default) repeats are counted within each
+  feature type, so a gene keeps its name when an antibody shares it: CytAssist
+  protein runs read from the matrix directory gave `CD4--1` for the gene. This
+  reaches the Visium, Visium HD and Xenium readers.
+- `get10Xmatrix()` returns a `dgCMatrix` (it gave a `dgTMatrix`) without names
+  on its row and column names.
+
+## new
+- `importVisium()` creates a `VisiumReader` with `load_expression()`,
+  `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
+  `load_micron_scale()`, `load_image()`, `load_polygon()` and
+  `create_gobject()` for standard Visium
+  Space Ranger `outs` directories. `backend =` returns
+  `GiottoDisk::importVisiumDisk()`.
+- `createGiottoVisiumObject()` is built on `importVisium()` and gains
+  `backend =`. Its output is unchanged.
+
+## changes
+- `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
+  (Space Ranger >= 2) when the spatial folder also holds other
+  `tissue_positions*` files, and falls back to the `.h5` when the matrix
+  directory is absent. h5 input without `h5_image_png_path` no longer errors.
+- Visium and Visium HD share one check of `scalefactors_json.json` (extra
+  entries are fine) and one image scalefactor lookup: a Visium image not named
+  `hires` / `lowres` loads at scale 1 with a message instead of erroring.
+- Stereo-seq bin1 points (`load_binpoints = TRUE`) carry the DNB geometry and
+  `bin_overlap = "area"`: `calculateOverlap()` gives each DNB to the cell
+  outline that covers it, as the cellbin GEF counts it, instead of testing the
+  DNB's corner point. `calculateOverlap(bin_overlap = "inside")` keeps the old
+  assignment.
+- The Stereo-seq cellbin and `readPolygonVizgenParquet()` polygons are built
+  with `createGiottoPolygon()`, so invalid outlines are repaired as in every
+  other reader (option `giotto.make_valid`). `readPolygonVizgenParquet()` no
+  longer returns `NULL`s when `calc_centroids = FALSE`.
+
+## bug fixes
+- Visium `micron_scale` is measured on the spot grid (spots two array columns
+  apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
+  10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
+  old value was 8% too large on CytAssist runs. Spot polygons are drawn 55 um
+  across from that scale (they were 8% small on CytAssist). Space Ranger 1
+  runs change by under 0.3%. Objects without scalefactors now get polygons
+  and `micron_scale` too.
+
+# Giotto 4.3.5
+
+Downstream packages that stream PAGE (GiottoDisk) should require
+`Giotto (>= 4.3.5)` so both backends compute the same scores.
+
+## new
+- `importMerscope()` creates a `MerscopeReader` with `load_transcripts()`,
+  `load_polys()`, `load_expression()`, `load_cellmeta()`, `load_spatlocs()`,
+  `load_image()` and `create_gobject()` for Vizgen MERSCOPE region
+  directories. `backend =` returns `GiottoDisk::importMerscopeDisk()`.
+- `createGiottoMerscopeObject()` gains `load_images`: mosaic images (e.g.
+  `"DAPI_z3"`) placed with `images/micron_to_mosaic_pixel_transform.csv`.
+- Atera docs: Atera v1 output (zarr) is read with `importAtera(backend =)` /
+  `createGiottoAteraObject(backend =)`, which use GiottoDisk's Atera reader.
+  Atera preview data in the Xenium layout reads with the Xenium readers.
+- `findCellTypesFromEnrichment()` (and its bar and pie plots) can leave
+  cells unassigned below a `min_score` or above a `max_padj`, and with
+  `return_gobject = TRUE` writes the assignment to the cell metadata as
+  `<enrichment_name>_type`.
+- `plotDimCovariateCor()` correlates each component of a linear reduction
+  (PCA, NMF, Harmony, LSI) with numeric cell covariates such as sequencing
+  depth, as a bar per component for one covariate or a heatmap for several,
+  to show whether a component tracks a technical variable before it is used
+  downstream.
+- `sweepClusterK()` scores a partition at each k over a range (silhouette,
+  within-cluster sum of squares, gap statistic), so the number of clusters is
+  chosen from the data. It reads a linear reduction or a spatial enrichment
+  (for niches) from the giotto object, or takes a matrix, a `dist`, or a
+  `spatialCoexpression(return_gobject = FALSE)` result, whose own tree it cuts
+  to choose `n_modules`.
+
+## breaking changes
+- Atera has no in-memory reader: `importAtera()` and
+  `createGiottoAteraObject()` stop unless `backend =` is given, and read
+  through `GiottoDisk::importAteraDisk()`. The `AteraReader` class (a
+  `XeniumReader` subclass) is removed. Atera preview data in the Xenium layout
+  reads with `importXenium()` / `createGiottoXeniumObject()`.
+- `createGiottoMerscopeObject()` loads the vendor outputs through
+  `importMerscope()`: transcripts, cell boundaries, the expression matrix from
+  `cell_by_gene.csv` and, with `data_to_use = "aggregate"`, cell centers from
+  `cell_metadata.csv`. No overlap is calculated; use `calculateOverlap()` and
+  `overlapToMatrix()` on the created object. Expression values now match
+  `cell_by_gene.csv`. `polygon_format = "parquet"` is the default.
+  The y coordinates of transcripts, polygons and cell centers are negated.
+  `version`, `flip_axis`, `calculate_overlap`, `overlap_to_matrix`,
+  `aggregate_stack`, `aggregate_stack_param` and `cores` are deprecated.
+  `version = 1` reads the HDF5 cell boundaries when `polygon_format` is not
+  given.
+- `runPAGEEnrich(return_gobject = FALSE)` returns a `spatEnrObj`, as the
+  other enrichment methods do, instead of `list(DT =, matrix =)`.
+- Enrichment `p_value = TRUE` keeps the scores and adds p-values: the
+  `run*Enrich()` functions store the scores under `name`, the p-values as
+  `<name>_p` and Benjamini-Hochberg adjusted p-values as `<name>_padj`, and
+  with `return_gobject = FALSE` return the three as a list. PAGE returned
+  `-log10(p)` in place of the scores. P-values come from the unscaled
+  scores, so `output_enrichment = "zscore"` no longer distorts them.
+
+## changes
+- The Stereo-seq readers (`importStereoSeq()`,
+  `createGiottoStereoSeqObjectBin()`, `createGiottoStereoSeqObjectCell()`)
+  accept a folder with the GEF and registered image files directly, as
+  downloaded from the STOmics demo site, as well as a SAW `outs/` directory
+  with `feature_expression/` and `image/`.
+- PAGE no longer densifies the expression or melts it into a long table: the
+  scores come from per-cell moments and one product with the marker matrix.
+- PAGE p-values are the permutation null in closed form instead of a
+  normal fit to sampled permutations; `n_times` is no longer used by PAGE.
+- All three methods work a block of cells at a time and no longer loop over
+  cells in R: much faster and with a bounded memory peak, most of all for
+  PAGE p-values and hypergeometric enrichment.
+- `analyzeData()` for PAGE and hypergeometric takes a `reference` level per
+  feature, and rank takes the features' `ranks` across all cells, so a
+  disk-backed engine can score windows of cells against all of them.
+- Rank p-values reuse the feature ranks instead of computing them again.
+
+## bug fixes
+- `createGiottoVisiumHDObjectCell()` loads cell and nucleus polygons from a
+  direct `geojson_path`, and with `micron = TRUE` finds the scale factors in the
+  segmented outputs folder; both stopped with an error before.
+- `findCellTypesFromEnrichment()` defaults to the `"PAGE"` enrichment that
+  `runPAGEEnrich()` stores (it looked for `"PAGE_z_score"`), and gives ties
+  to the first type instead of a random one.
+- Xenium and Atera readers: genomic control probes named
+  `Intergenic_Region_*` (Atera WTA panels) and `DeprecatedCodeword_*`
+  features were not matched by the default `split_keyword` and were loaded as
+  `rna` transcripts, so aggregation added them to the gene expression. The
+  defaults now put them in `GenomicControl` and a new `DeprecatedCodeword`
+  feature type, matching how the 10x expression matrix is split.
+- Xenium and Atera readers: with the default `load_images = "focus"`, an output
+  folder without `morphology_focus/` loaded everything else and then failed
+  with "invalid 'path' argument". The focus images are now skipped with a
+  warning.
+- Hypergeometric enrichment scored every cell against other cells'
+  thresholds: the per-cell top-percentage cut was recycled down the
+  features. It also tested P(X > x) instead of P(X >= x), and a cell with a
+  single selected feature scored 0. Scores change.
+- PAGE and hypergeometric share one per-feature reference level, the mean of
+  the de-logged values logged back in the same base. PAGE logged it in base
+  e while the values are in `logbase`, and hypergeometric mixed linear and
+  log scales; PAGE scores shift slightly.
+- All enrichment methods count a feature as a marker where its sign-matrix
+  value is > 0, and return cells in the order of the expression matrix.
+- `makeSignMatrixRank()` ranks ties by `"average"` by default, as documented
+  and as `runRankEnrich()` does; it used `"random"`.
+
+# Giotto 4.3.4
+
+## new
+- `spatialCoexpression()`: spatial co-expression modules in one command.
+  Expression is smoothed over a spatial network, the features are
+  correlated on the smoothed values and clustered into modules, and each
+  module gets a score per cell. Modules are written to the feature metadata
+  and the scores as a spatial enrichment. It is built from
+  `spatialSmoothParam()`, `featCorParam()` and `createMetafeats()`, so it
+  runs on any backend that provides those. `heatmapCoexpression()` plots
+  the correlation by module.
+
+## breaking changes
+- Removed `detectSpatialCorFeats()`, `detectSpatialCorFeatsMatrix()`,
+  `clusterSpatialCorFeats()`, `clusterSpatialCorGenes()`,
+  `showSpatialCorFeats()`, `showSpatialCorGenes()`, `rankSpatialCorGroups()`,
+  `heatmSpatialCorFeats()` and `getBalancedSpatCoexpressionFeats()`; use
+  `spatialCoexpression()` and `heatmapCoexpression()`. The `"grid"` method,
+  which failed on a giotto object, is gone.
+
+## bug fixes
+- Xenium focus images from Xenium Onboard Analysis 2.x
+  (`morphology_focus_0000.ome.tif`, ...) are named by their channel, read
+  from the OME header: `dapi`, `18s`, `atp1a1_cd45_e-cadherin`,
+  `alphasma_vimentin`, as the files of later versions are named. They were
+  `bound1`-`bound4`, which named the DAPI image `bound1`.
+- Network smoothing for spatial co-expression averaged each cell only with
+  the neighbours stored as `from` for it, about half of them on undirected
+  networks; it now uses every neighbour.
+- `initHMRF_V2(use_metagene = TRUE)` failed when building the metagene
+  matrix. Its metagenes now use the genes most correlated with their module
+  instead of the first genes by name.
+
+# Giotto 4.3.3
+
+Downstream packages that import `spatAutoCorParam`, `histThreshold()` or
+provide an `analyzeData()` method for `edgeStatsParam` should require
+`Giotto (>= 4.3.3)`.
+
+## new
+- `thresholdParam("binarize")` takes a per-feature threshold on matrices: one
+  value per row, or the rule `"kmeans"` (exact 1-D 2-means, Otsu's split) or
+  `"rank"` (top `percentage_rank` percent). `histThreshold()` is that rule on
+  a value histogram, so a streaming backend makes the same call; the raster
+  Otsu threshold uses it too.
+- `spatAutoCorParam()`: Moran's I, Geary's C and binSpect's join count as
+  parameter classes, with significance from the closed-form randomisation
+  null instead of shuffling. The statistics are computed from GiottoClass's
+  `edgeStatsParam()` sums, so any backend providing those gets all three.
+  `analyzeData()` runs them on a matrix, a GiottoDisk store or a `giotto`
+  object (`return_gobject = TRUE` adds the results to feature metadata).
+  `null = "covariate"` conditions Moran's I and binSpect on a cell grouping
+  (library-size quantiles by default, or a cell metadata column), so genes
+  that only follow sequencing depth or composition stop scoring as spatial.
+- `spatialAutoCor()`: the one command for spatially autocorrelated features,
+  `method = "moran"`, `"geary"` or `"binspect"` (also `"joincount"`, the
+  same test), with `null = "permutation"` or `"covariate"`. It is a thin
+  wrapper over `analyzeData(gobject, spatAutoCorParam(...))`. The help topic
+  for `spatialAutoCorGlobal()` and `spatialAutoCorLocal()` is now
+  `spatialAutoCorGlobalLocal`.
+- `binSpect(implementation = "fast")` runs binSpect as that join-count test:
+  sparse throughout, exact 2-means or rank binarization, and works on
+  GiottoDisk-backed objects.
+- `spatialAutoCorGlobal(test_method = "analytic")`: closed-form significance
+  for Moran's I and Geary's C in place of Monte Carlo permutations.
+
+## changes
+- `binSpect()` now runs the fast join-count test by default
+  (`implementation = "fast"`, as in `spatialAutoCor(method = "binspect")`).
+  Its p-values come from the randomisation null instead of a Fisher test that
+  treated edges as independent, so they are calibrated and far fewer genes
+  reach p ~ 0; the result has `statistic`, `z`, `p.value`, `adj.p.value`,
+  `n_on` and `odds_ratio`, ordered by `z` (legacy `estimate` is `odds_ratio`,
+  `high_expr` is `n_on`). `binSpect.pval` is still written, so HMRF works,
+  but fewer genes pass its 0.01 cut. `implementation = "data.table"` restores
+  the old results exactly; `spatial_network_k`, `bin_matrix`,
+  `calc_hub = TRUE`, `do_fisher_test = FALSE` and a non-default
+  `kmeans_algo` select it automatically, with a message. `subset_feats` now
+  works on the fast path, and `spatialAutoCor()` gains `feats`.
+
+# Giotto 4.3.2
+
+spatialDWLS moves to its own package,
+[spatialDWLS](https://github.com/drieslab/spatialDWLS) (drieslab), which
+Giotto now suggests, the way the motif layer suggests smotif.
+`runDWLSDeconv()` and `runSpatialDeconv()` keep their arguments and call it;
+install it with `remotes::install_github("drieslab/spatialDWLS")`.
+Downstream packages that import `dwlsDeconvParam` or provide an
+`analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
+
+## new
+- `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
+  verb, the sibling of `enrichParam()`. Dispatching on the expression object
+  lets a disk-backed store (GiottoDisk) supply its own streaming method.
+- `runDWLSDeconv()` / `runSpatialDeconv()` gain `BPPARAM` (per-spot solves in
+  parallel; defaults to `getOption("giotto.bpparam")`) and `na_as_zero`.
+
+## changes
+- DWLS is 12-22x faster on 600-20,000 spots serially. Results match 4.3.1 to
+  ~1e-15 except for the fixes below.
+- `quadprog` and `Rfast` are no longer suggested; spatialDWLS brings
+  `quadprog`.
+- The `cutoff` argument is documented as what it is: the PAGE z-score a cell
+  type must reach in a cluster to be a candidate there, not an expression
+  cutoff.
+
+## bug fixes
+- `binSpect()` with `spatial_network_k` failed before running (its network
+  sizes were split into separate arguments), and so did passing
+  `bin_matrix`; with `return_gobject = TRUE` it also wrote no p-values. All
+  three work.
+- `binSpectMulti()` combined p-values over `df = k` instead of `2k` in
+  Fisher's method, so its combined p-values were too small. It now also
+  combines unadjusted p-values by default (`summarize = "p.value"`), as
+  `binSpect()` already did.
+- binSpect's `"matrix"` implementation failed when run serially, and dropped
+  edges between cells at distance 0.
+- kmeans binarization calls a constant feature off instead of failing, and
+  `kmeans_algo = "kmeans_arma_subset"` draws its subset under the seed and
+  works with fewer cells than the subset size.
+- Visium HD (`importVisiumHD()` and its wrappers):
+  - `load_transcripts = TRUE` at 8 or 16 um no longer leaves the bins with
+    empty cell metadata.
+  - cell metadata rows follow the expression barcodes instead of arrow scan
+    order;
+  - a direct `.h5` or matrix-market `expression_path` loads;
+  - an `.h5` source gives the `rna` feat_type as an mtx one does;
+  - the class default `feature_id_type` is `"symbol"`, the value it accepts.
+  - `load_expression()` on a `NNNum_outputs.tar` that is not extracted yet
+    extracts it; it errored unless the spatial loaders had run first.
+  - `micron = TRUE` works with the detected paths; it required
+    `scalefactors_path` to be a file, so it errored unless one was given.
+- `get10Xmatrix_h5(gene_ids = "symbols", split_by_type = FALSE)` returns gene
+  symbols; it returned Ensembl IDs.
+- `runDWLSDeconv()`: a cluster with a single candidate cell type in the spot
+  round now assigns that type proportion 1; it was left at 0 (an `==` where an
+  assignment was meant). On a simulation with single-type niches and
+  `n_cell = 5` this lowers the RMSE against the true proportions from 0.167 to
+  0.045. With the default `n_cell = 50` it rarely triggers.
+- `runDWLSDeconv()`: small negative values from the constrained solver are
+  clipped for every cell type, not only the last one.
+- `runDWLSDeconv()` no longer leaves the session's random number generator in
+  a fixed state.
+- `cellProximityEnrichmentSpots()` selects the cell type columns by name. It
+  dropped the first column assuming it was `cell_ID`, which the stored result
+  keeps last, and failed with "non-numeric argument to binary operator".
+- `test-spatial-deconv.R`: the pinned DWLS values predated f8fa23b5 (cluster
+  keyed to the expression columns) and failed on `gsource`; they are re-pinned.
+
+# Giotto 4.3.1
+
+Version-only bump. The multicellular motif layer -- `cellProximityMotifs()`,
+`motifParam` and its subclasses, and `analyzeData()` handing a backed network
+to the method registered for its class -- is listed under 4.3.0 below but
+landed on `gsource` after it had moved to 4.3.0, so a 4.3.0 install may predate
+it. Downstream packages that import the motif param classes, or provide an
+`analyzeData()` method for a backed network carrier, should require
+`Giotto (>= 4.3.1)`.
+
+## bug fixes
+- **`runUMAP()` searched again instead of reusing the stored kNN.** Its
+  default `n_neighbors = 40` needs 39 neighbours per cell, but
+  `createNearestNetwork()` stores a `k = 30` kNN by default, so at defaults the
+  stored graph was always too narrow and a second graph was built. The default
+  is now `n_neighbors = NULL`: under `nn_engine = "giotto"` it reuses the
+  stored kNN at its full width (`k + 1`). With nothing to reuse, or another
+  `nn_engine`, it falls back to 31 -- the default `k = 30` plus the cell
+  itself. **Results-changing** for calls that left `n_neighbors` at its
+  default; calls that pass it explicitly are unchanged.
+
+# Giotto 4.3.0
 
 `gsource` moves to its own minor line. It was previously 4.2.4 against
 `suite_dev`'s 4.2.3, so the two shared a minor version and a downstream package
@@ -15,6 +344,192 @@ say 4.3.0. The `findGiniMarkers()` / `findMarkers()` gini-threshold renames
 keep `when = "4.2.4"` — they are on `suite_dev` too, and will ship from there
 under that version.
 
+
+
+## bug fixes
+- **`runUMAP()` was not reproducible**, despite carrying `set_seed = TRUE` and
+  `seed_number = 1234`. uwot ran its own approximate neighbour search, and its
+  HNSW index build races on insertion order — a C++ thread interleaving the R
+  RNG cannot reach, so the seed could never have covered it. Two runs on a
+  169,528-cell Atera section gave embeddings differing by a Procrustes RMSE of
+  7.3%, with kNN preservation 0.76–0.80. The new `nn_engine` argument defaults
+  to `"giotto"`: the neighbour graph comes from Giotto rather than from uwot's
+  own search, and is handed over as `nn_method` so uwot runs no search at all.
+  Where `createNearestNetwork()` has already run, that is the **stored** kNN
+  (see the GiottoClass note on `keep_knn`), so the embedding and the partition
+  are built from one search rather than from two that happen to agree;
+  otherwise one is built with `GiottoClass::hnswKNN()`, whose index build is
+  single-threaded. Neither depends on a seed. `"annoy"` instead pins uwot to a
+  backend whose trees are built from the R RNG and whose threading covers only
+  the search, also reproducible in-process and across processes; `"uwot"`
+  restores the old behaviour.
+
+  On that section, reusing the stored graph costs **5.9s against the old
+  behaviour's 6.8s** — reproducible and slightly faster, because recovering
+  the kNN takes 0.9s where repeating the search takes 13.8s. Without a stored
+  graph to reuse the same call is 19.6s, and `"annoy"` is 16.6s. **Results
+  change**: UMAP coordinates differ from previous versions. Nothing downstream
+  consumed the embedding — clustering runs on the sNN graph — so this moves
+  figures, not analyses. Threading is not given up: `n_threads` still drives
+  the smooth-kNN root find and, under `batch = TRUE`, the SGD, both
+  reproducible at any thread count.
+- **`runIntegratedUMAP()` built its embedding on the wrong graph.** It passed
+  `dbscan::kNN()` output to uwot as `nn_method` unchanged, but `dbscan::kNN()`
+  removes self-matches while uwot requires each cell to be its own first
+  neighbour and drops column 1 when fitting the local connectivity offset. The
+  integrated UMAP was therefore built from `k - 1` neighbours with the nearest
+  one discarded, against a `log2(k)` target that assumed otherwise. uwot
+  validates neither the self column nor the ordering, so it ran without error.
+  It now goes through `GiottoClass::nnToUwot()`. **Results change.**
+- `getDendrogramSplits()` returned a wrong set of splits whenever two merges of
+  the cluster dendrogram shared a height. The internal node walk located each
+  node by matching its height against a list it never removed split nodes from,
+  so a tie made it re-select a node it had already split: that split was
+  emitted twice and its true sibling never at all. The result still had
+  `k - 1` rows, so nothing errored. It now walks `hclust$merge` directly, which
+  also fixes two latent problems on the same code path — heights were assumed
+  to increase with merge order, which `"centroid"` and `"median"` linkage
+  violate, and the candidate-list index advanced past entries the list had
+  compacted away. **Results change** on any dataset with tied merge heights,
+  which near-duplicate clusters readily produce.
+- `getDendrogramSplits()` no longer prints one line per merge by default.
+
+## changes
+- A `giottoTree` records the features it was built from as `params$feats`
+  (`NULL` when every feature was used), so a consumer recomputing over the
+  same features can default to them.
+- **`calculateClusterTree()` returns a `giottoTree`**, class
+  `c("giottoTree", "hclust")`: still an `hclust` to `cutree()`,
+  `as.dendrogram()`, `plot()` and the rest, now recording the
+  `cluster_column`, `spat_unit`, `feat_type`, `expression_values` and `view`
+  it was built from. Functions that analyse along a tree take those as their
+  defaults; an explicit argument always wins, with a warning when it differs
+  from the tree's, since the results then describe different data than the
+  splits. A plain `hclust` works with the arguments passed explicitly. A tree
+  whose leaves do not match the clusters in the data is an error rather than
+  silently empty or skipped groups.
+  `as.data.frame()` / `data.table::as.data.table()` on a `giottoTree` give one
+  row per split (`nodeID`, `node_h`, `left`, `right`).
+- `findNodeMarkers()` is renamed **`findClusterTreeMarkers()`**. It requires a
+  tree and no longer builds one (`cor`, `distance` and `splits` are removed),
+  and gains `view =`. `writeClusterTreeQuery()` likewise drops `splits` and
+  gains `view =`. In both, and in `annotateClusterTree()`, `tree` is now the
+  second argument and `cluster_column` defaults to the tree's.
+- `getDendrogramSplits()` is deprecated in favour of
+  `data.table::as.data.table(tree)`; it still returns its old table.
+- `calculateClusterTree()` gains `view =`. The tree is built from the cells
+  that survive the view: per-cluster means are taken over those cells only,
+  and a cluster with none left is not a leaf. The view is recorded in the
+  tree's `params` attribute.
+- `allMatrix`, `featStatsParam`, `cellStatsParam` and the `analyzeData()`
+  methods for the two stats params now live in GiottoClass (>= 0.7.4), which
+  Giotto requires. `analyzeParam("feat_stats")` / `analyzeParam("cell_stats")`
+  build them as before, and results are unchanged. Packages that imported
+  these classes from Giotto should import them from GiottoClass.
+- `runUMAP()` gains `nn_engine`, defaulting to `"giotto"`: where the neighbour
+  graph comes from. It reuses the kNN `createNearestNetwork()` stored when one
+  is available, and builds one otherwise. `"uwot"` restores uwot's own choice,
+  and any of uwot's backend names — `"fnn"`, `"annoy"`, `"hnsw"`,
+  `"nndescent"` — selects that backend directly, so all of them are reachable
+  through one argument rather than through `nn_method` in `...`. They are not
+  equally reproducible: `"annoy"` builds its trees from the R RNG and threads
+  only the search, so repeated calls agree bit for bit, while `"hnsw"` threads
+  the index build and does not.
+- `runUMAP()` gains `nn_network_to_use` and `network_name`, spelled as
+  `doLeidenCluster()` spells them, naming the stored network to reuse.
+  `network_name = NULL` derives `<nn_network_to_use>.<dim_reduction_to_use>`.
+  An object can hold several kNN networks — one per reduction, or at different
+  `k` — so the graph is looked up by name and never guessed at: a derived name
+  that is absent falls back to building one and says so, while a name given
+  explicitly and not found is an error rather than a quiet substitution.
+- `getDendrogramSplits()` returns `node_h` as a numeric column rather than a
+  list column, and `nodeID` as the `hclust$merge` row index rather than a row
+  counter, so per-node results can be joined back to the tree.
+
+## new
+- `importVisiumHD()`, `createGiottoVisiumHDObjectBin()` and
+  `createGiottoVisiumHDObjectCell()` gain `backend =`, routing to
+  `GiottoDisk::importVisiumHDDisk()` as the Stereo-seq readers do. Without it,
+  nothing changes.
+- `writeClusterTreeQuery()` builds the annotation query for a cluster tree: the
+  tree as an indented outline, the markers separating each branch, and the
+  per-cluster markers with a specificity flag. `context` is a free-form named
+  list (`tissue`, `disease`, `assay`, ...) rendered into the header. Evidence
+  the caller does not supply is computed for them. It runs no LLM, like
+  `writeChatGPTqueryDEG()`, and returns the text invisibly rather than only
+  writing a file.
+
+  The query asks for a label at **every internal node**, naming the clade
+  beneath it rather than describing the split. That is what makes the answer
+  cuttable afterwards without asking the model again.
+
+- `annotateClusterTree()` writes that answer onto the object at one or more
+  granularities. `k` / `h` mirror `doHclust()` and each value produces its own
+  annotation column, so a coarse and a fine labelling of the same cells can be
+  compared directly. It delegates the metadata write to
+  `GiottoClass::annotateGiotto()`.
+
+  A real answer names only some nodes, so each group takes the first label that
+  resolves: its own node; the leaf itself when the group is a single cluster;
+  the nearest labelled ancestor; the majority leaf label. The middle two are in
+  that order deliberately -- no internal node spans a single leaf, so at the
+  finest cut an ancestor-first search returns labels coarser than the leaves it
+  started from.
+
+- `findScranMarkers_one_vs_all()` (and so `findMarkers_one_vs_all(method =
+  "scran")`) reports a `pi` column -- `logFC * -log10(p.value)`, effect size
+  times significance -- and returns each cluster's block ordered by it. The
+  p-value is floored at `.Machine$double.xmin` first: the strongest markers
+  underflow to exactly 0, and a table sorted on the resulting `Inf` is ordered
+  by whichever gene underflowed first. `ranking` is unchanged; it gates the
+  `min_feats` rescue and is not presentational. **Row order changes** for
+  callers that relied on the previous, undocumented order.
+
+- `findNodeMarkers()` runs differential expression at every branch point of a
+  cluster tree, rather than only between the leaf clusters. Each internal node
+  compares the clusters on one side of the merge against those on the other, so
+  the markers it returns are **conditional**: a gene that says nothing at the
+  root can be decisive deeper in the tree. Takes a tree from
+  `calculateClusterTree()` and the splits from `getDendrogramSplits()`, and
+  returns `$markers` keyed by `nodeID` and `side` plus a `$nodes` summary
+  carrying each node's height, cluster membership and count of separating
+  genes.
+
+  Any `findMarkers()` method works, because a node comparison is a
+  `(group_1, group_2)` relabelling and nothing about that is method-specific.
+  Where the statistic is a function of **additive** per-group accumulators the
+  work is shared instead: `"scran"` (`sum`, `sumsq`, `n`) and `"gini"` (`sum`,
+  `nnz`, `n`) take one grouped pass over the values and combine it per node by
+  arithmetic, while `"mast"` -- and anything else needing the per-cell values --
+  falls back to one pass per node. On 169,528 cells and 36 clusters the pooled
+  route runs the 35 nodes in 5.2 s against ~35 s delegated for `"scran"`, and
+  15.4 s against ~70 s for `"gini"`; it is sub-linear in node count, since only
+  the pooling grows.
+
+- `calculateClusterTree()` builds the cluster tree as a plain `hclust`, with
+  the correlation matrix and the settings used attached as attributes, so
+  `cutree()`, `as.dendrogram()`, `ggdendro` and `ape` all work on it unchanged.
+  `getDendrogramSplits()` and `findNodeMarkers()` take it as `tree`, and
+  `GiottoVisuals::showClusterDendrogram()` plots it — one tree behind all
+  three, instead of three rebuilds free to disagree.
+
+  The pseudobulk comes from `analyzeData(featStatsParam, groups = )`, one pass
+  on any backend including a disk-backed store, where `calculateMetaTable()`
+  loops one `rowMeans` per cluster: 2.3 s against 18.0 s for 36 clusters on
+  169,528 cells, agreeing to 2.7e-15. Cluster labels are ordered naturally
+  before the correlation is taken, because ward linkage breaks near-ties by
+  index and a lexically-ordered column gave 3 differing splits out of 35 on
+  that dataset.
+- `findGiniMarkers()` and `findGiniMarkers_one_vs_all()` gain a
+  `detection_margin` column: per (feature, cluster), how many percentage points
+  more of that cluster's cells detect the feature than of the next-highest
+  **single** cluster's. Unlike the gini coefficients it contrasts against one
+  other cluster rather than the pooled remainder, so it does not inherit the
+  `N - n_k` pooling term that makes those coefficients track cluster size; and
+  unlike `comb_score` it is not rescaled within cluster, so `max()` per cluster
+  is a meaningful "does this cluster have a feature of its own". Intended for
+  spotting overclustered fragments.
+
 ## Enhancements
 * `importXenium()` / `importAtera()` path detection now recognizes zarr
   output (`.zarr.zip` archives and unzipped `.zarr` trees): `filetype` accepts
@@ -27,6 +542,10 @@ under that version.
   loaders now point there instead of a bare "not yet supported" stop.
 
 ## Bug fixes
+* `cellProximityHeatmap()` no longer adds `first_type` and `second_type` columns to the caller's own `CPscore$enrichm_res`. `data.table`'s `:=` modifies in place, so the input object was being mutated as a side effect of plotting it.
+* `cellProximityHeatmap()` defaults to a diverging palette centred on zero. Enrichment is a diverging quantity whose neutral point is 0; ComplexHeatmap's default is a sequential ramp fitted to the data range, which put the neutral colour wherever the data happened to sit and made depletion hard to distinguish from weak enrichment. `color_breaks`/`color_names` are unchanged.
+* `cellProximityNetwork()` draws node points before node labels. Reversed, every label was rendered underneath its own node.
+* `cellProximityBarplot()` encodes significance as bar outline weight, so a pair that just cleared the threshold no longer looks identical to one that cleared it by orders of magnitude, and uses an explicit palette rather than ggplot2 defaults.
 * `@param name` no longer starts mid-sentence in the enrichment functions. It read "to give to spatial enrichment results", so `?runRankEnrich` rendered *"name: to give to spatial enrichment results"* -- the word the reader needs was the one missing.
 * `runSpatialEnrich()` no longer documents `name`'s default as `PAGE`. It passes `NULL` and each method picks its own, so the documented value was wrong for two of the three.
 * `makeSignMatrixRank()`'s `@seealso` pointed at `rankEnrich`, which does not exist; it is `runRankEnrich()`. That was the package's last missing Rd cross-reference, and clearing it takes `R CMD check`'s cross-reference result from WARNING to NOTE.
@@ -39,8 +558,10 @@ under that version.
 * `runPAGEEnrich()` works on a disk-backed object, via a streaming method contributed by GiottoDisk. Previously it densified the store and failed.
 * `exportGiottoViewer()`'s documentation linked to `createSpatialEnrich()`, removed as deprecated.
 * `createGiottoXeniumObject()` no longer errors on Xenium-format directories that ship no panel json; feature metadata is generated from the expression matrix when the panel is absent.
+* `adjustGiottoMatrix()`, `runGiottoHarmony()` and `runDWLSDeconv()` key the cell metadata to the expression cell axis before using it. All three pulled a metadata column and handed it to a routine that pairs it with the expression columns **by position** -- `limma::removeBatchEffect()`, `harmony::RunHarmony()` and the deconvolution solvers respectively -- while expression and metadata are fetched through independent accessors with no shared-order guarantee. Where the two orders differed, every cell was corrected, integrated or deconvolved against another cell's label, and the result looked entirely normal. **Results will change** on any object whose metadata is not already on the expression axis; the shipped mini visium object is one, where it agrees at zero of 624 positions. A metadata table that does not cover the expression columns is now an error rather than a silent recycle.
 
 ## Breaking changes
+* `cellProximityEnrichment()` now permutes cell type labels over the **nodes** of the spatial network, so every cell carries one label across all of its edges. Previously it pooled the two endpoint cell-type columns into one vector and reshuffled that, which draws labels degree-weighted and lets a cell take different labels on different edges — never the node permutation the documentation described. The expected counts that produced deviate from the exact node-permutation expectation by up to 13% on the mini Visium leiden labels, and by 50% when cell type tracks node degree. **Enrichment scores and p-values will differ from previous releases**, and there is no option to restore the old null. Observed counts are unchanged. Empirical p-values now use the unbiased `(1 + n) / (1 + number_of_simulations)` estimator and can no longer be exactly zero, which the `PI_value` formula previously had to work around. The simulation no longer materializes a `number_of_simulations x n_edges` table: at 50,000 cells this is ~13x faster and ~4x lower peak memory, and the function now runs at 170,000 cells where it previously exhausted memory. `enrichm_res` gains `sd_sim` and `z`; every existing column keeps its name, class and position, so `cellProximityBarplot()`, `cellProximityHeatmap()` and `cellProximityNetwork()` are unaffected. `cellProximityEnrichmentSpots()` is unchanged and still uses the old helper.
 * `findScranMarkers_one_vs_all()` returns `cluster` as **character**. All `findMarkers_one_vs_all()` methods now agree on the type, so their results can be joined or stacked on `cluster` regardless of `method`; previously scran disagreed with gini. Code comparing against a numeric literal needs `"3"` rather than `3`. Note that `method = "mast"` labels the comparison (`"3_vs_others"`) rather than the bare cluster id, so joins across mast and the others still need a translation step.
 * `calculateHVF(method = "var_p_resid")` now computes analytic Pearson residuals itself, from **raw counts**, instead of taking the plain variance of whatever matrix it was handed. **Selected features will differ from previous releases.** Previously the residual criterion required running `normalizeGiotto(norm_methods = "pearson_resid")` first *and* passing `expression_values = "scaled"` (the slot that normalization writes to, not the `"normalized"` default) — a three-way agreement nothing verified, and which silently returned the variance of library-normalized values whenever it was not met. `expression_values` is now ignored for this method, with a warning if it was set explicitly. `normalizeGiotto(norm_methods = "pearson_resid")` is unaffected and remains available for producing residuals as a stored matrix.
 * `analyzeData(x, varParam)` correspondingly returns the residual variance, and gained a `mean_expr` column. It gains a `theta` parameter (default `100`, following Lause/Kobak and matching `normalizeGiotto()`); `calculateHVF()` exposes the same argument. `IterableMatrix` (BPCells) input now errors rather than silently returning a different statistic.
@@ -59,9 +580,14 @@ under that version.
 * `doFeatureSetEnrichment()` states plainly that it drives the external GSEA command-line application over ranked files and is not one of Giotto's spatial enrichment methods -- it takes no `giotto` object -- and gained an example.
 * Markdown is enabled across these topics. Only `runSpatialEnrich()` had `@md`, so backticks and `[fn()]` links rendered literally elsewhere.
 * `createGiottoXeniumObject()` reads `ome.tif` morphology images directly and no longer converts them through python, so no `tif_exports/` directory is written next to the data. A converted tif left by an earlier run is ignored in favour of the tiled, pyramidal `ome.tif`. JPEG-2000 images, which is what 10x actually ships, are read through a GDAL VRT rather than decoded up front.
+* The three remaining metadata writes that relied on row position now key on `cell_ID` instead. `addPolygonCells()` hands over the polygon column with its ids rather than re-sorting a whole metadata table and dropping the key; the HMRF writer names the class vector it has already aligned; and `exprCellCellcom()`'s permutation loop, whose labels are a deliberate shuffle and therefore belong to no cell, writes onto the `cellMetaObj` directly rather than through a setter that aligns on ids. Results are unchanged in all three -- verified identical against the previous implementation for `exprCellCellcom()` (same seed, 5 iterations) and `addPolygonCells()` -- and the positional-cbind warning they emitted is gone.
 * gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
 ## New
+* `cellProximityMotifs()` works on disk-backed projects. As of GiottoClass 0.6.0 a `spatialNetworkObj`'s network slot may hold a backed store instead of an `igraph`, and both are handled. The router hands the engine the network as it is held, with labels named by node ID: the package that owns a backed network class supplies the `analyzeData()` methods that read it, so the same engine runs on the store in place, honouring any pending subset. `method = "auto"` resolves the engine without regard to the network type and dispatches again on it. The earlier fast path that opened the store's parquet files by path -- and so had to decline a subsetted store or one written across several files -- is removed.
+* `plotMotifEnrichment()`, `plotMotifGlyphs()` and `spatMotifPlot()` visualize motif results. The triage plot deliberately defaults to effect size against occurrence count rather than a volcano: permutation p-values are floored at `1 / (n_perm + 1)`, so on a real run most significant classes sit exactly on that floor and a volcano's y-axis collapses to a single uninformative line. `style = "volcano"` keeps the conventional view. `plotMotifGlyphs()` draws each motif as the little graph it is, nodes coloured by cell type in canonical slot order, which makes an id like `size4_paw_A-B-B-C` readable at a glance. `spatMotifPlot()` shows where a motif's occurrences sit in the tissue, switching to a density surface above `density_threshold` cells so it stays legible on a large section.
+* `cellProximityMotifs()` extends cell-cell interaction analysis from pairs to **multicellular motifs** -- recurrent arrangements of 3 or 4 neighbouring cells, distinguished by shape as well as composition, so a triangle of three cell types is a different motif from a chain of the same three. Alongside the usual label-permutation null it offers a **conditional** null that holds the observed pairwise composition fixed: under the ordinary null any motif built from an attracting pair looks enriched, and the conditional null is what separates a real higher-order niche from an echo of the pairwise signal. Results carry both tails (`p_enrich`, `p_deplete`), an effect size, and `topology` plus a `color_tuple` list column whose positions are structural roles rather than a sort, so `A-B-B` and `B-A-A` stay distinct.
+* The motif engine is a pluggable backend rather than a fixed dependency. `motifParam` is a VIRTUAL `analyzeParam` subclass defining the contract and `smotifParam` is one implementation, the same arrangement `pcaParam` has where GiottoDisk contributes `gramEigenPcaParam` from outside the package. A second engine is a new concrete subclass plus its own `analyzeData` method, contributable from another package with no change to Giotto; a test attaches one to prove it. Requires \pkg{smotif} (`Suggests`), whose Rust backend is what makes size 4 tractable at scale.
 * `enrichParam()` and the `pageEnrichParam` / `rankEnrichParam` / `hyperEnrichParam` classes put sign-matrix enrichment on the `analyzeData()` verb, following `markersParam`. The arithmetic runs on a bare matrix -- `analyzeData(expr, enrichParam("rank"), sign_matrix = sm)` -- with no `giotto` object involved, and dispatches on the expression object, so a backend can register a streaming implementation against the same generic from another package. `runPAGEEnrich()`, `runRankEnrich()`, `runHyperGeometricEnrich()` and `runSpatialEnrich()` keep their names, signatures and results, and become thin wrappers over it. `runSpatialEnrich()` also gained `include_depletion` and `ties_method`, which were reachable from neither it nor its documentation.
 * `importAtera()` and `createGiottoAteraObject()` read Atera output. `AteraReader` subclasses `XeniumReader` — the layouts are identical today, so it overrides only the platform label and inherits the rest, including `backend =`.
 * `importStereoSeq()`, `createGiottoStereoSeqObjectBin()` and `createGiottoStereoSeqObjectCell()` gained a `backend =` argument. When set to a `gsource` project backend it routes to `GiottoDisk::importStereoSeqDisk()`, so a Stereo-seq object can be created as a managed on-disk project with expression held in a `parquetExprStore` instead of memory — mirroring what `createGiottoXeniumObject()` already did. `backend = NULL` (the default) is a no-op and leaves the in-memory path byte-identical. Requires a GiottoDisk carrying the matching GEF reader fixes.

@@ -2415,6 +2415,555 @@ doHclust <- function(
 }
 
 
+#' @title Sweep a range of cluster numbers
+#' @name sweepClusterK
+#' @description
+#' Scores a partition at each k over a range, so the number of clusters is
+#' chosen from the data rather than fixed by hand. Returns the scores and a
+#' plot marking the k the chosen criterion favors.
+#'
+#' @details
+#' The criterion, not the clustering engine, is what makes this general. A
+#' silhouette needs only a partition and a distance, so the same call covers
+#' k-means over a composition matrix and a hierarchical cut of a correlation
+#' matrix. Within-cluster sum of squares applies to k-means alone, where the
+#' chosen k is the point furthest from the line joining the ends of the curve.
+#'
+#' The list returned by \code{spatialCoexpression(return_gobject = FALSE)} is
+#' accepted directly. Its own tree is cut at each k and scored on the same
+#' `1 - r` distance it was built from, so no second tree is fitted and the k
+#' reported here is the `n_modules` to pass back to
+#' \code{spatialCoexpression()}. The `n_modules` used for that first call does
+#' not matter: the tree is the same for every k.
+#'
+#' A silhouette is quadratic in the number of observations, so `subsample`
+#' exists for the cell-level case. It does not apply to a co-expression
+#' result, where the observations are features and the tree is already built.
+#'
+#' Only linear reductions are read from the object. UMAP and t-SNE are
+#' refused: they distort distances, so the silhouette and wss computed on them
+#' are inflated and depend on the embedding's random seed, and on data with no
+#' clusters at all they report structure that is not there. Coordinates passed
+#' as `x` are used as given.
+#'
+#' The marked k is the criterion's preference, not a recommendation. Criteria
+#' disagree, and a k one step either side is usually defensible.
+#'
+#' Which arguments apply depends on the input. A setting that would change
+#' what is computed, but that the chosen input does not use, is ignored with a
+#' warning when it was set explicitly: a linkage, distance or sample for a
+#' co-expression result or a distance, a slot when `x` is supplied, or the
+#' other slot's name. Other unused arguments are ignored silently.
+#'
+#' @inheritParams data_access_params
+#' @inheritParams plot_output_params
+#' @param gobject giotto object. The matrix to cluster is read from one of
+#'   its slots, chosen with `values_to_use`. May be NULL when `x` is given.
+#' @param values_to_use character. Which slot supplies the matrix:
+#'   "dim_reduction" (cluster cells in PC space), "spatial_enrichment"
+#'   (cluster cells by neighborhood composition, which is how a niche k is
+#'   chosen).
+#' @param dim_reduction_to_use,dim_reduction_name,dimensions_to_use
+#'   Which reduction and which of its components, for
+#'   `values_to_use = "dim_reduction"`. A linear reduction: "pca", "nmf",
+#'   "harmony" or "lsi".
+#' @param spat_enr_name character. Enrichment to read, for
+#'   `values_to_use = "spatial_enrichment"`. Defaults to the first stored.
+#' @param x numeric matrix or data.frame of observations by variables, a
+#'   \code{dist}, or the list from
+#'   \code{spatialCoexpression(return_gobject = FALSE)}. Supplied, it is used
+#'   instead of any slot. A co-expression result is not stored on a giotto
+#'   object, so this is the only way to sweep co-expression modules.
+#' @param k_range integer vector of cluster numbers to score.
+#' @param cluster_method character. "kmeans" or "hclust". Forced to "hclust"
+#'   for a co-expression result or a `dist`.
+#' @param score character, one or more of "silhouette", "wss" and "gap".
+#'   Several are drawn as panels, which is the honest way to show that they
+#'   disagree. "wss" and "gap" need coordinates, so a co-expression result or
+#'   a `dist` leaves only "silhouette". Left unset, all three are scored for
+#'   k-means and only "silhouette" for a hierarchical cut.
+#' @param dist_method character. Distance for the silhouette when `x` is a
+#'   matrix: "euclidean" or "correlation" (`1 - r` between observations).
+#' @param hclust_method character. Passed to \code{stats::hclust}. Ignored for
+#'   a co-expression result, whose own tree is used.
+#' @param subsample integer or NULL. Observations to randomly sample before
+#'   scoring. A silhouette needs every pairwise distance, so it is quadratic
+#'   in observations and this is the only way to run one on a large object.
+#' @param max_dist_obs integer. Refuse to build a distance above this many
+#'   observations. The default of 20,000 is about 1.6 GB; half a million cells
+#'   would be 892 GB, so the refusal is there to name the number rather than
+#'   let the allocation fail.
+#' @param seed numeric or NULL. Seed for sampling and k-means starts.
+#' @param nstart,iter_max numeric. Passed to \code{stats::kmeans}.
+#' @param n_perm numeric. Reference datasets for the gap statistic, passed to
+#'   \code{cluster::clusGap} as `B`. Ignored by the other criteria.
+#' @param line_color,point_color character. Curve and marked point.
+#' @param title character. Plot title.
+#' @param xlab,ylab character. Axis titles. NULL names the criterion on y, and
+#'   on x the number swept: modules for a co-expression result, clusters
+#'   otherwise.
+#' @param axis_text,axis_title numeric. Base sizes.
+#' @param theme_param list. Passed to \code{ggplot2::theme}.
+#' @param output character. "plot" (default) draws the scores; "data.table"
+#'   returns them instead: one row per k per criterion, with `k`, `value`,
+#'   `se` (the gap's standard error, NA for the others), `score` and `selected`.
+#' @param verbose be verbose
+#' @param view character. Name of a \code{GiottoClass::giottoView} slotted on
+#'   `gobject`, resolved once before the matrix is read.
+#' @returns ggplot, or a data.table when `output = "data.table"`
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' # k-means on the PCA, scored by within-cluster sum of squares
+#' sweepClusterK(g, k_range = 2:10, score = "wss", seed = 1)
+#'
+#' # the same partitions scored by silhouette, as a table
+#' sweepClusterK(g, k_range = 2:10, score = "silhouette", seed = 1,
+#'     output = "data.table")
+#'
+#' # co-expression modules: sweep the tree spatialCoexpression() built
+#' coexp <- spatialCoexpression(g, feats = head(rownames(g), 100),
+#'     return_gobject = FALSE)
+#' sweepClusterK(coexp, k_range = 2:12)
+#' @export
+sweepClusterK <- function(gobject = NULL,
+    spat_unit = NULL,
+    feat_type = NULL,
+    values_to_use = c("dim_reduction", "spatial_enrichment"),
+    dim_reduction_to_use = "pca",
+    dim_reduction_name = NULL,
+    dimensions_to_use = 1:10,
+    spat_enr_name = NULL,
+    x = NULL,
+    k_range = 2:15,
+    cluster_method = c("kmeans", "hclust"),
+    score = c("silhouette", "wss", "gap"),
+    dist_method = c("euclidean", "correlation"),
+    hclust_method = "ward.D2",
+    subsample = NULL,
+    max_dist_obs = 20000L,
+    seed = NULL,
+    nstart = 5,
+    iter_max = 50,
+    n_perm = 25,
+    line_color = "grey60",
+    point_color = "#C44E52",
+    title = NULL,
+    xlab = NULL,
+    ylab = NULL,
+    axis_text = 9,
+    axis_title = 10,
+    theme_param = list(),
+    output = c("plot", "data.table"),
+    verbose = NULL,
+    view = NULL,
+    show_plot = NULL,
+    return_plot = NULL,
+    save_plot = NULL,
+    save_param = list(),
+    default_save_name = "sweepClusterK") {
+    # NSE vars
+    k <- value <- se <- selected <- score_lab <- NULL
+
+    fname <- "[sweepClusterK]"
+    supplied <- names(match.call())[-1L]
+    score_given <- !missing(score)
+    checkmate::assert_integerish(k_range, lower = 2, any.missing = FALSE,
+                                 min.len = 3)
+    checkmate::assert_count(subsample, positive = TRUE, null.ok = TRUE)
+    checkmate::assert_count(max_dist_obs, positive = TRUE)
+    checkmate::assert_number(seed, null.ok = TRUE)
+    checkmate::assert_count(nstart, positive = TRUE)
+    checkmate::assert_count(iter_max, positive = TRUE)
+    checkmate::assert_count(n_perm, positive = TRUE)
+    checkmate::assert_character(title, len = 1L, null.ok = TRUE)
+    checkmate::assert_character(xlab, len = 1L, null.ok = TRUE)
+    checkmate::assert_character(ylab, len = 1L, null.ok = TRUE)
+    checkmate::assert_list(theme_param)
+
+    cluster_method <- match.arg(cluster_method,
+                                choices = c("kmeans", "hclust"))
+    score <- match.arg(score, choices = c("silhouette", "wss", "gap"),
+                       several.ok = TRUE)
+    dist_method <- match.arg(dist_method,
+                             choices = c("euclidean", "correlation"))
+    values_to_use <- match.arg(values_to_use,
+                               choices = c("dim_reduction",
+                                           "spatial_enrichment"))
+    output <- match.arg(output, choices = c("plot", "data.table"))
+    cluster_method_asked <- cluster_method
+    if (!is.null(seed)) GiottoUtils::local_seed(seed)
+
+    # Called positionally with the thing to cluster, which is the natural way
+    # to reach for it with a co-expression result. Move it across rather than
+    # failing.
+    if (!is.null(gobject) && !inherits(gobject, "giotto")) {
+        if (!is.null(x)) {
+            stop(fname, " gobject is not a giotto object and x is already ",
+                 "given", call. = FALSE)
+        }
+        x <- gobject
+        gobject <- NULL
+    }
+    if (is.null(gobject) && is.null(x)) {
+        stop(fname, " supply a giotto object, or x", call. = FALSE)
+    }
+
+    slot_args <- list(
+        dim_reduction = c("dim_reduction_to_use", "dim_reduction_name",
+                          "dimensions_to_use"),
+        spatial_enrichment = "spat_enr_name")
+    route_label <- c(dim_reduction = "the dimension reduction",
+                     spatial_enrichment = "the spatial enrichment")
+    if (!is.null(x)) {
+        .sck_warn_ignored(c(unlist(slot_args, use.names = FALSE),
+                            "values_to_use", "spat_unit", "feat_type", "view"),
+                          supplied, fname,
+                          "x is supplied, so nothing is read from the giotto object")
+    } else {
+        other <- setdiff(names(slot_args), values_to_use)
+        .sck_warn_ignored(slot_args[[other]], supplied, fname, sprintf(
+            "%s is swept (values_to_use = \"%s\"); set values_to_use = \"%s\" to sweep %s",
+            route_label[[values_to_use]], values_to_use, other,
+            route_label[[other]]))
+    }
+
+    # ---- read the matrix out of the object, the way screePlot does ---------
+    if (is.null(x)) {
+        spat_unit <- set_default_spat_unit(gobject = gobject,
+                                           spat_unit = spat_unit)
+        feat_type <- set_default_feat_type(gobject = gobject,
+                                           spat_unit = spat_unit,
+                                           feat_type = feat_type)
+        if (!is.null(view)) {
+            checkmate::assert_string(view)
+            gobject <- GiottoClass::resolveRecipe(gobject, view = view,
+                slots = switch(values_to_use,
+                               dim_reduction = "dimension_reduction",
+                               spatial_enrichment = "spatial_enrichment"),
+                spat_unit = spat_unit, feat_type = feat_type)
+        }
+        if (identical(values_to_use, "dim_reduction")) {
+            checkmate::assert_character(dim_reduction_to_use, len = 1L)
+            linear <- c("pca", "nmf", "harmony", "lsi")
+            if (!dim_reduction_to_use %in% linear) {
+                stop(fname, " '", dim_reduction_to_use, "' is not a linear ",
+                     "reduction: its distances are distorted, so the scores ",
+                     "are not reliable. Use one of: ",
+                     paste(linear, collapse = ", "), call. = FALSE)
+            }
+        }
+        x <- switch(
+            values_to_use,
+            dim_reduction = {
+                if (is.null(dim_reduction_name)) {
+                    avail <- list_dim_reductions(gobject, spat_unit = spat_unit,
+                                                 feat_type = feat_type)
+                    avail <- avail[avail$dim_type == dim_reduction_to_use, ]
+                    if (!nrow(avail)) {
+                        stop(fname, " no '", dim_reduction_to_use,
+                             "' reduction for [", spat_unit, "][", feat_type,
+                             "]", call. = FALSE)
+                    }
+                    dim_reduction_name <- avail$name[[1]]
+                }
+                cc <- getDimReduction(gobject, spat_unit = spat_unit,
+                                      feat_type = feat_type,
+                                      reduction_method = dim_reduction_to_use,
+                                      name = dim_reduction_name,
+                                      output = "matrix")
+                cc[, intersect(dimensions_to_use, seq_len(ncol(cc))),
+                   drop = FALSE]
+            },
+            spatial_enrichment = {
+                if (is.null(spat_enr_name)) {
+                    avail <- list_spatial_enrichments(gobject,
+                                                      spat_unit = spat_unit,
+                                                      feat_type = feat_type)
+                    if (is.null(avail) || !nrow(avail)) {
+                        stop(fname, " no spatial enrichment stored for [",
+                             spat_unit, "][", feat_type, "]", call. = FALSE)
+                    }
+                    spat_enr_name <- avail$name[[1]]
+                }
+                en <- getSpatialEnrichment(gobject, spat_unit = spat_unit,
+                                           feat_type = feat_type,
+                                           name = spat_enr_name,
+                                           output = "data.table")
+                .sck_enr_matrix(en)
+            })
+        GiottoUtils::vmsg(.v = verbose, fname, "clustering a", nrow(x), "x",
+                          ncol(x), "matrix from", values_to_use)
+    }
+
+    k_range <- sort(unique(as.integer(k_range)))
+
+    # ---- resolve the input to a matrix, a distance, or both ----------------
+    mat <- NULL
+    d <- NULL
+    hc <- NULL
+
+    is_coexpr <- is.list(x) && !is.data.frame(x) &&
+        all(c("cor", "hclust") %in% names(x))
+    if (is_coexpr) {
+        cm <- x[["cor"]]
+        ok <- !is.na(diag(cm))
+        r <- cm[ok, ok, drop = FALSE]
+        r[is.na(r)] <- 0
+        d <- stats::as.dist(1 - r)
+        hc <- x[["hclust"]]
+        cluster_method <- "hclust"
+        if (!score_given) score <- "silhouette"
+        bad <- setdiff(score, "silhouette")
+        if (length(bad)) {
+            stop(fname, " score '", paste(bad, collapse = "', '"), "' needs ",
+                 "coordinates; a co-expression result supplies a distance, so ",
+                 "only 'silhouette' applies", call. = FALSE)
+        }
+        .sck_warn_ignored(c("hclust_method", "dist_method"), supplied, fname,
+                          sprintf(paste0("a co-expression result is cut along its own ",
+                                         "tree (%s), on its own correlation distance"),
+                                  hc$method))
+        .sck_warn_ignored("subsample", supplied, fname,
+                          "the co-expression tree is already built from every gene, so there is nothing to sample")
+        if ("cluster_method" %in% supplied &&
+            identical(cluster_method_asked, "kmeans")) {
+            warning(fname, " cluster_method = \"kmeans\" is ignored: a ",
+                    "co-expression result is a tree, so it is cut ",
+                    "hierarchically", call. = FALSE)
+        }
+    } else if (inherits(x, "dist")) {
+        d <- x
+        cluster_method <- "hclust"
+        if (!score_given) score <- "silhouette"
+        bad <- setdiff(score, "silhouette")
+        if (length(bad)) {
+            stop(fname, " score '", paste(bad, collapse = "', '"), "' needs ",
+                 "coordinates, not a distance", call. = FALSE)
+        }
+        .sck_warn_ignored(c("dist_method", "subsample"),
+                          supplied, fname, "x is already a distance")
+        if ("cluster_method" %in% supplied &&
+            identical(cluster_method_asked, "kmeans")) {
+            warning(fname, " cluster_method = \"kmeans\" is ignored: k-means ",
+                    "needs coordinates, so a distance is cut hierarchically",
+                    call. = FALSE)
+        }
+    } else {
+        mat <- as.matrix(x)
+        if (!is.numeric(mat)) stop(fname, " x must be numeric", call. = FALSE)
+        if (anyNA(mat)) stop(fname, " x contains NA", call. = FALSE)
+    }
+
+    if (!score_given && identical(cluster_method, "hclust")) {
+        score <- "silhouette"
+    }
+    if (any(c("silhouette", "gap") %in% score)) {
+        GiottoUtils::package_check("cluster", repository = "CRAN")
+    }
+
+    coord_scores <- intersect(score, c("wss", "gap"))
+    if (length(coord_scores) && !identical(cluster_method, "kmeans")) {
+        stop(fname, " score '", paste(coord_scores, collapse = "', '"),
+             "' is defined for cluster_method = 'kmeans'", call. = FALSE)
+    }
+
+    # ---- subsample, where the observations are rows of a matrix ------------
+    if (!is.null(mat) && !is.null(subsample) && subsample >= nrow(mat)) {
+        GiottoUtils::vmsg(.v = verbose, fname, "subsample", subsample,
+                          "is not below the", nrow(mat),
+                          "observations; scoring all of them")
+    }
+    if (!is.null(mat) && !is.null(subsample) && subsample < nrow(mat)) {
+        if (!is.null(seed)) set.seed(seed)
+        n_all <- nrow(mat)
+        mat <- mat[sample.int(n_all, subsample), , drop = FALSE]
+        GiottoUtils::vmsg(.v = verbose, fname, "scoring on", subsample,
+                          "randomly sampled observations of", n_all)
+    }
+
+    if (max(k_range) >= (if (is.null(mat)) attr(d, "Size") else nrow(mat))) {
+        stop(fname, " k_range reaches the number of observations",
+             call. = FALSE)
+    }
+
+    # ---- a silhouette needs a distance; build it once ----------------------
+    if ("silhouette" %in% score && is.null(d)) {
+        n <- nrow(mat)
+        gb <- n * (n - 1) / 2 * 8 / 1024^3
+        if (n > max_dist_obs) {
+            stop(sprintf(paste0(
+                "%s a silhouette needs every pairwise distance: %s ",
+                "observations would be %.0f GB.\n",
+                "  Set subsample to score on a random sample, or use ",
+                "score = 'wss', which never builds a distance and so runs on ",
+                "all of them."), fname, format(n, big.mark = ","), gb),
+                call. = FALSE)
+        }
+        if (gb > 0.5) {
+            GiottoUtils::vmsg(.v = verbose, fname, sprintf(
+                "building a %s x %s distance, about %.1f GB",
+                format(n, big.mark = ","), format(n, big.mark = ","), gb))
+        }
+        d <- switch(dist_method,
+                    euclidean = stats::dist(mat),
+                    correlation = stats::as.dist(1 - stats::cor(t(mat))))
+    }
+
+    if (is.null(hc) && identical(cluster_method, "hclust")) {
+        hc <- stats::hclust(d, method = hclust_method)
+    }
+
+    # One partition per k, reused by every criterion so they describe the same
+    # clustering rather than independent fits.
+    # Only silhouette needs the partition and only wss needs the objective,
+    # so a gap-only sweep can skip this entirely: clusGap fits its own.
+    need_fits <- any(c("silhouette", "wss") %in% score)
+    if (!is.null(seed)) set.seed(seed)
+    fits <- if (!need_fits) NULL else lapply(k_range, function(kk) {
+        if (identical(cluster_method, "hclust")) {
+            list(cluster = stats::cutree(hc, k = kk), wss = NA_real_)
+        } else {
+            km <- stats::kmeans(mat, centers = kk, nstart = nstart,
+                                iter.max = iter_max)
+            list(cluster = km$cluster, wss = km$tot.withinss)
+        }
+    })
+
+    # The gap statistic resamples, so it is fitted once over the whole range
+    # rather than per k.
+    gap_tab <- NULL
+    if ("gap" %in% score) {
+        if (!is.null(seed)) set.seed(seed)
+        gs <- cluster::clusGap(mat, FUNcluster = stats::kmeans,
+                               K.max = max(k_range), B = n_perm,
+                               nstart = nstart, iter.max = iter_max,
+                               verbose = FALSE)
+        gap_tab <- data.table::data.table(k = seq_len(nrow(gs$Tab)),
+                                          value = gs$Tab[, "gap"],
+                                          se = gs$Tab[, "SE.sim"])
+    }
+
+    res <- data.table::rbindlist(lapply(score, function(s) {
+        if (identical(s, "gap")) {
+            tb <- gap_tab[gap_tab$k %in% k_range, c("k", "value", "se")]
+        } else {
+            v <- vapply(seq_along(k_range), function(i) {
+                switch(s,
+                       silhouette = mean(cluster::silhouette(
+                           fits[[i]]$cluster, d)[, 3L]),
+                       wss = fits[[i]]$wss)
+            }, numeric(1))
+            tb <- data.table::data.table(k = k_range, value = v,
+                                         se = NA_real_)
+        }
+        # Tibshirani's rule for the gap: the smallest k whose gap already
+        # reaches the next k's, allowing for that one's error. argmax is wrong
+        # here -- on a curve that keeps rising it just returns the largest k
+        # in the range, which says nothing.
+        b <- if (identical(s, "wss")) {
+            .sck_elbow_k(tb$k, tb$value)
+        } else if (identical(s, "gap")) {
+            ok <- which(tb$value[-nrow(tb)] >=
+                            (tb$value[-1L] - tb$se[-1L]))
+            if (length(ok)) tb$k[[ok[[1L]]]] else tb$k[[which.max(tb$value)]]
+        } else {
+            tb$k[[which.max(tb$value)]]
+        }
+        tb[, `:=`(score = s, selected = k == b)]
+        tb
+    }))
+
+    if (identical(output, "data.table")) return(res[])
+
+    labs <- c(silhouette = "mean silhouette width",
+              wss = "total within-cluster sum of squares",
+              gap = "gap statistic")
+    res[, score_lab := labs[score]]
+    picks <- res[res$selected]
+    sub_txt <- paste(sprintf("%s: k = %d", picks$score, picks$k),
+                     collapse = "   |   ")
+
+    pl <- ggplot2::ggplot(res, ggplot2::aes(k, value)) +
+        ggplot2::geom_line(color = line_color) +
+        ggplot2::geom_point(size = 1.6) +
+        ggplot2::geom_point(data = picks, color = point_color, size = 3) +
+        ggplot2::scale_x_continuous(breaks = k_range) +
+        ggplot2::labs(x = if (!is.null(xlab)) xlab else if (is_coexpr)
+                          "number of modules (n_modules)" else
+                          "number of clusters (k)",
+                      y = ylab, subtitle = sub_txt)
+    pl <- if (length(score) > 1L) {
+        pl + ggplot2::facet_wrap(~score_lab, scales = "free_y", ncol = 1)
+    } else {
+        pl + ggplot2::labs(y = if (is.null(ylab)) labs[[score]] else ylab)
+    }
+    if (!is.null(title)) pl <- pl + ggplot2::labs(title = title)
+
+    pl <- pl + ggplot2::theme_classic(base_size = axis_text) +
+        ggplot2::theme(axis.title = ggplot2::element_text(size = axis_title))
+    if (length(theme_param)) pl <- pl + do.call(ggplot2::theme, theme_param)
+
+    # plot_output_handler asserts a gobject, so a call on a bare matrix or a
+    # co-expression result has nowhere to read show/save defaults from. Honor
+    # the arguments directly in that case, and use the handler when an object
+    # is supplied so saving matches every other Giotto plot.
+    if (is.null(gobject)) {
+        if (isTRUE(save_plot)) {
+            warning(fname, " save_plot needs a gobject to read its save ",
+                    "settings from", call. = FALSE)
+        }
+        if (!isFALSE(show_plot)) print(pl)
+        return(if (isFALSE(return_plot)) invisible(NULL) else pl)
+    }
+
+    GiottoVisuals::plot_output_handler(
+        gobject = gobject, plot_object = pl,
+        save_plot = save_plot, return_plot = return_plot,
+        show_plot = show_plot,
+        default_save_name = default_save_name,
+        save_param = save_param, else_return = NULL)
+}
+
+.sck_elbow_k <- function(kk, vv) {
+    kn <- (kk - min(kk)) / diff(range(kk))
+    vn <- (vv - min(vv)) / diff(range(vv))
+    n <- length(kn)
+    dchord <- abs((vn[n] - vn[1]) * kn - (kn[n] - kn[1]) * vn +
+                      kn[n] * vn[1] - vn[n] * kn[1]) /
+        sqrt((vn[n] - vn[1])^2 + (kn[n] - kn[1])^2)
+    kk[[which.max(dchord)]]
+}
+
+# A spatial enrichment table carries its cell IDs in a cell_ID column whose
+# position is not fixed, so find it by name rather than by index.
+.sck_enr_matrix <- function(en) {
+    id_col <- if ("cell_ID" %in% colnames(en)) {
+        "cell_ID"
+    } else {
+        nn <- names(which(!vapply(en, is.numeric, logical(1))))
+        if (length(nn)) nn[[1L]] else colnames(en)[[1L]]
+    }
+    num <- setdiff(names(which(vapply(en, is.numeric, logical(1)))), id_col)
+    if (!length(num)) {
+        stop("[sweepClusterK] spatial enrichment has no numeric columns",
+             call. = FALSE)
+    }
+    mm <- as.matrix(en[, num, with = FALSE])
+    mm[is.na(mm)] <- 0
+    rownames(mm) <- as.character(en[[id_col]])
+    mm
+}
+
+.sck_warn_ignored <- function(args, supplied, fname, why) {
+    args <- intersect(args, supplied)
+    if (!length(args)) return(invisible(NULL))
+    warning(fname, " ", paste0("`", args, "`", collapse = ", "),
+            if (length(args) > 1L) " are" else " is", " ignored: ", why,
+            call. = FALSE)
+}
+
+
 
 
 
@@ -3850,116 +4399,610 @@ mergeClusters <- function(
 
 
 
-#' @title Split dendrogram in two
-#' @name .split_dendrogram_in_two
-#' @description Merge selected clusters based on pairwise correlation scores
-#' and size of cluster.
-#' @param dend dendrogram object
-#' @returns list of two dendrograms and height of node
-#' @keywords internal
-.split_dendrogram_in_two <- function(dend) {
-    top_height <- attributes(dend)$height
-    divided_leaves_labels <- dendextend::cut_lower_fun(dend, h = top_height)
-
-    # this works for both numericala nd character leave names
-    all_leaves <- dendextend::get_leaves_attr(dend = dend, attribute = "label")
-    selected_labels_ind_1 <- all_leaves %in% divided_leaves_labels[[1]]
-    selected_labels_ind_2 <- all_leaves %in% divided_leaves_labels[[2]]
-    numerical_leaves <- unlist(dend)
-    names(numerical_leaves) <- all_leaves
-
-    dend_1 <- dendextend::find_dendrogram(
-        dend = dend,
-        selected_labels = names(numerical_leaves[selected_labels_ind_1])
-    )
-    dend_2 <- dendextend::find_dendrogram(
-        dend = dend,
-        selected_labels = names(numerical_leaves[selected_labels_ind_2])
-    )
-
-    return(list(theight = top_height, dend1 = dend_1, dend2 = dend_2))
-}
-
-
-
 #' @title Node clusters
 #' @name .node_clusters
-#' @description Merge selected clusters based on pairwise correlation scores
-#' and size of cluster.
-#' @param hclus_obj hclus object
-#' @param verbose be verbose
-#' @returns list of splitted dendrogram nodes from high to low node height
+#' @description Enumerate the two leaf sets either side of every internal node
+#' of a hierarchical clustering.
+#' @param hclus_obj hclust object
+#' @param verbose unused, kept for backward compatibility
+#' @returns list whose second element holds one entry per internal node, each
+#' with the node height, the leaf labels on each side, and the `merge` row the
+#' node corresponds to. Ordered from high to low node height.
+#' @details
+#' Walks `hclust$merge` directly rather than repeatedly locating a node by its
+#' height in a growing list of dendrograms. The height-matching approach this
+#' replaced was wrong in three ways, all silent: a node was never removed from
+#' the candidate list once split, so with **tied merge heights**
+#' `which.min()` re-selected the same node and emitted its split twice while
+#' the true sibling was never split; heights were assumed to increase with
+#' merge order, which `"centroid"` and `"median"` linkage violate; and the
+#' list index advanced by two per iteration while the list was compacted in
+#' place. Row count was `k - 1` either way, so none of it surfaced as an error.
 #' @keywords internal
 .node_clusters <- function(hclus_obj, verbose = TRUE) {
-    heights <- sort(hclus_obj[["height"]], decreasing = TRUE)
-    mydend <- stats::as.dendrogram(hclus_obj)
+    merge_mat <- hclus_obj[["merge"]]
+    heights <- hclus_obj[["height"]]
+    labels <- hclus_obj[["labels"]]
+    if (is.null(labels)) labels <- as.character(seq_len(nrow(merge_mat) + 1L))
 
-
-    result_list <- list()
-    j <- 1
-
-    dend_list <- list()
-    i <- 1
-    dend_list[[i]] <- mydend
-
-    ## create split at each height ##
-    for (n_height in heights) {
-        if (verbose == TRUE) cat("height ", n_height, "\n")
-
-        # only use dendrogram objects
-        ind <- lapply(dend_list, FUN = function(x) is(x, "dendrogram"))
-        dend_list <- dend_list[unlist(ind)]
-
-        # check which heights are available
-        available_h <- as.numeric(unlist(lapply(
-            dend_list,
-            FUN = function(x) attributes(x)$height
-        )))
-
-        # get dendrogram associated with height and split in two
-        select_dend_ind <- which.min(abs(available_h - n_height))
-        select_dend <- dend_list[[select_dend_ind]]
-        tempres <- .split_dendrogram_in_two(dend = select_dend)
-
-        # find leave labels
-        toph <- tempres[[1]]
-        first_group <- dendextend::get_leaves_attr(
-            tempres[[2]],
-            attribute = "label"
+    # In `merge`, a negative entry is a leaf (by index) and a positive entry is
+    # an earlier merge row, so the leaf set under one side is a plain recursion.
+    leaves_of <- function(node) {
+        if (node < 0L) {
+            return(labels[-node])
+        }
+        c(
+            leaves_of(merge_mat[node, 1L]),
+            leaves_of(merge_mat[node, 2L])
         )
-        second_group <- dendextend::get_leaves_attr(
-            tempres[[3]],
-            attribute = "label"
-        )
-
-        result_list[[j]] <- list(
-            "height" = toph,
-            "first" = first_group,
-            "sec" = second_group
-        )
-        j <- j + 1
-
-
-
-        ## add dendrograms to list
-        ind <- lapply(tempres, FUN = function(x) is(x, "dendrogram"))
-        tempres_dend <- tempres[unlist(ind)]
-
-        dend_list[[i + 1]] <- tempres_dend[[1]]
-        dend_list[[i + 2]] <- tempres_dend[[2]]
-
-        i <- i + 2
     }
 
-    return(list(dend_list, result_list))
+    ord <- order(heights, decreasing = TRUE)
+    result_list <- lapply(ord, function(i) {
+        list(
+            "height" = heights[[i]],
+            "first" = leaves_of(merge_mat[i, 1L]),
+            "sec" = leaves_of(merge_mat[i, 2L]),
+            "node" = i
+        )
+    })
+
+    # First element was a list of dendrogram objects that no caller read; the
+    # shape is kept so the return contract does not change.
+    return(list(NULL, result_list))
 }
 
+
+
+#' @title calculateClusterTree
+#' @name calculateClusterTree
+#' @description Hierarchically cluster the clusters, by correlating their mean
+#' expression profiles.
+#' @param gobject giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param expression_values expression values to use
+#' @param cluster_column name of the cell metadata column holding the clusters
+#' @param feats optional character vector of features to restrict the
+#' correlation to. Highly variable features are a common choice; `NULL` uses
+#' every feature.
+#' @param cor correlation score to calculate distance
+#' @param distance distance method to use for hierarchical clustering
+#' @param view optional `character(1)` naming a slotted view. The tree is
+#' built from the cells that survive it: the per-cluster means are taken over
+#' those cells only, and a cluster with none left is not a leaf.
+#' @returns a `giottoTree`: an `hclust` whose leaf labels are the cluster
+#' labels, recording the settings it was built from (`spat_unit`, `feat_type`,
+#' `expression_values`, `cluster_column`, `view`, `feats`, ...) as the attribute
+#' `"params"`, and the correlation matrix as `"cor_matrix"`. `feats` is `NULL`
+#' when every feature was used, and otherwise the features actually present.
+#' @details
+#' The per-cluster means come from `analyzeData(x, analyzeParam("feat_stats"),
+#' groups =)`, which is one pass over the expression values on any backend,
+#' including a disk-backed store. [GiottoClass::calculateMetaTable()] takes
+#' its per-group means through the same call.
+#'
+#' @section giottoTree:
+#' The class is `c("giottoTree", "hclust")`, so [stats::cutree()],
+#' [stats::as.dendrogram()], `plot()`, `ggdendro`, `dendextend` and `ape` all
+#' treat it as the `hclust` it is.
+#'
+#' A tree is the grouping: which clusters sit on each side of each split.
+#' Functions that analyse along it ([findClusterTreeMarkers()],
+#' [writeClusterTreeQuery()], [annotateClusterTree()]) take their defaults for
+#' `cluster_column`, `spat_unit`, `feat_type`, `expression_values` and `view`
+#' from the recorded settings. Which data they use is still the caller's
+#' choice: an explicit argument always wins, with a warning when it differs
+#' from what the tree recorded, since the results then describe different data
+#' than the splits. A plain `hclust` from elsewhere works too, with those
+#' arguments passed explicitly.
+#'
+#' `as.data.frame()` / `data.table::as.data.table()` on a `giottoTree` give one
+#' row per split; see [as.data.frame.giottoTree()].
+#'
+#' Cluster labels are ordered naturally before the correlation is taken. This
+#' matters more than it looks: ward linkage breaks near-ties by index, so
+#' correlating the same profiles in lexical order (`"1"`, `"10"`, ..., `"2"`)
+#' rather than natural order can yield a measurably different tree.
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' plot(tree)
+#' data.table::as.data.table(tree)
+#' @export
+calculateClusterTree <- function(gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        expression_values = c("normalized", "scaled", "custom"),
+        cluster_column,
+        feats = NULL,
+        cor = c("pearson", "spearman"),
+        distance = "ward.D",
+        view = NULL) {
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+    )
+    gobject <- .tree_resolve_view(gobject, view, spat_unit, feat_type)
+    values <- match.arg(
+        expression_values,
+        unique(c("normalized", "scaled", "custom", expression_values))
+    )
+    cor <- match.arg(cor, c("pearson", "spearman"))
+
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = TRUE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[calculateClusterTree] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    groups <- stats::setNames(
+        as.character(cell_meta[[cluster_column]]), cell_meta[["cell_ID"]]
+    )
+
+    expr <- getExpression(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        values = values, output = "exprObj"
+    )[]
+    st <- GiottoClass::analyzeData(
+        expr, analyzeParam("feat_stats"),
+        groups = groups, stats = "sum"
+    )
+    st <- data.table::as.data.table(st)
+
+    # Natural, not lexical: see details.
+    lvls <- GiottoUtils::mixedsort(unique(as.character(st$group)))
+    n_feats <- length(unique(st$feats))
+    mat <- matrix(st$mean_expr, nrow = n_feats,
+        dimnames = list(unique(st$feats), unique(as.character(st$group)))
+    )[, lvls, drop = FALSE]
+
+    if (!is.null(feats)) {
+        keep <- intersect(feats, rownames(mat))
+        if (!length(keep)) {
+            stop("[calculateClusterTree] none of `feats` are present.",
+                call. = FALSE)
+        }
+        mat <- mat[keep, , drop = FALSE]
+    }
+
+    cormatrix <- cor_flex(x = mat, method = cor)
+    corclus <- stats::hclust(
+        d = stats::as.dist(1 - cormatrix, diag = TRUE, upper = TRUE),
+        method = distance
+    )
+    attr(corclus, "cor_matrix") <- cormatrix
+    attr(corclus, "params") <- list(
+        spat_unit = spat_unit, feat_type = feat_type,
+        expression_values = values, cluster_column = cluster_column,
+        cor = cor, distance = distance, n_feats = nrow(mat), view = view,
+        # `NULL` means every feature; otherwise the ones actually used, so a
+        # consumer recomputing over the same features can default to them
+        feats = if (is.null(feats)) NULL else rownames(mat)
+    )
+    class(corclus) <- c("giottoTree", class(corclus))
+    corclus
+}
+
+
+# giottoTree ####
+
+#' @title Splits of a cluster tree as a table
+#' @name as.data.frame.giottoTree
+#' @aliases as.data.table.giottoTree
+#' @description One row per split (internal node) of a tree from
+#' [calculateClusterTree()], root first:
+#' * `nodeID` --- the `tree$merge` row. The same node numbering
+#'   [findClusterTreeMarkers()], [writeClusterTreeQuery()] and
+#'   [annotateClusterTree()] (`labels$nodes`) use.
+#' * `node_h` --- the height of the join
+#' * `left`, `right` --- the clusters on each side, as character vectors
+#' @param x a `giottoTree`
+#' @param ... ignored
+#' @returns a `data.frame`, or a `data.table` from `as.data.table()`
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' data.table::as.data.table(tree)
+#' @export
+as.data.frame.giottoTree <- function(x, ...) {
+    as.data.frame(.tree_splits(x))
+}
+
+#' @rdname as.data.frame.giottoTree
+#' @exportS3Method data.table::as.data.table
+as.data.table.giottoTree <- function(x, ...) {
+    .tree_splits(x)
+}
+
+# The tree's merge table with each side resolved to cluster labels.
+.tree_splits <- function(tree) {
+    nodes <- .node_clusters(hclus_obj = tree, verbose = FALSE)[[2]]
+    data.table::data.table(
+        nodeID = vapply(nodes, function(x) x[["node"]], integer(1L)),
+        node_h = vapply(nodes, function(x) x[["height"]], numeric(1L)),
+        left = lapply(nodes, function(x) x[["first"]]),
+        right = lapply(nodes, function(x) x[["sec"]])
+    )
+}
+
+# Defaults a consumer takes from a tree's recorded settings. The tree is the
+# grouping; what is compared along it stays the caller's choice, so an explicit
+# argument always wins -- but it is flagged when it differs from the tree,
+# because the result then describes different data than the splits. A plain
+# `hclust` records nothing, so its consumers rely on explicit arguments.
+.tree_context <- function(tree, args, supplied, site) {
+    if (!inherits(tree, "hclust")) {
+        stop(sprintf("[%s] `tree` must be an `hclust`, as returned by `calculateClusterTree()`. Got: %s.",
+            site, paste(class(tree), collapse = "/")), call. = FALSE)
+    }
+    rec <- if (inherits(tree, "giottoTree")) attr(tree, "params") else NULL
+    fmt <- function(x) paste0("\"", paste(x, collapse = ", "), "\"")
+    for (nm in names(args)) {
+        if (!nm %in% names(rec)) next
+        if (isTRUE(supplied[[nm]])) {
+            if (identical(as.character(args[[nm]]), as.character(rec[[nm]]))) next
+            was <- if (is.null(rec[[nm]])) {
+                sprintf("the tree was built with no `%s`", nm)
+            } else {
+                sprintf("the tree was built with `%s = %s`", nm, fmt(rec[[nm]]))
+            }
+            warning(sprintf("[%s] using `%s = %s`, but %s; the results describe different data than the tree's splits.",
+                site, nm, fmt(args[[nm]]), was), call. = FALSE)
+        } else if (!is.null(rec[[nm]])) {
+            args[[nm]] <- rec[[nm]]
+            if (identical(nm, "view")) {
+                vmsg(.v = TRUE, sprintf("[%s] using view %s recorded on the tree",
+                    site, fmt(rec[[nm]])))
+            }
+        }
+    }
+    args
+}
+
+.tree_need_column <- function(cluster_column, site) {
+    if (is.null(cluster_column)) {
+        stop(sprintf("[%s] `cluster_column` is needed: pass it, or use a tree from `calculateClusterTree()`, which records one.",
+            site), call. = FALSE)
+    }
+    cluster_column
+}
+
+# One resolver pass over the two slots a tree consumer reads.
+.tree_resolve_view <- function(gobject, view, spat_unit, feat_type) {
+    if (is.null(view)) {
+        return(gobject)
+    }
+    checkmate::assert_string(view, .var.name = "view")
+    GiottoClass::resolveRecipe(gobject,
+        view = view, slots = c("cell_metadata", "expression"),
+        spat_unit = spat_unit, feat_type = feat_type
+    )
+}
+
+# A tree from another clustering, or another view, would otherwise flow
+# through silently: a leaf with no cells counts as empty and a cluster with no
+# leaf is skipped. `all_clusters = FALSE` allows clusters without a leaf, for
+# consumers that label every cell of a column a tree only partly covers.
+.check_tree_leaves <- function(tree, clusters, site, all_clusters = TRUE) {
+    clusters <- unique(as.character(clusters[!is.na(clusters)]))
+    no_leaf <- if (all_clusters) setdiff(clusters, tree$labels) else character()
+    no_cells <- setdiff(tree$labels, clusters)
+    if (!length(no_leaf) && !length(no_cells)) {
+        return(invisible(TRUE))
+    }
+    stop(sprintf("[%s] `tree` leaves do not match the clusters in the data.%s%s\nWas the tree built from another clustering, or under a different view?",
+        site,
+        if (length(no_leaf)) paste0("\n  clusters with no leaf: ",
+            paste(mixedsort(no_leaf), collapse = ", ")) else "",
+        if (length(no_cells)) paste0("\n  leaves with no cells: ",
+            paste(mixedsort(no_cells), collapse = ", ")) else ""
+    ), call. = FALSE)
+}
+
+
+
+#' @title annotateClusterTree
+#' @name annotateClusterTree
+#' @description Write cluster-tree annotations onto a giotto object at one or
+#' more levels of granularity, from a single set of labels.
+#' @param gobject giotto object
+#' @param tree a `giottoTree` from [calculateClusterTree()], or any `hclust`
+#' over the clusters
+#' @param labels the annotation, as a list with `clusters` (one label per leaf)
+#' and optionally `nodes` (one label per internal node). Both may be named
+#' character vectors or `data.frame`s; see details.
+#' @param spat_unit,feat_type,cluster_column default to those recorded on a
+#' `giottoTree`; see the giottoTree section of [calculateClusterTree()].
+#' `cluster_column` is required for a plain `hclust`.
+#' @param k,h granularity, passed to [stats::cutree()]. Either may be a vector,
+#' giving one annotation column per value. `k = NULL, h = NULL` writes the leaf
+#' labels unchanged.
+#' @param name names for the columns written. Defaults to `cell_types_k<k>` /
+#' `cell_types_h<h>`, or `cell_types` for the leaf level.
+#' @param ... passed to [GiottoClass::annotateGiotto()]
+#' @returns the giotto object, with one cell metadata column per requested level
+#' @details
+#' A tree annotated at every node can be read at any depth without asking the
+#' annotator again: cutting it at `k` groups and naming each group is pure tree
+#' arithmetic. That is what this does, so a user can compare a coarse and a fine
+#' labelling of the same cells side by side.
+#'
+#' @section Resolving a label for a group:
+#' An annotator will not always name every node, and a partially labelled tree
+#' still has to produce a column with no holes in it. Each group takes the first
+#' of these that resolves:
+#'
+#' 1. the label of the group's own root node
+#' 2. the leaf's own label, when the group is a single cluster
+#' 3. the nearest **labelled ancestor** -- a coarser name is always true of a
+#'    subset, so this is a widening, not a guess
+#' 4. the majority label among the group's leaves
+#'
+#' The order of 2 and 3 is load-bearing. No internal node spans a single leaf,
+#' so at the finest cut every group is a singleton with no node of its own; if
+#' the ancestor search came first, the finest level would come back coarser
+#' than the leaf labels it was built from.
+#' @seealso [calculateClusterTree()], [writeClusterTreeQuery()],
+#' [GiottoVisuals::plotClusterTree()]
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#'
+#' tree <- calculateClusterTree(g, cluster_column = "leiden_clus")
+#' labs <- list(clusters = stats::setNames(
+#'     paste("type", tree$labels), tree$labels
+#' ))
+#' g <- annotateClusterTree(g,
+#'     tree = tree, labels = labs,
+#'     cluster_column = "leiden_clus", k = c(2, 4)
+#' )
+#' pDataDT(g)
+#' @export
+annotateClusterTree <- function(gobject,
+        tree,
+        labels,
+        spat_unit = NULL,
+        feat_type = NULL,
+        cluster_column = NULL,
+        k = NULL,
+        h = NULL,
+        name = NULL,
+        ...) {
+    site <- "annotateClusterTree"
+    ctx <- .tree_context(tree,
+        args = list(spat_unit = spat_unit, feat_type = feat_type,
+            cluster_column = cluster_column),
+        supplied = c(spat_unit = !is.null(spat_unit),
+            feat_type = !is.null(feat_type),
+            cluster_column = !is.null(cluster_column)),
+        site = site
+    )
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = ctx$spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = ctx$feat_type
+    )
+    cluster_column <- .tree_need_column(ctx$cluster_column, site)
+    cell_meta <- getCellMetadata(gobject,
+        spat_unit = spat_unit, feat_type = feat_type,
+        output = "data.table", copy_obj = FALSE
+    )
+    if (!cluster_column %in% colnames(cell_meta)) {
+        stop("[annotateClusterTree] `", cluster_column,
+            "` is not a cell metadata column.", call. = FALSE)
+    }
+    # every cell is labelled through the column, so clusters the tree does not
+    # cover (outside the view it was built under, say) are allowed; a leaf
+    # with no cells is not
+    .check_tree_leaves(tree, cell_meta[[cluster_column]], site,
+        all_clusters = FALSE)
+    .check_tree_granularity(tree, k, h, site)
+
+    leaf_lab <- .tree_label_vector(labels$clusters, tree$labels,
+        what = "clusters")
+    node_lab <- if (!is.null(labels$nodes)) {
+        .tree_label_vector(labels$nodes,
+            as.character(seq_len(nrow(tree$merge))), what = "nodes",
+            complete = FALSE)
+    } else {
+        stats::setNames(character(0L), character(0L))
+    }
+
+    levels_req <- c(
+        if (!is.null(k)) stats::setNames(as.list(k), paste0("k", k)),
+        if (!is.null(h)) stats::setNames(as.list(h), paste0("h", h))
+    )
+    if (!length(levels_req)) {
+        levels_req <- list(leaf = NULL)
+    }
+    if (!is.null(name) && length(name) != length(levels_req)) {
+        stop("[annotateClusterTree] `name` must give one name per requested ",
+            "level: ", length(levels_req), " expected, ", length(name),
+            " given.", call. = FALSE)
+    }
+
+    for (i in seq_along(levels_req)) {
+        tag <- names(levels_req)[i]
+        val <- levels_req[[i]]
+        vec <- if (identical(tag, "leaf")) {
+            leaf_lab
+        } else if (startsWith(tag, "k")) {
+            .tree_group_labels(tree, leaf_lab, node_lab,
+                grp = stats::cutree(tree, k = val))
+        } else {
+            .tree_group_labels(tree, leaf_lab, node_lab,
+                grp = stats::cutree(tree, h = val))
+        }
+        col <- if (!is.null(name)) {
+            name[i]
+        } else if (identical(tag, "leaf")) {
+            "cell_types"
+        } else {
+            paste0("cell_types_", tag)
+        }
+        gobject <- GiottoClass::annotateGiotto(gobject,
+            spat_unit = spat_unit, feat_type = feat_type,
+            annotation_vector = vec, cluster_column = cluster_column,
+            name = col, ...
+        )
+    }
+    gobject
+}
+
+
+
+# `stats::cutree()` refuses a `k` beyond the leaf count and an `h` outside the
+# tree, but says so in its own terms -- "elements of 'k' must be between 1 and
+# n" names neither the argument the user passed nor the tree they passed it
+# for. Shared by the Giotto side; GiottoVisuals carries its own copy for the
+# same reason it carries its own label resolver.
+#' @keywords internal
+#' @noRd
+.check_tree_granularity <- function(tree, k = NULL, h = NULL, where) {
+    n <- length(tree$labels)
+    if (!is.null(k)) {
+        if (!is.numeric(k) || anyNA(k)) {
+            stop("[", where, "] `k` must be numeric and not NA.",
+                call. = FALSE)
+        }
+        bad <- k[k < 1 | k > n]
+        if (length(bad)) {
+            stop("[", where, "] `k` must be between 1 and the number of ",
+                "clusters in the tree (", n, "). Got: ",
+                paste(unique(bad), collapse = ", "), ".", call. = FALSE)
+        }
+    }
+    if (!is.null(h)) {
+        if (!is.numeric(h) || anyNA(h)) {
+            stop("[", where, "] `h` must be numeric and not NA.",
+                call. = FALSE)
+        }
+        rng <- range(tree$height)
+        bad <- h[h < 0]
+        if (length(bad)) {
+            stop("[", where, "] `h` must not be negative. Got: ",
+                paste(unique(bad), collapse = ", "), ".", call. = FALSE)
+        }
+        # above the root every leaf is one group, which cutree handles; warn
+        # rather than refuse, since it is a degenerate answer and not an error
+        if (any(h > rng[2L])) {
+            warning("[", where, "] `h` above the root height (",
+                signif(rng[2L], 3), ") puts every cluster in one group.",
+                call. = FALSE)
+        }
+    }
+    invisible(TRUE)
+}
+
+# Accept either a named vector or a two-column table for the labels, so a
+# caller can hand over `fromJSON()` output without reshaping it first.
+#' @keywords internal
+#' @noRd
+.tree_label_vector <- function(x, ids, what, complete = TRUE) {
+    if (is.null(x)) {
+        stop("[annotateClusterTree] `labels$", what, "` is required.",
+            call. = FALSE)
+    }
+    if (is.data.frame(x)) {
+        key <- intersect(c("cluster", "node", "id"), names(x))[1L]
+        val <- intersect(c("cell_type", "label", "name"), names(x))[1L]
+        if (is.na(key) || is.na(val)) {
+            stop("[annotateClusterTree] `labels$", what, "` as a table needs ",
+                "an id column (cluster/node/id) and a label column ",
+                "(cell_type/label/name). Got: ",
+                paste(names(x), collapse = ", "), ".", call. = FALSE)
+        }
+        x <- stats::setNames(as.character(x[[val]]), as.character(x[[key]]))
+    }
+    x <- stats::setNames(as.character(x), as.character(names(x)))
+    if (isTRUE(complete)) {
+        miss <- setdiff(ids, names(x))
+        if (length(miss)) {
+            stop("[annotateClusterTree] `labels$", what, "` is missing ",
+                length(miss), " of ", length(ids), ": ",
+                paste(utils::head(miss, 5L), collapse = ", "),
+                if (length(miss) > 5L) ", ..." else "", call. = FALSE)
+        }
+    }
+    x
+}
+
+
+# One label per cut group, by the resolution order documented on
+# `annotateClusterTree()`. Returns a vector named by leaf, ready for
+# `annotateGiotto()`.
+#' @keywords internal
+#' @noRd
+.tree_group_labels <- function(tree, leaf_lab, node_lab, grp) {
+    leaves_of <- function(node) {
+        if (node < 0L) return(tree$labels[-node])
+        c(leaves_of(tree$merge[node, 1L]), leaves_of(tree$merge[node, 2L]))
+    }
+    # merge row -> its leaf set, so a group can be matched to the node that
+    # spans exactly it, and to every node that contains it
+    sets <- lapply(seq_len(nrow(tree$merge)),
+        function(i) sort(leaves_of(i)))
+    keys <- vapply(sets, paste, character(1L), collapse = "\r")
+
+    out <- character(0L)
+    for (gi in unique(grp)) {
+        members <- sort(names(grp)[grp == gi])
+        lab <- NA_character_
+
+        # 1. the node spanning exactly this group
+        # `[[` on a named vector *errors* for an absent name rather than
+        # returning NULL, so the membership test has to come first -- `%null%`
+        # never gets a chance to run.
+        hit <- match(paste(members, collapse = "\r"), keys)
+        if (!is.na(hit) && as.character(hit) %in% names(node_lab)) {
+            lab <- node_lab[[as.character(hit)]]
+        }
+
+        # 2. a group of one leaf is that leaf. This has to come before the
+        #    ancestor search: no internal node spans a single leaf, so a
+        #    singleton would otherwise inherit a clade name and the finest
+        #    level would come back coarser than the labels it was built from.
+        if (is.na(lab) && length(members) == 1L &&
+                members %in% names(leaf_lab)) {
+            lab <- leaf_lab[[members]]
+        }
+
+        # 3. nearest labelled ancestor: the smallest labelled node that
+        #    contains every member
+        if (is.na(lab) && length(node_lab)) {
+            contains <- vapply(sets, function(s) all(members %in% s),
+                logical(1L))
+            cand <- which(contains & as.character(seq_along(sets)) %in%
+                names(node_lab))
+            if (length(cand)) {
+                lab <- node_lab[[as.character(cand[which.min(
+                    lengths(sets)[cand])])]]
+            }
+        }
+
+        # 4. otherwise the leaves themselves decide
+        if (is.na(lab)) {
+            lv <- leaf_lab[members]
+            lab <- names(sort(table(lv), decreasing = TRUE))[1L]
+        }
+        out[members] <- lab
+    }
+    out[tree$labels]
+}
 
 
 #' @title getDendrogramSplits
 #' @name getDendrogramSplits
-#' @description Split dendrogram at each node and keep the leave (label)
-#' information.
+#' @description Deprecated. Build the tree with [calculateClusterTree()]; then
+#' `data.table::as.data.table(tree)` gives the same table (with `left` /
+#' `right` for `tree_1` / `tree_2`), and `plot(tree)` draws it. See
+#' [as.data.frame.giottoTree()].
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
@@ -3970,17 +5013,11 @@ mergeClusters <- function(
 #' @param h height of horizontal lines to plot
 #' @param h_color color of horizontal lines
 #' @param show_dend show dendrogram
+#' @param tree optional `hclust` from [calculateClusterTree()]
 #' @param verbose be verbose
-#' @returns data.table object
-#' @details Creates a data.table with three columns and each row represents a
-#' node in the dendrogram. For each node the height of the node is given
-#' together with the two subdendrograms. This information can be used to
-#' determine in a hierarchical manner differentially expressed marker genes at
-#' each node.
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' getDendrogramSplits(g, cluster_column = "leiden_clus")
+#' @returns `data.table` with one row per internal node, ordered from highest
+#' node to lowest: `node_h`, `tree_1` and `tree_2` (list columns of cluster
+#' labels either side of the split), and `nodeID` (the `hclust$merge` row).
 #' @export
 getDendrogramSplits <- function(
         gobject,
@@ -3993,7 +5030,14 @@ getDendrogramSplits <- function(
         h = NULL,
         h_color = "red",
         show_dend = TRUE,
+        tree = NULL,
         verbose = TRUE) {
+    deprecate_soft("4.3.0", "getDendrogramSplits()",
+        "data.table::as.data.table()",
+        details = paste0("Build the tree with `calculateClusterTree()`; ",
+            "`as.data.table(tree)` gives the same table, with `left` / ",
+            "`right` for `tree_1` / `tree_2`. Plot it with `plot(tree)`.")
+    )
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -4005,9 +5049,6 @@ getDendrogramSplits <- function(
         feat_type = feat_type
     )
 
-    # package check for dendextend
-    package_check(pkg_name = "dendextend", repository = "CRAN")
-
     # data.table variables
     nodeID <- NULL
 
@@ -4017,46 +5058,51 @@ getDendrogramSplits <- function(
         unique(c("normalized", "scaled", "custom", expression_values))
     )
 
-    # create average expression matrix per cluster
-    metatable <- calculateMetaTable(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        expression_values = values,
-        metadata_cols = cluster_column
-    )
-    dcast_metatable <- data.table::dcast.data.table(
-        metatable,
-        formula = variable ~ uniq_ID, value.var = "value"
-    )
-    testmatrix <- dt_to_matrix(x = dcast_metatable)
-
-    # correlation
-    cormatrix <- cor_flex(x = testmatrix, method = cor)
-    cordist <- stats::as.dist(1 - cormatrix, diag = TRUE, upper = TRUE)
-    corclus <- stats::hclust(d = cordist, method = distance)
-
-    cordend <- stats::as.dendrogram(object = corclus)
-
+    # The tree is the only thing this function needs. Building it is
+    # `calculateClusterTree()`'s job, which also owns the cluster-ordering
+    # invariant the correlation depends on; pass one in to reuse it across the
+    # splits, the dendrogram plot and anything else, instead of each caller
+    # rebuilding it from the expression values.
+    if (is.null(tree)) {
+        tree <- calculateClusterTree(
+            gobject = gobject,
+            spat_unit = spat_unit,
+            feat_type = feat_type,
+            expression_values = values,
+            cluster_column = cluster_column,
+            cor = cor,
+            distance = distance
+        )
+    }
+    if (!inherits(tree, "hclust")) {
+        stop("[getDendrogramSplits] `tree` must be an `hclust`, as returned ",
+            "by `calculateClusterTree()`. Got: ",
+            paste(class(tree), collapse = "/"), ".", call. = FALSE)
+    }
+    corclus <- tree
+    cordend <- stats::as.dendrogram(corclus)
 
     if (show_dend == TRUE) {
-        # plot dendrogram
         plot(cordend)
-
-        # add horizontal lines
         if (!is.null(h)) {
             abline(h = h, col = h_color)
         }
     }
 
-
     splitList <- .node_clusters(hclus_obj = corclus, verbose = verbose)
+    nodes <- splitList[[2]]
 
-    splitDT <- data.table::as.data.table(t_flex(
-        data.table::as.data.table(splitList[[2]])
-    ))
-    colnames(splitDT) <- c("node_h", "tree_1", "tree_2")
-    splitDT[, nodeID := paste0("node_", seq_len(.N))]
+    # Built column by column rather than transposed out of a ragged
+    # `as.data.table(list)`: that route made every column a list, including the
+    # height, and left `nodeID` as a row counter with no relationship to the
+    # tree. `node_h` is now numeric and `nodeID` is the `merge` row, so a
+    # per-node result can be joined back to the clustering it came from.
+    splitDT <- data.table::data.table(
+        node_h = vapply(nodes, function(x) x[["height"]], numeric(1L)),
+        tree_1 = lapply(nodes, function(x) x[["first"]]),
+        tree_2 = lapply(nodes, function(x) x[["sec"]]),
+        nodeID = vapply(nodes, function(x) x[["node"]], integer(1L))
+    )
 
     return(splitDT)
 }

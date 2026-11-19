@@ -15,6 +15,7 @@ getDendrogramSplits(
   h = NULL,
   h_color = "red",
   show_dend = TRUE,
+  tree = NULL,
   verbose = TRUE
 )
 }
@@ -39,24 +40,18 @@ getDendrogramSplits(
 
 \item{show_dend}{show dendrogram}
 
+\item{tree}{optional `hclust` from [calculateClusterTree()]}
+
 \item{verbose}{be verbose}
 }
 \value{
-data.table object
+`data.table` with one row per internal node, ordered from highest
+node to lowest: `node_h`, `tree_1` and `tree_2` (list columns of cluster
+labels either side of the split), and `nodeID` (the `hclust$merge` row).
 }
 \description{
-Split dendrogram at each node and keep the leave (label)
-information.
-}
-\details{
-Creates a data.table with three columns and each row represents a
-node in the dendrogram. For each node the height of the node is given
-together with the two subdendrograms. This information can be used to
-determine in a hierarchical manner differentially expressed marker genes at
-each node.
-}
-\examples{
-g <- GiottoData::loadGiottoMini("visium")
-
-getDendrogramSplits(g, cluster_column = "leiden_clus")
+Deprecated. Build the tree with [calculateClusterTree()]; then
+`data.table::as.data.table(tree)` gives the same table (with `left` /
+`right` for `tree_1` / `tree_2`), and `plot(tree)` draws it. See
+[as.data.frame.giottoTree()].
 }

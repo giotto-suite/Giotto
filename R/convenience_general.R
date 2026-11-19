@@ -251,641 +251,65 @@ NULL
 
 
 
-# *---- object creation ----* ####
-
-
-
-
-
-
-## Visium ####
-
-#' @title Create a giotto object from 10x visium data
-#' @name createGiottoVisiumObject
-#' @description Create Giotto object directly from a 10X visium folder. Also
-#' accepts visium H5 outputs.
-#'
-#' @param visium_dir path to the 10X visium directory [required]
-#' @param expr_data raw or filtered data (see details)
-#' @param gene_column_index which column index to select (see details)
-#' @param h5_visium_path path to visium 10X .h5 file
-#' @param h5_gene_ids gene names as symbols (default) or ensemble gene ids
-#' @param h5_tissue_positions_path path to tissue locations (.csv file)
-#' @param h5_image_png_path path to tissue .png file (optional). Image
-#' autoscaling looks for matches in the filename for either "hires" or "lowres"
-#' @param h5_json_scalefactors_path path to .json scalefactors (optional)
-#' @param png_name select name of png to use (see details)
-#' @param do_manual_adj deprecated
-#' @param xmax_adj deprecated
-#' @param xmin_adj deprecated
-#' @param ymax_adj deprecated
-#' @param ymin_adj deprecated
-#' @param instructions list of instructions or output result from
-#' \code{\link[GiottoClass]{createGiottoInstructions}}
-#' @param cores how many cores or threads to use to read data if paths are
-#' provided
-#' @param expression_matrix_class deprecated. See
-#'   [GiottoClass::createExprObj] for details
-#' @param h5_file optional path to create an on-disk h5 file
-#' @param verbose be verbose
-#'
-#' @returns giotto object
-#' @details
-#' If starting from a Visium 10X directory:
-#' \itemize{
-#'   \item{expr_data: raw will take expression data from
-#'   raw_feature_bc_matrix and filter from filtered_feature_bc_matrix}
-#'   \item{gene_column_index: which gene identifiers (names) to use if there
-#'   are multiple columns (e.g. ensemble and gene symbol)}
-#'   \item{png_name: by default the first png will be selected, provide the png
-#'   name to override this (e.g. myimage.png)}
-#'   \item{the file scalefactors_json.json will be detected automatically and
-#'   used to attempt to align the data}
-#' }
-#'
-#' If starting from a Visium 10X .h5 file
-#' \itemize{
-#'   \item{h5_visium_path: full path to .h5 file: /your/path/to/visium_file.h5}
-#'   \item{h5_tissue_positions_path: full path to spatial locations file:
-#'   /you/path/to/tissue_positions_list.csv}
-#'   \item{h5_image_png_path: full path to png:
-#'   /your/path/to/images/tissue_lowres_image.png}
-#'   \item{h5_json_scalefactors_path: full path to .json file:
-#'   /your/path/to/scalefactors_json.json}
-#' }
-#'
-#' @export
-createGiottoVisiumObject <- function(visium_dir = NULL,
-    expr_data = c("raw", "filter"),
-    gene_column_index = 1,
-    h5_visium_path = NULL,
-    h5_gene_ids = c("symbols", "ensembl"),
-    h5_tissue_positions_path = NULL,
-    h5_image_png_path = NULL,
-    h5_json_scalefactors_path = NULL,
-    png_name = NULL,
-    do_manual_adj = FALSE, # deprecated
-    xmax_adj = 0, # deprecated
-    xmin_adj = 0, # deprecated
-    ymax_adj = 0, # deprecated
-    ymin_adj = 0, # deprecated
-    instructions = NULL,
-    expression_matrix_class = deprecated(),
-    h5_file = NULL,
-    cores = NA,
-    verbose = NULL) {
-    # NSE vars
-    barcode <- row_pxl <- col_pxl <- in_tissue <- array_row <- array_col <- NULL
-
-    # handle deprecations
-    img_dep_msg <- "The params 'do_manual_adj', 'xmax_adj', 'xmin_adj',
-    'ymax_adj', 'ymin_adj' are no longer used.
-    Please use the automated workflow."
-    if (!isFALSE(do_manual_adj) ||
-        xmax_adj != 0 ||
-        xmin_adj != 0 ||
-        ymax_adj != 0 ||
-        ymin_adj != 0) {
-        stop(wrap_txt(img_dep_msg))
-    }
-
-    if (!missing(expression_matrix_class)) {
-        deprecate_warn(
-            "4.2.5",
-            "createGiottoVisiumObject(expression_matrix_class)",
-            details = "See `?GiottoClass::createExprObj` for details."
-        )
-    }
-
-    # set number of cores automatically, but with limit of 10
-    cores <- determine_cores(cores)
-    data.table::setDTthreads(threads = cores)
-
-
-    # get arguments list for object creation
-    if (!is.null(h5_visium_path)) {
-        argslist <- .visium_read_h5(
-            h5_visium_path = h5_visium_path, # expression matrix file
-            h5_gene_ids = h5_gene_ids, # symbol or ensembl
-            h5_tissue_positions_path = h5_tissue_positions_path,
-            h5_image_png_path = h5_image_png_path,
-            h5_json_scalefactors_path = h5_json_scalefactors_path,
-            verbose = verbose
-        )
-    } else {
-        argslist <- .visium_read_folder(
-            visium_dir = visium_dir,
-            expr_data = expr_data, # type of expression matrix to load
-            gene_column_index = gene_column_index, # symbol or ensembl
-            png_name = png_name,
-            verbose = verbose
-        )
-    }
-
-    # additional args to pass to object creation
-    argslist$verbose <- verbose
-    argslist$h5_file <- h5_file
-    argslist$instructions <- instructions
-
-    giotto_object <- do.call(.visium_create, args = argslist)
-
-    return(giotto_object)
-}
-
-
-
-
-
-
-
-
-.visium_create <- function(
-        expr_counts_path,
-        h5_gene_ids = NULL, # h5
-        gene_column_index = NULL, # folder
-        tissue_positions_path,
-        image_path = NULL,
-        scale_json_path = NULL,
-        png_name = NULL,
-        instructions = NULL,
-        h5_file = NULL,
-        verbose = NULL) {
-    # NSE vars
-    barcode <- cell_ID <- row_pxl <- col_pxl <- in_tissue <- array_row <-
-        array_col <- NULL
-
-    # Assume path checking has been done
-
-    # 1. expression
-    if (!is.null(h5_gene_ids)) {
-        expr_results <- get10Xmatrix_h5(
-            path_to_data = expr_counts_path,
-            gene_ids = h5_gene_ids
-        )
-    } else {
-        expr_results <- get10Xmatrix(
-            path_to_data = expr_counts_path,
-            gene_column_index = gene_column_index
-        )
-    }
-
-    # if expr_results is not a list, make it a list compatible with downstream
-    if (!is.list(expr_results)) {
-        expr_results <- list(
-            "Gene Expression" = expr_results
-        )
-    }
-
-    # format expected data into list to be used with readExprData()
-    raw_matrix_list <- list("cell" = list("rna" = list(
-        "raw" = expr_results[["Gene Expression"]]
-    )))
-
-    # add protein expression data to list if it exists
-    if ("Antibody Capture" %in% names(expr_results)) {
-        raw_matrix_list$cell$protein$raw <- expr_results[["Antibody Capture"]]
-    }
-
-
-    # 2. spatial locations
-    spatial_results <- data.table::fread(tissue_positions_path)
-    colnames(spatial_results) <- c(
-        "barcode", "in_tissue", "array_row",
-        "array_col", "col_pxl", "row_pxl"
-    )
-    spatial_results <- spatial_results[match(colnames(
-        raw_matrix_list$cell[[1]]$raw
-    ), barcode)]
-    data.table::setnames(spatial_results, old = "barcode", new = "cell_ID")
-    spatial_locs <- spatial_results[, .(cell_ID, row_pxl, -col_pxl)]
-    # flip x and y
-    colnames(spatial_locs) <- c("cell_ID", "sdimx", "sdimy")
-
-
-    # 3. scalefactors (optional)
-    json_info <- .visium_read_scalefactors(scale_json_path)
-
-
-    # 4. image (optional)
-    if (!is.null(image_path)) {
-        visium_png_list <- .visium_image(
-            image_path = image_path,
-            json_info = json_info,
-            verbose = verbose
-        )
-    }
-
-    # 5. metadata
-    meta_results <- spatial_results[
-        , .(cell_ID, in_tissue, array_row, array_col)
-    ]
-    expr_types <- names(raw_matrix_list$cell)
-    meta_list <- list()
-    for (etype in expr_types) {
-        meta_list[[etype]] <- meta_results
-    }
-
-
-    # 6. giotto object
-    giotto_object <- createGiottoObject(
-        expression = raw_matrix_list,
-        spatial_locs = spatial_locs,
-        instructions = instructions,
-        cell_metadata = meta_list,
-        images = visium_png_list
-    )
-
-
-    # 7. polygon information
-    if (!is.null(json_info)) {
-        visium_polygons <- .visium_spot_poly(
-            spatlocs = spatial_locs,
-            json_scalefactors = json_info
-        )
-        giotto_object <- setPolygonInfo(
-            gobject = giotto_object,
-            x = visium_polygons,
-            centroids_to_spatlocs = FALSE,
-            verbose = FALSE,
-            initialize = TRUE
-        )
-
-        ms <- 65 / json_info$spot_diameter_fullres
-        instructions(giotto_object, "micron_scale") <- ms
-    }
-
-    return(giotto_object)
-}
-
-
-
-# Find and check the filepaths within a structured visium directory
-.visium_read_folder <- function(
-        visium_dir = NULL,
-        expr_data = c("raw", "filter"),
-        gene_column_index = 1,
-        png_name = NULL,
-        verbose = NULL) {
-    vmsg(.v = verbose, "A structured visium directory will be used")
-
-    ## check arguments
-    if (is.null(visium_dir)) {
-        .gstop("visium_dir needs to be a path to a visium directory")
-    }
-    visium_dir <- path.expand(visium_dir)
-    if (!dir.exists(visium_dir)) .gstop(visium_dir, " does not exist!")
-    expr_data <- match.arg(expr_data, choices = c("raw", "filter"))
-
-
-    ## 1. check expression
-    expr_counts_path <- switch(expr_data,
-        "raw" = file.path(visium_dir, "raw_feature_bc_matrix"),
-        "filter" = file.path(visium_dir, "filtered_feature_bc_matrix")
-    )
-    if (!file.exists(expr_counts_path)) {
-        .gstop(expr_counts_path, "does not exist!")
-    }
-
-
-    ## 2. check spatial locations
-    spatial_dir <- file.path(visium_dir, "spatial")
-    
-    spatial_files <- list.files(spatial_dir)
-    
-    tissue_positions_path <- file.path(
-        spatial_dir,
-        spatial_files[grep("tissue_positions*", spatial_files)])
-
-    ## 3. check spatial image
-    if (is.null(png_name)) {
-        png_list <- list.files(spatial_dir, pattern = "*.png")
-        png_name <- png_list[1]
-    }
-    png_path <- file.path(spatial_dir, png_name)
-    if (!file.exists(png_path)) .gstop(png_path, " does not exist!")
-
-
-    ## 4. check scalefactors
-    scalefactors_path <- file.path(
-        spatial_dir,
-        spatial_files[grep("scalefactors_json.json", spatial_files)])
-    
-    if (!file.exists(scalefactors_path)) {
-        .gstop(scalefactors_path, "does not exist!")
-    }
-
-
-    list(
-        expr_counts_path = expr_counts_path,
-        gene_column_index = gene_column_index,
-        tissue_positions_path = tissue_positions_path,
-        image_path = png_path,
-        scale_json_path = scalefactors_path
-    )
-}
-
-
-
-.visium_read_h5 <- function(
-        h5_visium_path = h5_visium_path, # expression matrix
-        h5_gene_ids = h5_gene_ids,
-        h5_tissue_positions_path = h5_tissue_positions_path,
-        h5_image_png_path = h5_image_png_path,
-        h5_json_scalefactors_path = h5_json_scalefactors_path,
-        verbose = NULL) {
-    # 1. filepaths
-    vmsg(
-        .v = verbose,
-        "A path to an .h5 10X file was provided and will be used"
-    )
-    if (!file.exists(h5_visium_path)) {
-        .gstop("The provided path ", h5_visium_path, " does not exist")
-    }
-    if (is.null(h5_tissue_positions_path)) {
-        .gstop("A path to the tissue positions (.csv) needs to be provided to
-                h5_tissue_positions_path")
-    }
-    if (!file.exists(h5_tissue_positions_path)) {
-        .gstop(
-            "The provided path ", h5_tissue_positions_path,
-            " does not exist"
-        )
-    }
-    if (!is.null(h5_image_png_path)) {
-        if (!file.exists(h5_image_png_path)) {
-            .gstop(
-                "The provided h5 image path ", h5_image_png_path,
-                "does not exist.
-            Set to NULL to exclude or provide the correct path."
-            )
-        }
-    }
-    if (!is.null(h5_json_scalefactors_path)) {
-        if (!file.exists(h5_json_scalefactors_path)) {
-            warning(wrap_txt(
-                "No file found at h5_json_scalefactors_path.
-                Scalefactors are needed for proper image alignment and
-                polygon generation"
-            ))
-        }
-    }
-
-    list(
-        expr_counts_path = h5_visium_path,
-        h5_gene_ids = h5_gene_ids,
-        tissue_positions_path = h5_tissue_positions_path,
-        image_path = h5_image_png_path,
-        scale_json_path = h5_json_scalefactors_path
-    )
-}
-
-
-
-
-
-
-
-
-
-# Visium Polygon Creation
-
-#' @title Add Visium Polygons to Giotto Object
-#' @name addVisiumPolygons
-#' @param gobject Giotto Object created with visium data, containing spatial
-#' locations corresponding to spots
-#' @param scalefactor_path path to scalefactors_json.json Visium output
-#' @returns Giotto Object with to-scale circular polygons added at each spatial
-#' location
-#' @details
-#' Adds circular giottoPolygons to the spatial_info slot of a Giotto Object
-#' for the "cell" spatial unit.
-#' @export
-addVisiumPolygons <- function(gobject,
-    scalefactor_path = NULL) {
-    assert_giotto(gobject)
-
-    visium_spat_locs <- getSpatialLocations(
-        gobject = gobject,
-        spat_unit = "cell"
-    )
-
-    scalefactors_list <- .visium_read_scalefactors(
-        json_path = scalefactor_path
-    )
-
-    visium_polygons <- .visium_spot_poly(
-        spatlocs = visium_spat_locs,
-        json_scalefactors = scalefactors_list
-    )
-
-    gobject <- addGiottoPolygons(
-        gobject = gobject,
-        gpolygons = list(visium_polygons)
-    )
-
-    return(gobject)
-}
-
-
-
-
-
-#' @title Read Visium ScaleFactors
-#' @name .visium_read_scalefactors
-#' @param json_path path to scalefactors_json.json for Visium experimental data
-#' @returns scalefactors within the provided json file as a named list,
-#' or NULL if not discovered
-#' @details asserts the existence of and reads in a .json file
-#' containing scalefactors for Visium data in the expected format.
-#' Returns NULL if no path is provided or if the file does not exist.
-#' @keywords internal
-.visium_read_scalefactors <- function(json_path = NULL) {
-    if (!checkmate::test_file_exists(json_path)) {
-        if (!is.null(json_path)) {
-            warning("scalefactors not discovered at: \n",
-                json_path,
-                call. = FALSE
-            )
-        }
-        return(NULL)
-    }
-
-    json_scalefactors <- read_json(json_path)
-
-    # Intial assertion that json dimensions are appropriate
-    checkmate::assert_list(
-        x = json_scalefactors,
-        types = "numeric",
-        min.len = 4L,
-        max.len = 5L
-    )
-
-    expected_json_names <- c(
-        "regist_target_img_scalef", # NEW as of 2023
-        "spot_diameter_fullres",
-        "tissue_hires_scalef",
-        "fiducial_diameter_fullres",
-        "tissue_lowres_scalef"
-    )
-
-    # Visium assay with chemistry v2 contains an additional
-    # keyword in the json file
-    new_format_2023 <- checkmate::test_list(
-        x = json_scalefactors,
-        types = "numeric",
-        len = 5L
-    )
-
-    # If the scalefactors are of size 4 (older assay), clip the new keyword
-    if (!new_format_2023) expected_json_names <- expected_json_names[2:5]
-
-    if (!setequal(names(json_scalefactors), expected_json_names)) {
+# 10x Visium / Visium HD spatial helpers ####
+
+# Warn when a scalefactors_json.json lacks expected entries; extra entries
+# are fine (newer Space Ranger versions add some).
+.tenx_check_json_names <- function(json_scalefactors, expected_names) {
+    if (!all(expected_names %in% names(json_scalefactors))) {
         warning(GiottoUtils::wrap_txt(
-            "h5 scalefactors json names differ from expected.
-            [Expected]:", expected_json_names, "\n",
+            "scalefactors json names differ from expected. [Expected]:", 
+            expected_names, "\n",
             "[Actual]:", names(json_scalefactors)
-        ))
+        ), call. = FALSE)
     }
-
-    return(json_scalefactors)
 }
 
-
-#' @title Calculate Pixel to Micron Scalefactor
-#' @name visium_micron_scalefactor
-#' @param json_scalefactors list of scalefactors from
-#' .visium_read_scalefactors()
-#' @returns scale factor for converting pixel to micron
-#' @details
-#' Calculates pixel to micron scalefactor.
-#' Visium xy coordinates are based on the fullres image
-#' The values provided are directly usable for generating polygon information
-#' or calculating the micron size relative to spatial coordinates for this set
-#' of spatial information.
-#' @keywords internal
-.visium_micron_scale <- function(json_scalefactors) {
-    # visium spots diameter                       : 55 micron
-    # diameter of a spot at this spatial scaling  : scalefactor_list$spot_diameter_fullres
-    px_to_micron <- 55 / json_scalefactors$spot_diameter_fullres
-    return(px_to_micron)
+# Which 10x tissue image a file is ("lowres", "hires" or "unknown"), and
+# the scalefactor that maps it to fullres pixels.
+.tenx_image_type <- function(path) {
+    img_name <- basename(path)
+    possible_types <- c("lowres", "hires")
+    for (image_type in possible_types) {
+        if (grepl(image_type, img_name)) {
+            return(image_type)
+        }
+    }
+    return("unknown")
 }
 
-
-#' @title Create Polygons for Visium Data
-#' @name .visium_spot_poly
-#' @param spatlocs spatial locations data.table or `spatLocsObj` containing
-#' centroid locations of visium spots
-#' @param json_scalefactors list of scalefactors from
-#' .visium_read_scalefactors()
-#' @returns giottoPolygon object
-#' @details
-#' Creates circular polygons for spatial representation of
-#' Visium spots.
-#' @keywords internal
-#' @md
-.visium_spot_poly <- function(spatlocs = NULL,
-    json_scalefactors) {
-    if (inherits(spatlocs, "spatLocsObj")) {
-        spatlocs <- spatlocs[]
+.tenx_image_scale_factor <- function(image_type, json_info) {
+    if (is.null(json_info)) {
+        warning(wrap_txt("No scalefactors json info provided.
+                Image scale_factor defaulting to 1."), call. = FALSE)
+        return(1)
     }
 
-    spot_adj <- 55 / 65
+    checkmate::assert_list(json_info)
 
-    vis_spot_poly <- GiottoClass::circleVertices(
-        radius = json_scalefactors$spot_diameter_fullres / 2 * spot_adj,
-        npoints = 100
+    scale_factor <- switch(image_type,
+        "lowres" = json_info[["tissue_lowres_scalef"]],
+        "hires" = json_info[["tissue_hires_scalef"]],
+        "unknown" = {
+            vmsg("[image] not hires or lowres, assuming image scale = 1")
+            1
+        },
+        stop("Unexpected image type: ", image_type)
     )
 
-    GiottoClass::polyStamp(
-        stamp_dt = vis_spot_poly,
-        spatlocs = spatlocs,
-        verbose = FALSE
-    ) %>%
-        createGiottoPolygonsFromDfr(
-            calc_centroids = TRUE,
-            verbose = FALSE
+    if (is.null(scale_factor)) {
+        stop(
+            "Scale factor for ", image_type,
+            " image not found in json_info."
         )
+    }
+
+    return(scale_factor)
 }
 
 
 
-
-
-
-# json_info expects the list read output from .visium_read_scalefactors
-# image_path should be expected to be full filepath
-# should only be used when do_manual_adj (deprecated) is FALSE
-.visium_image <- function(
-        image_path,
-        json_info = NULL,
-        micron_scale = FALSE,
-        verbose = NULL) {
-    # assume image already checked
-    vmsg(.v = verbose, .initial = " - ", "found image")
-
-    # 1. determine image scalefactor to use ---------------------------------- #
-    if (!is.null(json_info)) checkmate::assert_list(json_info)
-    png_name <- basename(image_path) # used for name pattern matching only
-
-    if (is.null(json_info)) { # if none provided
-        warning(wrap_txt(
-            "No scalefactors json info provided.
-            Visium image scale_factor defaulting to 1"
-        ))
-        scale_factor <- 1
-    } else { # if provided
-
-        scale_factor <- NULL # initial value
-
-        # determine type of visium image
-        visium_img_type <- NULL
-        possible_types <- c("lowres", "hires")
-        for (img_type in possible_types) {
-            if (grepl(img_type, png_name)) visium_img_type <- img_type
-        }
-
-        if (is.null(visium_img_type)) { # if not recognized visium image type
-            .gstop(
-                "\'image_path\' filename did not partial match either
-                \'lowres\' or \'hires\'. Ensure specified image is either the
-                Visium lowres or hires image and rename it accordingly"
-            )
-        }
-
-        vmsg(
-            .v = verbose, .initial = " - ",
-            "found scalefactors. attempting automatic alignment for the",
-            str_quote(visium_img_type), "image\n\n"
-        )
-
-        scale_factor <- switch(visium_img_type,
-            "lowres" = json_info[["tissue_lowres_scalef"]],
-            "hires" = json_info[["tissue_hires_scalef"]]
-        )
-    }
-
-    if (isTRUE(micron_scale)) {
-        scale_factor <- scale_factor * .visium_micron_scale(json_info)
-    }
-
-    # 2. create image -------------------------------------------------------- #
-    visium_img <- createGiottoLargeImage(
-        raster_object = image_path,
-        name = "image",
-        negative_y = TRUE,
-        scale_factor = (1 / scale_factor)
-    )
-
-    visium_img_list <- list(visium_img)
-    names(visium_img_list) <- c("image")
-
-    return(visium_img_list)
-}
-
-
-
-
-
+# *---- object creation ----* ####
 
 
 
@@ -977,210 +401,197 @@ createMerscopeLargeImage <- function(image_file,
 
 #' @title Create Vizgen MERSCOPE Giotto Object
 #' @name createGiottoMerscopeObject
-#' @description Given the path to a MERSCOPE experiment directory, creates a
-#' Giotto object. Supports both Parquet and HDF5 cell boundary formats (v2).
-#' Features automatic 2D vs 3D architecture detection with vertex validation.
-#' @param merscope_dir full path to the exported merscope directory
-#' @param version integer. Version of logic to use (1 = Legacy/Original,
-#' 2 = New/Optimized)
-#' @param data_to_use which of either the 'subcellular' or 'aggregate'
-#' information to use for object creation
-#' @param FOVs which FOVs to use when building the subcellular object.
-#' (default is NULL). NULL loads all FOVs (very slow)
-#' @param polygon_format format of the boundary files, either 'parquet' or
-#' 'hdf5' (v2 only)
-#' @param poly_z_indices which z-indices to use for the polygons (Default 0:6
-#' for v2, 1:7 for v1)
-#' @param flip_axis character. \strong{Version 2 only.} Axis along which to
-#' reflect polygon vertices and transcript coordinates after loading:
-#' \code{"none"} (default, data read as-is), \code{"y"}, \code{"x"}, or
-#' \code{"both"}. The reflection origin is the midpoint of the transcript
-#' coordinate range so both layers stay registered. Silently forced to
-#' \code{"none"} for \code{version = 1}, which handles orientation internally
-#' via \code{polygon_mask_list_params} (\code{flip_vertical = TRUE}).
-#' @param spat_unit character. Name assigned to the cell spatial unit (default
-#' \code{"cell"}). Controls the polygon layer name when a single Z-plane is
-#' present and serves as the default \code{new_spat_unit} in
-#' \code{aggregate_stack_param} when that field is not already supplied.
-#' @param calculate_overlap whether to run \code{\link{calculateOverlapRaster}}
-#' @param overlap_to_matrix whether to run \code{\link{overlapToMatrix}}
-#' @param aggregate_stack whether to run \code{\link{aggregateStacks}}
-#' @param aggregate_stack_param params to pass to \code{\link{aggregateStacks}}
+#' @description Given the path to a MERSCOPE region directory, creates a
+#' Giotto object from the vendor outputs: transcripts
+#' (`detected_transcripts.parquet` or `.csv`), cell boundaries
+#' (`cell_boundaries.parquet`, or the per-FOV HDF5 files in `cell_boundaries/`),
+#' the cell by gene matrix (`cell_by_gene.csv`) and cell metadata
+#' (`cell_metadata.csv`). Calls [importMerscope()] and the reader's
+#' `create_gobject()`.
+#'
+#' No overlap between transcripts and polygons is calculated. Use
+#' [calculateOverlap()] and [overlapToMatrix()] on the created object to
+#' aggregate transcripts by polygon.
+#'
+#' The y coordinates of transcripts, polygons and cell centers are negated
+#' (`y` becomes `-y`).
+#' @param merscope_dir full path to the MERSCOPE region directory
+#' @param transcript_path (optional) path to the transcripts file. `NULL`
+#' (default) uses `detected_transcripts.parquet` or `.csv` in `merscope_dir`.
+#' @param bounds_path (optional) path to the cell boundaries. `NULL` (default)
+#' uses `cell_boundaries.parquet`, or the `cell_boundaries/` directory when
+#' `polygon_format = "hdf5"`.
+#' @param expression_path (optional) path to the cell by gene matrix. `NULL`
+#' (default) uses `cell_by_gene.csv` in `merscope_dir`.
+#' @param cell_metadata_path (optional) path to the cell metadata. `NULL`
+#' (default) uses `cell_metadata.csv` in `merscope_dir`.
+#' @param data_to_use `"subcellular"` (default) loads transcripts, polygons and
+#' the cell by gene matrix. `"aggregate"` loads the cell by gene matrix, with
+#' cell centers from `cell_metadata.csv` as spatial locations.
+#' @param FOVs which FOVs to load. `NULL` (default) loads all FOVs.
+#' @param polygon_format format of the cell boundaries, either `"parquet"`
+#' (default, `cell_boundaries.parquet`) or `"hdf5"` (per-FOV files in
+#' `cell_boundaries/`)
+#' @param poly_z_indices which z-indices to use for the polygons. `NULL`
+#' (default) uses the lowest z-plane when all z-planes hold identical
+#' boundaries and stops otherwise.
+#' @param spat_unit character. Name of the spatial unit for the polygons,
+#' expression, cell metadata and spatial locations (default `"cell"`)
 #' @param split_keyword character vector of keywords to separate feature
-#' detections (e.g. "Blank")
-#' @inheritParams GiottoClass::createGiottoObjectSubcellular
+#' detections (default `"Blank"`). Detections matching `"Blank"` are loaded as
+#' the `"neg_probe"` feature type; other keywords are used as the feature type
+#' name.
+#' @param score_threshold numeric or `NULL` (default). Minimum
+#' `transcript_score` for a transcript detection to be loaded. `NULL` loads
+#' all transcripts.
+#' @param load_transcripts logical. Whether to load the transcripts
+#' (default `TRUE`)
+#' @param load_expression logical. Whether to load the cell by gene matrix
+#' (default `TRUE`)
+#' @param load_cellmeta logical. Whether to load the cell metadata
+#' (default `FALSE`)
+#' @param load_images (optional) images to load. Character vector or list of
+#' mosaic names (e.g. `"DAPI_z3"` for `images/mosaic_DAPI_z3.tif`) or image
+#' file paths. Names of the list are used as image names. Images are placed
+#' with `images/micron_to_mosaic_pixel_transform.csv`. `NULL` (default) loads
+#' no images.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project (See \pkg{GiottoDisk}).
+#' @param instructions list of instructions or output result from
+#' [createGiottoInstructions()]
+#' @param verbose be verbose (default `NULL`)
+#' @param version deprecated. Use `polygon_format`.
+#' @param flip_axis deprecated. Use [flip()] on the created object.
+#' @param calculate_overlap deprecated. Use [calculateOverlap()] on the created
+#' object.
+#' @param overlap_to_matrix deprecated. Use [overlapToMatrix()] on the created
+#' object.
+#' @param aggregate_stack deprecated.
+#' @param aggregate_stack_param deprecated.
+#' @param cores deprecated.
 #' @returns a giotto object
+#' @seealso [importMerscope()]
 #' @export
 createGiottoMerscopeObject <- function(merscope_dir,
-    version = 1,
+    transcript_path = NULL,
+    bounds_path = NULL,
+    expression_path = NULL,
+    cell_metadata_path = NULL,
     data_to_use = c("subcellular", "aggregate"),
     FOVs = NULL,
     polygon_format = c("parquet", "hdf5"),
     poly_z_indices = NULL,
-    flip_axis = c("none", "y", "x", "both"),
     spat_unit = "cell",
-    calculate_overlap = TRUE,
-    overlap_to_matrix = TRUE,
-    aggregate_stack = TRUE,
-    aggregate_stack_param = list(
-        summarize_expression = "sum",
-        summarize_locations = "mean",
-        new_spat_unit = "cell"
-    ),
     split_keyword = c("Blank"),
+    score_threshold = NULL,
+    load_transcripts = TRUE,
+    load_expression = TRUE,
+    load_cellmeta = FALSE,
+    load_images = NULL,
+    backend = NULL,
     instructions = NULL,
-    cores = NA,
-    verbose = TRUE) {
+    verbose = NULL,
+    version = deprecated(),
+    flip_axis = deprecated(),
+    calculate_overlap = deprecated(),
+    overlap_to_matrix = deprecated(),
+    aggregate_stack = deprecated(),
+    aggregate_stack_param = deprecated(),
+    cores = deprecated()) {
+    polygon_format_missing <- missing(polygon_format)
+    data_to_use <- match.arg(data_to_use, c("subcellular", "aggregate"))
+    polygon_format <- match.arg(polygon_format, c("parquet", "hdf5"))
 
-    # 1. version-specific defaults and validation
-    merscope_dir <- path.expand(merscope_dir)
-    data_to_use  <- match.arg(arg = data_to_use, choices = c("subcellular", "aggregate"))
-    flip_axis    <- match.arg(flip_axis)
-
-    if (version == 1 && flip_axis != "none") {
-        message(
-            "'flip_axis' is only available for version = 2. ",
-            "Version 1 handles orientation internally via ",
-            "polygon_mask_list_params (flip_vertical = TRUE). ",
-            "Setting flip_axis = 'none'."
+    if (is_present(version)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(version)",
+            with = "createGiottoMerscopeObject(polygon_format)"
         )
-        flip_axis <- "none"
-    }
-
-    if (isTRUE(verbose)) {
-        if (inherits(future::plan(), "sequential")) {
-            message(
-                "Running sequentially. For better performance consider:\n",
-                "  future::plan(future::multisession, workers = <n>)"
-            )
+        if (identical(as.numeric(version), 1) && polygon_format_missing) {
+            polygon_format <- "hdf5"
         }
     }
-    # suppress Giotto's internal sequential warning (surfaced above)
-    options("giotto.warn_sequential" = FALSE)
-
-    if (version == 1) {
-        if (is.null(poly_z_indices)) poly_z_indices <- seq(from = 1, to = 7)
-        poly_z_indices <- as.integer(poly_z_indices)
-        if (any(poly_z_indices < 1)) {
-            stop(wrap_txt(
-                "Version 1 requires 1-based indexing (poly_z_indices >= 1).",
-                errWidth = TRUE
-            ))
-        }
-        polygon_format <- "hdf5"
-        fovs <- NULL
-    } else {
-        if (is.null(poly_z_indices)) poly_z_indices <- 0:6
-        poly_z_indices <- as.integer(poly_z_indices)
-        if (any(poly_z_indices < 0)) {
-            stop(wrap_txt(
-                "Version 2 requires 0-based indexing (poly_z_indices >= 0).",
-                errWidth = TRUE
-            ))
-        }
-        polygon_format <- match.arg(arg = polygon_format, choices = c("parquet", "hdf5"))
-        fovs <- FOVs
+    if (is_present(flip_axis)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(flip_axis)",
+            details = "The y coordinates are negated on load. Use `flip()` on
+            the created object."
+        )
+    }
+    if (is_present(calculate_overlap)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(calculate_overlap)",
+            details = "Expression is loaded from `cell_by_gene.csv`. Use
+            `calculateOverlap()` on the created object."
+        )
+    }
+    if (is_present(overlap_to_matrix)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(overlap_to_matrix)",
+            details = "Expression is loaded from `cell_by_gene.csv`. Use
+            `overlapToMatrix()` on the created object."
+        )
+    }
+    if (is_present(aggregate_stack)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(aggregate_stack)"
+        )
+    }
+    if (is_present(aggregate_stack_param)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(aggregate_stack_param)"
+        )
+    }
+    if (is_present(cores)) {
+        deprecate_warn(
+            when = "4.3.5",
+            what = "createGiottoMerscopeObject(cores)"
+        )
     }
 
-    # 2. directory scanning
-    dir_items <- .read_merscope_folder(
-        merscope_dir   = merscope_dir,
-        data_to_use    = data_to_use,
+    kw <- as.character(unlist(split_keyword))
+    feat_type <- c("rna", ifelse(kw == "Blank", "neg_probe", kw))
+
+    x <- importMerscope(
+        merscope_dir = path.expand(merscope_dir),
+        score_threshold = score_threshold,
         polygon_format = polygon_format,
-        version        = version,
-        cores          = cores,
-        verbose        = verbose
+        backend = backend
     )
-
-    # 3. data loading
-    data_list <- .load_merscope_folder(
-        dir_items      = dir_items,
-        data_to_use    = data_to_use,
-        polygon_format = polygon_format,
+    a <- list(
+        data_to_use = data_to_use,
+        feat_type = feat_type,
+        split_keyword = as.list(kw),
         poly_z_indices = poly_z_indices,
-        fovs           = fovs,
-        version        = version,
-        cores          = cores,
-        verbose        = verbose
+        FOVs = FOVs,
+        spat_unit = spat_unit,
+        load_transcripts = load_transcripts,
+        load_expression = load_expression,
+        load_cellmeta = load_cellmeta,
+        load_images = load_images,
+        instructions = instructions,
+        verbose = verbose
     )
+    if (!is.null(transcript_path)) a$transcript_path <- transcript_path
+    if (!is.null(bounds_path)) a$boundary_path <- bounds_path
+    if (!is.null(expression_path)) a$expression_path <- expression_path
+    if (!is.null(cell_metadata_path)) a$metadata_path <- cell_metadata_path
 
-    # 4. version 2: optimized 2D vs 3D auto-detection
-    if (version == 2 && data_to_use == "subcellular" && !is.null(data_list$poly_info)) {
-
-        # bypass aggregation if only 1 Z-plane loaded
-        if (length(data_list$poly_info) == 1 && isTRUE(aggregate_stack)) {
-            if (isTRUE(verbose)) {
-                message(
-                    "--> [Auto-Correction] Only 1 Z-plane loaded.",
-                    " Setting 'aggregate_stack = FALSE'."
-                )
-            }
-            aggregate_stack <- FALSE
-        }
-
-        if (length(data_list$poly_info) > 1) {
-            ids_zA <- data_list$poly_info[[1]]@unique_ID_cache
-            ids_zB <- data_list$poly_info[[2]]@unique_ID_cache
-
-            if (isTRUE(setequal(ids_zA, ids_zB))) {
-                sv_A   <- slot(data_list$poly_info[[1]], "spatVector")
-                sv_B   <- slot(data_list$poly_info[[2]], "spatVector")
-                crds_A <- head(terra::crds(sv_A), 100)
-                crds_B <- head(terra::crds(sv_B), 100)
-
-                if (isTRUE(all.equal(crds_A, crds_B))) {
-                    if (isTRUE(verbose)) {
-                        message(
-                            "--> [Auto-Detection] Identical IDs AND vertices",
-                            " detected (Replicated 2D Data)."
-                        )
-                        message(
-                            "--> [Auto-Correction] Dropping redundant Z-planes.",
-                            " Setting 'aggregate_stack = FALSE'."
-                        )
-                    }
-                    data_list$poly_info <- data_list$poly_info[1]
-                    poly_z_indices      <- poly_z_indices[1]
-                    aggregate_stack     <- FALSE
-                }
-            }
-        }
-    }
-
-    # 5. object creation
-    if (data_to_use == "subcellular") {
-        merscope_gobject <- .createGiottoMerscopeObject_subcellular(
-            data_list             = data_list,
-            version               = version,
-            flip_axis             = flip_axis,
-            spat_unit             = spat_unit,
-            calculate_overlap     = calculate_overlap,
-            overlap_to_matrix     = overlap_to_matrix,
-            aggregate_stack       = aggregate_stack,
-            aggregate_stack_param = aggregate_stack_param,
-            split_keyword         = split_keyword,
-            instructions          = instructions,
-            cores                 = cores,
-            verbose               = verbose
-        )
-    } else {
-        merscope_gobject <- .createGiottoMerscopeObject_aggregate(
-            data_list = data_list,
-            cores     = cores,
-            verbose   = verbose
-        )
-    }
-
-    return(merscope_gobject)
+    g <- do.call(x$create_gobject, args = a)
+    return(g)
 }
 
 
 
 
-#' @describeIn createGiottoMerscopeObject Create giotto object with
-#' 'subcellular' workflow
-#' @param data_list list of loaded data from \code{\link{load_merscope_folder}}
-#' @keywords internal
+
 .createGiottoMerscopeObject_subcellular <- function(data_list,
     version               = 1,
     flip_axis             = c("none", "y", "x", "both"),

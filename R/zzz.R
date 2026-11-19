@@ -43,28 +43,3 @@
     # ----------- #
     init_option("giotto.verbose", TRUE)
 }
-
-.onLoad <- function(libname, pkgname) {
-    all_matrix <- c("matrix", "Matrix")
-    update_matrix_sig <- FALSE
-    
-    # suppress known warnings about onload class and method extensions
-    suppressWarnings({
-        # extensible classunions --------------------------------------------#
-        if (requireNamespace("DelayedArray", quietly = TRUE)) {
-            getClass("DelayedArray")
-            all_matrix <- c(all_matrix, "DelayedArray")
-            update_matrix_sig <- TRUE
-        }
-        if (requireNamespace("BPCells", quietly = TRUE)) {
-            getClass("IterableMatrix")
-            all_matrix <- c(all_matrix, "IterableMatrix")
-            update_matrix_sig <- TRUE
-        }
-        # signature update
-        if (isTRUE(update_matrix_sig)) {
-            setClassUnion("allMatrix", members = all_matrix)
-        }
-        # methods extensions ------------------------------------------------#
-    })
-}

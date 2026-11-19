@@ -16,7 +16,9 @@ runSpatialDeconv(
   n_cell = 50,
   cutoff = 2,
   name = NULL,
-  return_gobject = TRUE
+  return_gobject = TRUE,
+  na_as_zero = FALSE,
+  BPPARAM = NULL
 )
 }
 \arguments{
@@ -42,10 +44,13 @@ features (rows) by cell type (columns). Build one with
 \code{\link{makeSignMatrixDWLSfromMatrix}}. This is not the binary matrix
 the enrichment methods take.}
 
-\item{n_cell}{numeric. Number of cells per spot (default = 50).}
+\item{n_cell}{numeric. Expected number of cells per spot (default = 50). In
+the second round a cell type is kept for a spot only when its first-round
+proportion is at least \code{1 / n_cell}.}
 
-\item{cutoff}{numeric. Expression cutoff below which a value is treated as
-absent (default = 2).}
+\item{cutoff}{numeric. PAGE enrichment z-score a cell type must reach in at
+least one spot of a cluster to be a candidate for that cluster
+(default = 2). The two highest-scoring types are always candidates.}
 
 \item{name}{character. Name to store the result under in the giotto object's
 spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
@@ -53,6 +58,14 @@ the Usage section.}
 
 \item{return_gobject}{logical. Return the giotto object with the result
 added (default = TRUE), or the result object on its own.}
+
+\item{na_as_zero}{logical. Positions with no signal on the signature
+features cannot be solved and are \code{NA} by default; \code{TRUE} returns them as
+0 instead.}
+
+\item{BPPARAM}{a \code{BiocParallelParam} used for the per-position solves.
+\code{NULL} (default) uses \code{getOption("giotto.bpparam")} when that is a parallel
+param and runs serially otherwise.}
 }
 \value{
 giotto object or deconvolution results
@@ -81,6 +94,8 @@ runSpatialDeconv(gobject = g, sign_matrix = sign_matrix)
 \code{\link{runDWLSDeconv}}
 
 Other spatial deconvolution:
+\code{\link{deconv_dwls}},
+\code{\link{deconv_param}},
 \code{\link[=makeSignMatrixDWLS]{makeSignMatrixDWLS()}},
 \code{\link[=makeSignMatrixDWLSfromMatrix]{makeSignMatrixDWLSfromMatrix()}},
 \code{\link[=runDWLSDeconv]{runDWLSDeconv()}}

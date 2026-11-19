@@ -39,7 +39,8 @@ createGiottoVisiumHDObjectBin(
   force_untar = FALSE,
   untar_params = list(),
   instructions = NULL,
-  verbose = NULL
+  verbose = NULL,
+  backend = NULL
 )
 }
 \arguments{
@@ -133,6 +134,10 @@ of poly to tessellate if `create_tessellated_polys = TRUE`.}
 \item{instructions}{giotto instructions to apply.}
 
 \item{verbose}{verbosity}
+
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, the `giotto`
+object is created as a managed on-disk project; see [importVisiumHD()].}
 }
 \value{
 giotto object

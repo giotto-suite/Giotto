@@ -5,7 +5,7 @@
 \alias{analyzeData,ANY,pageEnrichParam-method}
 \title{PAGE enrichment}
 \usage{
-\S4method{analyzeData}{ANY,pageEnrichParam}(x, param, ..., sign_matrix)
+\S4method{analyzeData}{ANY,pageEnrichParam}(x, param, ..., sign_matrix, reference = NULL)
 }
 \arguments{
 \item{x}{expression values. A \code{matrix}, a \code{Matrix}, or anything an
@@ -16,9 +16,14 @@ engine registered against \link[=pageEnrichParam-class]{pageEnrichParam} accepts
 \item{...}{unused. Declared because \code{\link[=analyzeData]{analyzeData()}} carries it, so an
 engine registered from another package can accept its own arguments.}
 
-\item{sign_matrix}{binary matrix of signature features (rows) by cell type
-or process (columns), 1 where the feature marks the type. Build one with
+\item{sign_matrix}{matrix of signature features (rows) by cell type or
+process (columns); a feature marks a type where its value is > 0. Build one
+with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
+
+\item{reference}{per-feature reference level, named by feature. Computed
+from \code{x} when \code{NULL}; supply it to score some cells against the
+reference of all of them, as a disk-backed engine does window by window.}
 }
 \value{
 a \code{data.table} of \code{cell_ID} and one column per cell type

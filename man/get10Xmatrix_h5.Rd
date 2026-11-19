@@ -33,4 +33,8 @@ path
 If the .h5 10x file has multiple classes of features
 (e.g. expression vs QC probes) or modalities (e.g. RNA and protein), and
 \code{split_by_type} param is \code{TRUE}, multiple matrices will be returned
+
+Feature names follow [get10Xmatrix()]: repeated names get a \code{--N}
+suffix on every copy, counted within each feature type when
+\code{split_by_type} is \code{TRUE}.
 }

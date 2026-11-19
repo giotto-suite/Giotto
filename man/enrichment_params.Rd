@@ -4,8 +4,9 @@
 \alias{enrichment_params}
 \title{Params documentation template: enrichment_params}
 \arguments{
-\item{sign_matrix}{binary matrix of signature features (rows) by cell type
-or process (columns), 1 where the feature marks the type. Build one with
+\item{sign_matrix}{matrix of signature features (rows) by cell type or
+process (columns); a feature marks a type where its value is > 0. Build one
+with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
 \item{reverse_log_scale}{logical. Undo a log transform before averaging
@@ -17,7 +18,11 @@ or process (columns), 1 where the feature marks the type. Build one with
 \item{output_enrichment}{character. "original" (default) or "zscore", which
 standardizes the scores within each cell type.}
 
-\item{p_value}{logical. Calculate p-values (default = FALSE).}
+\item{p_value}{logical. Also compute p-values, from the unscaled scores
+(default = FALSE). The \code{run*Enrich()} functions store them beside the
+scores as \verb{<name>_p}, with Benjamini-Hochberg adjusted p-values over all
+cells and types as \verb{<name>_padj}; \code{analyzeData()} returns the p-values,
+carrying the scores as their \code{"scores"} attribute.}
 }
 \value{
 spatial enrichment scores, one per cell per signature

@@ -39,8 +39,9 @@ feat signature}
 
 \item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{sign_matrix}{binary matrix of signature features (rows) by cell type
-or process (columns), 1 where the feature marks the type. Build one with
+\item{sign_matrix}{matrix of signature features (rows) by cell type or
+process (columns); a feature marks a type where its value is > 0. Build one
+with
 \code{\link{makeSignMatrixPAGE}} or \code{\link{makeSignMatrixRank}}.}
 
 \item{expression_values}{character. Which expression values to use, e.g.
@@ -58,14 +59,19 @@ or process (columns), 1 where the feature marks the type. Build one with
 \item{output_enrichment}{character. "original" (default) or "zscore", which
 standardizes the scores within each cell type.}
 
-\item{p_value}{logical. Calculate p-values (default = FALSE).}
+\item{p_value}{logical. Also compute p-values, from the unscaled scores
+(default = FALSE). The \code{run*Enrich()} functions store them beside the
+scores as \verb{<name>_p}, with Benjamini-Hochberg adjusted p-values over all
+cells and types as \verb{<name>_padj}; \code{analyzeData()} returns the p-values,
+carrying the scores as their \code{"scores"} attribute.}
 
-\item{include_depletion}{also test for depletion, not enrichment only
-(default = FALSE)}
+\item{include_depletion}{test depletion as well as enrichment, on the
+absolute z-score (default = FALSE)}
 
-\item{n_times}{number of permutation iterations to calculate p-value}
+\item{n_times}{no longer used: PAGE p-values come from the permutation null
+in closed form; kept so existing calls still run}
 
-\item{max_block}{number of lines to process together (default = 20e6)}
+\item{max_block}{no longer used; kept so existing calls still run}
 
 \item{name}{character. Name to store the result under in the giotto object's
 spatial enrichment slot. \code{NULL} (default) uses the method's own name -- see
@@ -77,9 +83,10 @@ the Usage section.}
 added (default = TRUE), or the result object on its own.}
 }
 \value{
-\code{matrix} (\code{makeSignMatrixPAGE()}) and
-\code{giotto} (\code{runPAGEEnrich(return_gobject = TRUE)}) or
-\code{data.table} (\code{runPAGEEnrich(return_gobject = FALSE)})
+\code{matrix} (\code{makeSignMatrixPAGE()}); \code{runPAGEEnrich()} returns a
+\code{giotto} (\code{return_gobject = TRUE}), else a \code{spatEnrObj}, or with
+\code{p_value = TRUE} a list of them named by enrichment: the scores, \verb{_p} and
+\verb{_padj}
 }
 \description{
 Expression feature-based enrichment scoring of labels. \cr

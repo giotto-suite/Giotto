@@ -2,97 +2,121 @@
 % Please edit documentation in R/convenience_general.R
 \name{createGiottoMerscopeObject}
 \alias{createGiottoMerscopeObject}
-\alias{.createGiottoMerscopeObject_subcellular}
 \alias{.createGiottoMerscopeObject_aggregate}
 \title{Create Vizgen MERSCOPE Giotto Object}
 \usage{
 createGiottoMerscopeObject(
   merscope_dir,
-  version = 1,
+  transcript_path = NULL,
+  bounds_path = NULL,
+  expression_path = NULL,
+  cell_metadata_path = NULL,
   data_to_use = c("subcellular", "aggregate"),
   FOVs = NULL,
   polygon_format = c("parquet", "hdf5"),
   poly_z_indices = NULL,
-  flip_axis = c("none", "y", "x", "both"),
   spat_unit = "cell",
-  calculate_overlap = TRUE,
-  overlap_to_matrix = TRUE,
-  aggregate_stack = TRUE,
-  aggregate_stack_param = list(summarize_expression = "sum", summarize_locations =
-    "mean", new_spat_unit = "cell"),
   split_keyword = c("Blank"),
+  score_threshold = NULL,
+  load_transcripts = TRUE,
+  load_expression = TRUE,
+  load_cellmeta = FALSE,
+  load_images = NULL,
+  backend = NULL,
   instructions = NULL,
-  cores = NA,
-  verbose = TRUE
-)
-
-.createGiottoMerscopeObject_subcellular(
-  data_list,
-  version = 1,
-  flip_axis = c("none", "y", "x", "both"),
-  spat_unit = "cell",
-  calculate_overlap = TRUE,
-  overlap_to_matrix = TRUE,
-  aggregate_stack = TRUE,
-  aggregate_stack_param = list(summarize_expression = "sum", summarize_locations =
-    "mean"),
-  split_keyword = c("Blank"),
-  instructions = NULL,
-  cores = NA,
-  verbose = TRUE
+  verbose = NULL,
+  version = deprecated(),
+  flip_axis = deprecated(),
+  calculate_overlap = deprecated(),
+  overlap_to_matrix = deprecated(),
+  aggregate_stack = deprecated(),
+  aggregate_stack_param = deprecated(),
+  cores = deprecated()
 )
 
 .createGiottoMerscopeObject_aggregate(data_list, cores = NA, verbose = TRUE)
 }
 \arguments{
-\item{merscope_dir}{full path to the exported merscope directory}
+\item{merscope_dir}{full path to the MERSCOPE region directory}
 
-\item{version}{integer. Version of logic to use (1 = Legacy/Original,
-2 = New/Optimized)}
+\item{transcript_path}{(optional) path to the transcripts file. `NULL`
+(default) uses `detected_transcripts.parquet` or `.csv` in `merscope_dir`.}
 
-\item{data_to_use}{which of either the 'subcellular' or 'aggregate'
-information to use for object creation}
+\item{bounds_path}{(optional) path to the cell boundaries. `NULL` (default)
+uses `cell_boundaries.parquet`, or the `cell_boundaries/` directory when
+`polygon_format = "hdf5"`.}
 
-\item{FOVs}{which FOVs to use when building the subcellular object.
-(default is NULL). NULL loads all FOVs (very slow)}
+\item{expression_path}{(optional) path to the cell by gene matrix. `NULL`
+(default) uses `cell_by_gene.csv` in `merscope_dir`.}
 
-\item{polygon_format}{format of the boundary files, either 'parquet' or
-'hdf5' (v2 only)}
+\item{cell_metadata_path}{(optional) path to the cell metadata. `NULL`
+(default) uses `cell_metadata.csv` in `merscope_dir`.}
 
-\item{poly_z_indices}{which z-indices to use for the polygons (Default 0:6
-for v2, 1:7 for v1)}
+\item{data_to_use}{`"subcellular"` (default) loads transcripts, polygons and
+the cell by gene matrix. `"aggregate"` loads the cell by gene matrix, with
+cell centers from `cell_metadata.csv` as spatial locations.}
 
-\item{flip_axis}{character. \strong{Version 2 only.} Axis along which to
-reflect polygon vertices and transcript coordinates after loading:
-\code{"none"} (default, data read as-is), \code{"y"}, \code{"x"}, or
-\code{"both"}. The reflection origin is the midpoint of the transcript
-coordinate range so both layers stay registered. Silently forced to
-\code{"none"} for \code{version = 1}, which handles orientation internally
-via \code{polygon_mask_list_params} (\code{flip_vertical = TRUE}).}
+\item{FOVs}{which FOVs to load. `NULL` (default) loads all FOVs.}
 
-\item{spat_unit}{character. Name assigned to the cell spatial unit (default
-\code{"cell"}). Controls the polygon layer name when a single Z-plane is
-present and serves as the default \code{new_spat_unit} in
-\code{aggregate_stack_param} when that field is not already supplied.}
+\item{polygon_format}{format of the cell boundaries, either `"parquet"`
+(default, `cell_boundaries.parquet`) or `"hdf5"` (per-FOV files in
+`cell_boundaries/`)}
 
-\item{calculate_overlap}{whether to run \code{\link{calculateOverlapRaster}}}
+\item{poly_z_indices}{which z-indices to use for the polygons. `NULL`
+(default) uses the lowest z-plane when all z-planes hold identical
+boundaries and stops otherwise.}
 
-\item{overlap_to_matrix}{whether to run \code{\link{overlapToMatrix}}}
-
-\item{aggregate_stack}{whether to run \code{\link{aggregateStacks}}}
-
-\item{aggregate_stack_param}{params to pass to \code{\link{aggregateStacks}}}
+\item{spat_unit}{character. Name of the spatial unit for the polygons,
+expression, cell metadata and spatial locations (default `"cell"`)}
 
 \item{split_keyword}{character vector of keywords to separate feature
-detections (e.g. "Blank")}
+detections (default `"Blank"`). Detections matching `"Blank"` are loaded as
+the `"neg_probe"` feature type; other keywords are used as the feature type
+name.}
 
-\item{instructions}{list of instructions or output result
-from \code{\link[GiottoClass]{createGiottoInstructions}}}
+\item{score_threshold}{numeric or `NULL` (default). Minimum
+`transcript_score` for a transcript detection to be loaded. `NULL` loads
+all transcripts.}
 
-\item{cores}{how many cores or threads to use to read data if paths are
-provided}
+\item{load_transcripts}{logical. Whether to load the transcripts
+(default `TRUE`)}
 
-\item{verbose}{be verbose when building Giotto object}
+\item{load_expression}{logical. Whether to load the cell by gene matrix
+(default `TRUE`)}
+
+\item{load_cellmeta}{logical. Whether to load the cell metadata
+(default `FALSE`)}
+
+\item{load_images}{(optional) images to load. Character vector or list of
+mosaic names (e.g. `"DAPI_z3"` for `images/mosaic_DAPI_z3.tif`) or image
+file paths. Names of the list are used as image names. Images are placed
+with `images/micron_to_mosaic_pixel_transform.csv`. `NULL` (default) loads
+no images.}
+
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+`giotto` object as a managed on-disk project (See \pkg{GiottoDisk}).}
+
+\item{instructions}{list of instructions or output result from
+[createGiottoInstructions()]}
+
+\item{verbose}{be verbose (default `NULL`)}
+
+\item{version}{deprecated. Use `polygon_format`.}
+
+\item{flip_axis}{deprecated. Use [flip()] on the created object.}
+
+\item{calculate_overlap}{deprecated. Use [calculateOverlap()] on the created
+object.}
+
+\item{overlap_to_matrix}{deprecated. Use [overlapToMatrix()] on the created
+object.}
+
+\item{aggregate_stack}{deprecated.}
+
+\item{aggregate_stack_param}{deprecated.}
+
+\item{cores}{deprecated.}
 
 \item{data_list}{list of loaded data from \code{\link{load_merscope_folder}}}
 }
@@ -100,17 +124,28 @@ provided}
 a giotto object
 }
 \description{
-Given the path to a MERSCOPE experiment directory, creates a
-Giotto object. Supports both Parquet and HDF5 cell boundary formats (v2).
-Features automatic 2D vs 3D architecture detection with vertex validation.
+Given the path to a MERSCOPE region directory, creates a
+Giotto object from the vendor outputs: transcripts
+(`detected_transcripts.parquet` or `.csv`), cell boundaries
+(`cell_boundaries.parquet`, or the per-FOV HDF5 files in `cell_boundaries/`),
+the cell by gene matrix (`cell_by_gene.csv`) and cell metadata
+(`cell_metadata.csv`). Calls [importMerscope()] and the reader's
+`create_gobject()`.
+
+No overlap between transcripts and polygons is calculated. Use
+[calculateOverlap()] and [overlapToMatrix()] on the created object to
+aggregate transcripts by polygon.
+
+The y coordinates of transcripts, polygons and cell centers are negated
+(`y` becomes `-y`).
 }
 \section{Functions}{
 \itemize{
-\item \code{.createGiottoMerscopeObject_subcellular()}: Create giotto object with
-'subcellular' workflow
-
 \item \code{.createGiottoMerscopeObject_aggregate()}: Create giotto object with 'aggregate'
 workflow
 
 }}
+\seealso{
+[importMerscope()]
+}
 \keyword{internal}
