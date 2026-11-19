@@ -24,7 +24,10 @@ findInteractionChangedFeats(
   exclude_selected_cells_from_test = TRUE,
   do_parallel = TRUE,
   set_seed = TRUE,
-  seed_number = 1234
+  seed_number = 1234,
+  method = c("classic", "edgeicg"),
+  param = NULL,
+  ...
 )
 
 findICF(
@@ -46,7 +49,10 @@ findICF(
   exclude_selected_cells_from_test = TRUE,
   do_parallel = TRUE,
   set_seed = TRUE,
-  seed_number = 1234
+  seed_number = 1234,
+  method = c("classic", "edgeicg"),
+  param = NULL,
+  ...
 )
 }
 \arguments{
@@ -85,6 +91,18 @@ findICF(
 \item{set_seed}{set a seed for reproducibility}
 
 \item{seed_number}{seed number}
+
+\item{method}{\code{"classic"} (default): the test described in Details.
+\code{"edgeicg"}: the spillover-aware, multi-scale model of the \pkg{edgeicg}
+package (contact, paracrine and niche scale; leaked transcripts from
+touching cells removed; niche calibrated and attributed). It uses raw
+counts and the cell polygons; see \code{\link[=icfParam]{icfParam()}}. Arguments specific to the
+classic test are then ignored.}
+
+\item{param}{optional \code{\link[=icfParam]{icfParam()}} object; overrides \code{method}.}
+
+\item{...}{with \code{method = "edgeicg"}, settings passed to \code{\link[=icfParam]{icfParam()}}, e.g.
+\code{workers} or \code{block_genes}.}
 }
 \value{
 \code{icfObject} that contains the Interaction Changed differential

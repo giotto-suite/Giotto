@@ -61,6 +61,7 @@ Suggests:
     DelayedMatrixStats,
     dendextend (>= 1.13.0),
     dplyr,
+    edgeicg,
     FactoMineR,
     factoextra,
     fitdistrplus,
@@ -149,6 +150,7 @@ Collate:
     'giotto_viewer.R'
     'globals.R'
     'gstop.R'
+    'icf-param.R'
     'suite_reexports.R'
     'image_registration.R'
     'interactivity.R'

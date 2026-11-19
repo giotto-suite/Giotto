@@ -28,6 +28,13 @@ findCellProximityGenes(...)
     \item{\code{do_parallel}}{run calculations in parallel with mclapply}
     \item{\code{set_seed}}{set a seed for reproducibility}
     \item{\code{seed_number}}{seed number}
+    \item{\code{method}}{\code{"classic"} (default): the test described in Details.
+\code{"edgeicg"}: the spillover-aware, multi-scale model of the \pkg{edgeicg}
+package (contact, paracrine and niche scale; leaked transcripts from
+touching cells removed; niche calibrated and attributed). It uses raw
+counts and the cell polygons; see \code{\link[=icfParam]{icfParam()}}. Arguments specific to the
+classic test are then ignored.}
+    \item{\code{param}}{optional \code{\link[=icfParam]{icfParam()}} object; overrides \code{method}.}
   }}
 }
 \value{

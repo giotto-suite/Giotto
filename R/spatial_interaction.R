@@ -1161,6 +1161,15 @@ NULL
 #' @param do_parallel run calculations in parallel with mclapply
 #' @param set_seed set a seed for reproducibility
 #' @param seed_number seed number
+#' @param method `"classic"` (default): the test described in Details.
+#'   `"edgeicg"`: the spillover-aware, multi-scale model of the \pkg{edgeicg}
+#'   package (contact, paracrine and niche scale; leaked transcripts from
+#'   touching cells removed; niche calibrated and attributed). It uses raw
+#'   counts and the cell polygons; see [icfParam()]. Arguments specific to the
+#'   classic test are then ignored.
+#' @param param optional [icfParam()] object; overrides `method`.
+#' @param ... with `method = "edgeicg"`, settings passed to [icfParam()], e.g.
+#'   `workers` or `block_genes`.
 #' @returns `icfObject` that contains the Interaction Changed differential
 #' feature scores
 #' @details Function to calculate if features are differentially expressed in
@@ -1224,7 +1233,10 @@ findInteractionChangedFeats <- function(gobject,
     exclude_selected_cells_from_test = TRUE,
     do_parallel = TRUE,
     set_seed = TRUE,
-    seed_number = 1234) {
+    seed_number = 1234,
+    method = c("classic", "edgeicg"),
+    param = NULL,
+    ...) {
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -1235,6 +1247,19 @@ findInteractionChangedFeats <- function(gobject,
         spat_unit = spat_unit,
         feat_type = feat_type
     )
+
+    # model-based engines: icfParam -> analyzeData() (see icf-param.R)
+    method <- match.arg(method)
+    if (method != "classic" || !is.null(param)) {
+        if (is.null(param)) param <- icfParam(method, ...)
+        if (!methods::is(param, "icfParam")) {
+            .gstop("`param` must be an icfParam (see ?icfParam)")
+        }
+        return(analyzeData(gobject, param,
+            spat_unit = spat_unit, feat_type = feat_type,
+            cluster_column = cluster_column, selected_feats = selected_feats
+        ))
+    }
 
     # expression values to be used
     values <- match.arg(

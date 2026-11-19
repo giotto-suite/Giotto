@@ -248,6 +248,15 @@ Downstream packages that import `dwlsDeconvParam` or provide an
 `analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
 
 ## new
+- `findInteractionChangedFeats()` gains `method = "edgeicg"` (and `param =`),
+  backed by the suggested [edgeicg](https://github.com/drieslab/edgeicg)
+  package: spillover-aware interaction-changed features at contact, paracrine
+  and niche scale. Transcripts leaked from touching cells (from the cell
+  polygons) are removed per cell before testing; niche hits are calibrated
+  with a spatial null and attributed to senders. `icfParam()` /
+  `edgeIcfParam` make it an `analyzeData()` verb dispatching on the expression
+  object, so a disk-backed store can supply its own method. The classic test
+  is unchanged and stays the default.
 - `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
   verb, the sibling of `enrichParam()`. Dispatching on the expression object
   lets a disk-backed store (GiottoDisk) supply its own streaming method.
