@@ -16,7 +16,9 @@ read10xAffineImage(
 \item{file}{filepath to image}
 
 \item{imagealignment_path}{filepath to alignment file which contains
-an affine transformation matrix. Usually a \code{.csv} file}
+an affine transformation matrix. Usually a \code{.csv} file. This is the 10x
+alignment matrix in pixel coordinates (y pointing down), read as a
+standard pre-multiply matrix.}
 
 \item{name}{character. Name to assign the image. Default is 'image'.}
 
