@@ -16,6 +16,16 @@ Requires GiottoClass 0.7.27.
   on its row and column names.
 
 ## new
+- `findInteractionChangedFeats()` gains `method = "edgeicg"` (and `param =`),
+  backed by the suggested [edgeicg](https://github.com/drieslab/edgeicg)
+  package: spillover-aware interaction-changed features at contact, paracrine
+  and niche scale. Transcripts leaked from touching cells (from the cell
+  polygons) are removed per cell before testing; niche hits are calibrated
+  with a spatial null and attributed to senders. `icfParam()` /
+  `edgeIcfParam` make it an `analyzeData()` verb dispatching on the expression
+  object; a GiottoDisk expression store is passed to edgeicg as is and read in
+  spatial windows, never loaded. The classic test
+  is unchanged and stays the default.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and
@@ -248,15 +258,6 @@ Downstream packages that import `dwlsDeconvParam` or provide an
 `analyzeData()` method for it should require `Giotto (>= 4.3.2)`.
 
 ## new
-- `findInteractionChangedFeats()` gains `method = "edgeicg"` (and `param =`),
-  backed by the suggested [edgeicg](https://github.com/drieslab/edgeicg)
-  package: spillover-aware interaction-changed features at contact, paracrine
-  and niche scale. Transcripts leaked from touching cells (from the cell
-  polygons) are removed per cell before testing; niche hits are calibrated
-  with a spatial null and attributed to senders. `icfParam()` /
-  `edgeIcfParam` make it an `analyzeData()` verb dispatching on the expression
-  object, so a disk-backed store can supply its own method. The classic test
-  is unchanged and stays the default.
 - `deconvParam()` / `dwlsDeconvParam`: deconvolution as an `analyzeData()`
   verb, the sibling of `enrichParam()`. Dispatching on the expression object
   lets a disk-backed store (GiottoDisk) supply its own streaming method.

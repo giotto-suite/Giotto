@@ -39,8 +39,16 @@
 #'     `TRUE`); otherwise k nearest neighbours.}
 #'   \item{`block_genes`}{integer. features per block; bounds memory
 #'     (default 500).}
-#'   \item{`workers`}{integer. `mirai` daemons for the feature blocks
-#'     (default 0, sequential). Results are identical.}
+#'   \item{`workers`}{integer. `mirai` daemons (default 0, sequential).
+#'     Results are identical.}
+#'   \item{`window_cells`}{cells per window. Above this, cells are visited in
+#'     spatially ordered windows and every statistic is summed over windows,
+#'     so memory does not grow with the dataset. Default: one window for
+#'     in-memory counts; for a GiottoDisk store, one window per worker (at
+#'     most 50,000 cells), with the store baked once in window order and read
+#'     in contiguous cell ranges.}
+#'   \item{`backend`}{`"auto"` (default: the Rust kernels of \pkg{edgeicgrs}
+#'     when installed), `"rust"` or `"r"`.}
 #'   \item{`calibrate`}{logical. spatial calibration of the niche scale
 #'     (default `TRUE`).}
 #'   \item{`min_shift`}{numeric. minimum calibration shift in microns
@@ -103,9 +111,9 @@ icfParam <- function(method = "edgeicg", ...) {
 #' matrix. The computation is done by the \pkg{edgeicg} package, which is
 #' suggested rather than imported: install it with
 #' `remotes::install_github("drieslab/edgeicg")`.
-#' @param x raw counts, features by cells: a `matrix` or `Matrix`, or anything
-#'   an engine registered against [edgeIcfParam-class] accepts (e.g. a
-#'   GiottoDisk store).
+#' @param x raw counts, features by cells: a `matrix` or `Matrix`, or a
+#'   GiottoDisk expression store, which edgeicg reads in windows without
+#'   loading it.
 #' @param param an [edgeIcfParam-class].
 #' @param coords numeric matrix of cell centroids (x, y), row names = cell IDs.
 #' @param cell_type cell type labels named by cell ID.
@@ -128,7 +136,15 @@ setMethod("analyzeData",
         if (length(missing)) {
             .gstop(length(missing), "cell(s) have no cell type label")
         }
-        if (!is.null(feats)) x <- x[rownames(x) %in% feats, , drop = FALSE]
+        if (!is.null(feats)) {
+            keep <- which(rownames(x) %in% feats)
+            # a matrix is subset in memory; a store keeps a lazy view
+            x <- if (is.matrix(x) || inherits(x, "Matrix")) {
+                x[keep, , drop = FALSE]
+            } else {
+                x[keep, ]
+            }
+        }
         a <- param@param
         extra <- a[setdiff(names(a), c("expression_values", "use_polygons",
             "report_q", "block_genes", "workers", "calibrate", "min_shift",

@@ -41,8 +41,16 @@ from the cell polygons of the spatial unit when they exist (default
 \code{TRUE}); otherwise k nearest neighbours.}
 \item{\code{block_genes}}{integer. features per block; bounds memory
 (default 500).}
-\item{\code{workers}}{integer. \code{mirai} daemons for the feature blocks
-(default 0, sequential). Results are identical.}
+\item{\code{workers}}{integer. \code{mirai} daemons (default 0, sequential).
+Results are identical.}
+\item{\code{window_cells}}{cells per window. Above this, cells are visited in
+spatially ordered windows and every statistic is summed over windows,
+so memory does not grow with the dataset. Default: one window for
+in-memory counts; for a GiottoDisk store, one window per worker (at
+most 50,000 cells), with the store baked once in window order and read
+in contiguous cell ranges.}
+\item{\code{backend}}{\code{"auto"} (default: the Rust kernels of \pkg{edgeicgrs}
+when installed), \code{"rust"} or \code{"r"}.}
 \item{\code{calibrate}}{logical. spatial calibration of the niche scale
 (default \code{TRUE}).}
 \item{\code{min_shift}}{numeric. minimum calibration shift in microns

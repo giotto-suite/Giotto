@@ -27,9 +27,9 @@
 )
 }
 \arguments{
-\item{x}{raw counts, features by cells: a \code{matrix} or \code{Matrix}, or anything
-an engine registered against \link[=edgeIcfParam-class]{edgeIcfParam} accepts (e.g. a
-GiottoDisk store).}
+\item{x}{raw counts, features by cells: a \code{matrix} or \code{Matrix}, or a
+GiottoDisk expression store, which edgeicg reads in windows without
+loading it.}
 
 \item{param}{an \link[=edgeIcfParam-class]{edgeIcfParam}.}
 
