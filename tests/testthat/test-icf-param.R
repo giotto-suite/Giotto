@@ -78,3 +78,46 @@ test_that("the classic route ignores the new arguments", {
     expect_identical(a$ICFscores, b$ICFscores)
     expect_identical(a$test_info$test, "permutation")
 })
+
+test_that("a GiottoDisk store is read by edgeicg without loading and equals the matrix route", {
+    skip_if_not_installed("edgeicg")
+    skip_if_not_installed("GiottoDisk")
+    sim <- edgeicg::simulate_edgeicg(n = 2500, G = 100, seed = 7, gamma = 1.2)
+    path <- tempfile(fileext = ".parquet")
+    on.exit(unlink(path, recursive = TRUE))
+    st <- GiottoDisk::storeWrite(GiottoDisk::parquetExprStore(path = path), sim$counts)
+    ids <- colnames(sim$counts)
+    coords <- sim$coords
+    rownames(coords) <- ids
+    p <- icfParam("edgeicg", min_shift = 150, B = 8, window_cells = 700)
+    args <- list(param = p, coords = coords,
+        cell_type = stats::setNames(sim$types, ids),
+        lib = stats::setNames(Matrix::colSums(sim$counts), ids))
+    f_mem <- do.call(analyzeData, c(list(x = sim$counts), args))
+    f_st <- do.call(analyzeData, c(list(x = st), args))
+    expect_gt(f_st$n_windows, 3L)
+    expect_equal(f_st$scale_fits$contact$z, f_mem$scale_fits$contact$z,
+        tolerance = 1e-8)
+    expect_equal(f_st$screen$z, f_mem$screen$z, tolerance = 1e-8)
+    # feature subsetting keeps the store lazy
+    f_sub <- do.call(analyzeData, c(list(x = st,
+        feats = rownames(sim$counts)[1:60]), args))
+    expect_identical(f_sub$genes, rownames(sim$counts)[1:60])
+})
+
+test_that("plotICF draws an edgeicg icfObject", {
+    skip_if_not_installed("edgeicg")
+    s <- .icf_sim_giotto()
+    res <- findInteractionChangedFeats(s$g,
+        cluster_column = "ct", method = "edgeicg",
+        min_shift = 150, B = 8, report_q = 1
+    )
+    sc <- res$ICFscores[scale == "contact" & cell_type == "t1"]
+    feats <- head(unique(sc$feats), 3)
+    pl <- plotICF(s$g, res,
+        source_type = "t1", source_markers = feats[1],
+        ICF_feats = stats::setNames(feats[-1], rep("t2", 2)),
+        return_plot = TRUE, show_plot = FALSE, save_plot = FALSE
+    )
+    expect_s3_class(pl, "ggplot")
+})
