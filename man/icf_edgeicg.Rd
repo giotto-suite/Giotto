@@ -2,6 +2,7 @@
 % Please edit documentation in R/icf-param.R
 \name{icf_edgeicg}
 \alias{icf_edgeicg}
+\alias{analyzeData,ANY,edgeIcfParam-method}
 \alias{analyzeData,giotto,icfParam-method}
 \title{edgeicg interaction-changed features}
 \usage{

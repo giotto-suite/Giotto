@@ -124,6 +124,7 @@ icfParam <- function(method = "edgeicg", ...) {
 #' @param ... unused. Declared because [analyzeData()] carries it.
 #' @md
 #' @returns an `EdgeICG` fit (see `edgeicg::edgeicg()`).
+#' @aliases analyzeData,ANY,edgeIcfParam-method
 #' @export
 setMethod("analyzeData",
     signature(x = "ANY", param = "edgeIcfParam"),
