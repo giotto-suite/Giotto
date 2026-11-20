@@ -5,6 +5,7 @@ setClass(
     "CosmxReader",
     slots = list(
         cosmx_dir = "character",
+        protein_dir = "character",
         version = "character",
         slide = "numeric",
         fovs = "numeric",
@@ -32,6 +33,8 @@ setMethod("show", signature("CosmxReader"), function(object) {
     cat(sprintf("Giotto <%s>\n", "CosmxReader"))
     print_slots <- c("version", "dir", "slide", "fovs",
                     "micron", "poly_pref", "offsets", "funs")
+    has_protein <- length(.cosmx_protein_dir(object)) > 0L
+    if (has_protein) print_slots <- append(print_slots, "protein", after = 2L)
     pre <- sprintf(
         "%s :", format(print_slots)
     )
@@ -45,6 +48,10 @@ setMethod("show", signature("CosmxReader"), function(object) {
         cat(pre["dir"], d, "\n")
     } else {
         cat(pre["dir"], "\n")
+    }
+    if (has_protein) {
+        cat(pre["protein"],
+            GiottoUtils::str_abbreviate(object@protein_dir), "\n")
     }
     
     # version
@@ -136,13 +143,32 @@ setMethod(
 #' @param poly_pref character. Either "csv" (default) or "mask". Which format of
 #' data to load as polygon info. "csv" will use vector polygons from the
 #' `polygons.csv`. "mask" will load the mask images from `CellLabels` directory.
+#' @param version character. Version of CosMx output. Current selections are
+#' either "default", "v6", and "legacy" (for the NSCLC dataset).
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+#' `giotto` object as a managed on-disk project.
+#' @param protein_dir (optional) directory of the protein flat files of a
+#' CosMx RNA + protein (multiomic) run: `exprMat_file`, `metadata_file` and
+#' the `plex-*.txt` panel file. Kept apart from `cosmx_dir` because the two
+#' exports use the same file names. Adds a `load_protein()` function and the
+#' protein arguments of `create_gobject()`. With `backend`, it is passed to
+#' `GiottoDisk::importCosMxDisk()`.
 #' @details
 #' Loading functions are generated after the `cosmx_dir` is added.
 #' Transcripts, expression, and metadata loading are all expected to be done
 #' from the top level of the directory. Loading of polys, and any image sets
 #' are expected to be from specific subdirectories containing only those
 #' images for the set of FOVs.
-#' @returns CosmxReader object
+#'
+#' \[**Protein**\] `load_protein()` reads the protein `exprMat_file`: target
+#' antibodies become feature type `"protein"` and the isotype controls
+#' (`CodeClass` "Negative" in the plex file; names containing `"IgG"` when
+#' there is no plex file) become `"protein_neg"`. Values are the vendor's
+#' per-cell mean intensities, stored unchanged as `"raw"`. The `Channel-*`
+#' morphology columns are not loaded: they repeat the metadata `Mean.*`
+#' columns.
+#' @returns `CosmxReader` object, or `CosMxDiskReader` when `backend` is set
 #' @examples
 #' # Create a `CosmxReader` object
 #' reader <- importCosMx()
@@ -182,11 +208,43 @@ setMethod(
 #' }
 #' @export
 importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
-    micron = FALSE, px2um = 0.12028, poly_pref = "mask") {
+    micron = FALSE, px2um = 0.12028, poly_pref = "mask",
+    version = "default", backend = NULL, protein_dir = NULL) {
+    if (!is.null(backend)) {
+        package_check(
+            "GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk"
+        )
+        disk_args <- list(
+            cosmx_dir = cosmx_dir,
+            backend = backend,
+            slide = slide,
+            fovs = fovs,
+            version = version,
+            micron = micron,
+            px2um = px2um,
+            poly_pref = poly_pref
+        )
+        if (!is.null(protein_dir)) {
+            if (!"protein_dir" %in%
+                names(formals(GiottoDisk::importCosMxDisk))) {
+                stop(wrap_txt(
+                    "[importCosMx] the installed GiottoDisk cannot read CosMx
+                    protein data (`importCosMxDisk()` has no `protein_dir`).
+                    Update GiottoDisk or leave out `protein_dir`."
+                ), call. = FALSE)
+            }
+            disk_args$protein_dir <- protein_dir
+        }
+        return(do.call(GiottoDisk::importCosMxDisk, disk_args))
+    }
     # get params
     a <- list(Class = "CosmxReader")
     if (!is.null(cosmx_dir)) {
         a$cosmx_dir <- cosmx_dir
+    }
+    if (!is.null(protein_dir)) {
+        a$protein_dir <- protein_dir
     }
     if (!is.null(fovs)) {
         a$fovs <- fovs
@@ -202,11 +260,17 @@ importCosMx <- function(cosmx_dir = NULL, slide = 1, fovs = NULL,
 # * init ####
 setMethod(
     "initialize", signature("CosmxReader"),
-    function(.Object, cosmx_dir, version, slide, fovs, micron, px2um, poly_pref) {
+    function(.Object, cosmx_dir, version, slide, fovs, micron, px2um, poly_pref,
+             protein_dir) {
         # provided params (if any)
         if (!missing(cosmx_dir)) {
             checkmate::assert_directory_exists(cosmx_dir)
             .Object@cosmx_dir <- cosmx_dir
+        }
+        if (!missing(protein_dir)) {
+            checkmate::assert_directory_exists(protein_dir)
+            .cosmx_check_protein_slot(.Object)
+            .Object@protein_dir <- protein_dir
         }
         if (!missing(version)) {
             version <- match.arg(tolower(version), 
@@ -239,7 +303,10 @@ setMethod(
         # detect paths and subdirs. Stored on @paths so subclass init
         # frames (e.g. CosMxDiskReader) can list2env() them in for their
         # own closures without re-running detection.
-        .Object@paths <- .cosmx_detect_paths(.Object@cosmx_dir)
+        .Object@paths <- c(
+            .cosmx_detect_paths(.Object@cosmx_dir),
+            .cosmx_protein_paths(.cosmx_protein_dir(.Object))
+        )
         list2env(.Object@paths, envir = environment())
 
         v <- .Object@version
@@ -368,6 +435,7 @@ setMethod(
         shift_vertical_step = vstep,
         shift_horizontal_step = FALSE,
         remove_background_polygon = TRUE,
+        keep_ids = NULL,
         verbose = NULL) {
             .cosmx_poly(
                 path = path,
@@ -382,6 +450,7 @@ setMethod(
                 px2um = .Object@px2um,
                 offsets = .Object@offsets,
                 slide = .Object@slide,
+                keep_ids = keep_ids,
                 verbose = verbose
             )
         }
@@ -402,6 +471,50 @@ setMethod(
             )
         }
         .Object@calls$load_expression <- expr_fun
+
+
+        # protein expression load call
+        prot_fun <- function(
+        path = protein_expr_path,
+        feat_type = c("protein", "protein_neg"),
+        split_keyword = NULL,
+        drop_cols = "^Channel-",
+        cores = determine_cores(),
+        verbose = NULL) {
+            if (is.null(path)) {
+                stop(wrap_txt(
+                    "[CosmxReader] no protein exprMat_file found.
+                    Set `protein_dir` or pass `path`."
+                ), call. = FALSE)
+            }
+            if (is.null(split_keyword)) {
+                split_keyword <- if (length(feat_type) > 1L) {
+                    .cosmx_protein_negatives(protein_plex_path, path)
+                } else {
+                    list()
+                }
+            }
+            .cosmx_check_protein_header(.cosmx_csv_header(path),
+                split_keyword, basename(path))
+            if (length(feat_type) != length(split_keyword) + 1L) {
+                stop(wrap_txt(sprintf(
+                    "[CosmxReader] %d feat_type(s) given for %d feature
+                    groups (the targets plus one per split_keyword).",
+                    length(feat_type), length(split_keyword) + 1L
+                )), call. = FALSE)
+            }
+            .cosmx_expression(
+                path = path,
+                fovs = .Object@fovs %none% NULL,
+                feat_type = feat_type,
+                split_keyword = split_keyword,
+                slide = .Object@slide,
+                drop_cols = drop_cols,
+                cores = cores,
+                verbose = verbose
+            )
+        }
+        .Object@calls$load_protein <- prot_fun
 
 
         # images load call
@@ -448,12 +561,18 @@ setMethod(
             "CenterY_global_px",
             "cell_id"
         ),
+        feat_type = "rna",
+        select = NULL,
+        rename = NULL,
         verbose = NULL) {
             .cosmx_cellmeta(
                 path = path,
                 slide = .Object@slide,
                 fovs = .Object@fovs %none% NULL,
                 dropcols = dropcols,
+                feat_type = feat_type,
+                select = select,
+                rename = rename,
                 cores = cores,
                 verbose = verbose
             )
@@ -481,10 +600,32 @@ setMethod(
         load_transcripts = TRUE,
         instructions = NULL,
         cores = determine_cores(),
-        verbose = NULL) {
+        verbose = NULL,
+        load_protein = !is.null(protein_expression_path),
+        protein_expression_path = protein_expr_path,
+        protein_metadata_path = protein_meta_path,
+        protein_feat_type = c("protein", "protein_neg"),
+        protein_split_keyword = NULL,
+        protein_drop = "^Channel-",
+        protein_meta_cols = c("nCount_RNA", "nFeature_RNA",
+            "nCount_negprobes", "nFeature_negprobes", "Panel", "assay_type"),
+        keep_cells = "intersect") {
             load_expression <- as.logical(load_expression)
             load_cellmeta <- as.logical(load_cellmeta)
             load_transcripts <- as.logical(load_transcripts)
+            load_protein <- isTRUE(as.logical(
+                load_protein %null% !is.null(protein_expression_path)
+            ))
+            if (load_protein) {
+                keep_cells <- match.arg(keep_cells, choices = "intersect")
+                checkmate::assert_character(protein_feat_type,
+                    min.len = 1L, any.missing = FALSE)
+            }
+            if (!load_expression && !load_transcripts && !load_protein) {
+                stop(wrap_txt("[CosmxReader] nothing to build the object
+                    from. Set `load_expression = TRUE`, `load_transcripts =
+                    TRUE` or load protein."), call. = FALSE)
+            }
 
             if (!is.null(load_images)) {
                 checkmate::assert_list(load_images)
@@ -516,6 +657,41 @@ setMethod(
                 }
             }
 
+            # matrices before polygons: only cells with expression get polygons
+            exlist <- plist <- keep <- cx <- NULL
+            if (load_protein || load_expression) {
+                rna_ids <- NULL
+                if (load_expression) {
+                    exlist <- funs$load_expression(
+                        path = expression_path,
+                        feat_type = feat_type,
+                        split_keyword = split_keyword
+                    )
+                    rna_ids <- colnames(exlist[[1L]][])
+                } else if (load_transcripts && length(metadata_path)) {
+                    cx <- funs$load_cellmeta(
+                        path = metadata_path,
+                        cores = cores,
+                        verbose = verbose
+                    )
+                    rna_ids <- cx[]$cell_ID
+                }
+                if (load_protein) {
+                    plist <- funs$load_protein(
+                        path = protein_expression_path,
+                        feat_type = protein_feat_type,
+                        split_keyword = protein_split_keyword,
+                        drop_cols = protein_drop,
+                        cores = cores,
+                        verbose = verbose
+                    )
+                }
+                keep <- .cosmx_match_cells(list(
+                    rna = rna_ids,
+                    protein = if (length(plist)) colnames(plist[[1L]][])
+                ), keep_cells = keep_cells)
+            }
+
             # polys
             poly_args <- list(
                 path = cell_labels_dir,
@@ -529,7 +705,14 @@ setMethod(
                     poly_args$shift_vertical_step <- 1
                 }
             }
+            if (!is.null(keep)) poly_args$keep_ids <- keep
             polys <- do.call(funs$load_polys, poly_args)
+            if (!is.null(keep)) {
+                # matrix order; the polygon csv is sorted by cell, then fov
+                pid <- spatIDs(polys)
+                .cosmx_report_cells(keep, pid)
+                polys <- polys[match(keep[keep %in% pid], pid)]
+            }
             g <- setGiotto(g, polys, verbose = verbose)
 
             # images
@@ -563,37 +746,60 @@ setMethod(
             # Need to check that names agree for poly/expr/meta
             allowed_ids <- spatIDs(polys)
 
-            if (load_expression) {
-                exlist <- funs$load_expression(
-                    path = expression_path,
-                    feat_type = feat_type,
-                    split_keyword = split_keyword
-                )
-
-                # only keep allowed cells and set into gobject
-                for (ex in exlist) {
-                    bool <- colnames(ex[]) %in% allowed_ids
-                    ex[] <- ex[][, bool]
-                    g <- setGiotto(g, ex, verbose = verbose)
+            # GiottoClass does not check that feature types share cell order
+            for (ex in c(exlist, plist)) {
+                idx <- match(allowed_ids, colnames(ex[]))
+                if (anyNA(idx)) {
+                    stop(wrap_txt("[CosmxReader] polygon cells are missing",
+                        "from the", featType(ex), "expression."),
+                        call. = FALSE)
                 }
+                ex[] <- ex[][, idx, drop = FALSE]
+                g <- setGiotto(g, ex, verbose = verbose)
             }
 
             if (load_cellmeta) {
-                cx <- funs$load_cellmeta(
-                    path = metadata_path,
-                    cores = cores,
-                    verbose = verbose
-                )
+                if (is.null(cx)) {
+                    cx <- funs$load_cellmeta(
+                        path = metadata_path,
+                        cores = cores,
+                        verbose = verbose
+                    )
+                }
 
-                cx[] <- cx[][cell_ID %in% allowed_ids, ]
+                if (!is.null(keep)) {
+                    cx[] <- cx[][match(allowed_ids, cell_ID, nomatch = 0L), ]
+                } else {
+                    cx[] <- cx[][cell_ID %in% allowed_ids, ]
+                }
                 g <- setGiotto(g, cx, verbose = verbose)
+
+                if (load_protein && !is.null(protein_metadata_path)) {
+                    ren <- .cosmx_protein_meta_names(protein_meta_cols,
+                        protein_feat_type)
+                    px <- funs$load_cellmeta(
+                        path = protein_metadata_path,
+                        feat_type = protein_feat_type[[1L]],
+                        select = c("Area.um2", names(ren)),
+                        rename = ren,
+                        cores = cores,
+                        verbose = verbose
+                    )
+                    px[] <- px[][match(allowed_ids, cell_ID, nomatch = 0L), ]
+                    g <- setGiotto(g, px, verbose = verbose)
+                }
             }
             
             # create spatlocs
             g <- addSpatialCentroidLocations(g, verbose = FALSE)
             
             # add fovs
-            g$fov <- gsub("^c_\\d+_(\\d+)_\\d+$", "\\1", pDataDT(g)$cell_ID)
+            g$fov <- as.integer(gsub("^c_\\d+_(\\d+)_\\d+$", "\\1",
+                pDataDT(g)$cell_ID))
+            if (load_protein) {
+                g <- .cosmx_add_fov(g, feat_type = c(feat_type[[1L]],
+                    protein_feat_type[[1L]]))
+            }
 
             return(g)
         }
@@ -611,7 +817,7 @@ setMethod(
 
 #' @export
 setMethod("$", signature("CosmxReader"), function(x, name) {
-    basic_info <- c("cosmx_dir", "version", "slide", "fovs", 
+    basic_info <- c("cosmx_dir", "protein_dir", "version", "slide", "fovs",
                     "micron", "px2um", "poly_pref", "offsets")
     if (name %in% basic_info) {
         return(methods::slot(x, name))
@@ -623,9 +829,14 @@ setMethod("$", signature("CosmxReader"), function(x, name) {
 #' @export
 setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     basic_info <- c(
-        "cosmx_dir", "version", "slide", "fovs", "micron", "px2um", "poly_pref"
+        "cosmx_dir", "protein_dir", "version", "slide", "fovs", "micron",
+        "px2um", "poly_pref"
     )
     if (name %in% basic_info) {
+        if (name == "protein_dir") {
+            .cosmx_check_protein_slot(x)
+            if (is.null(value)) value <- character(0L)
+        }
         methods::slot(x, name) <- value
         return(initialize(x))
     }
@@ -645,7 +856,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
 #' @export
 `.DollarNames.CosmxReader` <- function(x, pattern) {
-    dn <- c("cosmx_dir", "version", "slide", "fovs",
+    dn <- c("cosmx_dir", "protein_dir", "version", "slide", "fovs",
             "micron", "px2um", "poly_pref", "offsets")
     if (length(methods::slot(x, "calls")) > 0) {
         dn <- c(dn, paste0(names(methods::slot(x, "calls")), "()"))
@@ -683,6 +894,149 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         overlay_img_dir   = .cosmx_detect("CellOverlay"),
         compart_img_dir   = .cosmx_detect("CompartmentLabels")
     )
+}
+
+# a subclass installed against an older CosmxReader has no protein_dir slot
+.cosmx_protein_dir <- function(x) {
+    if (methods::.hasSlot(x, "protein_dir")) x@protein_dir else character()
+}
+
+.cosmx_check_protein_slot <- function(x) {
+    if (methods::.hasSlot(x, "protein_dir")) return(invisible(TRUE))
+    stop(wrap_txt(sprintf(
+        "[importCosMx] the %s class in use has no `protein_dir` slot: a
+        package that extends CosmxReader (e.g. GiottoDisk) was installed
+        against an older Giotto. Reinstall it to read CosMx protein data.",
+        class(x)[[1L]]
+    )), call. = FALSE)
+}
+
+# protein files share names with the RNA export, so they get their own folder
+.cosmx_protein_paths <- function(protein_dir) {
+    out <- list(
+        protein_expr_path = NULL,
+        protein_meta_path = NULL,
+        protein_plex_path = NULL
+    )
+    if (length(protein_dir) == 0L) return(out)
+    checkmate::assert_directory_exists(protein_dir)
+    .detect <- function(pattern, warn = TRUE) {
+        .detect_in_dir(pattern = pattern, path = protein_dir,
+                       platform = "CosMx protein", warn = warn)
+    }
+    out["protein_expr_path"] <- list(.detect("exprMat_file"))
+    out["protein_meta_path"] <- list(.detect("metadata_file"))
+    out["protein_plex_path"] <- list(.detect("^plex-.*[.]txt$", warn = FALSE))
+    out
+}
+
+# isotype names contain spaces and regex characters, so they are escaped
+.cosmx_protein_negatives <- function(plex_path = NULL, expr_path = NULL) {
+    neg <- character()
+    if (length(plex_path) && file.exists(plex_path)) {
+        plex <- data.table::fread(plex_path)
+        if (all(c("DisplayName", "CodeClass") %in% colnames(plex))) {
+            neg <- plex$DisplayName[plex$CodeClass == "Negative"]
+        }
+    }
+    if (length(neg) && length(expr_path) && file.exists(expr_path)) {
+        neg <- intersect(neg, .cosmx_csv_header(expr_path))
+    }
+    if (!length(neg)) return(list("IgG"))
+    esc <- gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", neg)
+    list(paste0("^(", paste(esc, collapse = "|"), ")$"))
+}
+
+.cosmx_check_protein_header <- function(header, split_keyword, file) {
+    if (any(grepl("^(Negative|SystemControl)|NegPrb", header))) {
+        warning(wrap_txt("[CosmxReader]", file, "has RNA negative-probe or
+            system-control columns: is `protein_dir` the RNA export?"),
+            call. = FALSE)
+    }
+    if (length(split_keyword) && !any(grepl(split_keyword[[1L]], header))) {
+        warning(wrap_txt("[CosmxReader] no isotype control in", file,
+            "matches", split_keyword[[1L]], "; every feature loads as a
+            target"), call. = FALSE)
+    }
+    invisible(NULL)
+}
+
+# the vendor's protein metadata reuses RNA column names for protein totals
+.cosmx_protein_meta_names <- function(cols,
+    feat_type = c("protein", "protein_neg")) {
+    if (!length(cols)) return(character())
+    neg <- if (length(feat_type) > 1L) feat_type[[2L]] else
+        paste0(feat_type[[1L]], "_neg")
+    new <- sub("negprobes", neg, cols, fixed = TRUE)
+    new <- sub("RNA", feat_type[[1L]], new, fixed = TRUE)
+    same <- new == cols
+    new[same] <- paste0(cols[same], "_", feat_type[[1L]])
+    stats::setNames(new, cols)
+}
+
+.cosmx_match_cells <- function(ids, keep_cells = "intersect") {
+    keep_cells <- match.arg(keep_cells, choices = "intersect")
+    ids <- ids[lengths(ids) > 0L]
+    if (!length(ids)) return(NULL)
+    keep <- Reduce(function(a, b) a[a %in% b], ids)
+    if (!length(keep)) {
+        stop(wrap_txt(
+            "[CosmxReader] the RNA and protein matrices share no cell; both
+            should hold 'c_<slide>_<fov>_<cell>' ids of the same slide."
+        ), call. = FALSE)
+    }
+    attr(keep, "dropped") <- lapply(ids, function(x) x[!x %in% keep])
+    keep
+}
+
+.cosmx_report_cells <- function(keep, poly_ids) {
+    d <- attr(keep, "dropped")
+    dropped <- list(
+        "with protein but no RNA expression" = d$protein,
+        "with RNA but no protein expression" = d$rna,
+        "with expression but no polygon" = keep[!keep %in% poly_ids]
+    )
+    dropped <- dropped[lengths(dropped) > 0L]
+    if (!length(dropped)) return(invisible(NULL))
+    n <- sum(lengths(dropped))
+    why <- vapply(names(dropped), function(w) {
+        sprintf("%d %s (e.g. %s)", length(dropped[[w]]), w,
+            paste(utils::head(sort(dropped[[w]]), 2L), collapse = ", "))
+    }, character(1L))
+    warning(wrap_txt(sprintf(
+        "[CosmxReader] %d %s not loaded: %s.",
+        n, if (n == 1L) "cell is" else "cells are",
+        paste(why, collapse = "; ")
+    )), call. = FALSE)
+    invisible(NULL)
+}
+
+.cosmx_add_fov <- function(g, feat_type) {
+    have <- list_cell_metadata(g, spat_unit = "cell")
+    for (ft in intersect(feat_type, have$feat_type)) {
+        cx <- getCellMetadata(g, spat_unit = "cell", feat_type = ft,
+            output = "data.table", copy_obj = FALSE)
+        if ("fov" %in% colnames(cx)) next
+        cx[, fov := as.integer(gsub("^c_\\d+_(\\d+)_\\d+$", "\\1", cell_ID))]
+    }
+    g
+}
+
+# first line only: fread() would decompress the whole file
+.cosmx_csv_header <- function(path) {
+    con <- gzfile(path, open = "rt")
+    on.exit(close(con))
+    colnames(data.table::fread(text = readLines(con, n = 1L), sep = ",",
+        header = TRUE))
+}
+
+# some exports write coordinates as `1e+05`
+.cosmx_poly_col_classes <- function(path) {
+    hdr <- .cosmx_csv_header(path)
+    cls <- rep("character", length(hdr))
+    cls[grepl("_px$", hdr)] <- "double"
+    cls[hdr %in% c("fov", "cellID", "cell_ID")] <- "integer"
+    cls
 }
 
 
@@ -741,14 +1095,8 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     if (is.null(fovs)) {
         tx <- data.table::fread(input = path, nThread = cores, drop = dropcols)
     } else {
-        tx <- read_colmatch(
-            file = path, 
-            col = "fov", 
-            sep = ",", 
-            values_to_match = fovs,
-            col_classes = col_classes,
-            drop = dropcols
-        )
+        tx <- .cosmx_read_fovs(path, fovs = fovs, drop = dropcols,
+            col_classes = col_classes, cores = cores)
     }
 
     # micron scaling if desired
@@ -887,6 +1235,16 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     return(fovs)
 }
 
+# FOV width in image file names, read from the files: "F%03d" in older
+# exports, "F%05d" in AtoMx ones; "F%03d" when mixed or unreadable.
+.cosmx_file_fov_fmt <- function(path) {
+    if (length(path) == 1) im_names <- list.files(path)
+    else im_names <- basename(path)
+    digits <- sub(".*F(\\d+)\\..*", "\\1", im_names)
+    widths <- unique(nchar(digits[grepl("^\\d+$", digits)]))
+    if (length(widths) == 1L) sprintf("F%%0%dd", widths) else "F%03d"
+}
+
 .cosmx_poly_maskimage <- function(path,
     slide = 1,
     fovs = NULL,
@@ -931,7 +1289,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     )
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
-    file_fov_fmt <- file_fov_fmt %null% "F%03d"
+    file_fov_fmt <- file_fov_fmt %null% .cosmx_file_fov_fmt(path)
     checkmate::assert_character(file_fov_fmt)
     with_pbar({
         p <- pbar(along = fovs)
@@ -1010,6 +1368,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         # cellID is an integer identifier per FOV
         # x_local_px and y_local_px are local xy coords per FOV
         dropcols = c("x_local_px", "y_local_px"),
+        keep_ids = NULL,
         verbose = NULL,
         ...) {
     
@@ -1021,18 +1380,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     if (is.null(fovs)) {
         dt <- data.table::fread(path, drop = dropcols)
     } else {
-        fovs <- as.integer(fovs)
-        dt <- GiottoUtils::read_colmatch(
-            file = path, 
-            col = "fov", 
-            values_to_match = fovs, 
-            verbose = verbose,
-            drop = dropcols
-        )
+        dt <- .cosmx_read_fovs(path, fovs = as.integer(fovs), drop = dropcols,
+            col_classes = .cosmx_poly_col_classes(path))
     }
 
     dt[, cell := sprintf("c_%d_%d_%d", as.integer(slide), fov, cellID)]
     dt[, cellID := NULL]
+    if (!is.null(keep_ids)) dt <- dt[cell %in% keep_ids]
 
     data.table::setcolorder(dt, c("x_global_px", "y_global_px", "cell", "fov"))
     createGiottoPolygon(dt, make_valid = make_valid, verbose = FALSE)
@@ -1053,6 +1407,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         micron = FALSE,
         px2um = 0.12028,
         offsets,
+        keep_ids = NULL,
         verbose = NULL,
         ...) {
     
@@ -1065,10 +1420,12 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             stop(call. = FALSE)
     }
     
-    if (length(path) > 1L) {
+    if (length(path) > 1L || dir.exists(path)) {
+        a$keep_ids <- NULL
         gpolys <- do.call(.cosmx_poly_maskimage, args = a)
-    } else if (dir.exists(path)) {
-        gpolys <- do.call(.cosmx_poly_maskimage, args = a)
+        if (!is.null(keep_ids)) {
+            gpolys <- gpolys[gpolys$poly_ID %in% keep_ids]
+        }
     } else if ("csv" %in% GiottoUtils::file_extension(path)) {
         a$file_fov_fmt <- NULL # not accepted by this function
         gpolys <- do.call(.cosmx_poly_csv, args = a)
@@ -1091,6 +1448,9 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
             "CenterY_global_px",
             "cell_id"
         ),
+        feat_type = "rna",
+        select = NULL,
+        rename = NULL,
         cores = determine_cores(),
         verbose = NULL) {
     if (missing(path)) {
@@ -1104,7 +1464,13 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 
     verbose <- verbose %null% TRUE
 
-    meta_dt <- data.table::fread(input = path, nThread = cores)
+    if (is.null(select)) {
+        meta_dt <- data.table::fread(input = path, nThread = cores)
+    } else {
+        hdr <- .cosmx_csv_header(path)
+        meta_dt <- data.table::fread(input = path, nThread = cores,
+            select = intersect(hdr, c("fov", "cell_ID", "cell", select)))
+    }
 
     # remove unneeded cols
     dropcols <- dropcols[dropcols %in% colnames(meta_dt)]
@@ -1128,12 +1494,15 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         meta_dt[, fov := NULL]
     }
 
+    if (length(rename)) {
+        old <- intersect(names(rename), colnames(meta_dt))
+        data.table::setnames(meta_dt, old = old, new = unname(rename[old]))
+    }
 
-    # TODO figure out what to do about protein expression here.
     cx <- createCellMetaObj(
         metadata = meta_dt,
         spat_unit = "cell",
-        feat_type = "rna",
+        feat_type = feat_type,
         provenance = "cell",
         verbose = verbose
     )
@@ -1146,6 +1515,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         fovs = NULL,
         feat_type = c("rna", "negprobes"),
         split_keyword = list("NegPrb"),
+        drop_cols = NULL,
         cores = determine_cores(),
         verbose = NULL) {
     if (missing(path)) {
@@ -1157,25 +1527,47 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     GiottoUtils::vmsg(.v = verbose, "loading expression matrix...")
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
-    expr_dt <- data.table::fread(input = path, nThread = cores)
-
-    # subset to needed fovs
-    if (!is.null(fovs)) {
-        fovs <- as.integer(fovs)
-        expr_dt <- expr_dt[fov %in% fovs, ]
+    hdr <- .cosmx_csv_header(path)
+    drop <- NULL
+    if (length(drop_cols)) {
+        drop <- grep(paste(drop_cols, collapse = "|"),
+            setdiff(hdr, c("fov", "cell_ID")), value = TRUE)
+        if (!length(drop)) drop <- NULL
     }
 
-    # remove background values (cell 0)
-    expr_dt <- expr_dt[cell_ID != 0L, ]
+    if (identical(hdr[[1L]], "fov")) {
+        if (!is.null(fovs)) fovs <- as.integer(fovs)
+        expr_mat <- .cosmx_read_exprmat(path, header = hdr, fovs = fovs,
+            slide = slide, drop = drop, cores = cores)
+    } else {
+        if (length(drop)) {
+            expr_dt <- data.table::fread(input = path, nThread = cores,
+                drop = drop)
+        } else {
+            expr_dt <- data.table::fread(input = path, nThread = cores)
+        }
 
-    # create cell ID as `c_SLIDENUMBER_FOVNUMBER_CELLID`
-    expr_dt[, cell_ID := sprintf("c_%d_%d_%d", slide, fov, cell_ID)]
-    # remove fov
-    expr_dt[, fov := NULL]
+        # subset to needed fovs
+        if (!is.null(fovs)) {
+            fovs <- as.integer(fovs)
+            expr_dt <- expr_dt[fov %in% fovs, ]
+        }
 
-    # convert to Matrix
-    expr_mat <- dt_to_matrix(expr_dt)
-    expr_mat <- t_flex(expr_mat)
+        # remove background values (cell 0)
+        expr_dt <- expr_dt[cell_ID != 0L, ]
+
+        # create cell ID as `c_SLIDENUMBER_FOVNUMBER_CELLID`
+        expr_dt[, cell_ID := sprintf("c_%d_%d_%d", slide, fov, cell_ID)]
+        # remove fov
+        expr_dt[, fov := NULL]
+        na <- !stats::complete.cases(expr_dt)
+        .cosmx_warn_na_cells(expr_dt$cell_ID[na], path)
+        expr_dt <- expr_dt[!na]
+
+        # convert to Matrix
+        expr_mat <- dt_to_matrix(expr_dt)
+        expr_mat <- t_flex(expr_mat)
+    }
 
     # split expression for rna / negprb if any split keywords provided.
     # Output of this chunk should always be a named list of 1 or more matrices
@@ -1186,14 +1578,20 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
         for (key_i in seq_along(split_keyword)) {
             feat_ids <- rownames(expr_mat)
             bool <- grepl(pattern = split_keyword[[key_i]], x = feat_ids)
+            if (!any(bool)) next
             # subset and store split matrix
-            sub_mat <- expr_mat[bool, ]
-            expr_list[[key_i + 1L]] <- sub_mat
+            expr_list[[key_i + 1L]] <- expr_mat[bool, , drop = FALSE]
             # remaining matrix
-            expr_mat <- expr_mat[!bool, ]
+            expr_mat <- expr_mat[!bool, , drop = FALSE]
         }
         # assign the main expr
         expr_list[[1L]] <- expr_mat
+        empty <- vapply(expr_list, is.null, logical(1L))
+        if (any(empty)) {
+            vmsg(.v = verbose, "no features for feat_type",
+                paste(names(expr_list)[empty], collapse = ", "))
+        }
+        expr_list <- expr_list[!empty]
     } else {
         expr_list <- list(expr_mat)
         names(expr_list) <- feat_type[[1L]]
@@ -1210,6 +1608,122 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     })
 
     return(expr_list)
+}
+
+# read_colmatch() would parse the whole file
+.cosmx_read_fovs <- function(path, fovs, drop = NULL, col_classes = NULL,
+    cores = determine_cores(), batch_lines = 2e6) {
+    j <- match("fov", .cosmx_csv_header(path))
+    if (is.na(j)) {
+        stop(wrap_txt("[CosmxReader] no `fov` column in", basename(path)),
+            call. = FALSE)
+    }
+    con <- gzfile(path, open = "rt")
+    on.exit(close(con))
+    header_line <- readLines(con, n = 1L)
+    kept <- list()
+    repeat {
+        lines <- readLines(con, n = batch_lines)
+        if (!length(lines)) break
+        lines <- lines[nzchar(lines)]
+        if (!length(lines)) next
+        f <- data.table::fread(text = lines, header = FALSE, select = j,
+            sep = ",", nThread = cores)[[1L]]
+        kept[[length(kept) + 1L]] <- lines[f %in% fovs]
+    }
+    data.table::fread(text = c(header_line, unlist(kept, use.names = FALSE)),
+        sep = ",", header = TRUE, drop = drop, colClasses = col_classes,
+        nThread = cores)
+}
+
+# batches of lines, one sparse matrix each: memory follows the selected cells
+.cosmx_read_exprmat <- function(path, header, fovs = NULL, slide = 1,
+    drop = NULL, cores = determine_cores(),
+    batch_values = 2e7) {
+    con <- gzfile(path, open = "rt")
+    on.exit(close(con))
+    header_line <- readLines(con, n = 1L)
+    batch_rows <- max(1L, as.integer(batch_values / length(header)))
+
+    # one join at the end: cbind() of many parts peaks far above the result
+    ids <- idx <- vals <- n_col <- list()
+    feats <- NULL
+    na_ids <- character(0L)
+    repeat {
+        lines <- readLines(con, n = batch_rows)
+        if (!length(lines)) break
+        if (!is.null(fovs)) {
+            f1 <- substr(lines, 1L, regexpr(",", lines, fixed = TRUE) - 1L)
+            f1 <- suppressWarnings(as.integer(gsub("\"", "", f1,
+                fixed = TRUE)))
+            lines <- lines[f1 %in% fovs]
+        }
+        lines <- lines[nzchar(lines)]
+        if (!length(lines)) next
+        dt <- data.table::fread(text = c(header_line, lines), sep = ",",
+            header = TRUE, drop = drop, nThread = cores)
+        dt <- dt[cell_ID != 0L, ]
+        if (!nrow(dt)) next
+        b <- length(ids) + 1L
+        ids[[b]] <- sprintf("c_%d_%d_%d", slide, dt$fov, dt$cell_ID)
+        dt[, c("fov", "cell_ID") := NULL]
+        bad <- names(dt)[!vapply(dt, function(x) {
+            is.numeric(x) || all(is.na(x))
+        }, logical(1L))]
+        if (length(bad)) {
+            stop(wrap_txt("[CosmxReader]", basename(path),
+                "has non-numeric values in",
+                ngettext(length(bad), "column", "columns"),
+                toString(utils::head(bad, 5L))), call. = FALSE)
+        }
+        na <- !stats::complete.cases(dt)
+        if (any(na)) {
+            na_ids <- c(na_ids, ids[[b]][na])
+            ids[[b]] <- ids[[b]][!na]
+            dt <- dt[!na]
+            if (!nrow(dt)) {
+                ids[[b]] <- NULL
+                next
+            }
+        }
+        m <- methods::as(t(as.matrix(dt)), "CsparseMatrix")
+        feats <- rownames(m)
+        idx[[b]] <- m@i
+        vals[[b]] <- m@x
+        n_col[[b]] <- diff(m@p)
+    }
+    .cosmx_warn_na_cells(na_ids, path)
+    if (!length(ids)) {
+        stop(wrap_txt(
+            "[CosmxReader] no cells found in", basename(path),
+            if (!is.null(fovs)) paste("for fovs", paste(fovs, collapse = ", "))
+        ), call. = FALSE)
+    }
+    ids <- unlist(ids, use.names = FALSE)
+    mat <- methods::new("dgCMatrix",
+        i = unlist(idx, use.names = FALSE),
+        p = c(0L, cumsum(unlist(n_col, use.names = FALSE))),
+        x = unlist(vals, use.names = FALSE),
+        Dim = c(length(feats), length(ids)),
+        Dimnames = list(feats, ids)
+    )
+    if (length(mat) <= 2 * Matrix::nnzero(mat, na.counted = TRUE)) {
+        mat <- Matrix::Matrix(as.matrix(mat))
+    }
+    mat
+}
+
+.cosmx_warn_na_cells <- function(ids, path) {
+    if (!length(ids)) return(invisible(NULL))
+    n <- length(ids)
+    warning(wrap_txt(sprintf(
+        "[CosmxReader] %d %s in %s %s NA values and %s left out, as cells
+        missing from it (e.g. %s)", n, if (n == 1L) "cell" else "cells",
+        basename(path),
+        if (n == 1L) "has" else "have", if (n == 1L) "is" else "are",
+        paste(utils::head(ids, 2L), collapse = ", ")
+    )), call. = FALSE)
+    invisible(NULL)
 }
 
 .cosmx_image <- function(path,
@@ -1235,7 +1749,7 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     vmsg(.v = verbose, .is_debug = TRUE, path)
 
     fovs <- fovs %null% .cosmx_imgname_fovparser(path) # ALL if NULL
-    file_fov_fmt <- file_fov_fmt %null% "F%03d"
+    file_fov_fmt <- file_fov_fmt %null% .cosmx_file_fov_fmt(path)
     checkmate::assert_character(file_fov_fmt)
     verbose <- verbose %null% TRUE
 
@@ -1339,10 +1853,35 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' transcript detections
 #' @param poly_pref character. "mask" or "csv". Determines whether to load in
 #' the polygons from the mask images (default) or the csv polygons file.
+#' @param poly_read_fun Optional function applied to the polygons file as it is
+#' read, for repairing a vendor export in flight. Requires a `backend`: the
+#' in-memory reader has no polygon read hook.
+#' @param meta_cols Optional. With a `backend`, the cell metadata columns to
+#' load (default of the disk reader: `fov`, `Area.um2`, `nCount_RNA`,
+#' `nFeature_RNA`). The in-memory reader loads every column, so it is ignored
+#' there with a warning.
+#' @param backend (optional) a `gsource`-inheriting project backend (typically
+#' produced by `GiottoDisk::sourceCreate()`). When provided, the `giotto`
+#' object is created as a managed on-disk project; see [importCosMx()].
+#' Polygons are then read from the `polygons.csv` file (`poly_pref = "csv"`);
+#' mask polygons (`CellLabels`) are not supported on this path.
 #' @param image_negative_y Optional logical. Whether images are assumed to map
 #' to positive or negative y values before fov shifts are applied. Affects
 #' images (and polygons generated from masks). This overrides any settings from
 #' selecting `version`.
+#' @param protein_dir Optional. Directory of the protein flat files of a CosMx
+#' RNA + protein run (`exprMat_file`, `metadata_file`, `plex-*.txt`). See
+#' details and [importCosMx()].
+#' @param load_protein logical. Whether to load the protein expression.
+#' Default (`NULL`): `TRUE` when a protein `exprMat_file` is found or given.
+#' @param protein_feat_type character. Feature types of the protein targets
+#' and of the isotype controls. Default `c("protein", "protein_neg")`; one
+#' name keeps the isotypes with the targets.
+#' @param keep_cells character. Which cells to keep when protein is loaded.
+#' `"intersect"` (only option): cells in the RNA export, protein expression
+#' and a polygon. The RNA cells are those of the RNA matrix, or, when RNA is
+#' loaded only as transcripts, those of the RNA cell metadata; with neither,
+#' every protein cell with a polygon is kept.
 #' @param fov_shifts_path Optional. Filepath to fov_positions_file
 #' @param transcript_path Optional. Filepath to desired transcripts file to
 #' load.
@@ -1350,6 +1889,9 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' images to load as polygons.
 #' @param expression_path Optional. Filepath to cell feature matrix to load.
 #' @param metadata_path Optional. Filepath to metadata file to load.
+#' @param protein_expression_path,protein_metadata_path Optional. Filepaths
+#' to the protein expression matrix and metadata, when they are not in
+#' `protein_dir`.
 #' @param cores nthreads to use when loading in cell metadata and transcripts
 #' @param data_to_use deprecated. Not used
 #' @param remove_background_polygon deprecated. Now always done
@@ -1404,6 +1946,26 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
 #' of double counting transcripts. Polygon overlaps do not appear to be an
 #' issue in the most recent outputs.
 #' 
+#' \[**Protein (RNA + protein runs)**\] With `protein_dir`, the protein
+#' exprMat is loaded as two feature types: the targets (`"protein"`) and the
+#' isotype controls (`"protein_neg"`, `CodeClass` "Negative" in the plex file).
+#' Values are the vendor's per-cell mean intensities, stored unchanged as
+#' `"raw"`; the `Channel-*` morphology columns are not loaded (they repeat the
+#' metadata `Mean.*` columns). Cells are matched across modalities
+#' (`keep_cells = "intersect"`): only cells in the RNA export (see
+#' `keep_cells`), protein expression and a polygon are kept, every feature
+#' type in the same cell order, and a warning gives the number dropped per
+#' reason. Protein
+#' metadata goes to feature type `"protein"`: the vendor protein file reuses
+#' RNA column names for protein totals, so they are renamed
+#' (`nCount_RNA` -> `nCount_protein`, which is the sum of the targets and the
+#' `Channel-*` columns; `nFeature_RNA` -> `nFeature_protein`;
+#' `nCount_negprobes` -> `nCount_protein_neg`, the isotype sum;
+#' `nFeature_negprobes` -> `nFeature_protein_neg`; `Panel` ->
+#' `Panel_protein`; `assay_type` -> `assay_type_protein`), plus `Area.um2`
+#' and `fov`. Protein feature names can equal RNA gene names (`CD68`): pass
+#' `feat_type = "protein"` to downstream functions.
+#'
 #' \[**Spatial Alignment Issues**\] Different versions of the CosMx output have
 #' changed how images (and polygons generated from masks) should be aligned 
 #' relative to the vector information (transcript detections). The `version`
@@ -1444,7 +2006,13 @@ createGiottoCosMxObject <- function(
         load_cellmeta = TRUE,
         load_transcripts = TRUE,
         poly_pref = "mask",
+        poly_read_fun = NULL,
+        meta_cols = NULL,
         image_negative_y = NULL,
+        protein_dir = NULL,
+        load_protein = NULL,
+        protein_feat_type = c("protein", "protein_neg"),
+        keep_cells = "intersect",
         
         # optional filepaths
         fov_shifts_path = NULL,
@@ -1452,9 +2020,12 @@ createGiottoCosMxObject <- function(
         cell_labels_dir = NULL,
         expression_path = NULL,
         metadata_path = NULL,
+        protein_expression_path = NULL,
+        protein_metadata_path = NULL,
         cores = determine_cores(),
         verbose = NULL,
         instructions = NULL,
+        backend = NULL,
         
         # deprecated params
         remove_unvalid_polygons = deprecated(), # not used
@@ -1486,40 +2057,63 @@ createGiottoCosMxObject <- function(
         fovs = FOVs,
         slide = slide,
         poly_pref = poly_pref,
+        version = version,
+        backend = backend,
+        protein_dir = protein_dir,
         ...)
-    x$version <- version
+    if (is.null(backend)) x$version <- version
     if (!is.null(fov_shifts_path)) {
         checkmate::assert_file_exists(fov_shifts_path)
         x$offsets <- data.table::fread(fov_shifts_path)
     }
-    
-    # gobject creation args setup
+
+    if (!is.null(poly_read_fun) && is.null(backend)) {
+        stop("[createGiottoCosMxObject] `poly_read_fun` needs a `backend`: ",
+             "the in-memory reader has no polygon read hook.", call. = FALSE)
+    }
+    if (!is.null(meta_cols) && is.null(backend)) {
+        warning("[createGiottoCosMxObject] `meta_cols` is ignored without a ",
+                "`backend`: the in-memory reader loads every metadata column.",
+                call. = FALSE)
+    }
+
+    # the disk reader's create_gobject takes the in-memory reader's arguments
     load_args <- list(
         feat_type = feat_type,
         split_keyword = split_keyword,
         load_images = load_images,
+        image_negative_y = image_negative_y,
         load_expression = load_expression,
         load_cellmeta = load_cellmeta,
         load_transcripts = load_transcripts,
-        image_negative_y = image_negative_y,
         instructions = instructions,
         cores = cores,
         verbose = verbose
     )
-    # pass optional paths if provided
-    if (!is.null(transcript_path)) {
-        load_args$transcript_path <- transcript_path
+
+    if (!is.null(transcript_path)) load_args$transcript_path <- transcript_path
+    if (!is.null(cell_labels_dir)) load_args$cell_labels_dir <- cell_labels_dir
+    if (!is.null(expression_path)) load_args$expression_path <- expression_path
+    if (!is.null(metadata_path)) load_args$metadata_path <- metadata_path
+    if (!is.null(poly_read_fun)) load_args$poly_read_fun <- poly_read_fun
+    if (!is.null(meta_cols) && !is.null(backend)) {
+        load_args$meta_cols <- meta_cols
     }
-    if (!is.null(cell_labels_dir)) {
-        load_args$cell_labels_dir <- cell_labels_dir
+
+    # RNA-only calls must still work with a GiottoDisk without protein support
+    if (!is.null(protein_dir) || !is.null(protein_expression_path) ||
+        isTRUE(load_protein)) {
+        load_args$protein_feat_type <- protein_feat_type
+        load_args$keep_cells <- keep_cells
+        if (!is.null(load_protein)) load_args$load_protein <- load_protein
+        if (!is.null(protein_expression_path)) {
+            load_args$protein_expression_path <- protein_expression_path
+        }
+        if (!is.null(protein_metadata_path)) {
+            load_args$protein_metadata_path <- protein_metadata_path
+        }
     }
-    if (!is.null(expression_path)) {
-        load_args$expression_path <- expression_path
-    }
-    if (!is.null(metadata_path)) {
-        load_args$metadata_path <- metadata_path
-    }
-    
+
     do.call(x$create_gobject, load_args)
 }
 
