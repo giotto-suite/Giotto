@@ -124,6 +124,7 @@ Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
     'basilisk.R'
+    'block_pca.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
