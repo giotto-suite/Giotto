@@ -1223,7 +1223,9 @@ interactiveLandmarkSelection <- function(source, target) {
 #' defines this transformation.
 #' @param source,target `matrix` or `data.frame`-like. Source and target 
 #' landmarks provided as paired x (first) y (second) columns. 
-#' @returns a 3x3 `matrix` that defines an affine transform
+#' @returns a 3x3 `matrix` that defines an affine transform in the standard
+#' pre-multiply convention (`c(x', y', 1) = A %*% c(x, y, 1)`), which is what
+#' [affine()] reads by default
 #' @md
 #' @seealso [interactiveLandmarkSelection()] [affine()]
 #' @examples

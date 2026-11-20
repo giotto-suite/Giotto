@@ -1,6 +1,6 @@
 # Giotto 4.3.6 (in development)
 
-Requires GiottoClass 0.7.27.
+Requires GiottoClass 0.8.0.
 
 ## breaking changes
 - 10x feature names are the same whichever file they come from.
@@ -71,6 +71,8 @@ Requires GiottoClass 0.7.27.
   longer returns `NULL`s when `calc_centroids = FALSE`.
 
 ## bug fixes
+- `read10xAffineImage()` placed images wrongly when the 10x alignment matrix
+  has shear or unequal scale; rotations and uniform scale were unaffected.
 - CosMx images and label masks of AtoMx exports, whose file names pad the
   FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
   ("No images found matching fov [F033]"). The digits are now read from the
@@ -624,7 +626,7 @@ under that version.
 * All nine topics in these families gained a real title; they previously repeated the function name.
 * `doFeatureSetEnrichment()` states plainly that it drives the external GSEA command-line application over ranked files and is not one of Giotto's spatial enrichment methods -- it takes no `giotto` object -- and gained an example.
 * Markdown is enabled across these topics. Only `runSpatialEnrich()` had `@md`, so backticks and `[fn()]` links rendered literally elsewhere.
-* `createGiottoXeniumObject()` reads `ome.tif` morphology images directly and no longer converts them through python, so no `tif_exports/` directory is written next to the data. A converted tif left by an earlier run is still used if present. JPEG-2000 images, which is what 10x actually ships, are read through a GDAL VRT rather than decoded up front.
+* `createGiottoXeniumObject()` reads `ome.tif` morphology images directly and no longer converts them through python, so no `tif_exports/` directory is written next to the data. A converted tif left by an earlier run is ignored in favour of the tiled, pyramidal `ome.tif`. JPEG-2000 images, which is what 10x actually ships, are read through a GDAL VRT rather than decoded up front.
 * The three remaining metadata writes that relied on row position now key on `cell_ID` instead. `addPolygonCells()` hands over the polygon column with its ids rather than re-sorting a whole metadata table and dropping the key; the HMRF writer names the class vector it has already aligned; and `exprCellCellcom()`'s permutation loop, whose labels are a deliberate shuffle and therefore belong to no cell, writes onto the `cellMetaObj` directly rather than through a setter that aligns on ids. Results are unchanged in all three -- verified identical against the previous implementation for `exprCellCellcom()` (same seed, 5 iterations) and `addPolygonCells()` -- and the positional-cbind warning they emitted is gone.
 * gini `min_expr_gini_score` and `min_det_gini_score` renamed `min_expression` and `min_detection` — they gate mean expression and detection fraction, not the gini coefficients. Old names deprecated. [#1238](https://github.com/drieslab/Giotto/pull/1238) by eryuluts
 
