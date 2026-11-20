@@ -16,6 +16,36 @@ Requires GiottoClass 0.8.0.
   on its row and column names.
 
 ## new
+- `normalizeGiotto()` normalizes intensity data such as protein mean
+  intensities (CosMx and other imaging panels, e.g. `feat_type = "protein"`)
+  with `norm_methods = "clr"` (centred log-ratio per cell, as for CITE-seq
+  antibody tags, in the form of established packages), `"gamma_pearson"`
+  (per-feature Gamma GLM Pearson residuals with a total-intensity offset, as
+  in Bruker's reference code; `clip_quantile`) or `"arcsinh"` (`cofactor`:
+  one value, or one per feature). They write `"normalized"` unless `name` is
+  given, are linear in the number of cells, and run on GiottoDisk-backed
+  objects by reading the matrix into memory. The same methods are
+  `normParam("clr")`, `normParam("gamma_pearson")` and
+  `normParam("arcsinh", c =)` for `processData()`; each is cited on its help
+  page (`?norm_clr`, `?norm_gamma_pearson`, `?norm_arcsinh`). `log(x + 1)`
+  is `normParam("log", base = exp(1))`.
+- `runMisty()` explains each target feature (e.g. a protein) from views of
+  the same cell, its direct neighbours (juxtaview), the tissue around it
+  (paraview) and, optionally, the neighbourhood's cell-type composition and
+  other feature types (e.g. RNA), as MISTy (Tanevski et al. 2022) does. Views
+  are sparse network products and the meta-model's p-values are computed
+  without an N x N matrix, so it runs on whole slides and on GiottoDisk-backed
+  objects. On the same views it gives mistyR's results (random forest through
+  ranger, or linear models), writes mistyR's result files (read by
+  `mistyR::collect_results()`) and stores each target's R2 in the feature
+  metadata. `sample_by` fits one model per sample (e.g. per FOV) on views
+  built from the whole slide, as mistyR's `run_misty()` per sample and
+  `collect_results()`; samples run in parallel on a `future` plan.
+- `runBanksy()` finds spatial domains with BANKSY (Singhal et al. 2024,
+  package \pkg{Banksy}) from a stored dimension reduction and the spatial
+  locations; with `runBlockPCA()`'s joint embedding the domains use RNA and
+  protein together. Only the embedding is passed, so it works on whole slides
+  and GiottoDisk-backed objects.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and
@@ -26,6 +56,10 @@ Requires GiottoClass 0.8.0.
   `backend =`. Its output is unchanged.
 
 ## changes
+- `findInteractionChangedFeats()` works on GiottoDisk-backed objects: the
+  expression of `selected_feats` (all features when `NULL`) is read into
+  memory, as `runMisty()` and the intensity methods of `normalizeGiotto()`
+  read theirs.
 - `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
   (Space Ranger >= 2) when the spatial folder also holds other
   `tissue_positions*` files, and falls back to the `.h5` when the matrix
@@ -46,6 +80,12 @@ Requires GiottoClass 0.8.0.
 ## bug fixes
 - `read10xAffineImage()` placed images wrongly when the 10x alignment matrix
   has shear or unequal scale; rotations and uniform scale were unaffected.
+- `normParam("arcsinh", c = )` stopped with "invalid name for slot of class
+  arcsinhNormParam"; the cofactor is now set, also per feature.
+- `findInteractionChangedFeats()` with one `selected_feats` stopped with
+  `could not find function ":="`; it now gives one row per cell type pair,
+  the same values as for that feature tested with others (t.test, wilcox,
+  limma and permutation).
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
