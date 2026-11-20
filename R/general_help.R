@@ -1182,7 +1182,9 @@ get10Xmatrix_h5 <- function(
 #' points and polygons vector information
 #' @param file filepath to image
 #' @param imagealignment_path filepath to alignment file which contains
-#' an affine transformation matrix. Usually a `.csv` file
+#' an affine transformation matrix. Usually a `.csv` file. This is the 10x
+#' alignment matrix in pixel coordinates (y pointing down), read as a
+#' standard pre-multiply matrix.
 #' @param name character. Name to assign the image. Default is 'image'.
 #' @param micron micron scaling. Directly used if a numeric is supplied.
 #' Also prefers a filepath to the `experiment.xenium` file which contains this
@@ -1212,8 +1214,11 @@ read10xAffineImage <- function(file, imagealignment_path,
 }
 
 .tenx_img_affine <- function(x, affine, micron) {
+    # the 10x matrix acts on pixel coordinates with y pointing down; Giotto
+    # negates y, so the linear part is conjugated by that flip
+    flip_y <- diag(c(1, -1))
     x %>%
-        affine(affine[seq(2), seq(2)]) %>%
+        affine(flip_y %*% affine[seq(2), seq(2)] %*% flip_y) %>%
         rescale(micron, x0 = 0, y0 = 0) %>%
         spatShift(dx = affine[1, 3] * micron, dy = -affine[2, 3] * micron)
 }
