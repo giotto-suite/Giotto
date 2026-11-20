@@ -1,6 +1,6 @@
 # Giotto 4.3.6 (in development)
 
-Requires GiottoClass 0.7.27.
+Requires GiottoClass 0.8.0.
 
 ## breaking changes
 - 10x feature names are the same whichever file they come from.
@@ -44,6 +44,8 @@ Requires GiottoClass 0.7.27.
   longer returns `NULL`s when `calc_centroids = FALSE`.
 
 ## bug fixes
+- `read10xAffineImage()` placed images wrongly when the 10x alignment matrix
+  has shear or unequal scale; rotations and uniform scale were unaffected.
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the

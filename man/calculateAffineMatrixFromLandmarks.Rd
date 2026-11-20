@@ -11,7 +11,9 @@ calculateAffineMatrixFromLandmarks(source, target)
 landmarks provided as paired x (first) y (second) columns.}
 }
 \value{
-a 3x3 \code{matrix} that defines an affine transform
+a 3x3 \code{matrix} that defines an affine transform in the standard
+pre-multiply convention (\verb{c(x', y', 1) = A \%*\% c(x, y, 1)}), which is what
+\code{\link[GiottoClass:affine]{affine()}} reads by default
 }
 \description{
 Calculate an affine transformation matrix from two sets of
