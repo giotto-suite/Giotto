@@ -151,6 +151,35 @@ test_that("plotICF draws an edgeicg icfObject", {
     expect_s3_class(pl, "ggplot")
 })
 
+test_that("the edgeicg plots draw from an icfObject", {
+    skip_if_not_installed("edgeicg")
+    s <- .icf_sim_giotto()
+    res <- findInteractionChangedFeats(s$g,
+        cluster_column = "ct", method = "edgeicg",
+        min_shift = 150, B = 8, report_q = 1
+    )
+    out <- list(return_plot = TRUE, show_plot = FALSE, save_plot = FALSE)
+    tr <- s$sim$truth[receiver == "t1"]
+    plots <- list(
+        do.call(plotICFOverview, c(list(s$g, res), out)),
+        do.call(plotICFLeak, c(list(s$g, res), out)),
+        do.call(plotICFPair, c(list(s$g, res, receiver = "t1",
+            sender = "t2"), out)),
+        do.call(plotICFExposure, c(list(s$g, res, receiver = "t1",
+            sender = "t2", feats = head(tr$gene, 2), scale = "contact"), out))
+    )
+    for (p in plots) expect_s3_class(p, "ggplot")
+    at <- data.table::as.data.table(res$edgeicg$attribution)
+    if (nrow(at)) {
+        r1 <- res$edgeicg$types[at$receiver[1]]
+        p <- do.call(plotICFAttribution, c(list(s$g, res, receiver = r1,
+            feats = at$gene[1]), out))
+        expect_s3_class(p, "ggplot")
+    }
+    expect_error(plotICFPair(s$g, res, receiver = "t1", sender = "nope"),
+        "no tests")
+})
+
 test_that("min_lfc floors ICFscores and spatial_covariates reach the engine", {
     skip_if_not_installed("edgeicg")
     s <- .icf_sim_giotto()
