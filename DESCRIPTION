@@ -156,6 +156,7 @@ Collate:
     'giotto_viewer.R'
     'globals.R'
     'gstop.R'
+    'hmrf.R'
     'suite_reexports.R'
     'image_registration.R'
     'interactivity.R'
