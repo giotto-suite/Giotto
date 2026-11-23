@@ -971,6 +971,20 @@ signature(x = "ANY", param = "ANY"), function(x, param, ...) {
         call. = FALSE)
 })
 
+# A list of params is applied in order, for any data that has methods for
+# each param. Classes with their own list method (giottoLargeImage, exprObj)
+# keep it.
+#' @rdname processData
+setMethod("processData",
+    signature(x = "ANY", param = "list"),
+    function(x, param, ...) {
+        for (p in param) {
+            x <- processData(x, p, ...)
+        }
+        return(x)
+    }
+)
+
 # * giottoLargeImage ####
 
 # TODO make these delayed operations

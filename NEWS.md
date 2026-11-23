@@ -91,6 +91,9 @@ Requires GiottoClass 0.8.0.
   `backend =`. Its output is unchanged.
 
 ## changes
+- `processData()` and `processExpression()` take a list of params for any data
+  with a method for each param, applied in order; lists worked only on matrices
+  and rasters.
 - `findInteractionChangedFeats()` works on GiottoDisk-backed objects: the
   expression of `selected_feats` (all features when `NULL`) is read into
   memory, as `runMisty()` and the intensity methods of `normalizeGiotto()`
