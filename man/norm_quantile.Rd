@@ -52,7 +52,9 @@ https://doi.org/10.1093/bioinformatics/19.2.185
 
 Other normalization parameters:
 \code{\link{norm_arcsinh}},
+\code{\link{norm_clr}},
 \code{\link{norm_default}},
+\code{\link{norm_gamma_pearson}},
 \code{\link{norm_l2}},
 \code{\link{norm_library}},
 \code{\link{norm_log}},

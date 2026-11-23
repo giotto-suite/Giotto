@@ -128,7 +128,10 @@ NULL
 #' * [`"l2"`][norm_l2] - L2 normalization (also known as Euclidean
 #' normalization)
 #' * [`"arcsinh"`][norm_arcsinh] - arcsinh transformation
-#' 
+#' * [`"clr"`][norm_clr] - centred log-ratio across the features of each cell
+#' * [`"gamma_pearson"`][norm_gamma_pearson] - Pearson residuals of a
+#' per-feature Gamma GLM
+#'
 #' @section scaleParam methods: 
 #' 
 #' * [`"default"`][scale_default] - default Giotto scaling steps (scale along
@@ -554,9 +557,94 @@ NULL
 #' 
 #' \tabular{ll}{
 #'   `c` \tab numeric (default = 5). Expressed as \eqn{c} in the above
-#'   formula.
+#'   formula: one value, or a value per feature as a named vector, e.g.
+#'   `c(5, CD45 = 150)`, where the unnamed value applies to the features not
+#'   named.
 #' }
-#' 
+#'
+#' @references
+#' Bendall, S.C., Simonds, E.F., Qiu, P. et al. Single-cell mass cytometry of
+#' differential immune and drug responses across a human hematopoietic
+#' continuum. Science 332, 687-696 (2011).
+#' https://doi.org/10.1126/science.1198704
+#'
+#' Nowicka, M., Krieg, C., Crowell, H.L. et al. CyTOF workflow: differential
+#' discovery in high-throughput high-dimensional cytometry datasets.
+#' F1000Research 6, 748 (2017). https://doi.org/10.12688/f1000research.11622.3
+#' @family normalization parameters
+#' @seealso [process_param()]
+#' @returns normalized object
+#' @md
+NULL
+
+#' @name norm_clr
+#' @title Centred Log-Ratio Normalization
+#' @description
+#' Centred log-ratio across the features of each cell, introduced for
+#' antibody-derived tags in CITE-seq (Stoeckius et al. 2017) and used for
+#' protein intensities. It removes each cell's overall brightness.
+#'
+#' \deqn{\LARGE
+#' x'_{i,j} = \log\left(1 + \frac{x_{i,j}}{g_j}\right)
+#' }
+#'
+#' Where:
+#' * (\eqn{x_{i,j}}) is the raw intensity for feature \eqn{i} in cell \eqn{j}
+#' * (\eqn{g_j}) is the geometric mean of \eqn{x_{i,j} + 1} over the features
+#' of cell \eqn{j}
+#'
+#' # Note
+#' Stoeckius et al. define the centred log-ratio as
+#' \eqn{\log((x_{i,j} + 1) / g_j)}. This is the form of established packages:
+#' \eqn{g_j} is added before the log instead of 1, so values are never
+#' negative, 0 stays 0, features below the cell's geometric mean (mostly
+#' background) are compressed toward 0, and features well above it get nearly
+#' the published values.
+#'
+#' @references
+#' Stoeckius, M., Hafemeister, C., Stephenson, W. et al. Simultaneous epitope
+#' and transcriptome measurement in single cells. Nat Methods 14, 865-868
+#' (2017). https://doi.org/10.1038/nmeth.4380
+#' @family normalization parameters
+#' @seealso [process_param()]
+#' @returns normalized object
+#' @md
+NULL
+
+#' @name norm_gamma_pearson
+#' @title Gamma GLM Pearson Residual Normalization
+#' @description
+#' Pearson residuals of a per-feature Gamma GLM with log link and each cell's
+#' total intensity as offset, after clipping each feature at quantiles, as in
+#' Bruker's reference code for CosMx protein (`pearson_normalize_gamma_glm()`
+#' in the CosMx Analysis Scratch Space). The intercept-only model has a
+#' closed form:
+#'
+#' \deqn{\LARGE
+#' x'_{i,j} = \frac{x_{i,j}}{s_j \mu_i} - 1
+#' }
+#'
+#' Where:
+#' * (\eqn{x_{i,j}}) is the clipped intensity for feature \eqn{i} in cell
+#' \eqn{j}
+#' * (\eqn{s_j}) is \eqn{\exp(\max(\log t_j, 0))}, with \eqn{t_j} the cell's
+#' total intensity before clipping
+#' * (\eqn{\mu_i}) is the mean of \eqn{x_{i,j} / s_j} over cells
+#'
+#' A feature that is 0 in every cell is set to 0, with a warning.
+#'
+#' @section params:
+#'
+#' \tabular{ll}{
+#'   `clip_quantile` \tab numeric (default = `c(0.01, 0.99)`). Per-feature
+#'   lower and upper quantiles at which intensities are clipped; one value is
+#'   the upper quantile, `c(0, 1)` switches clipping off.
+#' }
+#'
+#' @references
+#' Bruker Spatial Biology. CosMx Analysis Scratch Space, scPearsonPCA:
+#' `pearson_normalize_gamma_glm()`.
+#' https://github.com/Nanostring-Biostats/CosMx-Analysis-Scratch-Space
 #' @family normalization parameters
 #' @seealso [process_param()]
 #' @returns normalized object
@@ -779,6 +867,12 @@ setClass("l2NormParam", contains = "normParam")
 #' @rdname process_param
 #' @exportClass arcsinhNormParam
 setClass("arcsinhNormParam", contains = "normParam")
+#' @rdname process_param
+#' @exportClass clrNormParam
+setClass("clrNormParam", contains = "normParam")
+#' @rdname process_param
+#' @exportClass gammaPearsonNormParam
+setClass("gammaPearsonNormParam", contains = "normParam")
 
 #' @rdname process_param
 #' @exportClass defaultScaleParam
@@ -811,7 +905,7 @@ setClass("minmaxThreshParam", contains = "threshParam")
 normParam <- function(method = "default", ...) {
     method <- match.arg(tolower(method),
         c("default", "library", "log", "osmfish", "pearson", "quantile", 
-        "tf-idf", "l2", "arcsinh")
+        "tf-idf", "l2", "arcsinh", "clr", "gamma_pearson")
     )
     switch(method,
         "default" = .norm_param_default(...),
@@ -822,7 +916,9 @@ normParam <- function(method = "default", ...) {
         "quantile" = .norm_param_quantile(...),
         "tf-idf" = .norm_param_tfidf(...),
         "l2" = .norm_param_l2(...),
-        "arcsinh" = .norm_param_arcsinh(...)
+        "arcsinh" = .norm_param_arcsinh(...),
+        "clr" = .norm_param_clr(...),
+        "gamma_pearson" = .norm_param_gamma_pearson(...)
     )
 }
 
@@ -1159,13 +1255,27 @@ setMethod("processData",
 setMethod("processData",
     signature(x = "allMatrix", param = "arcsinhNormParam"),
     function(x, param, ...) {
-        .arcsinh_norm(x, c = param$c)
+        .arcsinh_norm(x, c = .norm_cofactor(param$c, rownames(x)))
     }
 )
 setMethod("processData",
     signature(x = "SpatRaster", param = "arcsinhNormParam"),
     function(x, param, ...) {
         .arcsinh_norm(x, c = param$c)
+    }
+)
+# *** clr norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "clrNormParam"),
+    function(x, param, ...) {
+        .clr_norm(x)
+    }
+)
+# *** gamma pearson norm ####
+setMethod("processData",
+    signature(x = "allMatrix", param = "gammaPearsonNormParam"),
+    function(x, param, ...) {
+        .gamma_pearson_norm(x, clip_quantile = param$clip_quantile)
     }
 )
 
@@ -1400,7 +1510,13 @@ processExpression <- function(gobject, param,
 #' @param scale_cells z-score cells over all genes
 #' @param scale_order order to scale feats and cells
 #' @param theta theta parameter for the pearson residual normalization step
-#' @param name character. name to use for normalization results
+#' @param cofactor cofactor of the `"arcsinh"` method: one value, or a value
+#'   per feature, e.g. `c(5, CD45 = 150)`. See [norm_arcsinh].
+#' @param clip_quantile per-feature quantiles at which intensities are clipped
+#'   by the `"gamma_pearson"` method. See [norm_gamma_pearson].
+#' @param name character. name to use for normalization results. The
+#'   `"clr"`, `"gamma_pearson"` and `"arcsinh"` methods write `"normalized"`
+#'   unless `name` is given.
 #' @param verbose be verbose
 #' @param scale_genes deprecated, use scale_feats
 #' @param update_slot deprecated. Use `name` param instead
@@ -1441,16 +1557,28 @@ processExpression <- function(gobject, param,
 #' }
 #' By default the latter two results will be saved in the Giotto slot for
 #' scaled expression, this can be changed by changing the update_slot parameters
+#'
+#' E. Intensity data such as protein mean intensities (e.g. `feat_type =
+#' "protein"`) are normalized per cell with [`"clr"`][norm_clr], per feature
+#' with [`"gamma_pearson"`][norm_gamma_pearson], or with
+#' [`"arcsinh"`][norm_arcsinh]. They expect raw (non-negative) intensities.
+#' A GiottoDisk-backed matrix is read into memory for these methods, so they
+#' suit panels of tens of features.
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
 #' normalizeGiotto(g) # default is method A
+#'
+#' x <- getExpression(g, values = "raw", output = "matrix")[1:10, ]
+#' g <- setExpression(g, createExprObj(x, name = "raw", feat_type = "protein"))
+#' g <- normalizeGiotto(g, feat_type = "protein", norm_methods = "clr")
 #' @export
 normalizeGiotto <- function(gobject,
     spat_unit = NULL,
     feat_type = NULL,
     expression_values = "raw",
-    norm_methods = c("standard", "pearson_resid", "osmFISH", "quantile"),
+    norm_methods = c("standard", "pearson_resid", "osmFISH", "quantile",
+        "clr", "gamma_pearson", "arcsinh"),
     library_size_norm = TRUE,
     scalefactor = 6e3,
     log_norm = TRUE,
@@ -1461,9 +1589,12 @@ normalizeGiotto <- function(gobject,
     scale_cells = TRUE,
     scale_order = c("first_feats", "first_cells"),
     theta = 100,
+    cofactor = 5,
+    clip_quantile = c(0.01, 0.99),
     name = "scaled",
     update_slot = deprecated(),
     verbose = TRUE) {
+    name_given <- !missing(name) || !missing(update_slot)
     ## deprecated arguments
     scale_feats <- deprecate_param(
         scale_genes, scale_feats,
@@ -1499,9 +1630,14 @@ normalizeGiotto <- function(gobject,
 
     norm_methods <- match.arg(
         arg = norm_methods, choices = c(
-            "standard", "pearson_resid", "osmFISH", "quantile"
+            "standard", "pearson_resid", "osmFISH", "quantile",
+            "clr", "gamma_pearson", "arcsinh"
         )
     )
+    if (norm_methods %in% c("clr", "gamma_pearson", "arcsinh") &&
+        !name_given) {
+        name <- "normalized"
+    }
 
     # normalization according to standard methods
     gobject <- switch(norm_methods,
@@ -1540,6 +1676,33 @@ normalizeGiotto <- function(gobject,
         "quantile" = .quantile_norm(
             gobject = gobject,
             raw_expr = raw_expr,
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            name = name,
+            verbose = verbose
+        ),
+        "clr" = .intensity_normalization(
+            gobject = gobject,
+            raw_expr = raw_expr,
+            param = normParam("clr"),
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            name = name,
+            verbose = verbose
+        ),
+        "gamma_pearson" = .intensity_normalization(
+            gobject = gobject,
+            raw_expr = raw_expr,
+            param = normParam("gamma_pearson", clip_quantile = clip_quantile),
+            feat_type = feat_type,
+            spat_unit = spat_unit,
+            name = name,
+            verbose = verbose
+        ),
+        "arcsinh" = .intensity_normalization(
+            gobject = gobject,
+            raw_expr = raw_expr,
+            param = normParam("arcsinh", c = cofactor),
             feat_type = feat_type,
             spat_unit = spat_unit,
             name = name,
@@ -1587,8 +1750,16 @@ normalizeGiotto <- function(gobject,
 
 # * params setup ####
 .norm_param_arcsinh <- function(...) {
-    p <- new("arcsinhNormParam", ...)
+    p <- new("arcsinhNormParam", param = list(...))
     p$c <- p$c %null% 5
+    p
+}
+.norm_param_clr <- function(...) {
+    new("clrNormParam", param = list(...))
+}
+.norm_param_gamma_pearson <- function(...) {
+    p <- new("gammaPearsonNormParam", param = list(...))
+    p$clip_quantile <- p$clip_quantile %null% c(0.01, 0.99)
     p
 }
 
@@ -1754,6 +1925,78 @@ normalizeGiotto <- function(gobject,
 
 .arcsinh_norm <- function(x, c) {
     asinh(x / c)
+}
+
+.norm_cofactor <- function(cofactor, feats) {
+    checkmate::assert_numeric(cofactor, finite = TRUE, any.missing = FALSE,
+        min.len = 1L)
+    if (any(cofactor <= 0)) {
+        stop("[arcsinh] the cofactor must be > 0.", call. = FALSE)
+    }
+    nm <- names(cofactor) %null% rep("", length(cofactor))
+    default <- cofactor[!nzchar(nm)]
+    named <- cofactor[nzchar(nm)]
+    if (!length(named)) {
+        if (length(default) > 1L) {
+            stop("[arcsinh] give one cofactor, or name them by feature.",
+                call. = FALSE)
+        }
+        return(unname(default))
+    }
+    if (length(default) > 1L) {
+        stop("[arcsinh] the cofactor has more than one unnamed value.",
+            call. = FALSE)
+    }
+    unknown <- setdiff(names(named), feats)
+    if (length(unknown)) {
+        stop(wrap_txt("[arcsinh] cofactor names that are not features:",
+            paste(unknown, collapse = ", ")), call. = FALSE)
+    }
+    missing_feats <- setdiff(feats, names(named))
+    if (!length(default) && length(missing_feats)) {
+        stop(wrap_txt("[arcsinh] the cofactor has no value for",
+            length(missing_feats), "features: add an unnamed default, e.g.",
+            "c(5, CD45 = 150)."), call. = FALSE)
+    }
+    out <- stats::setNames(rep(if (length(default)) default else NA_real_,
+        length(feats)), feats)
+    out[names(named)] <- named
+    unname(out)
+}
+
+.clr_norm <- function(x) {
+    gm <- exp(colSums_flex(log1p(x)) / nrow(x))
+    log1p(t_flex(t_flex(x) / gm))
+}
+
+.gamma_pearson_norm <- function(x, clip_quantile = c(0.01, 0.99)) {
+    checkmate::assert_numeric(clip_quantile, lower = 0, upper = 1,
+        min.len = 1L, max.len = 2L, any.missing = FALSE)
+    q <- if (length(clip_quantile) == 1L) c(0, clip_quantile) else
+        clip_quantile
+    if (q[1L] >= q[2L]) {
+        stop("[gamma_pearson] `clip_quantile` must be (lower, upper).",
+            call. = FALSE)
+    }
+    x <- as.matrix(x)
+    s <- exp(pmax(log(colSums(x)), 0))
+    if (q[1L] > 0 || q[2L] < 1) {
+        lo <- apply(x, 1L, stats::quantile, probs = q[1L], names = FALSE)
+        hi <- apply(x, 1L, stats::quantile, probs = q[2L], names = FALSE)
+        x <- pmin(pmax(x, lo), hi)
+    }
+    rel <- t(t(x) / s)
+    mu <- rowMeans(rel)
+    zero <- mu <= 0
+    if (any(zero)) {
+        warning(wrap_txt("[gamma_pearson] features that are 0 in every cell",
+            "are set to 0:", paste(rownames(x)[zero], collapse = ", ")),
+            call. = FALSE)
+        mu[zero] <- 1
+    }
+    out <- rel / mu - 1
+    out[zero, ] <- 0
+    out
 }
 
 .l2_norm <- function(x) {
@@ -2195,6 +2438,34 @@ normalizeGiotto <- function(gobject,
     ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
     return(gobject)
+}
+
+.intensity_normalization <- function(gobject,
+    raw_expr,
+    param,
+    feat_type,
+    spat_unit,
+    name = "normalized",
+    verbose = TRUE) {
+    if (identical(name, objName(raw_expr))) {
+        stop(wrap_txt("[normalizeGiotto] `name` equals the input values",
+            sQuote(name), ": they would be overwritten."), call. = FALSE)
+    }
+    x <- .read_expr_matrix(raw_expr[])
+    vals <- if (inherits(x, "sparseMatrix")) x@x else x
+    if (!all(is.finite(vals)) || any(vals < 0)) {
+        stop(wrap_txt("[normalizeGiotto] clr, gamma_pearson and arcsinh",
+            "expect raw intensities (finite, >= 0); the expression values",
+            "contain non-finite or negative values."), call. = FALSE)
+    }
+    z <- createExprObj(
+        expression_data = processData(x, param),
+        name = name,
+        spat_unit = spat_unit,
+        feat_type = feat_type,
+        provenance = prov(raw_expr)
+    )
+    setGiotto(gobject, z, verbose = verbose)
 }
 
 # pearson residuals normalization

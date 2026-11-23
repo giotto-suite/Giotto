@@ -39,15 +39,29 @@ Common values to use are:
 
 \tabular{ll}{
 \code{c} \tab numeric (default = 5). Expressed as \eqn{c} in the above
-formula.
+formula: one value, or a value per feature as a named vector, e.g.
+\code{c(5, CD45 = 150)}, where the unnamed value applies to the features not
+named.
 }
 }
 
+\references{
+Bendall, S.C., Simonds, E.F., Qiu, P. et al. Single-cell mass cytometry of
+differential immune and drug responses across a human hematopoietic
+continuum. Science 332, 687-696 (2011).
+https://doi.org/10.1126/science.1198704
+
+Nowicka, M., Krieg, C., Crowell, H.L. et al. CyTOF workflow: differential
+discovery in high-throughput high-dimensional cytometry datasets.
+F1000Research 6, 748 (2017). https://doi.org/10.12688/f1000research.11622.3
+}
 \seealso{
 \code{\link[=process_param]{process_param()}}
 
 Other normalization parameters:
+\code{\link{norm_clr}},
 \code{\link{norm_default}},
+\code{\link{norm_gamma_pearson}},
 \code{\link{norm_l2}},
 \code{\link{norm_library}},
 \code{\link{norm_log}},

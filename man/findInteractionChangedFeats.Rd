@@ -58,7 +58,9 @@ findICF(
 
 \item{expression_values}{expression values to use}
 
-\item{selected_feats}{subset of selected features (optional)}
+\item{selected_feats}{subset of selected features (optional). On a
+GiottoDisk-backed object only these features are read into memory (all
+features when \code{NULL}), so select them for large panels.}
 
 \item{cluster_column}{name of column to use for cell types}
 

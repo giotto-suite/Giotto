@@ -508,11 +508,11 @@ NULL
     p.value <- p.adj <- NULL
 
     mean_sel <- my_rowMeans(
-        expr_values[, select_ind],
+        expr_values[, select_ind, drop = FALSE],
         method = mean_method, offset = offset
     )
     mean_all <- my_rowMeans(
-        expr_values[, other_ind],
+        expr_values[, other_ind, drop = FALSE],
         method = mean_method, offset = offset
     )
 
@@ -559,7 +559,8 @@ NULL
     sel <- other <- feats <- P.Value <- adj.P.Val <- p.adj <- NULL
 
     expr_values_subset <- cbind(
-        expr_values[, select_ind], expr_values[, other_ind]
+        expr_values[, select_ind, drop = FALSE],
+        expr_values[, other_ind, drop = FALSE]
     )
     mygroups <- c(
         rep("sel", length(select_ind)),
@@ -583,18 +584,19 @@ NULL
     # limma to DT
     limma_result <- limma::topTable(
         fitc_ebayes,
-        coef = 1, number = 100000, confint = TRUE
+        coef = 1, number = 100000, confint = TRUE, sort.by = "none"
     )
     limmaDT <- data.table::as.data.table(limma_result)
-    limmaDT[, feats := rownames(limma_result)]
+    # limma drops the row names of a one-feature fit
+    limmaDT[, feats := rownames(expr_values)]
 
     # other info
     mean_sel <- my_rowMeans(
-        expr_values[, select_ind],
+        expr_values[, select_ind, drop = FALSE],
         method = mean_method, offset = offset
     )
     mean_all <- my_rowMeans(
-        expr_values[, other_ind],
+        expr_values[, other_ind, drop = FALSE],
         method = mean_method, offset = offset
     )
 
@@ -639,11 +641,11 @@ NULL
     p.value <- p.adj <- NULL
 
     mean_sel <- my_rowMeans(
-        expr_values[, select_ind],
+        expr_values[, select_ind, drop = FALSE],
         method = mean_method, offset = offset
     )
     mean_all <- my_rowMeans(
-        expr_values[, other_ind],
+        expr_values[, other_ind, drop = FALSE],
         method = mean_method, offset = offset
     )
 
@@ -686,10 +688,12 @@ NULL
     feats <- NULL
 
     mean_sel <- my_rowMeans(expr_values[
-        , select_ind
+        , select_ind,
+        drop = FALSE
     ], method = mean_method, offset = offset)
     mean_all <- my_rowMeans(expr_values[
-        , other_ind
+        , other_ind,
+        drop = FALSE
     ], method = mean_method, offset = offset)
 
     log2fc <- log2((mean_sel + offset) / (mean_all + offset))
@@ -731,11 +735,11 @@ NULL
 
     # alternative
     mean_sel <- my_rowMeans(
-        expr_values[, random_select],
+        expr_values[, random_select, drop = FALSE],
         method = mean_method, offset = offset
     )
     mean_all <- my_rowMeans(
-        expr_values[, random_other],
+        expr_values[, random_other, drop = FALSE],
         method = mean_method, offset = offset
     )
 
@@ -1147,7 +1151,9 @@ NULL
 #' @param feat_type feature type
 #' @param spat_unit spatial unit
 #' @param expression_values expression values to use
-#' @param selected_feats subset of selected features (optional)
+#' @param selected_feats subset of selected features (optional). On a
+#'   GiottoDisk-backed object only these features are read into memory (all
+#'   features when `NULL`), so select them for large panels.
 #' @param cluster_column name of column to use for cell types
 #' @param spatial_network_name name of spatial network to use
 #' @param minimum_unique_cells minimum number of target cells required
@@ -1251,8 +1257,11 @@ findInteractionChangedFeats <- function(gobject,
 
     ## test selected feats ##
     if (!is.null(selected_feats)) {
-        expr_values <- expr_values[rownames(expr_values) %in% selected_feats, ]
+        selected_feats <- rownames(expr_values)[
+            rownames(expr_values) %in% selected_feats
+        ]
     }
+    expr_values <- .read_expr_matrix(expr_values, selected_feats)
 
     ## stop test selected feats ##
 
