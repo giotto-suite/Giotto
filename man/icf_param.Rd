@@ -57,6 +57,17 @@ when installed), \code{"rust"} or \code{"r"}.}
 (default 450).}
 \item{\code{report_q}}{numeric. entries with q below this are returned in
 \code{ICFscores} (default 0.1); the full fit is kept in \verb{$edgeicg}.}
+\item{\code{min_lfc}}{numeric. entries must also change by at least this
+log2 fold change between receivers at the 10th and 90th percentile of
+their exposure (default 0.25; 0 = significance only). At whole-section
+scale significance alone also picks up small confounded associations
+(zonation, sub-states within a cell type).}
+\item{\code{spatial_covariates}}{logical. adjust the niche screen for smooth
+spatial trends (\code{edgeicg::spatial_basis()}), which removes most
+large-scale zonation from niche hits; slower (default \code{FALSE}).}
+\item{\code{spatial_df}, \code{covariate_scope}}{spline degrees of freedom per axis
+of the spatial basis (default 6) and where it enters: \code{"niche"}
+(default) or \code{"all"} tests.}
 \item{other}{passed to \code{edgeicg::edgeicg()} (e.g. \code{min_cells},
 \code{min_det}, \code{min_exposed}, \code{calib_cond}).}
 }

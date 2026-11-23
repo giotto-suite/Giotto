@@ -121,3 +121,19 @@ test_that("plotICF draws an edgeicg icfObject", {
     )
     expect_s3_class(pl, "ggplot")
 })
+
+test_that("min_lfc floors ICFscores and spatial_covariates reach the engine", {
+    skip_if_not_installed("edgeicg")
+    s <- .icf_sim_giotto()
+    run <- function(...) findInteractionChangedFeats(s$g,
+        cluster_column = "ct", method = "edgeicg", min_shift = 150, B = 8,
+        report_q = 0.05, ...)
+    a <- run()
+    expect_true(all(abs(a$ICFscores$log2fc) >= 0.25))
+    expect_identical(a$test_info$min_lfc, 0.25)
+    b <- run(min_lfc = 0)
+    expect_gte(nrow(b$ICFscores), nrow(a$ICFscores))
+    c <- run(spatial_covariates = TRUE, spatial_df = 3)
+    expect_gt(c$edgeicg$settings$covariates, 0)
+    expect_identical(c$edgeicg$settings$covariate_scope, "niche")
+})

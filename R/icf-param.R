@@ -55,6 +55,17 @@
 #'     (default 450).}
 #'   \item{`report_q`}{numeric. entries with q below this are returned in
 #'     `ICFscores` (default 0.1); the full fit is kept in `$edgeicg`.}
+#'   \item{`min_lfc`}{numeric. entries must also change by at least this
+#'     log2 fold change between receivers at the 10th and 90th percentile of
+#'     their exposure (default 0.25; 0 = significance only). At whole-section
+#'     scale significance alone also picks up small confounded associations
+#'     (zonation, sub-states within a cell type).}
+#'   \item{`spatial_covariates`}{logical. adjust the niche screen for smooth
+#'     spatial trends (`edgeicg::spatial_basis()`), which removes most
+#'     large-scale zonation from niche hits; slower (default `FALSE`).}
+#'   \item{`spatial_df`, `covariate_scope`}{spline degrees of freedom per axis
+#'     of the spatial basis (default 6) and where it enters: `"niche"`
+#'     (default) or `"all"` tests.}
 #'   \item{other}{passed to `edgeicg::edgeicg()` (e.g. `min_cells`,
 #'     `min_det`, `min_exposed`, `calib_cond`).}
 #' }
@@ -95,6 +106,10 @@ icfParam <- function(method = "edgeicg", ...) {
     p$calibrate <- !isFALSE(p$calibrate)
     p$min_shift <- as.numeric(p$min_shift %null% 450)
     p$report_q <- as.numeric(p$report_q %null% 0.1)
+    p$min_lfc <- as.numeric(p$min_lfc %null% 0.25)
+    p$spatial_covariates <- isTRUE(p$spatial_covariates)
+    p$spatial_df <- as.integer(p$spatial_df %null% 6L)
+    p$covariate_scope <- p$covariate_scope %null% "niche"
     p$verbose <- isTRUE(p$verbose)
     if (p$block_genes < 1L) {
         stop("[icfParam] `block_genes` must be a positive integer.",
@@ -148,8 +163,15 @@ setMethod("analyzeData",
         }
         a <- param@param
         extra <- a[setdiff(names(a), c("expression_values", "use_polygons",
-            "report_q", "block_genes", "workers", "calibrate", "min_shift",
-            "verbose"))]
+            "report_q", "min_lfc", "spatial_covariates", "spatial_df",
+            "covariate_scope", "block_genes", "workers", "calibrate",
+            "min_shift", "verbose"))]
+        if (isTRUE(param$spatial_covariates)) {
+            extra$covariates <- edgeicg::spatial_basis(
+                coords[ids, , drop = FALSE], df = param$spatial_df
+            )
+            extra$covariate_scope <- param$covariate_scope
+        }
         do.call(edgeicg::edgeicg, c(list(
             counts = x,
             coords = coords[ids, , drop = FALSE],
@@ -221,7 +243,7 @@ setMethod("analyzeData",
         .icf_from_edgeicg(fit,
             values = param$expression_values, cluster = cluster_column,
             spill = if (is.null(spill)) "knn" else "polygons",
-            report_q = param$report_q
+            report_q = param$report_q, min_lfc = param$min_lfc
         )
     }
 )
@@ -258,24 +280,19 @@ setMethod("analyzeData",
 # the attributed sender.
 #' @keywords internal
 #' @noRd
-.icf_from_edgeicg <- function(fit, values, cluster, spill, report_q) {
-    r <- edgeicg::edgeicg_results(fit, q_thr = report_q)
+.icf_from_edgeicg <- function(fit, values, cluster, spill, report_q,
+    min_lfc = 0.25) {
+    r <- edgeicg::edgeicg_results(fit, q_thr = report_q, min_lfc = min_lfc)
     if (nrow(r)) r <- edgeicg::edgeicg_classify(fit, r)
     # NSE variables
     receiver <- sender <- gene <- effect <- z <- q <- NULL
-    tm <- fit$type_mean
-    rel <- if (nrow(r)) {
-        r$effect / pmax(tm[cbind(
-            match(r$receiver, fit$types), match(r$gene, fit$genes)
-        )], 1e-9)
-    } else numeric(0)
     scores <- data.table::data.table(
         feats = r$gene,
         cell_type = r$receiver,
         int_cell_type = r$sender,
         scale = r$scale,
         diff = r$effect,
-        log2fc = log2(pmax(1 + rel, 1e-3)),
+        log2fc = r$lfc,
         se = r$se,
         z = r$z,
         p.value = 2 * stats::pnorm(-abs(r$z)),
@@ -304,6 +321,7 @@ setMethod("analyzeData",
                 "test" = "edgeicg",
                 "p.adj" = "BH within each scale",
                 "report_q" = report_q,
+                "min_lfc" = min_lfc,
                 "calibrated niche" = !is.null(fit$calibration)
             ),
             edgeicg = fit
