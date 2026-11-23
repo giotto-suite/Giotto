@@ -137,21 +137,22 @@ setMethod("reduceData",
 # wc, ws  w * cos(phi), w * sin(phi), phi the angle from j to the neighbour
 # a   1 / k: the plain neighbour mean (Banksy's fscale() centring)
 .neighbor_operators <- function(locs, k) {
-    distance <- from <- weight <- NULL # NSE
     ids <- rownames(locs)
-    e <- GiottoClass::createNetwork(locs, GiottoClass::kNNNetworkParam(
-        k = k, include_weight = FALSE, output = "data.table"))
-    e[, weight := exp(-distance^2 / stats::median(distance)^2), by = from]
-    e[!is.finite(weight), weight := 1] # all neighbours at distance 0
-    e[, weight := weight / sum(weight), by = from]
-    i <- match(e$from, ids)
-    j <- match(e$to, ids)
-    phi <- atan2(locs[j, 2] - locs[i, 2], locs[j, 1] - locs[i, 1])
     n <- length(ids)
+    nn <- dbscan::kNN(locs[, 1:2, drop = FALSE], k = k)
+    d2 <- nn$dist^2
+    w <- exp(-d2 / MatrixGenerics::rowMedians(nn$dist)^2)
+    w[!is.finite(w)] <- 1 # all neighbours at distance 0
+    w <- w / rowSums(w)
+    i <- rep(seq_len(n), k)
+    j <- as.vector(nn$id)
+    rm(nn, d2)
+    phi <- atan2(locs[j, 2] - locs[i, 2], locs[j, 1] - locs[i, 1])
+    w <- as.vector(w)
     sp <- function(v) Matrix::sparseMatrix(i = i, j = j, x = v,
         dims = c(n, n), dimnames = list(ids, ids))
-    list(w = sp(e$weight), wc = sp(e$weight * cos(phi)),
-        ws = sp(e$weight * sin(phi)), a = sp(rep(1 / k, length(i))))
+    list(w = sp(w), wc = sp(w * cos(phi)), ws = sp(w * sin(phi)),
+        a = sp(rep(1 / k, length(i))))
 }
 
 .neighbor_weight_matrix <- function(locs, k) .neighbor_operators(locs, k)$w
