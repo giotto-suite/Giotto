@@ -135,11 +135,9 @@ Requires GiottoClass 0.8.0.
   metadata. `sample_by` fits one model per sample (e.g. per FOV) on views
   built from the whole slide, as mistyR's `run_misty()` per sample and
   `collect_results()`; samples run in parallel on a `future` plan.
-- `runBanksy()` finds spatial domains with BANKSY (Singhal et al. 2024,
-  package \pkg{Banksy}) from a stored dimension reduction and the spatial
-  locations; with `runBlockPCA()`'s joint embedding the domains use RNA and
-  protein together. Only the embedding is passed, so it works on whole slides
-  and GiottoDisk-backed objects.
+- `runBanksy()`, which runs the Bioconductor package \pkg{Banksy} (Singhal
+  et al. 2024), is in GiottoConnect (`GiottoConnect::runBanksy()`), where
+  connections to outside tools live.
 - `runBlockPCA()` integrates two or more feature types by block-weighted PCs:
   each feature type's PCs are scaled to unit total variance, weighted (equally
   by default), concatenated and rotated to their principal axes. Linear in the

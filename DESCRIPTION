@@ -52,7 +52,6 @@ Imports:
 Suggests:
     ArchR,
     arrow,
-    Banksy,
     biomaRt,
     caret,
     cluster,
@@ -132,7 +131,6 @@ Remotes:
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
-    'banksy.R'
     'basilisk.R'
     'block_pca.R'
     'cell_segmentation.R'
