@@ -11,6 +11,7 @@ neighborhoodPCAParam(
   lambda = 0.2,
   k_geom = 15L,
   npcs = 20L,
+  compute_agf = FALSE,
   absolute = FALSE,
   seed = 1234L
 )
@@ -22,9 +23,13 @@ neighborhoodPCAParam(
 0.2 refines cell types with their surroundings; about 0.8 finds spatial
 domains.}
 
-\item{k_geom}{integer, number of spatial neighbours}
+\item{k_geom}{integer, number of spatial neighbours; with
+\code{compute_agf = TRUE} one value, or two (neighbours for the mean and for
+the gradient)}
 
 \item{npcs}{integer, number of principal components}
+
+\item{compute_agf}{logical, add the AGF (gradient) block}
 
 \item{absolute}{logical. Take the absolute value of the neighbour means,
 as \pkg{Banksy} 1.6 does. This makes no difference for non-negative
@@ -55,8 +60,15 @@ per feature, weighted by \eqn{\sqrt{1 - \lambda}} and
 \code{k_geom} neighbours, normalized to sum to one per cell, as in the
 \pkg{Banksy} package.
 
-This is a reimplementation of BANKSY's neighbourhood embedding, without
-its azimuthal Gabor filter (gradient) features. \strong{If you use it, please
+With \code{compute_agf = TRUE} a third block adds BANKSY's azimuthal Gabor
+filter (AGF): the magnitude of \eqn{\sum_i w_{ji} e^{i\phi_{ji}}
+(x_i - \bar{x}_j)}, the gradient of the neighbourhood around cell
+\eqn{j} (\eqn{\phi} the angle to neighbour \eqn{i}, \eqn{\bar{x}_j} the
+mean of its neighbours), and \eqn{\lambda} is split over the blocks as
+\eqn{\sqrt{1 - \lambda}}, \eqn{\sqrt{2\lambda/3}} and
+\eqn{\sqrt{\lambda/3}}, as in \pkg{Banksy}.
+
+This is a reimplementation of BANKSY's embedding. \strong{If you use it, please
 cite the original paper} (see References).
 \code{GiottoConnect::runBanksy()} runs the original \pkg{Banksy} package.
 }

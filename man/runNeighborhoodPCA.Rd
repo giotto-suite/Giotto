@@ -18,6 +18,7 @@ runNeighborhoodPCA(
   lambda = 0.2,
   k_geom = 15L,
   npcs = 20L,
+  compute_agf = FALSE,
   absolute = FALSE,
   seed = 1234L,
   name = "neighborhood_pca",
@@ -46,7 +47,8 @@ embedding to use with \code{input = "dim_reduction"}}
 
 \item{spat_loc_name}{name of the spatial locations}
 
-\item{lambda, k_geom, npcs, absolute, seed}{see \code{\link[=neighborhoodPCAParam]{neighborhoodPCAParam()}}}
+\item{lambda, k_geom, npcs, compute_agf, absolute, seed}{see
+\code{\link[=neighborhoodPCAParam]{neighborhoodPCAParam()}}}
 
 \item{name}{name of the stored dimension reduction (reduction method
 \code{"neighborhood_pca"})}
@@ -65,9 +67,9 @@ mean of its spatial neighbours, weighted by \code{lambda}, and reduced by PCA
 \code{\link[=createNearestNetwork]{createNearestNetwork()}} and \code{\link[=doLeidenCluster]{doLeidenCluster()}} (\code{lambda} about 0.8 for
 spatial domains, about 0.2 for neighbourhood-aware cell types).
 
-This reimplements BANKSY's neighbourhood embedding without its gradient
-features. \strong{If you use it, please cite the original paper} (see
-References). \code{GiottoConnect::runBanksy()} runs the original \pkg{Banksy}
+This reimplements BANKSY's embedding, including its gradient (AGF)
+features with \code{compute_agf = TRUE}. \strong{If you use it, please cite the
+original paper} (see References). \code{GiottoConnect::runBanksy()} runs the original \pkg{Banksy}
 package.
 }
 \examples{
