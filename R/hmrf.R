@@ -129,9 +129,10 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' @name runHMRF
 #' @description
 #' Finds spatial domains with the hidden Markov random field model of Zhu et
-#' al. (2018) (see [hmrfParam()]), natively, for one or more `beta`. For each
-#' `beta` the domains are added to the cell metadata (column
-#' `<name>_k<k>_b<beta>`) and the posterior domain probabilities stored as a
+#' al. (2018) (see [hmrfParam()]) for one or more `k` and `beta`, so a range
+#' of settings is fitted in one call. For each setting the domains are added
+#' to the cell metadata (column `<name>_k<k>_b<beta>`) and the posterior
+#' domain probabilities stored as a
 #' spatial enrichment of the same name. All `beta` share one k-means start.
 #'
 #' This reimplements the model of \pkg{smfishHmrf} ([doHMRF_V2()]) without its
@@ -145,16 +146,24 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #'   [binSpect()]) or the name of a logical feature metadata column such as
 #'   `"hvf"`
 #' @param spatial_network_name spatial network
-#' @param k,zscore,nstart,seed,maxit,err,n_icm see [hmrfParam()]
+#' @param k integer vector of numbers of domains
+#' @param zscore,nstart,seed,maxit,err,n_icm see [hmrfParam()]
 #' @param betas numeric vector of `beta` values
 #' @param name prefix of the results
 #' @param verbose be verbose
-#' @returns The giotto object with the domains and probabilities.
+#' @returns The giotto object with the domains and probabilities. The
+#'   spatial enrichment of each setting keeps its diagnostics in `misc`
+#'   (see [hmrfSummary()]).
+#' @details Choosing `k` and `beta`: fit a grid, compare the settings with
+#'   [hmrfSummary()], then look at the domains with `spatPlot2D(cell_color =
+#'   "<name>_k<k>_b<beta>")` and at the probabilities with
+#'   `spatCellPlot2D(spat_enr_names = "<name>_k<k>_b<beta>",
+#'   cell_annotation_values = paste0("domain_", 1:k))`.
 #' @references Zhu Q, Shah S, Dries R, Cai L, Yuan GC. Identification of
 #'   spatially associated subpopulations by combining scRNAseq and sequential
 #'   fluorescence in situ hybridization data. *Nature Biotechnology* 36,
 #'   1183–1190 (2018). \doi{10.1038/nbt.4260}
-#' @seealso [hmrfParam()], [doHMRF_V2()]
+#' @seealso [hmrfParam()], [hmrfSummary()], [doHMRF_V2()]
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #' g <- runHMRF(g, feats_to_use = "hvf", k = 5, betas = c(0, 2),
@@ -169,6 +178,7 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
     cell_ID <- NULL # NSE
     checkmate::assert_class(gobject, "giotto")
     checkmate::assert_numeric(betas, lower = 0, min.len = 1L)
+    checkmate::assert_integerish(k, lower = 2, min.len = 1L)
     zscore <- match.arg(zscore)
     spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
     feat_type <- set_default_feat_type(gobject = gobject,
@@ -181,39 +191,96 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
     net <- getSpatialNetwork(gobject, spat_unit = spat_unit,
         name = spatial_network_name, output = "networkDT")
 
-    init <- NULL
     blocks <- NULL
-    for (b in betas) {
-        param <- hmrfParam(k = k, beta = b, zscore = zscore, nstart = nstart,
-            seed = seed, maxit = maxit, err = err, n_icm = n_icm)
-        vmsg(.v = verbose, sprintf("runHMRF: k = %d, beta = %g", k, b))
-        res <- clusterData(x, param, network = net, blocks = blocks,
-            init = init)
-        init <- attr(res, "init")
-        blocks <- attr(res, "blocks")
-        key <- sprintf("%s_k%d_b%s", name, k, format(b))
+    for (kk in k) {
+        init <- NULL
+        for (b in betas) {
+            param <- hmrfParam(k = kk, beta = b, zscore = zscore,
+                nstart = nstart, seed = seed, maxit = maxit, err = err,
+                n_icm = n_icm)
+            vmsg(.v = verbose, sprintf("runHMRF: k = %d, beta = %g", kk, b))
+            res <- clusterData(x, param, network = net, blocks = blocks,
+                init = init)
+            init <- attr(res, "init")
+            blocks <- attr(res, "blocks")
+            key <- sprintf("%s_k%d_b%s", name, kk, format(b))
 
-        new_meta <- data.table::data.table(cell_ID = res$cell_ID)
-        new_meta[[key]] <- res$cluster
-        gobject <- addCellMetadata(gobject, spat_unit = spat_unit,
-            feat_type = feat_type, new_metadata = new_meta,
-            by_column = TRUE, column_cell_ID = "cell_ID")
-        prob <- data.table::as.data.table(attr(res, "prob"))
-        data.table::setnames(prob, paste0("domain_", seq_len(k)))
-        prob[, cell_ID := res$cell_ID]
-        enr <- createSpatEnrObj(prob, name = key, spat_unit = spat_unit,
-            feat_type = feat_type, method = "HMRF",
-            misc = list(likelihood = attr(res, "likelihood"),
-                iterations = attr(res, "iterations"), beta = b),
-            verbose = FALSE)
-        gobject <- setSpatialEnrichment(gobject, x = enr,
-            spat_unit = spat_unit, feat_type = feat_type, name = key,
-            verbose = FALSE)
-        gobject <- update_giotto_params(gobject,
-            description = paste0("_hmrf_b", format(b)),
-            attachments = list(param = param))
+            new_meta <- data.table::data.table(cell_ID = res$cell_ID)
+            new_meta[[key]] <- res$cluster
+            gobject <- addCellMetadata(gobject, spat_unit = spat_unit,
+                feat_type = feat_type, new_metadata = new_meta,
+                by_column = TRUE, column_cell_ID = "cell_ID")
+            pr <- attr(res, "prob")
+            prob <- data.table::as.data.table(pr)
+            data.table::setnames(prob, paste0("domain_", seq_len(kk)))
+            prob[, cell_ID := res$cell_ID]
+            cl <- stats::setNames(res$cluster, res$cell_ID)
+            enr <- createSpatEnrObj(prob, name = key, spat_unit = spat_unit,
+                feat_type = feat_type, method = "HMRF",
+                misc = list(k = kk, beta = b,
+                    likelihood = attr(res, "likelihood"),
+                    iterations = attr(res, "iterations"),
+                    confidence = mean(apply(pr, 1L, max)),
+                    coherence = mean(cl[as.character(net$from)] ==
+                        cl[as.character(net$to)], na.rm = TRUE),
+                    smallest_domain = min(tabulate(res$cluster, kk)) /
+                        length(cl)),
+                verbose = FALSE)
+            gobject <- setSpatialEnrichment(gobject, x = enr,
+                spat_unit = spat_unit, feat_type = feat_type, name = key,
+                verbose = FALSE)
+            gobject <- update_giotto_params(gobject,
+                description = sprintf("_hmrf_k%d_b%s", kk, format(b)),
+                attachments = list(param = param))
+        }
     }
     gobject
+}
+
+
+# hmrfSummary ####
+
+#' @title Compare HMRF settings
+#' @name hmrfSummary
+#' @description One row per [runHMRF()] setting, to choose `k` and `beta`:
+#' * `loglik`: log-likelihood (grows with `k` and `beta`; compare within a
+#'   `k`);
+#' * `confidence`: mean of each cell's highest posterior probability;
+#' * `coherence`: share of spatial network edges whose two cells are in the
+#'   same domain (higher `beta` gives smoother domains);
+#' * `smallest_domain`: share of cells in the smallest domain (near 0 means
+#'   `k` is too large);
+#' * `iterations` of EM.
+#' @param gobject giotto object
+#' @param spat_unit,feat_type spatial unit and feature type
+#' @param name prefix used in [runHMRF()]
+#' @returns A `data.table`, one row per setting.
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' g <- runHMRF(g, feats_to_use = "hvf", k = c(4, 6), betas = c(0, 2, 5),
+#'     nstart = 20)
+#' hmrfSummary(g)
+#' @md
+#' @export
+hmrfSummary <- function(gobject, spat_unit = NULL, feat_type = NULL,
+    name = "hmrf") {
+    spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
+    feat_type <- set_default_feat_type(gobject = gobject,
+        spat_unit = spat_unit, feat_type = feat_type)
+    avail <- list_spatial_enrichments(gobject, spat_unit = spat_unit,
+        feat_type = feat_type)
+    keys <- grep(paste0("^", name, "_k[0-9]+_b"), avail$name, value = TRUE)
+    rows <- lapply(keys, function(key) {
+        m <- getSpatialEnrichment(gobject, spat_unit = spat_unit,
+            feat_type = feat_type, name = key, output = "spatEnrObj")@misc
+        data.table::data.table(setting = key, k = m$k, beta = m$beta,
+            loglik = m$likelihood, confidence = m$confidence,
+            coherence = m$coherence, smallest_domain = m$smallest_domain,
+            iterations = m$iterations)
+    })
+    res <- data.table::rbindlist(rows)
+    if (nrow(res)) data.table::setorderv(res, c("k", "beta"))
+    res
 }
 
 

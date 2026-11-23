@@ -37,27 +37,37 @@ runHMRF(
 
 \item{spatial_network_name}{spatial network}
 
-\item{k, zscore, nstart, seed, maxit, err, n_icm}{see \code{\link[=hmrfParam]{hmrfParam()}}}
+\item{k}{integer vector of numbers of domains}
 
 \item{betas}{numeric vector of \code{beta} values}
+
+\item{zscore, nstart, seed, maxit, err, n_icm}{see \code{\link[=hmrfParam]{hmrfParam()}}}
 
 \item{name}{prefix of the results}
 
 \item{verbose}{be verbose}
 }
 \value{
-The giotto object with the domains and probabilities.
+The giotto object with the domains and probabilities. The
+spatial enrichment of each setting keeps its diagnostics in \code{misc}
+(see \code{\link[=hmrfSummary]{hmrfSummary()}}).
 }
 \description{
 Finds spatial domains with the hidden Markov random field model of Zhu et
-al. (2018) (see \code{\link[=hmrfParam]{hmrfParam()}}), natively, for one or more \code{beta}. For each
-\code{beta} the domains are added to the cell metadata (column
-\verb{<name>_k<k>_b<beta>}) and the posterior domain probabilities stored as a
+al. (2018) (see \code{\link[=hmrfParam]{hmrfParam()}}) for one or more \code{k} and \code{beta}, so a range
+of settings is fitted in one call. For each setting the domains are added
+to the cell metadata (column \verb{<name>_k<k>_b<beta>}) and the posterior
+domain probabilities stored as a
 spatial enrichment of the same name. All \code{beta} share one k-means start.
 
 This reimplements the model of \pkg{smfishHmrf} (\code{\link[=doHMRF_V2]{doHMRF_V2()}}) without its
 spatial gene selection: pass the features with \code{feats_to_use}. \strong{If you use
 it, please cite the original paper} (see References).
+}
+\details{
+Choosing \code{k} and \code{beta}: fit a grid, compare the settings with
+\code{\link[=hmrfSummary]{hmrfSummary()}}, then look at the domains with \code{spatPlot2D(cell_color = "<name>_k<k>_b<beta>")} and at the probabilities with
+\code{spatCellPlot2D(spat_enr_names = "<name>_k<k>_b<beta>", cell_annotation_values = paste0("domain_", 1:k))}.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -71,5 +81,5 @@ fluorescence in situ hybridization data. \emph{Nature Biotechnology} 36,
 1183–1190 (2018). \doi{10.1038/nbt.4260}
 }
 \seealso{
-\code{\link[=hmrfParam]{hmrfParam()}}, \code{\link[=doHMRF_V2]{doHMRF_V2()}}
+\code{\link[=hmrfParam]{hmrfParam()}}, \code{\link[=hmrfSummary]{hmrfSummary()}}, \code{\link[=doHMRF_V2]{doHMRF_V2()}}
 }

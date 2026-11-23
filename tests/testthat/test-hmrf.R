@@ -52,3 +52,16 @@ test_that("runHMRF stores domains, probabilities and its param", {
     h <- g@parameters[[length(g@parameters)]]
     expect_s4_class(attr(h, "attachments")$param, "hmrfParam")
 })
+
+test_that("runHMRF fits a k x beta grid and hmrfSummary compares it", {
+    skip_if_not_installed("spatialHMRF")
+    skip_if_not_installed("GiottoData")
+    g <- GiottoData::loadGiottoMini("visium")
+    g <- runHMRF(g, feats_to_use = "hvf", k = c(3, 4), betas = c(0, 4),
+        nstart = 5, verbose = FALSE)
+    s <- hmrfSummary(g)
+    expect_equal(nrow(s), 4L)
+    expect_equal(s$k, c(3, 3, 4, 4))
+    expect_true(all(s$confidence > 0 & s$confidence <= 1))
+    expect_gt(s[k == 3 & beta == 4]$coherence, s[k == 3 & beta == 0]$coherence)
+})
