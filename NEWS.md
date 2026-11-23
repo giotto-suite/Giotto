@@ -3,6 +3,11 @@
 Requires GiottoClass 0.8.0.
 
 ## breaking changes
+- The legacy Seurat, AnnData and Bento converters are no longer re-exported:
+  `seuratToGiotto()`, `giottoToSeurat()`, `anndataToGiotto()` and
+  `createBentoAdata()` are in GiottoConnect. `seuratToGiottoV4/V5()` and
+  `giottoToSeuratV4/V5()` are replaced by GiottoConnect's `seuratToGiotto()` /
+  `giottoToSeurat()`.
 - 10x feature names are the same whichever file they come from.
   `get10Xmatrix_h5()` names repeated features like `get10Xmatrix()` and
   GiottoDisk: every copy gets `--N` (`Ptp4a1--1`, `Ptp4a1--2`; it gave
