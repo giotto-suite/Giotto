@@ -67,7 +67,8 @@ spatial domains, about 0.2 for neighbourhood-aware cell types).
 
 This reimplements BANKSY's neighbourhood embedding without its gradient
 features. \strong{If you use it, please cite the original paper} (see
-References). \code{\link[=runBanksy]{runBanksy()}} runs the original \pkg{Banksy} package.
+References). \code{GiottoConnect::runBanksy()} runs the original \pkg{Banksy}
+package.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -83,5 +84,5 @@ and tissue domain segmentation for scalable spatial omics data analysis.
 \emph{Nature Genetics} 56, 431–441 (2024). \doi{10.1038/s41588-024-01664-3}
 }
 \seealso{
-\code{\link[=neighborhoodPCAParam]{neighborhoodPCAParam()}}, \code{\link[=runBanksy]{runBanksy()}}
+\code{\link[=neighborhoodPCAParam]{neighborhoodPCAParam()}}, \code{GiottoConnect::runBanksy()}
 }

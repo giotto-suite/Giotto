@@ -9,7 +9,8 @@ NULL
 # scaled, weighted by sqrt(1 - lambda) and sqrt(lambda), and reduced by PCA.
 # The spatial kNN comes from GiottoClass `createNetwork()` and the PCA from
 # `reduceData(x, pcaParam("irlba"))`; only the neighbour weights are new.
-# `runBanksy()` wraps the original Bioconductor package and is the reference.
+# GiottoConnect::runBanksy() runs the original Bioconductor package with the
+# same verb and defaults, and is the reference.
 
 #' @title Neighborhood PCA parameters
 #' @name neighborhoodPCAParam
@@ -25,8 +26,8 @@ NULL
 #'
 #' This is a reimplementation of BANKSY's neighbourhood embedding, without
 #' its azimuthal Gabor filter (gradient) features. **If you use it, please
-#' cite the original paper** (see References). [runBanksy()] runs the
-#' original \pkg{Banksy} package.
+#' cite the original paper** (see References).
+#' `GiottoConnect::runBanksy()` runs the original \pkg{Banksy} package.
 #' @param lambda numeric in `[0, 1]`, the weight of the neighbourhood. About
 #'   0.2 refines cell types with their surroundings; about 0.8 finds spatial
 #'   domains.
@@ -41,7 +42,7 @@ NULL
 #' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing
 #'   and tissue domain segmentation for scalable spatial omics data analysis.
 #'   *Nature Genetics* 56, 431–441 (2024). \doi{10.1038/s41588-024-01664-3}
-#' @seealso [runNeighborhoodPCA()], [runBanksy()]
+#' @seealso [runNeighborhoodPCA()], `GiottoConnect::runBanksy()`
 #' @examples
 #' p <- neighborhoodPCAParam(lambda = 0.8, k_geom = 15)
 #' p$lambda
@@ -149,7 +150,8 @@ setMethod("reduceData",
 #'
 #' This reimplements BANKSY's neighbourhood embedding without its gradient
 #' features. **If you use it, please cite the original paper** (see
-#' References). [runBanksy()] runs the original \pkg{Banksy} package.
+#' References). `GiottoConnect::runBanksy()` runs the original \pkg{Banksy}
+#' package.
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
 #' @param feat_type feature type
@@ -172,7 +174,7 @@ setMethod("reduceData",
 #' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing
 #'   and tissue domain segmentation for scalable spatial omics data analysis.
 #'   *Nature Genetics* 56, 431–441 (2024). \doi{10.1038/s41588-024-01664-3}
-#' @seealso [neighborhoodPCAParam()], [runBanksy()]
+#' @seealso [neighborhoodPCAParam()], `GiottoConnect::runBanksy()`
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #' g <- runNeighborhoodPCA(g, feats_to_use = "hvf", lambda = 0.8)
