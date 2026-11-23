@@ -279,10 +279,6 @@ GiottoClass::giottoPoints
 #' @export
 GiottoClass::giottoPolygon
 #' @export
-GiottoClass::giottoToAnnData
-#' @export
-GiottoClass::giottoToSpatialExperiment
-#' @export
 GiottoClass::hexVertices
 #' @export
 GiottoClass::hist
@@ -400,8 +396,6 @@ GiottoClass::showProcessingSteps
 GiottoClass::smoothGiottoPolygons
 #' @export
 GiottoClass::spatQueryGiottoPolygons
-#' @export
-GiottoClass::spatialExperimentToGiotto
 #' @export
 GiottoClass::stitchFieldCoordinates
 #' @export
