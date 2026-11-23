@@ -11,7 +11,7 @@ hmrfParam(
   k = 10L,
   beta = 2,
   zscore = c("cell", "none"),
-  nstart = 1000L,
+  nstart = 200L,
   seed = 100L,
   subsample = 20000L,
   maxit = 50L,
@@ -33,7 +33,7 @@ hmrfParam(
 across the features after the input values; \code{"none"}: use the values as
 given}
 
-\item{nstart}{integer, k-means starts}
+\item{nstart}{integer, k-means starts (\pkg{smfishHmrf}: 1000)}
 
 \item{seed}{integer, seed of the k-means start}
 

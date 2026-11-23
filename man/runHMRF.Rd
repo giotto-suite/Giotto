@@ -14,7 +14,7 @@ runHMRF(
   k = 10L,
   betas = 2,
   zscore = c("cell", "none"),
-  nstart = 1000L,
+  nstart = 200L,
   seed = 100L,
   subsample = 20000L,
   maxit = 50L,

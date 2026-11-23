@@ -30,7 +30,7 @@ NULL
 #' @param zscore `"cell"` (default, as [initHMRF_V2()]): z-score each cell
 #'   across the features after the input values; `"none"`: use the values as
 #'   given
-#' @param nstart integer, k-means starts
+#' @param nstart integer, k-means starts (\pkg{smfishHmrf}: 1000)
 #' @param seed integer, seed of the k-means start
 #' @param subsample integer: with more cells, the k-means restarts run on
 #'   this many random cells and one k-means on all cells refines the best
@@ -56,7 +56,7 @@ NULL
 #' @md
 #' @export
 hmrfParam <- function(k = 10L, beta = 2, zscore = c("cell", "none"),
-    nstart = 1000L, seed = 100L, subsample = 20000L, maxit = 50L, err = 1e-7,
+    nstart = 200L, seed = 100L, subsample = 20000L, maxit = 50L, err = 1e-7,
     label_tol = 1e-4, n_icm = 10L, damp_tolerance = 1e-5,
     damp_factor = 1.05) {
     checkmate::assert_int(k, lower = 2)
@@ -184,7 +184,7 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
     expression_values = "scaled", feats_to_use = NULL,
     spatial_network_name = "Delaunay_network", k = 10L, betas = 2,
-    zscore = c("cell", "none"), nstart = 1000L, seed = 100L,
+    zscore = c("cell", "none"), nstart = 200L, seed = 100L,
     subsample = 20000L, maxit = 50L, err = 1e-7, label_tol = 1e-4,
     n_icm = 10L, name = "hmrf", verbose = NULL) {
     cell_ID <- NULL # NSE
