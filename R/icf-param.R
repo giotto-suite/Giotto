@@ -263,6 +263,10 @@ setMethod("analyzeData",
     )
     if (is.null(gp)) return(NULL)
     sv <- gp[]
+    # GiottoDisk-backed polygons: read the outlines once (vertices are needed)
+    if (!inherits(sv, "SpatVector")) {
+        sv <- GiottoDisk::storeRead(sv, output = "terra")
+    }
     geo <- terra::geom(sv)
     geo <- geo[geo[, "hole"] == 0, , drop = FALSE]
     pid <- terra::values(sv)[["poly_ID"]][geo[, "geom"]]

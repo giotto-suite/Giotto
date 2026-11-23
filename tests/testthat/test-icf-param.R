@@ -105,6 +105,35 @@ test_that("a GiottoDisk store is read by edgeicg without loading and equals the 
     expect_identical(f_sub$genes, rownames(sim$counts)[1:60])
 })
 
+test_that("touching edges are the same from in-memory and GiottoDisk polygons", {
+    skip_if_not_installed("edgeicg")
+    skip_if_not_installed("GiottoDisk")
+    # a row of 4 touching squares plus one apart
+    sq <- function(i, x, r = 5) cbind(id = i, part = 1,
+        x = x + c(-r, r, r, -r), y = c(-r, -r, r, r), hole = 0)
+    m <- do.call(rbind, lapply(1:5, function(i) sq(i, c(10, 20, 30, 40, 90)[i])))
+    sv <- terra::vect(m, type = "polygons")
+    sv$poly_ID <- paste0("c", 1:5)
+    gp <- createGiottoPolygon(sv, name = "cell", verbose = FALSE)
+    g <- createGiottoObject(
+        expression = Matrix::Matrix(1, 2, 5, sparse = TRUE,
+            dimnames = list(c("a", "b"), paste0("c", 1:5))),
+        spatial_locs = data.frame(sdimx = c(10, 20, 30, 40, 90), sdimy = 0,
+            cell_ID = paste0("c", 1:5)),
+        verbose = FALSE
+    )
+    g <- setPolygonInfo(g, gp, verbose = FALSE, initialize = FALSE)
+    ids <- paste0("c", 1:5)
+    e_mem <- .icf_touching_edges(g, "cell", ids)
+    gp_disk <- gp
+    gp_disk[] <- GiottoDisk::storeWrite(GiottoDisk::parquetGeomStore(), sv)
+    g <- setPolygonInfo(g, gp_disk, verbose = FALSE, initialize = FALSE)
+    e_disk <- .icf_touching_edges(g, "cell", ids)
+    expect_equal(e_disk, e_mem)
+    expect_setequal(paste(e_mem$recv, e_mem$send),
+        c("1 2", "2 1", "2 3", "3 2", "3 4", "4 3"))
+})
+
 test_that("plotICF draws an edgeicg icfObject", {
     skip_if_not_installed("edgeicg")
     s <- .icf_sim_giotto()
