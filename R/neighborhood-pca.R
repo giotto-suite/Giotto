@@ -265,7 +265,13 @@ runNeighborhoodPCA <- function(
                 feat_type = feat_type, values = expression_values,
                 output = "exprObj")
             feats <- .npca_feats(gobject, feats_to_use, spat_unit, feat_type)
-            .read_expr_matrix(ex[], feats)
+            m <- ex[]
+            # a disk store stays on disk: GiottoDisk streams the embedding
+            if (inherits(m, "dataStore")) {
+                if (is.null(feats)) m else m[feats, ]
+            } else {
+                .read_expr_matrix(m, feats)
+            }
         },
         dim_reduction = {
             emb <- getDimReduction(gobject, spat_unit = spat_unit,
@@ -287,7 +293,8 @@ runNeighborhoodPCA <- function(
     vmsg(.v = verbose, "runNeighborhoodPCA: neighbourhood and PCA")
     res <- reduceData(x, param, spatial_locs = locs)
     coords <- res$u
-    dimnames(coords) <- list(colnames(x), paste0("Dim.", seq_len(ncol(coords))))
+    ids <- if (inherits(x, "dataStore")) rownames(coords) else colnames(x)
+    dimnames(coords) <- list(ids, paste0("Dim.", seq_len(ncol(coords))))
 
     dim_obj <- createDimObj(
         coordinates = coords, name = name, spat_unit = spat_unit,
