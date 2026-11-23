@@ -39,6 +39,18 @@ test_that("clusterData(hmrfParam) equals spatialHMRF::hmrf()", {
     expect_equal(attr(res, "prob"), fit$prob)
 })
 
+test_that("hmrfParam passes the start and stopping options to spatialHMRF", {
+    skip_if_not_installed("spatialHMRF")
+    s <- sim_tissue()
+    p <- hmrfParam(k = 2, beta = 2, nstart = 5, zscore = "none",
+        subsample = 100, label_tol = 0)
+    res <- clusterData(s$y, p, network = s$net)
+    fit <- spatialHMRF::hmrf(s$y, s$net, k = 2, beta = 2, zscore = "none",
+        nstart = 5, subsample = 100, label_tol = 0)
+    expect_identical(res$cluster, fit$class)
+    expect_error(hmrfParam(k = 4, subsample = 2))
+})
+
 test_that("runHMRF stores domains, probabilities and its param", {
     skip_if_not_installed("spatialHMRF")
     skip_if_not_installed("GiottoData")

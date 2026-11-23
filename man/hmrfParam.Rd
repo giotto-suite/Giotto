@@ -13,8 +13,10 @@ hmrfParam(
   zscore = c("cell", "none"),
   nstart = 1000L,
   seed = 100L,
+  subsample = 20000L,
   maxit = 50L,
   err = 1e-07,
+  label_tol = 1e-04,
   n_icm = 10L,
   damp_tolerance = 1e-05,
   damp_factor = 1.05
@@ -35,10 +37,17 @@ given}
 
 \item{seed}{integer, seed of the k-means start}
 
+\item{subsample}{integer: with more cells, the k-means restarts run on
+this many random cells and one k-means on all cells refines the best
+centres; \code{Inf} runs them on all cells, as \pkg{smfishHmrf}}
+
 \item{maxit}{integer, maximum EM iterations}
 
 \item{err}{numeric, relative change of means and covariances at which EM
 stops}
+
+\item{label_tol}{numeric, share of cells changing domain at which EM
+stops; 0 stops on \code{err} or \code{maxit} only, as \pkg{smfishHmrf}}
 
 \item{n_icm}{integer, ICM sweeps per EM iteration}
 

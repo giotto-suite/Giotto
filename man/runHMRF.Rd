@@ -16,8 +16,10 @@ runHMRF(
   zscore = c("cell", "none"),
   nstart = 1000L,
   seed = 100L,
+  subsample = 20000L,
   maxit = 50L,
   err = 1e-07,
+  label_tol = 1e-04,
   n_icm = 10L,
   name = "hmrf",
   verbose = NULL
@@ -41,7 +43,8 @@ runHMRF(
 
 \item{betas}{numeric vector of \code{beta} values}
 
-\item{zscore, nstart, seed, maxit, err, n_icm}{see \code{\link[=hmrfParam]{hmrfParam()}}}
+\item{zscore, nstart, seed, subsample, maxit, err, label_tol, n_icm}{see
+\code{\link[=hmrfParam]{hmrfParam()}}}
 
 \item{name}{prefix of the results}
 

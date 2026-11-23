@@ -32,9 +32,14 @@ NULL
 #'   given
 #' @param nstart integer, k-means starts
 #' @param seed integer, seed of the k-means start
+#' @param subsample integer: with more cells, the k-means restarts run on
+#'   this many random cells and one k-means on all cells refines the best
+#'   centres; `Inf` runs them on all cells, as \pkg{smfishHmrf}
 #' @param maxit integer, maximum EM iterations
 #' @param err numeric, relative change of means and covariances at which EM
 #'   stops
+#' @param label_tol numeric, share of cells changing domain at which EM
+#'   stops; 0 stops on `err` or `maxit` only, as \pkg{smfishHmrf}
 #' @param n_icm integer, ICM sweeps per EM iteration
 #' @param damp_tolerance,damp_factor a domain's covariance whose determinant
 #'   is below `damp_tolerance` gets the smallest diagonal term (searched in
@@ -51,19 +56,23 @@ NULL
 #' @md
 #' @export
 hmrfParam <- function(k = 10L, beta = 2, zscore = c("cell", "none"),
-    nstart = 1000L, seed = 100L, maxit = 50L, err = 1e-7, n_icm = 10L,
-    damp_tolerance = 1e-5, damp_factor = 1.05) {
+    nstart = 1000L, seed = 100L, subsample = 20000L, maxit = 50L, err = 1e-7,
+    label_tol = 1e-4, n_icm = 10L, damp_tolerance = 1e-5,
+    damp_factor = 1.05) {
     checkmate::assert_int(k, lower = 2)
     checkmate::assert_number(beta, lower = 0)
     zscore <- match.arg(zscore)
     checkmate::assert_count(nstart, positive = TRUE)
     checkmate::assert_count(seed)
     checkmate::assert_count(maxit, positive = TRUE)
+    checkmate::assert_number(subsample, lower = k)
     checkmate::assert_number(err, lower = 0)
+    checkmate::assert_number(label_tol, lower = 0, upper = 1)
     checkmate::assert_count(n_icm, positive = TRUE)
     new("hmrfParam", param = list(k = as.integer(k), beta = beta,
         zscore = zscore, nstart = as.integer(nstart), seed = as.integer(seed),
-        maxit = as.integer(maxit), err = err, n_icm = as.integer(n_icm),
+        subsample = subsample, maxit = as.integer(maxit), err = err,
+        label_tol = label_tol, n_icm = as.integer(n_icm),
         damp_tolerance = damp_tolerance, damp_factor = damp_factor))
 }
 
@@ -98,7 +107,8 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
         p <- param@param
         fit <- spatialHMRF::hmrf(as.matrix(x), network, k = p$k,
             beta = p$beta, zscore = p$zscore, init = init, blocks = blocks,
-            nstart = p$nstart, seed = p$seed, maxit = p$maxit, err = p$err,
+            nstart = p$nstart, seed = p$seed, subsample = p$subsample,
+            maxit = p$maxit, err = p$err, label_tol = p$label_tol,
             n_icm = p$n_icm, damp_tolerance = p$damp_tolerance,
             damp_factor = p$damp_factor)
         res <- data.table::data.table(cell_ID = rownames(x),
@@ -147,7 +157,8 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #'   `"hvf"`
 #' @param spatial_network_name spatial network
 #' @param k integer vector of numbers of domains
-#' @param zscore,nstart,seed,maxit,err,n_icm see [hmrfParam()]
+#' @param zscore,nstart,seed,subsample,maxit,err,label_tol,n_icm see
+#'   [hmrfParam()]
 #' @param betas numeric vector of `beta` values
 #' @param name prefix of the results
 #' @param verbose be verbose
@@ -173,8 +184,9 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
     expression_values = "scaled", feats_to_use = NULL,
     spatial_network_name = "Delaunay_network", k = 10L, betas = 2,
-    zscore = c("cell", "none"), nstart = 1000L, seed = 100L, maxit = 50L,
-    err = 1e-7, n_icm = 10L, name = "hmrf", verbose = NULL) {
+    zscore = c("cell", "none"), nstart = 1000L, seed = 100L,
+    subsample = 20000L, maxit = 50L, err = 1e-7, label_tol = 1e-4,
+    n_icm = 10L, name = "hmrf", verbose = NULL) {
     cell_ID <- NULL # NSE
     checkmate::assert_class(gobject, "giotto")
     checkmate::assert_numeric(betas, lower = 0, min.len = 1L)
@@ -196,7 +208,8 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
         init <- NULL
         for (b in betas) {
             param <- hmrfParam(k = kk, beta = b, zscore = zscore,
-                nstart = nstart, seed = seed, maxit = maxit, err = err,
+                nstart = nstart, seed = seed, subsample = subsample,
+                maxit = maxit, err = err, label_tol = label_tol,
                 n_icm = n_icm)
             vmsg(.v = verbose, sprintf("runHMRF: k = %d, beta = %g", kk, b))
             res <- clusterData(x, param, network = net, blocks = blocks,
