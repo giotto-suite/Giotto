@@ -57,8 +57,8 @@ per feature, weighted by \eqn{\sqrt{1 - \lambda}} and
 
 This is a reimplementation of BANKSY's neighbourhood embedding, without
 its azimuthal Gabor filter (gradient) features. \strong{If you use it, please
-cite the original paper} (see References). \code{\link[=runBanksy]{runBanksy()}} runs the
-original \pkg{Banksy} package.
+cite the original paper} (see References).
+\code{GiottoConnect::runBanksy()} runs the original \pkg{Banksy} package.
 }
 \details{
 `reduceData(x, param, spatial_locs = )` returns the list of
@@ -75,5 +75,5 @@ and tissue domain segmentation for scalable spatial omics data analysis.
 \emph{Nature Genetics} 56, 431–441 (2024). \doi{10.1038/s41588-024-01664-3}
 }
 \seealso{
-\code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}}, \code{\link[=runBanksy]{runBanksy()}}
+\code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}}, \code{GiottoConnect::runBanksy()}
 }
