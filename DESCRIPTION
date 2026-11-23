@@ -130,6 +130,7 @@ Collate:
     'auxiliary_giotto.R'
     'banksy.R'
     'basilisk.R'
+    'block_pca.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'

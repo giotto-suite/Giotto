@@ -9,38 +9,183 @@ runWNN(
   spat_unit = "cell",
   feat_types = c("rna", "protein"),
   reduction_methods = c("pca", "pca"),
-  reduction_names = c("rna.pca", "protein.pca"),
+  reduction_names = NULL,
   k = 20,
   integrated_feat_type = NULL,
   matrix_result_name = NULL,
-  w_names = c(NULL, NULL),
-  verbose = FALSE
+  w_names = NULL,
+  verbose = FALSE,
+  graph = c("dense", "knn"),
+  network_names = NULL,
+  dimensions_to_use = NULL,
+  l2_norm = TRUE,
+  score_cap = 200,
+  knn_range = 200,
+  integrated_k = k,
+  integrated_network_name = "integrated_kNN",
+  integrated_snn = c("none", "giotto", "jaccard"),
+  snn_prune = 1/15,
+  integrated_snn_name = NULL,
+  engine = c("dbscan", "hnsw"),
+  n_threads = NULL,
+  add_to_metadata = FALSE
 )
 }
 \arguments{
-\item{gobject}{A Giotto object with individual PCA feat_types pre-calculated}
+\item{gobject}{A Giotto object with a dimension reduction (e.g. PCA) for
+each feature type in \code{feat_types}.}
 
 \item{spat_unit}{spatial unit}
 
-\item{feat_types}{feature types to integrate. Default = c("rna", "protein")}
+\item{feat_types}{feature types to integrate. The integrated kNN is stored
+under the first one.}
 
-\item{reduction_methods}{reduction methods for each feature type. Default = c("pca", "pca")}
+\item{reduction_methods}{reduction method of each feature type's embedding.
+Default \code{c("pca", "pca")}.}
 
-\item{reduction_names}{names of the reduction methods to use. Default = c("rna.pca", "protein.pca")}
+\item{reduction_names}{name of each feature type's embedding. \code{NULL}
+(default): for each feature type, the stored \code{"<feat_type>.<method>"}
+embedding, else \code{"<method>"}, so both the names of earlier defaults
+(\code{"rna.pca"}) and those \code{runPCA()} gives (\code{"pca"}, \code{"protein.pca"}) are
+found. \code{list_dim_reductions(gobject)} lists the stored names.}
 
-\item{k}{number of neighbors to calculate cell distances, default = 20}
+\item{k}{number of nearest neighbors per modality used for the modality
+predictions and the kernel bandwidths. With \code{graph = "dense"} they are
+read from each feature type's stored kNN network.}
 
-\item{integrated_feat_type}{integrated feature type (e.g. 'rna_protein')}
+\item{integrated_feat_type}{name under which the results are stored in the
+multiomics slot. Default: the feature types joined by \code{"_"}
+(e.g. \code{"rna_protein"}).}
 
-\item{matrix_result_name}{Default = 'theta_weighted_matrix'}
+\item{matrix_result_name}{name of the stored affinity matrix. \code{"dense"}:
+the N x N matrix of all cell pairs, \code{NULL} (default) gives
+\code{"theta_weighted_matrix"}. \code{"knn"}: \code{NULL} (default) stores none; a name
+stores the affinity restricted to the integrated kNN as a sparse N x N
+\code{dgCMatrix} (N x \code{integrated_k} non-zeros).}
 
-\item{w_names}{optional. Names for the weighted matrices. If NULL, automatic names composed by w_feat_type will be created.}
+\item{w_names}{names of the stored weights, one per feature type. \code{NULL}
+(default) gives \code{"w_<feat_type>"}.}
 
 \item{verbose}{be verbose}
+
+\item{graph}{\code{"dense"} (default, Giotto 4.3.6 and earlier) or \code{"knn"}
+(scales to whole slides); see Description.}
+
+\item{network_names}{(\code{knn} only) \code{NULL} or the name of a stored kNN
+network for each feature type whose neighbors are used instead of a new
+search (all distances are still computed in the embedding).}
+
+\item{dimensions_to_use}{(\code{knn} only) dimensions (indices) of each
+embedding to use: one integer vector for all feature types, or a list
+with one per feature type. Indices beyond those stored are dropped.
+\code{NULL} (default): the dimensions recorded on the feature type's kNN
+network built from the same embedding (\code{network_names}, else the first
+stored kNN network), else all stored dimensions.}
+
+\item{l2_norm}{(\code{knn} only) logical. L2-normalize each cell's embedding
+before any distance is computed (the WNN paper's default). Default
+\code{TRUE}.}
+
+\item{score_cap}{(\code{knn} only) upper limit of the modality scores before the
+softmax (default 200, as in the WNN paper). \code{Inf} leaves them uncapped;
+the softmax is stable either way.}
+
+\item{knn_range}{(\code{knn} only) number of nearest neighbors (self excluded)
+per modality searched as candidates for the integrated kNN.}
+
+\item{integrated_k}{(\code{knn} only) number of neighbors (self excluded) in the
+integrated kNN. Default \code{k}.}
+
+\item{integrated_network_name}{(\code{knn} only) name of the integrated kNN
+network, stored as a \code{kNN} network under \code{feat_types[1]}.}
+
+\item{integrated_snn}{(\code{knn} only) shared nearest neighbor network of the
+integrated kNN to store for clustering, as an \code{sNN} network named
+\code{integrated_snn_name} under \code{feat_types[1]}. \code{"none"} (default) stores no
+sNN. \code{"giotto"} builds it as \code{createNearestNetwork(type = "sNN")} does:
+the kNN edges whose cells share at least 5 neighbors, plus each cell's 3
+edges with the most shared neighbors, weighted \code{1 / (1 + distance)}.
+\code{"jaccard"} links every two cells whose neighbor sets overlap, weighted
+by their Jaccard index (shared / (2 \code{integrated_k} - shared)), and drops
+links below \code{snn_prune}.}
+
+\item{snn_prune}{(\code{knn} only) smallest Jaccard index kept with
+\code{integrated_snn = "jaccard"}. Default 1/15.}
+
+\item{integrated_snn_name}{(\code{knn} only) name of the sNN network. \code{NULL}
+(default): \code{integrated_network_name} with \code{"kNN"} replaced by \code{"sNN"}.}
+
+\item{engine}{(\code{knn} only) nearest neighbor search: \code{"dbscan"} (exact,
+default) or \code{"hnsw"} (approximate, multithreaded; see
+\code{\link[GiottoClass:hnswKNN]{GiottoClass::hnswKNN()}}). The search for \code{knn_range} neighbors dominates
+the run time on large data, and \code{"hnsw"} is several times faster there:
+use it for whole slides.}
+
+\item{n_threads}{(\code{knn} only) threads for \code{engine = "hnsw"}. \code{NULL} uses
+\code{GiottoUtils::determine_cores()}.}
+
+\item{add_to_metadata}{(\code{knn} only) logical. Also add the weights as cell
+metadata columns (named by \code{w_names}) for every feature type in
+\code{feat_types}. Default \code{FALSE}.}
 }
 \value{
-A Giotto object with a new multiomics slot containing the theta_weighted_matrix and individual weight matrices.
+The Giotto object with, in the multiomics slot under
+\code{integrated_feat_type} and \code{"WNN"}, one weight vector per feature type
+(\code{w_names}). \code{"dense"}: also the N x N affinity matrix
+(\code{matrix_result_name}). \code{"knn"}: the integrated kNN network
+(\code{integrated_network_name}) under \code{feat_types[1]}, with
+\code{integrated_snn} its sNN (\code{integrated_snn_name}); and, with
+\code{add_to_metadata = TRUE}, the weights as cell metadata.
 }
 \description{
-Multi omics integration with WNN
+Weighted nearest neighbor (WNN) integration of feature types
+(Hao et al. 2021, \emph{Cell} 184:3573). For each cell and modality, the
+modality's own neighbors are compared with the other modalities' neighbors
+at predicting the cell's embedding; a softmax over those scores gives
+per-cell modality weights, which weight the cell-cell affinities of the
+integrated neighbors.
+
+\code{graph} chooses how the integrated neighbors are found:
+\itemize{
+\item \code{"dense"} (default): the method of Giotto 4.3.6 and earlier, unchanged.
+Two feature types; the weighted affinity of every pair of cells is stored
+as a dense N x N matrix (\code{matrix_result_name}), from which
+\code{\link[=runIntegratedUMAP]{runIntegratedUMAP()}} builds the integrated kNN. Memory and time grow
+with N^2: each N x N matrix takes 8 N^2 bytes (0.75 GB at 10,000 cells,
+19 GB at 50,000), and a message says so from 20,000 cells.
+\item \code{"knn"}: the WNN paper's kernel on k-nearest-neighbor lists only (memory
+O(N knn_range), time linear in N), so it scales to whole slides and
+GiottoDisk-backed objects. Two or more feature types. The integrated kNN
+keeps, for every cell, the \code{integrated_k} cells with the highest
+weighted affinity among the union of each modality's \code{knn_range} nearest
+neighbors, and is stored as a network. Scores are capped and the softmax
+is computed in log-sum-exp form, so weights are always finite. Use
+\code{runIntegratedUMAP(graph = "knn")} with it.
+}
+
+Arguments marked "\code{knn} only" are ignored, with a warning, by
+\code{graph = "dense"}.
+}
+\details{
+\code{graph = "knn"}, for modality m with embedding X_m and k neighbors N_m(i)
+of cell i: rho_m(i) is the distance to the nearest neighbor; the
+within-modality prediction is the mean of X_m over N_m(i), the
+cross-modality prediction from modality o the mean of X_m over N_o(i). The
+bandwidth b_m(i) is the mean distance (minus rho_m(i)) to the k + 1 cells
+of lowest non-zero Jaccard similarity in the shared-neighbor graph, as in
+the WNN paper. theta = exp(-max(d - rho, 0) / b) for the distance d between
+X_m(i) and each prediction, and S_m,o = theta_within / (theta_cross,o +
+1e-4), capped to \verb{[0, score_cap]}. The weight of m is
+sum_o exp(S_m,o) / sum_m' sum_o exp(S_m',o). A zero bandwidth (identical
+profiles) gives theta = 1 when the distance equals rho and 0 otherwise.
+The integrated affinity of a candidate pair is
+T(a, b) = sum_m w_m(a) exp(-max(D_m(a, b) - rho_m(a), 0) / b_m(a)). The
+integrated kNN keeps the top \code{integrated_k} by T (ties by cell order); its
+edges carry \code{distance = sqrt(min(max((1 - T) / 2, 0), 1))},
+\code{weight = 1 / (1 + distance)} and \code{affinity = T}.
+}
+\seealso{
+\code{\link[=runIntegratedUMAP]{runIntegratedUMAP()}}; with \code{graph = "knn"}, cluster with
+\code{doLeidenCluster(feat_type = feat_types[1], nn_network_to_use = "kNN", network_name = "integrated_kNN")}, or on the sNN made with
+\code{integrated_snn = "giotto"}.
 }
