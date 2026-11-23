@@ -62,3 +62,21 @@ test_that("runNeighborhoodPCA stores a dimObj and records its param", {
     h <- g@parameters[[length(g@parameters)]]
     expect_s4_class(attr(h, "attachments")$param, "neighborhoodPCAParam")
 })
+
+test_that("the AGF (gradient) block matches the Banksy package", {
+    skip_if_not_installed("Banksy")
+    skip_if_not_installed("SpatialExperiment")
+    se <- SpatialExperiment::SpatialExperiment(assays = list(e = x),
+        spatialCoords = locs)
+    se <- Banksy::computeBanksy(se, assay_name = "e", k_geom = c(5, 8),
+        compute_agf = TRUE, verbose = FALSE)
+    h1 <- Giotto:::.neighbor_agf(x, Giotto:::.neighbor_operators(locs, 8L))
+    expect_equal(h1, SummarizedExperiment::assay(se, "H1"),
+        ignore_attr = TRUE)
+    se <- Banksy::runBanksyPCA(se, use_agf = TRUE, lambda = 0.5, npcs = 4,
+        seed = 1)
+    pb <- SingleCellExperiment::reducedDim(se, "PCA_M1_lam0.5")
+    pn <- reduceData(x, neighborhoodPCAParam(lambda = 0.5, k_geom = c(5, 8),
+        npcs = 4, compute_agf = TRUE), spatial_locs = locs)$u
+    expect_equal(abs(diag(stats::cor(pb, pn))), rep(1, 4), tolerance = 1e-6)
+})

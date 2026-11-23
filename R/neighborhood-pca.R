@@ -24,14 +24,24 @@ NULL
 #' `k_geom` neighbours, normalized to sum to one per cell, as in the
 #' \pkg{Banksy} package.
 #'
-#' This is a reimplementation of BANKSY's neighbourhood embedding, without
-#' its azimuthal Gabor filter (gradient) features. **If you use it, please
+#' With `compute_agf = TRUE` a third block adds BANKSY's azimuthal Gabor
+#' filter (AGF): the magnitude of \eqn{\sum_i w_{ji} e^{i\phi_{ji}}
+#' (x_i - \bar{x}_j)}, the gradient of the neighbourhood around cell
+#' \eqn{j} (\eqn{\phi} the angle to neighbour \eqn{i}, \eqn{\bar{x}_j} the
+#' mean of its neighbours), and \eqn{\lambda} is split over the blocks as
+#' \eqn{\sqrt{1 - \lambda}}, \eqn{\sqrt{2\lambda/3}} and
+#' \eqn{\sqrt{\lambda/3}}, as in \pkg{Banksy}.
+#'
+#' This is a reimplementation of BANKSY's embedding. **If you use it, please
 #' cite the original paper** (see References).
 #' `GiottoConnect::runBanksy()` runs the original \pkg{Banksy} package.
 #' @param lambda numeric in `[0, 1]`, the weight of the neighbourhood. About
 #'   0.2 refines cell types with their surroundings; about 0.8 finds spatial
 #'   domains.
-#' @param k_geom integer, number of spatial neighbours
+#' @param k_geom integer, number of spatial neighbours; with
+#'   `compute_agf = TRUE` one value, or two (neighbours for the mean and for
+#'   the gradient)
+#' @param compute_agf logical, add the AGF (gradient) block
 #' @param npcs integer, number of principal components
 #' @param absolute logical. Take the absolute value of the neighbour means,
 #'   as \pkg{Banksy} 1.6 does. This makes no difference for non-negative
@@ -49,9 +59,11 @@ NULL
 #' @md
 #' @export
 neighborhoodPCAParam <- function(lambda = 0.2, k_geom = 15L, npcs = 20L,
-    absolute = FALSE, seed = 1234L) {
+    compute_agf = FALSE, absolute = FALSE, seed = 1234L) {
     checkmate::assert_number(lambda, lower = 0, upper = 1)
-    checkmate::assert_count(k_geom, positive = TRUE)
+    checkmate::assert_integerish(k_geom, lower = 1, any.missing = FALSE,
+        min.len = 1L, max.len = 2L)
+    checkmate::assert_flag(compute_agf)
     checkmate::assert_count(npcs, positive = TRUE)
     checkmate::assert_flag(absolute)
     checkmate::assert_count(seed)
@@ -59,6 +71,7 @@ neighborhoodPCAParam <- function(lambda = 0.2, k_geom = 15L, npcs = 20L,
     p$lambda <- lambda
     p$k_geom <- as.integer(k_geom)
     p$npcs <- as.integer(npcs)
+    p$compute_agf <- compute_agf
     p$absolute <- absolute
     p$seed <- as.integer(seed)
     p
@@ -93,25 +106,37 @@ setMethod("reduceData",
             stop("[neighborhoodPCAParam] some cells have no spatial location",
                 call. = FALSE)
         }
-        w <- .neighbor_weight_matrix(locs, param$k_geom)
+        k0 <- param$k_geom[1L]
         x <- as.matrix(x)
-        nbr <- as.matrix(x %*% Matrix::t(w))
+        ops <- .neighbor_operators(locs, k0)
+        nbr <- as.matrix(x %*% Matrix::t(ops$w))
         if (isTRUE(param$absolute)) nbr <- abs(nbr)
         rownames(nbr) <- paste0(rownames(x), "_H0")
-        joint <- rbind(
-            sqrt(1 - param$lambda) * .scale_rows(x),
-            sqrt(param$lambda) * .scale_rows(nbr)
-        )
+        lam <- c(1 - param$lambda, param$lambda)
+        blocks <- list(x, nbr)
+        if (isTRUE(param$compute_agf)) {
+            k1 <- param$k_geom[length(param$k_geom)]
+            if (k1 != k0) ops <- .neighbor_operators(locs, k1)
+            agf <- .neighbor_agf(x, ops)
+            rownames(agf) <- paste0(rownames(x), "_H1")
+            blocks <- c(blocks, list(agf))
+            # Banksy's getLambdas(): harmonic m weighs lambda * 2^-m, rescaled
+            lam <- c(1 - param$lambda, param$lambda * c(2, 1) / 3)
+        }
+        joint <- do.call(rbind, Map(function(l, b) sqrt(l) * .scale_rows(b),
+            lam, blocks))
         joint <- joint[MatrixGenerics::rowSds(joint) != 0, , drop = FALSE]
         reduceData(joint, pcaParam("irlba", ncp = param$npcs, center = TRUE,
             scale = FALSE, seed_number = param$seed))
     }
 )
 
-# Row-normalized cells x cells weights of each cell's k nearest spatial
-# neighbours (itself excluded): exp(-d^2 / median(d)^2) per cell, as
-# Banksy's "kNN_median" mode. Row j holds the weights of j's neighbours.
-.neighbor_weight_matrix <- function(locs, k) {
+# Neighbour operators of each cell's k nearest spatial neighbours (itself
+# excluded), cells x cells, row j for cell j:
+# w   weights exp(-d^2 / median(d)^2) normalized per cell (Banksy kNN_median)
+# wc, ws  w * cos(phi), w * sin(phi), phi the angle from j to the neighbour
+# a   1 / k: the plain neighbour mean (Banksy's fscale() centring)
+.neighbor_operators <- function(locs, k) {
     distance <- from <- weight <- NULL # NSE
     ids <- rownames(locs)
     e <- GiottoClass::createNetwork(locs, GiottoClass::kNNNetworkParam(
@@ -119,10 +144,27 @@ setMethod("reduceData",
     e[, weight := exp(-distance^2 / stats::median(distance)^2), by = from]
     e[!is.finite(weight), weight := 1] # all neighbours at distance 0
     e[, weight := weight / sum(weight), by = from]
-    Matrix::sparseMatrix(
-        i = match(e$from, ids), j = match(e$to, ids), x = e$weight,
-        dims = c(length(ids), length(ids)), dimnames = list(ids, ids)
-    )
+    i <- match(e$from, ids)
+    j <- match(e$to, ids)
+    phi <- atan2(locs[j, 2] - locs[i, 2], locs[j, 1] - locs[i, 1])
+    n <- length(ids)
+    sp <- function(v) Matrix::sparseMatrix(i = i, j = j, x = v,
+        dims = c(n, n), dimnames = list(ids, ids))
+    list(w = sp(e$weight), wc = sp(e$weight * cos(phi)),
+        ws = sp(e$weight * sin(phi)), a = sp(rep(1 / k, length(i))))
+}
+
+.neighbor_weight_matrix <- function(locs, k) .neighbor_operators(locs, k)$w
+
+# |sum_i w_ji exp(i phi_ji) (x_i - mean of j's neighbours)| per feature, as
+# Banksy's harmonic m = 1 with centring; features x cells
+.neighbor_agf <- function(x, ops) {
+    m <- as.matrix(x %*% Matrix::t(ops$a))
+    re <- as.matrix(x %*% Matrix::t(ops$wc)) -
+        sweep(m, 2L, Matrix::rowSums(ops$wc), "*")
+    im <- as.matrix(x %*% Matrix::t(ops$ws)) -
+        sweep(m, 2L, Matrix::rowSums(ops$ws), "*")
+    sqrt(re^2 + im^2)
 }
 
 # z-score each row (feature) across columns (cells), sample SD; constant rows
@@ -148,9 +190,9 @@ setMethod("reduceData",
 #' [createNearestNetwork()] and [doLeidenCluster()] (`lambda` about 0.8 for
 #' spatial domains, about 0.2 for neighbourhood-aware cell types).
 #'
-#' This reimplements BANKSY's neighbourhood embedding without its gradient
-#' features. **If you use it, please cite the original paper** (see
-#' References). `GiottoConnect::runBanksy()` runs the original \pkg{Banksy}
+#' This reimplements BANKSY's embedding, including its gradient (AGF)
+#' features with `compute_agf = TRUE`. **If you use it, please cite the
+#' original paper** (see References). `GiottoConnect::runBanksy()` runs the original \pkg{Banksy}
 #' package.
 #' @param gobject giotto object
 #' @param spat_unit spatial unit
@@ -165,7 +207,8 @@ setMethod("reduceData",
 #' @param dim_reduction_to_use,dim_reduction_name,dimensions_to_use the
 #'   embedding to use with `input = "dim_reduction"`
 #' @param spat_loc_name name of the spatial locations
-#' @param lambda,k_geom,npcs,absolute,seed see [neighborhoodPCAParam()]
+#' @param lambda,k_geom,npcs,compute_agf,absolute,seed see
+#'   [neighborhoodPCAParam()]
 #' @param name name of the stored dimension reduction (reduction method
 #'   `"neighborhood_pca"`)
 #' @param verbose be verbose
@@ -198,6 +241,7 @@ runNeighborhoodPCA <- function(
         lambda = 0.2,
         k_geom = 15L,
         npcs = 20L,
+        compute_agf = FALSE,
         absolute = FALSE,
         seed = 1234L,
         name = "neighborhood_pca",
@@ -206,7 +250,8 @@ runNeighborhoodPCA <- function(
     input <- match.arg(input)
     checkmate::assert_string(name)
     param <- neighborhoodPCAParam(lambda = lambda, k_geom = k_geom,
-        npcs = npcs, absolute = absolute, seed = seed)
+        npcs = npcs, compute_agf = compute_agf, absolute = absolute,
+        seed = seed)
     spat_unit <- set_default_spat_unit(
         gobject = gobject, spat_unit = spat_unit
     )
