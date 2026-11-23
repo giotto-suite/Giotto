@@ -21,6 +21,36 @@ Requires GiottoClass 0.8.0.
   on its row and column names.
 
 ## new
+- `runBlockPCA()` integrates two or more feature types by block-weighted PCs:
+  each feature type's PCs are scaled to unit total variance, weighted (equally
+  by default), concatenated and rotated to their principal axes. Linear in the
+  number of cells, so it runs on whole slides and on GiottoDisk-backed
+  objects. The joint embedding is stored under every integrated feature type
+  (reduction method `"blockpca"`), and its integrated kNN, with an optional
+  sNN, under the first, with the same arguments as `runWNN()`
+  (`integrated_k`, `integrated_network_name`, `integrated_snn`, ...): cluster
+  on the sNN and embed with `runIntegratedUMAP(graph = "knn")`, as for WNN.
+- `runWNN()` and `runIntegratedUMAP()` gain `graph`. `"dense"` (default)
+  runs their code of Giotto 4.3.6 unchanged: the same weights, N x N
+  `theta_weighted_matrix`, integrated kNN and UMAP; from 20,000 cells a
+  message gives the size of its N x N matrices. `"knn"` computes the method
+  of the WNN paper (Hao et al. 2021) on k-nearest-neighbor lists only
+  (memory O(N knn_range), time linear in N), so it runs on whole slides and
+  on GiottoDisk-backed objects, for two or more feature types: `runWNN()`
+  builds the integrated kNN (`integrated_kNN`, `integrated_k` neighbors)
+  that `runIntegratedUMAP(graph = "knn")` embeds directly. Its options:
+  `l2_norm`, per-feature-type `dimensions_to_use` and `network_names`,
+  `engine = "hnsw"`, `integrated_snn` (a shared nearest neighbor network of
+  the integrated kNN for clustering: `"giotto"` as
+  `createNearestNetwork(type = "sNN")` builds it, or `"jaccard"`),
+  `add_to_metadata` (the weights as cell metadata) and `matrix_result_name`
+  (the affinity restricted to the integrated kNN as a sparse matrix). Scores
+  are capped and the softmax is computed in log-sum-exp form, so no weight
+  is `NaN`. Arguments of the other `graph` are ignored with a warning.
+- `runWNN()` `reduction_names` defaults to the stored
+  `"<feat_type>.<method>"` embedding, else `"<method>"`, so both the earlier
+  default (`"rna.pca"`) and the names `runPCA()` gives (`"pca"`,
+  `"protein.pca"`) are found.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and
@@ -31,6 +61,8 @@ Requires GiottoClass 0.8.0.
   `backend =`. Its output is unchanged.
 
 ## changes
+- `runWNN(graph = "knn")` stops on embeddings with NA or infinite values, and
+  on a feature type with one dimension with `l2_norm = TRUE`.
 - `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
   (Space Ranger >= 2) when the spatial folder also holds other
   `tissue_positions*` files, and falls back to the `.h5` when the matrix
@@ -51,6 +83,11 @@ Requires GiottoClass 0.8.0.
 ## bug fixes
 - `read10xAffineImage()` placed images wrongly when the 10x alignment matrix
   has shear or unequal scale; rotations and uniform scale were unaffected.
+- `runWNN()` stores the second weight as `w_<feat_type>`; it was stored
+  under the name `NA`.
+- `runIntegratedUMAP()` stops after `subsetGiotto()` instead of embedding the
+  integrated kNN of the cells before the subset; rerun `runWNN()` or
+  `runBlockPCA()`.
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the
