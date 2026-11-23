@@ -224,7 +224,9 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @description
 #' One command for spatial domains, with two native methods:
 #' * `"neighborhood"`: the BANKSY embedding ([runNeighborhoodPCA()], Singhal
-#'   et al. 2024) at `lambda`, clustered by Leiden on an sNN network;
+#'   et al. 2024) at `lambda`, clustered by Leiden on an sNN network of all
+#'   its PCs, with the defaults of `GiottoConnect::runBanksy()` so the
+#'   native and original BANKSY can be compared directly;
 #' * `"hmrf"`: the hidden Markov random field ([runHMRF()], Zhu et al. 2018).
 #'
 #' **If you use them, please cite the original papers** (see the pages of
@@ -238,6 +240,9 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @param beta spatial prior strength (`"hmrf"`)
 #' @param lambda neighbourhood weight (`"neighborhood"`)
 #' @param resolution Leiden resolution (`"neighborhood"`)
+#' @param k_neighbors neighbours of the sNN network on all PCs
+#'   (`"neighborhood"`)
+#' @param seed Leiden seed (`"neighborhood"`)
 #' @param name name of the cell metadata column with the domains
 #' @param ... passed to [runNeighborhoodPCA()] or [runHMRF()] (named
 #'   arguments of [neighborhoodPCAParam()] or [hmrfParam()])
@@ -254,7 +259,8 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @export
 findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
     spat_unit = NULL, feat_type = NULL, feats_to_use = "hvf", k = 10L,
-    beta = 2, lambda = 0.8, resolution = 0.8, name = "spatial_domain", ...) {
+    beta = 2, lambda = 0.8, resolution = 0.8, k_neighbors = 30L,
+    seed = 1234L, name = "spatial_domain", ...) {
     method <- match.arg(method)
     spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
     feat_type <- set_default_feat_type(gobject = gobject,
@@ -267,14 +273,18 @@ findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
         gobject <- quiet(runNeighborhoodPCA(gobject, spat_unit = spat_unit,
             feat_type = feat_type, feats_to_use = feats_to_use,
             lambda = lambda, name = name, ...))
-        gobject <- createNearestNetwork(gobject, spat_unit = spat_unit,
+        n_pcs <- ncol(getDimReduction(gobject, spat_unit = spat_unit,
+            feat_type = feat_type, reduction_method = "neighborhood_pca",
+            name = name, output = "matrix"))
+        gobject <- quiet(createNearestNetwork(gobject, spat_unit = spat_unit,
             feat_type = feat_type, type = "sNN",
             dim_reduction_to_use = "neighborhood_pca",
-            dim_reduction_name = name, name = name, verbose = FALSE)
+            dim_reduction_name = name, dimensions_to_use = seq_len(n_pcs),
+            k = k_neighbors, name = name, verbose = FALSE))
         gobject <- quiet(doLeidenCluster(gobject, spat_unit = spat_unit,
             feat_type = feat_type, nn_network_to_use = "sNN",
             network_name = name, name = name, resolution = resolution,
-            n_iterations = -1))
+            n_iterations = -1, seed_number = seed))
         return(update_giotto_params(gobject, description = "_spatial_domains",
             attachments = list(param = param)))
     }

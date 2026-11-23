@@ -14,6 +14,8 @@ findSpatialDomains(
   beta = 2,
   lambda = 0.8,
   resolution = 0.8,
+  k_neighbors = 30L,
+  seed = 1234L,
   name = "spatial_domain",
   ...
 )
@@ -36,6 +38,11 @@ metadata column such as \code{"hvf"})}
 
 \item{resolution}{Leiden resolution (\code{"neighborhood"})}
 
+\item{k_neighbors}{neighbours of the sNN network on all PCs
+(\code{"neighborhood"})}
+
+\item{seed}{Leiden seed (\code{"neighborhood"})}
+
 \item{name}{name of the cell metadata column with the domains}
 
 \item{...}{passed to \code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}} or \code{\link[=runHMRF]{runHMRF()}} (named
@@ -48,7 +55,9 @@ The giotto object with the domains in cell metadata \code{name}.
 One command for spatial domains, with two native methods:
 \itemize{
 \item \code{"neighborhood"}: the BANKSY embedding (\code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}}, Singhal
-et al. 2024) at \code{lambda}, clustered by Leiden on an sNN network;
+et al. 2024) at \code{lambda}, clustered by Leiden on an sNN network of all
+its PCs, with the defaults of \code{GiottoConnect::runBanksy()} so the
+native and original BANKSY can be compared directly;
 \item \code{"hmrf"}: the hidden Markov random field (\code{\link[=runHMRF]{runHMRF()}}, Zhu et al. 2018).
 }
 
