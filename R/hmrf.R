@@ -3,14 +3,13 @@ NULL
 
 # hmrfParam ####
 #
-# Native hidden Markov random field (HMRF) clustering, the model of Zhu et al.
-# 2018 as implemented in smfishHmrf (doHMRF_V2), as a `clusterData()` verb
-# (adr/0008): multivariate Gaussian emissions on z-scored spatial genes, a
-# Potts prior over the spatial network with strength beta, k-means
-# initialisation and EM with iterated conditional modes (ICM) over the colour
-# classes of the network. Each colour class is an independent set, so its ICM
-# update and the neighbour counts are sparse matrix products, which give
-# smfishHmrf's result without its per-cell loops.
+# HMRF spatial domains as a `clusterData()` verb (adr/0008), the sibling of
+# `deconvParam` in deconv-param.R. The algorithm is not in this package: it is
+# the spatialHMRF package (github: drieslab/spatialHMRF), which Giotto
+# suggests, the way deconvolution uses spatialDWLS. Giotto owns the param
+# class, the verb and the gobject plumbing in runHMRF() and
+# findSpatialDomains(); the `clusterData` method below is the only code here
+# that calls the engine.
 
 #' @title HMRF clustering parameters
 #' @name hmrfParam
@@ -23,8 +22,9 @@ NULL
 #' iterated conditional modes over the colour classes of the spatial network,
 #' from a k-means start.
 #'
-#' This is a reimplementation of that model. **If you use it, please cite
-#' the original paper** (see References).
+#' The model is fitted by the \pkg{spatialHMRF} package, a reimplementation
+#' of \pkg{smfishHmrf}. **If you use it, please cite the original paper**
+#' (see References).
 #' @param k integer, number of domains
 #' @param beta numeric, strength of the spatial prior (0: no prior)
 #' @param zscore `"cell"` (default, as [initHMRF_V2()]): z-score each cell
@@ -84,151 +84,42 @@ setClass("hmrfParam", contains = "BlusterParam", slots = list(param = "list"))
 #' @param init optional list with `mu` (features x k), `sigma`
 #'   (features x features x k) and `damp` (length k), e.g. to reuse one start
 #'   for several `beta`
-#' @details `clusterData(x, param, network = )` returns a `data.table` with
+#' @details The computation is done by the \pkg{spatialHMRF} package
+#'   (`spatialHMRF::hmrf()`), which is suggested rather than imported:
+#'   install it with `remotes::install_github("drieslab/spatialHMRF")`.
+#'   `clusterData(x, param, network = )` returns a `data.table` with
 #'   `cell_ID` and `cluster` (integer). Its attributes: `prob` (cells x k
-#'   posterior probabilities), `mu`, `sigma`, `likelihood`, `iterations` and
-#'   `init`.
+#'   posterior probabilities), `mu`, `sigma`, `likelihood`, `iterations`,
+#'   `init` and `blocks`.
 #' @export
 setMethod("clusterData", signature("allMatrix", "hmrfParam"),
     function(x, param, ..., network, blocks = NULL, init = NULL) {
+        .hmrf_engine_check()
         p <- param@param
-        ids <- rownames(x)
-        y <- as.matrix(x)
-        if (identical(p$zscore, "cell")) y <- t(scale(t(y)))
-        y[!is.finite(y)] <- 0
-        adj <- .hmrf_adjacency(network, ids)
-        if (is.null(blocks)) blocks <- .hmrf_blocks(adj)
-        if (is.null(init)) init <- .hmrf_init(y, p)
-        fit <- .hmrf_fit(y, adj, blocks, init, p)
-        res <- data.table::data.table(cell_ID = ids, cluster = fit$class)
-        attr(res, "prob") <- `rownames<-`(fit$prob, ids)
-        for (a in c("mu", "sigma", "likelihood", "iterations")) {
+        fit <- spatialHMRF::hmrf(as.matrix(x), network, k = p$k,
+            beta = p$beta, zscore = p$zscore, init = init, blocks = blocks,
+            nstart = p$nstart, seed = p$seed, maxit = p$maxit, err = p$err,
+            n_icm = p$n_icm, damp_tolerance = p$damp_tolerance,
+            damp_factor = p$damp_factor)
+        res <- data.table::data.table(cell_ID = rownames(x),
+            cluster = fit$class)
+        for (a in c("prob", "mu", "sigma", "likelihood", "iterations",
+            "init", "blocks")) {
             attr(res, a) <- fit[[a]]
         }
-        attr(res, "init") <- init
         res
     }
 )
 
-# symmetric neighbour counts from an edge list of cell IDs
-.hmrf_adjacency <- function(network, ids) {
-    i <- match(as.character(network$from), ids)
-    j <- match(as.character(network$to), ids)
-    keep <- !is.na(i) & !is.na(j) & i != j
-    i <- i[keep]
-    j <- j[keep]
-    n <- length(ids)
-    Matrix::sparseMatrix(i = c(i, j), j = c(j, i), x = 1, dims = c(n, n))
-}
-
-# independent sets: colour classes of a DSatur colouring
-.hmrf_blocks <- function(adj) {
-    g <- igraph::graph_from_adjacency_matrix(adj > 0, mode = "undirected",
-        diag = FALSE)
-    col <- igraph::greedy_vertex_coloring(g, heuristic = "dsatur")
-    lapply(sort(unique(col)), function(cl) which(col == cl))
-}
-
-# k-means start, per-domain covariances and damping (smfishHmrf defaults)
-.hmrf_init <- function(y, p) {
-    if (p$seed > 0) set.seed(p$seed)
-    kk <- stats::kmeans(y, p$k, nstart = p$nstart, iter.max = 100)
-    m <- ncol(y)
-    sigma <- array(0, c(m, m, p$k))
-    damp <- numeric(p$k)
-    for (j in seq_len(p$k)) {
-        sigma[, , j] <- stats::cov(y[kk$cluster == j, , drop = FALSE])
-        d <- .hmrf_damp(sigma[, , j], p$damp_factor, p$damp_tolerance)
-        damp[j] <- if (is.null(d)) 0 else d
-    }
-    list(mu = t(kk$centers), sigma = sigma, damp = damp)
-}
-
-.hmrf_damp <- function(sigma, factor, cutoff, start = 1e-4) {
-    if (det(sigma) >= cutoff) return(NULL)
-    eye <- diag(nrow(sigma))
-    damp <- start
-    if (det(sigma + eye * damp) < cutoff) {
-        repeat {
-            damp <- damp * factor
-            if (det(sigma + eye * damp) > cutoff) break
-        }
-    } else {
-        repeat {
-            damp <- damp / factor
-            if (det(sigma + eye * damp) < cutoff) {
-                damp <- damp * factor
-                break
-            }
-        }
-    }
-    damp
-}
-
-# Gaussian densities of every cell under every domain (clipped as smfishHmrf)
-.hmrf_density <- function(y, mu, sigma, damp) {
-    n <- nrow(y)
-    m <- ncol(y)
-    k <- ncol(mu)
-    den <- matrix(0, n, k)
-    for (j in seq_len(k)) {
-        s <- sigma[, , j] + diag(m) * damp[j]
-        dist <- sweep(y, 2L, mu[, j])
-        e <- -0.5 * rowSums((dist %*% solve(s)) * dist) -
-            ((m / 2) * log(2 * pi) + 0.5 * log(det(s)))
-        den[, j] <- exp(pmin(700, pmax(e, -700)))
-    }
-    den
-}
-
-.hmrf_onehot <- function(cl, k) {
-    z <- matrix(0, length(cl), k)
-    z[cbind(seq_along(cl), cl)] <- 1
-    z
-}
-
-.hmrf_relerr <- function(a, b) max(abs(a - b)) / (1 + max(abs(a), abs(b)))
-
-.hmrf_fit <- function(y, adj, blocks, init, p) {
-    k <- p$k
-    n <- nrow(y)
-    mu <- init$mu
-    sigma <- init$sigma
-    damp <- init$damp
-    z <- .hmrf_onehot(max.col(.hmrf_density(y, mu, sigma, damp)), k)
-    it <- 0L
-    repeat {
-        it <- it + 1L
-        mu_old <- mu
-        sigma_old <- sigma
-        den <- .hmrf_density(y, mu, sigma, damp)
-        logden <- log(den)
-        for (s in seq_len(p$n_icm)) {
-            for (b in blocks) {
-                ni <- as.matrix(adj[b, , drop = FALSE] %*% z)
-                cl <- max.col(logden[b, , drop = FALSE] + p$beta * ni,
-                    ties.method = "first")
-                z[b, ] <- .hmrf_onehot(cl, k)
-            }
-        }
-        nij <- as.matrix(adj %*% z)
-        prob <- den * exp(p$beta * nij)
-        prob <- prob / rowSums(prob)
-        bad <- !is.finite(rowSums(prob))
-        prob[bad, ] <- 1 / k
-        unnorm <- den * exp(pmin(700, pmax(p$beta * nij, -700)))
-        w <- colSums(prob)
-        mu <- crossprod(y, prob) %*% diag(1 / w, k)
-        for (j in seq_len(k)) {
-            dist <- sweep(y, 2L, mu[, j])
-            sigma[, , j] <- crossprod(dist * prob[, j], dist) / w[j]
-        }
-        if ((.hmrf_relerr(mu_old, mu) < p$err &&
-            .hmrf_relerr(sigma_old, sigma) < p$err) || it > p$maxit) break
-    }
-    t_prob <- colMeans(unnorm / rowSums(unnorm))
-    list(class = max.col(prob, "first"), prob = prob, mu = mu, sigma = sigma,
-        likelihood = sum(log(unnorm %*% t_prob)), iterations = it)
+# The engine is suggested, not imported: stop with the install line when it
+# is missing.
+#' @keywords internal
+#' @noRd
+.hmrf_engine_check <- function() {
+    package_check(
+        pkg_name = "spatialHMRF",
+        repository = "github:drieslab/spatialHMRF"
+    )
 }
 
 
@@ -296,12 +187,10 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
         param <- hmrfParam(k = k, beta = b, zscore = zscore, nstart = nstart,
             seed = seed, maxit = maxit, err = err, n_icm = n_icm)
         vmsg(.v = verbose, sprintf("runHMRF: k = %d, beta = %g", k, b))
-        if (is.null(blocks)) {
-            blocks <- .hmrf_blocks(.hmrf_adjacency(net, rownames(x)))
-        }
         res <- clusterData(x, param, network = net, blocks = blocks,
             init = init)
         init <- attr(res, "init")
+        blocks <- attr(res, "blocks")
         key <- sprintf("%s_k%d_b%s", name, k, format(b))
 
         new_meta <- data.table::data.table(cell_ID = res$cell_ID)

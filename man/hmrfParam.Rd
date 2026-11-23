@@ -77,14 +77,18 @@ favours domains shared with spatial neighbours. Fitted by EM with
 iterated conditional modes over the colour classes of the spatial network,
 from a k-means start.
 
-This is a reimplementation of that model. \strong{If you use it, please cite
-the original paper} (see References).
+The model is fitted by the \pkg{spatialHMRF} package, a reimplementation
+of \pkg{smfishHmrf}. \strong{If you use it, please cite the original paper}
+(see References).
 }
 \details{
-`clusterData(x, param, network = )` returns a `data.table` with
+The computation is done by the \pkg{spatialHMRF} package
+  (`spatialHMRF::hmrf()`), which is suggested rather than imported:
+  install it with `remotes::install_github("drieslab/spatialHMRF")`.
+  `clusterData(x, param, network = )` returns a `data.table` with
   `cell_ID` and `cluster` (integer). Its attributes: `prob` (cells x k
-  posterior probabilities), `mu`, `sigma`, `likelihood`, `iterations` and
-  `init`.
+  posterior probabilities), `mu`, `sigma`, `likelihood`, `iterations`,
+  `init` and `blocks`.
 }
 \examples{
 p <- hmrfParam(k = 5, beta = 2)

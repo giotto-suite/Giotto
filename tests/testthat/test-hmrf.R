@@ -1,3 +1,5 @@
+# The HMRF engine and its smfishHmrf equivalence are tested in spatialHMRF;
+# these tests cover Giotto's verb, wrapper and composition.
 options(giotto.has_conda = FALSE, giotto.use_conda = FALSE,
     giotto.no_python_warn = TRUE)
 
@@ -15,56 +17,30 @@ sim_tissue <- function(n = 300, seed = 1) {
 }
 
 test_that("clusterData(hmrfParam) returns one domain per cell", {
+    skip_if_not_installed("spatialHMRF")
     s <- sim_tissue()
     res <- clusterData(s$y, hmrfParam(k = 2, beta = 2, nstart = 10,
         zscore = "none"), network = s$net)
     expect_named(res, c("cell_ID", "cluster"))
     expect_equal(res$cell_ID, rownames(s$y))
     expect_equal(dim(attr(res, "prob")), c(nrow(s$y), 2L))
-    expect_equal(unname(rowSums(attr(res, "prob"))), rep(1, nrow(s$y)))
+    expect_true(is.list(attr(res, "blocks")))
     expect_gt(aricode::ARI(res$cluster, s$dom), 0.9)
 })
 
-test_that("blocks are independent sets covering every cell once", {
+test_that("clusterData(hmrfParam) equals spatialHMRF::hmrf()", {
+    skip_if_not_installed("spatialHMRF")
     s <- sim_tissue()
-    adj <- Giotto:::.hmrf_adjacency(s$net, rownames(s$y))
-    b <- Giotto:::.hmrf_blocks(adj)
-    expect_setequal(unlist(b), seq_len(nrow(s$y)))
-    for (bl in b) expect_equal(sum(adj[bl, bl]), 0)
-})
-
-test_that("cells without neighbours are handled", {
-    s <- sim_tissue()
-    net <- s$net[s$net$from != "c1" & s$net$to != "c1", ]
-    res <- clusterData(s$y, hmrfParam(k = 2, beta = 2, nstart = 5,
-        zscore = "none"), network = net)
-    expect_false(anyNA(res$cluster))
-})
-
-test_that("matches smfishHmrf on identical inputs", {
-    skip_if_not_installed("smfishHmrf")
-    s <- sim_tissue()
-    ids <- rownames(s$y)
-    adj <- Giotto:::.hmrf_adjacency(s$net, ids)
-    blocks <- Giotto:::.hmrf_blocks(adj)
-    p <- hmrfParam(k = 2, beta = 2, nstart = 10, zscore = "none")@param
-    init <- Giotto:::.hmrf_init(s$y, p)
-    nb <- split(c(s$net$to, s$net$from), c(s$net$from, s$net$to))[ids]
-    nl <- lapply(nb, function(v) sort(match(v, ids)))
-    numnei <- lengths(nl)
-    nei <- matrix(-1L, length(ids), max(numnei))
-    for (i in seq_along(ids)) nei[i, seq_len(numnei[i])] <- nl[[i]]
-    ref <- smfishHmrf::smfishHmrf.hmrfem.multi(y = s$y, neighbors = nei,
-        beta = 2, numnei = as.integer(numnei), blocks = blocks,
-        mu = init$mu, sigma = init$sigma, verbose = FALSE, err = 1e-7,
-        maxit = 50, dampFactor = init$damp)
-    nat <- Giotto:::.hmrf_fit(s$y, adj, blocks, init, p)
-    expect_identical(as.integer(nat$class), as.integer(ref$class))
-    expect_equal(nat$prob, ref$prob, tolerance = 1e-10, ignore_attr = TRUE)
-    expect_equal(nat$likelihood, ref$likelihood, tolerance = 1e-10)
+    res <- clusterData(s$y, hmrfParam(k = 2, beta = 2, nstart = 10,
+        zscore = "none"), network = s$net)
+    fit <- spatialHMRF::hmrf(s$y, s$net, k = 2, beta = 2, zscore = "none",
+        nstart = 10)
+    expect_identical(res$cluster, fit$class)
+    expect_equal(attr(res, "prob"), fit$prob)
 })
 
 test_that("runHMRF stores domains, probabilities and its param", {
+    skip_if_not_installed("spatialHMRF")
     skip_if_not_installed("GiottoData")
     g <- GiottoData::loadGiottoMini("visium")
     g <- runHMRF(g, feats_to_use = "hvf", k = 4, betas = c(0, 2),
