@@ -454,18 +454,9 @@ calculateHVF <- function(
 
 
     # print, return and save parameters
-    show_plot <- ifelse(is.na(show_plot),
-        instructions(gobject, "show_plot"),
-        show_plot
-    )
-    save_plot <- ifelse(is.na(save_plot),
-        instructions(gobject, "save_plot"),
-        save_plot
-    )
-    return_plot <- ifelse(is.na(return_plot),
-        instructions(gobject, "return_plot"),
-        return_plot
-    )
+    if (is.null(show_plot) || is.na(show_plot)) show_plot <- instructions(gobject, "show_plot")
+    if (is.null(save_plot) || is.na(save_plot)) save_plot <- instructions(gobject, "save_plot")
+    if (is.null(return_plot) || is.na(return_plot)) return_plot <- instructions(gobject, "return_plot")
 
 
     # `method` is already resolved above, where it selects the input values.
@@ -528,8 +519,8 @@ calculateHVF <- function(
     if (want_plot) {
         if (method == "var_p_resid") {
             # ggplot holds a reference to the data, and data.table's `:=`
-            # edits in place -- dropping `rank` after the fact would strip it
-            # back out of the plot. Hand the plot its own copy.
+            # edits in place -- dropping a plot column after the fact would
+            # strip it back out of the plot. Each plot gets its own copy.
             feat_in_cells_detected[, rank := seq_len(.N)]
             pl <- .create_calc_var_hvf_plot(
                 data.table::copy(feat_in_cells_detected),
@@ -553,7 +544,7 @@ calculateHVF <- function(
                 include.lowest = TRUE
             )]
             pl <- .create_cov_group_hvf_plot(
-                feat_in_cells_detected, nr_expression_groups
+                data.table::copy(feat_in_cells_detected), nr_expression_groups
             )
             feat_in_cells_detected[, expr_groups := NULL]
         } else if (method == "cov_loess") {
@@ -563,7 +554,8 @@ calculateHVF <- function(
                 loess_model, newdata = feat_in_cells_detected
             )]
             pl <- .create_cov_loess_hvf_plot(
-                feat_in_cells_detected, difference_in_cov, var_col = "cov"
+                data.table::copy(feat_in_cells_detected), difference_in_cov,
+                var_col = "cov"
             )
             feat_in_cells_detected[, pred_cov_feats := NULL]
         }
