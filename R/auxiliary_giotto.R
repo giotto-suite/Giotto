@@ -814,7 +814,30 @@ addFeatsPerc <- function(gobject,
     stats <- match.arg(
         tolower(stats), choices = stat_choices, several.ok = TRUE
     )
-    
+
+    # A multi holds no polygons; each sample owns its own. Compute per sample
+    # in local IDs, then namespace them as `sample::cell_ID` to join onto the
+    # multi's cell metadata.
+    if (inherits(gobject, "giottoMulti")) {
+        res_dt <- data.table::rbindlist(lapply(names(gobject), function(s) {
+            dt <- .add_poly_statistics(gobject[[s]],
+                spat_unit = spat_unit, stats = stats,
+                return_gobject = FALSE, ...
+            )
+            dt[, cell_ID := paste0(s, "::", cell_ID)]
+        }), fill = TRUE)
+        res_dt <- res_dt[cell_ID %in% spatIDs(gobject, spat_unit = spat_unit)]
+        if (!isTRUE(return_gobject)) return(res_dt)
+        if (ncol(res_dt) > 1L) {
+            gobject <- addCellMetadata(gobject,
+                new_metadata = res_dt,
+                by_column = TRUE,
+                column_cell_ID = "cell_ID"
+            )
+        }
+        return(gobject)
+    }
+
     poly_list <- gobject[["spatial_info", spat_unit]]
     if (length(poly_list) > 0L) {
         gpoly <- poly_list[[1L]] # extract from list
