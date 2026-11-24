@@ -18,6 +18,5 @@ dependencies:
     - deepcell
     - stardist
     - python-louvain
-    - smfishHmrf
     - git+https://github.com/wwang-chcn/bento-tools.git@giotto_install
 
