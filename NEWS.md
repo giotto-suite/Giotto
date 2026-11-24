@@ -6,6 +6,13 @@ Requires GiottoClass 0.8.0.
 - `spatialDE()` and `spatialAEH()` are removed, together with the `"spatialDE"`
   method of `runPatternSimulation()`. Use `binSpect()` or `spark()` for
   spatially variable features.
+- The legacy HMRF workflow is removed: `doHMRF()`, `initHMRF_V2()`,
+  `doHMRF_V2()`, `addHMRF()`, `addHMRF_V2()`, `loadHMRF()`,
+  `writeHMRFresults()`, `viewHMRFresults()` (and its `_V2`, `2D`, `3D`
+  variants) and the spatial gene selectors `filterSpatialGenes()`,
+  `chooseAvailableSpatialGenes()`, `checkAndFixSpatialGenes()`. Use
+  `runHMRF()`, which needs neither Python nor smfishHmrf, graphcoloring or
+  tidygraph.
 
 ## new
 - `findInteractionChangedFeats()` (edgeicg) gains `region_column`: a cell metadata
