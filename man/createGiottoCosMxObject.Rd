@@ -16,15 +16,24 @@ createGiottoCosMxObject(
   load_cellmeta = TRUE,
   load_transcripts = TRUE,
   poly_pref = "mask",
+  poly_read_fun = NULL,
+  meta_cols = NULL,
   image_negative_y = NULL,
+  protein_dir = NULL,
+  load_protein = NULL,
+  protein_feat_type = c("protein", "protein_neg"),
+  keep_cells = "intersect",
   fov_shifts_path = NULL,
   transcript_path = NULL,
   cell_labels_dir = NULL,
   expression_path = NULL,
   metadata_path = NULL,
+  protein_expression_path = NULL,
+  protein_metadata_path = NULL,
   cores = determine_cores(),
   verbose = NULL,
   instructions = NULL,
+  backend = NULL,
   remove_unvalid_polygons = deprecated(),
   data_to_use = deprecated(),
   remove_background_polygon = deprecated(),
@@ -68,10 +77,36 @@ transcript detections}
 \item{poly_pref}{character. "mask" or "csv". Determines whether to load in
 the polygons from the mask images (default) or the csv polygons file.}
 
+\item{poly_read_fun}{Optional function applied to the polygons file as it is
+read, for repairing a vendor export in flight. Requires a \code{backend}: the
+in-memory reader has no polygon read hook.}
+
+\item{meta_cols}{Optional. With a \code{backend}, the cell metadata columns to
+load (default of the disk reader: \code{fov}, \code{Area.um2}, \code{nCount_RNA},
+\code{nFeature_RNA}). The in-memory reader loads every column, so it is ignored
+there with a warning.}
+
 \item{image_negative_y}{Optional logical. Whether images are assumed to map
 to positive or negative y values before fov shifts are applied. Affects
 images (and polygons generated from masks). This overrides any settings from
 selecting \code{version}.}
+
+\item{protein_dir}{Optional. Directory of the protein flat files of a CosMx
+RNA + protein run (\code{exprMat_file}, \code{metadata_file}, \verb{plex-*.txt}). See
+details and \code{\link[=importCosMx]{importCosMx()}}.}
+
+\item{load_protein}{logical. Whether to load the protein expression.
+Default (\code{NULL}): \code{TRUE} when a protein \code{exprMat_file} is found or given.}
+
+\item{protein_feat_type}{character. Feature types of the protein targets
+and of the isotype controls. Default \code{c("protein", "protein_neg")}; one
+name keeps the isotypes with the targets.}
+
+\item{keep_cells}{character. Which cells to keep when protein is loaded.
+\code{"intersect"} (only option): cells in the RNA export, protein expression
+and a polygon. The RNA cells are those of the RNA matrix, or, when RNA is
+loaded only as transcripts, those of the RNA cell metadata; with neither,
+every protein cell with a polygon is kept.}
 
 \item{fov_shifts_path}{Optional. Filepath to fov_positions_file}
 
@@ -85,12 +120,22 @@ images to load as polygons.}
 
 \item{metadata_path}{Optional. Filepath to metadata file to load.}
 
+\item{protein_expression_path, protein_metadata_path}{Optional. Filepaths
+to the protein expression matrix and metadata, when they are not in
+\code{protein_dir}.}
+
 \item{cores}{nthreads to use when loading in cell metadata and transcripts}
 
 \item{verbose}{be verbose when building Giotto object}
 
 \item{instructions}{list of instructions or output result
 from \code{\link[GiottoClass]{createGiottoInstructions}}}
+
+\item{backend}{(optional) a \code{gsource}-inheriting project backend (typically
+produced by \code{GiottoDisk::sourceCreate()}). When provided, the \code{giotto}
+object is created as a managed on-disk project; see \code{\link[=importCosMx]{importCosMx()}}.
+Polygons are then read from the \code{polygons.csv} file (\code{poly_pref = "csv"});
+mask polygons (\code{CellLabels}) are not supported on this path.}
 
 \item{remove_unvalid_polygons}{deprecated. Now always done}
 
@@ -161,6 +206,26 @@ polygons preferably should not overlap each other. Giotto is not fully
 compatible with overlapping annotations. It also opens up the possibility
 of double counting transcripts. Polygon overlaps do not appear to be an
 issue in the most recent outputs.
+
+[\strong{Protein (RNA + protein runs)}] With \code{protein_dir}, the protein
+exprMat is loaded as two feature types: the targets (\code{"protein"}) and the
+isotype controls (\code{"protein_neg"}, \code{CodeClass} "Negative" in the plex file).
+Values are the vendor's per-cell mean intensities, stored unchanged as
+\code{"raw"}; the \verb{Channel-*} morphology columns are not loaded (they repeat the
+metadata \verb{Mean.*} columns). Cells are matched across modalities
+(\code{keep_cells = "intersect"}): only cells in the RNA export (see
+\code{keep_cells}), protein expression and a polygon are kept, every feature
+type in the same cell order, and a warning gives the number dropped per
+reason. Protein
+metadata goes to feature type \code{"protein"}: the vendor protein file reuses
+RNA column names for protein totals, so they are renamed
+(\code{nCount_RNA} -> \code{nCount_protein}, which is the sum of the targets and the
+\verb{Channel-*} columns; \code{nFeature_RNA} -> \code{nFeature_protein};
+\code{nCount_negprobes} -> \code{nCount_protein_neg}, the isotype sum;
+\code{nFeature_negprobes} -> \code{nFeature_protein_neg}; \code{Panel} ->
+\code{Panel_protein}; \code{assay_type} -> \code{assay_type_protein}), plus \code{Area.um2}
+and \code{fov}. Protein feature names can equal RNA gene names (\code{CD68}): pass
+\code{feat_type = "protein"} to downstream functions.
 
 [\strong{Spatial Alignment Issues}] Different versions of the CosMx output have
 changed how images (and polygons generated from masks) should be aligned

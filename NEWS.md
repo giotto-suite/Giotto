@@ -1,4 +1,59 @@
-# Giotto 4.3.6 (in development)
+# Giotto 4.3.7 (in development)
+
+Requires GiottoClass 0.8.0.
+
+## new
+- `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
+  `createGiottoCosMxObject(backend =)` creates the `giotto` object as a
+  managed on-disk project from the same arguments: polygons from the
+  `polygons.csv`, the expression matrix, cell metadata, transcripts and
+  images. `poly_read_fun` repairs a vendor polygon export as it is read; it
+  needs a `backend`.
+- `importCosMx()` / `createGiottoCosMxObject()` read CosMx RNA + protein
+  (multiomic) runs: `protein_dir` points to the protein flat files. Targets
+  become feature type `"protein"`, the isotype controls (`CodeClass`
+  "Negative" in the plex file) `"protein_neg"`; the `Channel-*` columns are
+  not loaded. `keep_cells = "intersect"` keeps the cells with RNA expression,
+  protein expression and a polygon, every feature type in one cell order, and
+  warns with the number dropped per reason. Protein metadata goes to feature
+  type `"protein"` under protein names (`nCount_protein`, ...). With
+  `backend`, the protein arguments are passed to GiottoDisk, which must be
+  reinstalled after this version to use `protein_dir`.
+- `createGiottoCosMxObject()` gains `meta_cols`: with a `backend`, the cell
+  metadata columns to load (ignored with a warning without one).
+
+## changes
+- The CosMx reader reads the exprMat in batches of lines and parses only the
+  rows of the requested `fovs`, so memory follows the selected cells instead
+  of the whole slide (reading the 9-FOV breast subset: 3.0 instead of 7.3 GB).
+  In-memory transcripts and polygons with `FOVs` are read the same way (one
+  FOV of a 3.8 GB transcript file: 7.2 GB before).
+- The in-memory CosMx reader stores `fov` as an integer, as the vendor files,
+  the MERSCOPE reader and the GiottoDisk CosMx reader do (it was text).
+- The in-memory CosMx reader leaves out a cell with NA values in an exprMat
+  as a cell missing from that matrix, with a warning naming it.
+
+## bug fixes
+- CosMx images and label masks of AtoMx exports, whose file names pad the
+  FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
+  ("No images found matching fov [F033]"). The digits are now read from the
+  files, so both these and the three-digit names of older exports load
+  without setting `file_fov_fmt`.
+- CosMx csv polygons with `FOVs` failed on exports that write a coordinate as
+  `1e+05` ("CSV conversion error to int32"); the column types now come from
+  the header.
+- `createGiottoCosMxObject()` in memory matches the RNA cells to the
+  polygons: polygons of cells without expression (e.g. from the CellLabels
+  masks) were kept, so the object failed GiottoClass's ID check later. A
+  warning names the cells left out.
+- CosMx expression splits: a split keyword that matches no feature no longer
+  leaves an empty feature type, and splits that match a single feature (or a
+  single cell) stay matrices.
+- A non-numeric value in a CosMx exprMat stops with the file and column
+  instead of an internal Matrix error; a CosMx load with neither expression
+  nor transcripts stops with a clear message.
+
+# Giotto 4.3.6
 
 Requires GiottoClass 0.8.0.
 

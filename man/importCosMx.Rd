@@ -10,7 +10,10 @@ importCosMx(
   fovs = NULL,
   micron = FALSE,
   px2um = 0.12028,
-  poly_pref = "mask"
+  poly_pref = "mask",
+  version = "default",
+  backend = NULL,
+  protein_dir = NULL
 )
 }
 \arguments{
@@ -30,9 +33,23 @@ based on `CosMx-ReadMe.html` info. May be different depending on dataset.}
 \item{poly_pref}{character. Either "csv" (default) or "mask". Which format of
 data to load as polygon info. "csv" will use vector polygons from the
 `polygons.csv`. "mask" will load the mask images from `CellLabels` directory.}
+
+\item{version}{character. Version of CosMx output. Current selections are
+either "default", "v6", and "legacy" (for the NSCLC dataset).}
+
+\item{backend}{(optional) a `gsource`-inheriting project backend (typically
+produced by `GiottoDisk::sourceCreate()`). When provided, creates the
+`giotto` object as a managed on-disk project.}
+
+\item{protein_dir}{(optional) directory of the protein flat files of a
+CosMx RNA + protein (multiomic) run: `exprMat_file`, `metadata_file` and
+the `plex-*.txt` panel file. Kept apart from `cosmx_dir` because the two
+exports use the same file names. Adds a `load_protein()` function and the
+protein arguments of `create_gobject()`. With `backend`, it is passed to
+`GiottoDisk::importCosMxDisk()`.}
 }
 \value{
-CosmxReader object
+`CosmxReader` object, or `CosMxDiskReader` when `backend` is set
 }
 \description{
 Giotto import functionalities for CosMx datasets. This function generates
@@ -50,6 +67,14 @@ Transcripts, expression, and metadata loading are all expected to be done
 from the top level of the directory. Loading of polys, and any image sets
 are expected to be from specific subdirectories containing only those
 images for the set of FOVs.
+
+\[**Protein**\] `load_protein()` reads the protein `exprMat_file`: target
+antibodies become feature type `"protein"` and the isotype controls
+(`CodeClass` "Negative" in the plex file; names containing `"IgG"` when
+there is no plex file) become `"protein_neg"`. Values are the vendor's
+per-cell mean intensities, stored unchanged as `"raw"`. The `Channel-*`
+morphology columns are not loaded: they repeat the metadata `Mean.*`
+columns.
 }
 \examples{
 # Create a `CosmxReader` object
