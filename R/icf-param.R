@@ -11,7 +11,8 @@
 # (github: drieslab/edgeicg), which Giotto suggests, as the motif layer uses
 # smotif. Giotto owns the param class, the verb and the gobject plumbing; the
 # carrier method below is the only code here that calls the engine. The classic
-# findInteractionChangedFeats() algorithm is unchanged and stays the default.
+# findInteractionChangedFeats() algorithm is unchanged and kept as a baseline
+# (method = "classic"); edgeicg is the default.
 
 #' @title Interaction-changed feature params
 #' @name icf_param

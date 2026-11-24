@@ -3,6 +3,13 @@
 Requires GiottoClass 0.7.27.
 
 ## breaking changes
+- `findInteractionChangedFeats()` / `findICF()` use `method = "edgeicg"` by
+  default (needs the suggested edgeicg package). The original proximity test
+  is kept as a baseline with `method = "classic"`; its specific arguments
+  (`expression_values`, `diff_test`, `nr_permutations`, ...) are ignored, with
+  a message, by the default method. `filterICF()`, `combineICF()`,
+  `plotCellProximityFeats()` and the spot variants need a classic result and
+  say so; `plotICF()` draws either.
 - 10x feature names are the same whichever file they come from.
   `get10Xmatrix_h5()` names repeated features like `get10Xmatrix()` and
   GiottoDisk: every copy gets `--N` (`Ptp4a1--1`, `Ptp4a1--2`; it gave
@@ -24,8 +31,10 @@ Requires GiottoClass 0.7.27.
   with a spatial null and attributed to senders. `icfParam()` /
   `edgeIcfParam` make it an `analyzeData()` verb dispatching on the expression
   object; a GiottoDisk expression store is passed to edgeicg as is and read in
-  spatial windows, never loaded. The classic test
-  is unchanged and stays the default.
+  spatial windows, never loaded. `"edgeicg"` is
+  the default method; plots for its results are `plotICFOverview()`,
+  `plotICFLeak()`, `plotICFPair()`, `plotICFExposure()` and
+  `plotICFAttribution()`.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and

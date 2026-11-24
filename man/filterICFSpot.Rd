@@ -48,7 +48,9 @@ Filter Interaction Changed Feature scores for spots.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
-icfObject <- findInteractionChangedFeats(g, cluster_column = "leiden_clus")
+icfObject <- findInteractionChangedFeats(g,
+    cluster_column = "leiden_clus", method = "classic"
+)
 
 filterICFSpot(icfObject = icfObject)
 }

@@ -72,7 +72,9 @@ Create visualization for cell proximity feature scores
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
-icfObject <- findInteractionChangedFeats(g, cluster_column = "leiden_clus")
+icfObject <- findInteractionChangedFeats(g,
+    cluster_column = "leiden_clus", method = "classic"
+)
 
 plotCellProximityFeatSpot(
     gobject = g, icfObject = icfObject,

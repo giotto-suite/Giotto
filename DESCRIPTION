@@ -120,7 +120,8 @@ Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
     giotto-suite/GiottoVisuals,
-    drieslab/spatialDWLS
+    drieslab/spatialDWLS,
+    drieslab/edgeicg
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'

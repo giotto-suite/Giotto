@@ -25,7 +25,7 @@ findInteractionChangedFeats(
   do_parallel = TRUE,
   set_seed = TRUE,
   seed_number = 1234,
-  method = c("classic", "edgeicg"),
+  method = c("edgeicg", "classic"),
   param = NULL,
   ...
 )
@@ -50,7 +50,7 @@ findICF(
   do_parallel = TRUE,
   set_seed = TRUE,
   seed_number = 1234,
-  method = c("classic", "edgeicg"),
+  method = c("edgeicg", "classic"),
   param = NULL,
   ...
 )
@@ -92,12 +92,17 @@ findICF(
 
 \item{seed_number}{seed number}
 
-\item{method}{\code{"classic"} (default): the test described in Details.
-\code{"edgeicg"}: the spillover-aware, multi-scale model of the \pkg{edgeicg}
-package (contact, paracrine and niche scale; leaked transcripts from
-touching cells removed; niche calibrated and attributed). It uses raw
-counts and the cell polygons; see \code{\link[=icfParam]{icfParam()}}. Arguments specific to the
-classic test are then ignored.}
+\item{method}{\code{"edgeicg"} (default): the spillover-aware, multi-scale model
+of the \pkg{edgeicg} package (contact, paracrine and niche scale; leaked
+transcripts from touching cells removed; niche calibrated and attributed).
+It uses raw counts and the cell polygons, and works on GiottoDisk-backed
+objects; see \code{\link[=icfParam]{icfParam()}}. Arguments specific to the classic test
+(\code{expression_values}, \code{spatial_network_name}, \code{diff_test}, ...) are then
+ignored.
+\code{"classic"}: the original proximity test described in Details, kept as a
+baseline. It compares cells with and without a neighbour of the other
+type in a spatial network and does not model transcripts leaked from
+touching cells; it also loads the full expression matrix into memory.}
 
 \item{param}{optional \code{\link[=icfParam]{icfParam()}} object; overrides \code{method}.}
 
@@ -143,10 +148,25 @@ the target cell type
 }
 }
 \examples{
+# edgeicg (default): spillover-aware, contact / paracrine / niche scale.
+# The mini object is too small for the niche calibration, hence
+# calibrate = FALSE; keep the default on real tissue sections.
+if (requireNamespace("edgeicg", quietly = TRUE)) {
+    gv <- GiottoData::loadGiottoMini("vizgen")
+    icf <- findInteractionChangedFeats(gv,
+        spat_unit = "aggregate",
+        cluster_column = "leiden_clus",
+        calibrate = FALSE
+    )
+    force(icf$ICFscores)
+}
+
+# the original proximity test, kept as a baseline
 g <- GiottoData::loadGiottoMini("visium")
 
 icf1 <- findInteractionChangedFeats(g,
     cluster_column = "leiden_clus",
+    method = "classic",
     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
     nr_permutations = 10
 )
@@ -156,6 +176,7 @@ force(icf1$ICFscores)
 # this is just an alias with a shorter name
 icf2 <- findICF(g,
     cluster_column = "leiden_clus",
+    method = "classic",
     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
     nr_permutations = 10
 )

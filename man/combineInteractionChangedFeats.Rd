@@ -73,6 +73,7 @@ Combine ICF scores in a pairwise manner.
 g <- GiottoData::loadGiottoMini("visium")
 g_icf <- findInteractionChangedFeats(g,
     cluster_column = "leiden_clus",
+    method = "classic",
     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
     nr_permutations = 10
 )

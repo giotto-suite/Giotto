@@ -62,21 +62,36 @@ test_that("method = 'edgeicg' reproduces a direct edgeicg() call", {
     expect_gt(nrow(hit), 5)
 })
 
-test_that("the classic route ignores the new arguments", {
+test_that("edgeicg is the default method; classic stays available", {
+    expect_identical(eval(formals(findInteractionChangedFeats)$method)[1], "edgeicg")
+    expect_identical(findICF, findInteractionChangedFeats)
     skip_if_not_installed("GiottoData")
     g <- GiottoData::loadGiottoMini("visium")
-    a <- findInteractionChangedFeats(g,
-        cluster_column = "leiden_clus",
-        selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
-        nr_permutations = 10, do_parallel = FALSE
-    )
     b <- findInteractionChangedFeats(g,
         cluster_column = "leiden_clus",
         selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
         nr_permutations = 10, do_parallel = FALSE, method = "classic"
     )
-    expect_identical(a$ICFscores, b$ICFscores)
-    expect_identical(a$test_info$test, "permutation")
+    expect_identical(b$test_info$test, "permutation")
+})
+
+test_that("classic-test arguments are reported as ignored by the default route", {
+    skip_if_not_installed("edgeicg")
+    s <- .icf_sim_giotto()
+    expect_message(
+        findInteractionChangedFeats(s$g,
+            cluster_column = "ct", nr_permutations = 10, min_shift = 150, B = 4,
+            selected_feats = rownames(s$sim$counts)[1:10]
+        ),
+        "Ignoring `nr_permutations`"
+    )
+    expect_no_message(
+        findInteractionChangedFeats(s$g,
+            cluster_column = "ct", min_shift = 150, B = 4,
+            selected_feats = rownames(s$sim$counts)[1:10]
+        ),
+        message = "Ignoring"
+    )
 })
 
 test_that("a GiottoDisk store is read by edgeicg without loading and equals the matrix route", {
@@ -194,4 +209,16 @@ test_that("min_lfc floors ICFscores and spatial_covariates reach the engine", {
     c <- run(spatial_covariates = TRUE, spatial_df = 3)
     expect_gt(c$edgeicg$settings$covariates, 0)
     expect_identical(c$edgeicg$settings$covariate_scope, "niche")
+})
+
+test_that("classic downstream functions refuse an edgeicg result clearly", {
+    skip_if_not_installed("edgeicg")
+    s <- .icf_sim_giotto()
+    res <- findInteractionChangedFeats(s$g,
+        cluster_column = "ct", min_shift = 150, B = 4,
+        selected_feats = rownames(s$sim$counts)[1:10]
+    )
+    expect_error(filterICF(res), "classic test")
+    expect_error(combineICF(res), "classic test")
+    expect_error(plotCellProximityFeats(s$g, res), "classic test")
 })

@@ -1161,12 +1161,17 @@ NULL
 #' @param do_parallel run calculations in parallel with mclapply
 #' @param set_seed set a seed for reproducibility
 #' @param seed_number seed number
-#' @param method `"classic"` (default): the test described in Details.
-#'   `"edgeicg"`: the spillover-aware, multi-scale model of the \pkg{edgeicg}
-#'   package (contact, paracrine and niche scale; leaked transcripts from
-#'   touching cells removed; niche calibrated and attributed). It uses raw
-#'   counts and the cell polygons; see [icfParam()]. Arguments specific to the
-#'   classic test are then ignored.
+#' @param method `"edgeicg"` (default): the spillover-aware, multi-scale model
+#'   of the \pkg{edgeicg} package (contact, paracrine and niche scale; leaked
+#'   transcripts from touching cells removed; niche calibrated and attributed).
+#'   It uses raw counts and the cell polygons, and works on GiottoDisk-backed
+#'   objects; see [icfParam()]. Arguments specific to the classic test
+#'   (`expression_values`, `spatial_network_name`, `diff_test`, ...) are then
+#'   ignored.
+#'   `"classic"`: the original proximity test described in Details, kept as a
+#'   baseline. It compares cells with and without a neighbour of the other
+#'   type in a spatial network and does not model transcripts leaked from
+#'   touching cells; it also loads the full expression matrix into memory.
 #' @param param optional [icfParam()] object; overrides `method`.
 #' @param ... with `method = "edgeicg"`, settings passed to [icfParam()], e.g.
 #'   `workers` or `block_genes`.
@@ -1196,10 +1201,25 @@ NULL
 #' @seealso [filterInteractionChangedFeats()] [findICFSpot()]
 #' @md
 #' @examples
+#' # edgeicg (default): spillover-aware, contact / paracrine / niche scale.
+#' # The mini object is too small for the niche calibration, hence
+#' # calibrate = FALSE; keep the default on real tissue sections.
+#' if (requireNamespace("edgeicg", quietly = TRUE)) {
+#'     gv <- GiottoData::loadGiottoMini("vizgen")
+#'     icf <- findInteractionChangedFeats(gv,
+#'         spat_unit = "aggregate",
+#'         cluster_column = "leiden_clus",
+#'         calibrate = FALSE
+#'     )
+#'     force(icf$ICFscores)
+#' }
+#'
+#' # the original proximity test, kept as a baseline
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
 #' icf1 <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
 #'     nr_permutations = 10
 #' )
@@ -1209,6 +1229,7 @@ NULL
 #' # this is just an alias with a shorter name
 #' icf2 <- findICF(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
 #'     nr_permutations = 10
 #' )
@@ -1234,7 +1255,7 @@ findInteractionChangedFeats <- function(gobject,
     do_parallel = TRUE,
     set_seed = TRUE,
     seed_number = 1234,
-    method = c("classic", "edgeicg"),
+    method = c("edgeicg", "classic"),
     param = NULL,
     ...) {
     # Set feat_type and spat_unit
@@ -1251,6 +1272,22 @@ findInteractionChangedFeats <- function(gobject,
     # model-based engines: icfParam -> analyzeData() (see icf-param.R)
     method <- match.arg(method)
     if (method != "classic" || !is.null(param)) {
+        classic_args <- c(
+            "expression_values", "spatial_network_name",
+            "minimum_unique_cells", "minimum_unique_int_cells", "diff_test",
+            "mean_method", "offset", "adjust_method", "nr_permutations",
+            "exclude_selected_cells_from_test", "do_parallel"
+        )
+        fenv <- environment()
+        given <- classic_args[!vapply(classic_args, function(a) {
+            eval(call("missing", as.name(a)), fenv)
+        }, logical(1L))]
+        if (length(given)) {
+            wrap_msg(sprintf(
+                "Ignoring %s: classic-test arguments (method = \"%s\"). Use method = \"classic\" for the original test.",
+                paste0("`", given, "`", collapse = ", "), method
+            ))
+        }
         if (is.null(param)) param <- icfParam(method, ...)
         if (!methods::is(param, "icfParam")) {
             .gstop("`param` must be an icfParam (see ?icfParam)")
@@ -1388,6 +1425,21 @@ findInteractionChangedFeats <- function(gobject,
 findICF <- findInteractionChangedFeats
 
 #' @name print.icfObject
+# The classic downstream functions read columns of the classic test (sel,
+# other, nr_select, ...). An edgeicg result has its own columns and plots.
+.icf_require_classic <- function(icfObject) {
+    if (identical(icfObject$test_info$test, "edgeicg")) {
+        .gstop(
+            "this function needs a result of the classic test",
+            "(findInteractionChangedFeats(method = \"classic\")).",
+            "For an edgeicg result use plotICFOverview(), plotICFPair(),",
+            "plotICFExposure(), plotICFAttribution() or plotICFLeak();",
+            "$ICFscores is already filtered (report_q, min_lfc)."
+        )
+    }
+    invisible(TRUE)
+}
+
 #' @title icfObject print method
 #' @param x object to print
 #' @param \dots additional params to pass (none implemented)
@@ -1439,6 +1491,7 @@ print.icfObject <- function(x, ...) {
 #'
 #' icf <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
 #'     nr_permutations = 10
 #' )
@@ -1473,6 +1526,7 @@ filterInteractionChangedFeats <- function(icfObject,
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
 
     zscores_column <- match.arg(
         zscores_column,
@@ -1564,6 +1618,7 @@ filterICF <- filterInteractionChangedFeats
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
 
     ICFscore <- copy(icfObject[["ICFscores"]])
 
@@ -1933,6 +1988,7 @@ filterICF <- filterInteractionChangedFeats
 #' g <- GiottoData::loadGiottoMini("visium")
 #' g_icf <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"),
 #'     nr_permutations = 10
 #' )
@@ -1962,6 +2018,7 @@ combineInteractionChangedFeats <- function(icfObject,
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
     ICFscore <- copy(icfObject[["ICFscores"]])
 
     if (!is.null(selected_ints)) {
