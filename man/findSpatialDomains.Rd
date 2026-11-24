@@ -10,6 +10,7 @@ findSpatialDomains(
   spat_unit = NULL,
   feat_type = NULL,
   feats_to_use = "hvf",
+  spat_enr_name = NULL,
   k = 10L,
   beta = 2,
   lambda = 0.8,
@@ -29,6 +30,11 @@ findSpatialDomains(
 
 \item{feats_to_use}{features (character vector or a logical feature
 metadata column such as \code{"hvf"})}
+
+\item{spat_enr_name}{\code{"hmrf"} only: a spatial enrichment to fit instead
+of expression, such as the module scores of \code{\link[=spatialCoexpression]{spatialCoexpression()}}
+(built beforehand, from spatial genes of any \code{\link[=spatialAutoCor]{spatialAutoCor()}}
+method)}
 
 \item{k}{number of domains (\code{"hmrf"})}
 

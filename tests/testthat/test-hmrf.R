@@ -90,3 +90,23 @@ test_that("findSpatialDomains passes wrapper arguments through", {
     h <- g@parameters[[length(g@parameters)]]
     expect_equal(attr(h, "attachments")$param$npcs, 10L)
 })
+
+test_that("runHMRF and findSpatialDomains fit a spatial enrichment", {
+    skip_if_not_installed("spatialHMRF", minimum_version = "0.1.1")
+    skip_if_not_installed("GiottoData")
+    g <- GiottoData::loadGiottoMini("visium")
+    sv <- spatialAutoCor(g, method = "moran", return_gobject = FALSE)
+    g <- spatialCoexpression(g, feats = head(sv$feats, 200), n_modules = 8,
+        verbose = FALSE)
+    g <- runHMRF(g, spat_enr_name = "spatial_module", k = 4, nstart = 5,
+        verbose = FALSE)
+    expect_false(anyNA(pDataDT(g)$hmrf_k4_b2))
+    h <- g@parameters[[length(g@parameters)]]
+    expect_equal(attr(h, "attachments")$param@param$zscore, "feature")
+    g <- findSpatialDomains(g, method = "hmrf",
+        spat_enr_name = "spatial_module", k = 4, nstart = 5, name = "dom")
+    expect_equal(sort(unique(pDataDT(g)$dom)), 1:4)
+    h <- g@parameters[[length(g@parameters)]]
+    expect_equal(attr(h, "attachments")$param@param$zscore, "feature")
+    expect_equal(attr(h, "attachments")$param@param$nstart, 5L)
+})

@@ -8,6 +8,11 @@ Requires GiottoClass 0.8.0.
   spatially variable features.
 
 ## new
+- `runHMRF()` and `findSpatialDomains(method = "hmrf")` gain `spat_enr_name`:
+  fit HMRF on a stored spatial enrichment, such as the module scores of
+  `spatialCoexpression()`, instead of expression. `hmrfParam(zscore =
+  "feature")` scales each input column, the default for an enrichment.
+  Needs spatialHMRF >= 0.1.1.
 - `findInteractionChangedFeats()` (edgeicg) gains `region_column`: a cell metadata
   column with a region per cell (spatial domains, niches). Every effect is then
   also estimated within each region, with a test of whether it differs between

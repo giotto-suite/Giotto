@@ -10,7 +10,7 @@
 hmrfParam(
   k = 10L,
   beta = 2,
-  zscore = c("cell", "none"),
+  zscore = c("cell", "feature", "none"),
   nstart = 200L,
   seed = 100L,
   subsample = 20000L,
@@ -30,8 +30,10 @@ hmrfParam(
 \item{beta}{numeric, strength of the spatial prior (0: no prior)}
 
 \item{zscore}{\code{"cell"} (default, as \pkg{smfishHmrf} in Giotto): z-score each cell
-across the features after the input values; \code{"none"}: use the values as
-given}
+across the features after the input values; \code{"feature"}: z-score each
+feature across the cells, for a few features on different scales such
+as module scores (needs \pkg{spatialHMRF} >= 0.1.1); \code{"none"}: use the
+values as given}
 
 \item{nstart}{integer, k-means starts (\pkg{smfishHmrf}: 1000)}
 

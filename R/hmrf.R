@@ -28,8 +28,10 @@ NULL
 #' @param k integer, number of domains
 #' @param beta numeric, strength of the spatial prior (0: no prior)
 #' @param zscore `"cell"` (default, as \pkg{smfishHmrf} in Giotto): z-score each cell
-#'   across the features after the input values; `"none"`: use the values as
-#'   given
+#'   across the features after the input values; `"feature"`: z-score each
+#'   feature across the cells, for a few features on different scales such
+#'   as module scores (needs \pkg{spatialHMRF} >= 0.1.1); `"none"`: use the
+#'   values as given
 #' @param nstart integer, k-means starts (\pkg{smfishHmrf}: 1000)
 #' @param seed integer, seed of the k-means start
 #' @param subsample integer: with more cells, the k-means restarts run on
@@ -55,7 +57,7 @@ NULL
 #' p <- hmrfParam(k = 5, beta = 2)
 #' @md
 #' @export
-hmrfParam <- function(k = 10L, beta = 2, zscore = c("cell", "none"),
+hmrfParam <- function(k = 10L, beta = 2, zscore = c("cell", "feature", "none"),
     nstart = 200L, seed = 100L, subsample = 20000L, maxit = 50L, err = 1e-7,
     label_tol = 1e-4, n_icm = 10L, damp_tolerance = 1e-5,
     damp_factor = 1.05) {
@@ -105,6 +107,12 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
     function(x, param, ..., network, blocks = NULL, init = NULL) {
         .hmrf_engine_check()
         p <- param@param
+        if (identical(p$zscore, "feature") &&
+            utils::packageVersion("spatialHMRF") < "0.1.1") {
+            stop("[hmrfParam] zscore = \"feature\" needs spatialHMRF >= 0.1.1: ",
+                "remotes::install_github(\"drieslab/spatialHMRF\")",
+                call. = FALSE)
+        }
         fit <- spatialHMRF::hmrf(as.matrix(x), network, k = p$k,
             beta = p$beta, zscore = p$zscore, init = init, blocks = blocks,
             nstart = p$nstart, seed = p$seed, subsample = p$subsample,
@@ -133,6 +141,14 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 }
 
 
+# NULL: "feature" on a spatial enrichment (few values per cell on different
+# scales), "cell" on expression
+.hmrf_zscore <- function(zscore, spat_enr_name) {
+    zscore <- zscore %null% if (is.null(spat_enr_name)) "cell" else "feature"
+    match.arg(zscore, c("cell", "feature", "none"))
+}
+
+
 # runHMRF ####
 
 #' @title Spatial domains with HMRF
@@ -145,18 +161,27 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' domain probabilities stored as a
 #' spatial enrichment of the same name. All `beta` share one k-means start.
 #'
-#' This reimplements the model of \pkg{smfishHmrf} without its
-#' spatial gene selection: pass the features with `feats_to_use`. **If you use
-#' it, please cite the original paper** (see References).
+#' The input is either expression of the features in `feats_to_use`, or a
+#' stored spatial enrichment (`spat_enr_name`) such as the module scores of
+#' [spatialCoexpression()]: a few spatially informed values per cell that
+#' make a fast and stable start. Selecting spatial genes and building the
+#' modules are separate steps (e.g. [spatialAutoCor()] with any of its
+#' methods, then [spatialCoexpression()]), so any method that stores a
+#' spatial enrichment can feed HMRF. **If you use it, please cite the
+#' original paper** (see References).
 #' @param gobject giotto object
 #' @param spat_unit,feat_type spatial unit and feature type
 #' @param expression_values expression values (default `"scaled"`)
 #' @param feats_to_use features: a character vector (e.g. spatial genes from
 #'   [binSpect()]) or the name of a logical feature metadata column such as
-#'   `"hvf"`
+#'   `"hvf"`; ignored with `spat_enr_name`
+#' @param spat_enr_name name of a spatial enrichment to use instead of
+#'   expression, e.g. the module scores of [spatialCoexpression()]
 #' @param spatial_network_name spatial network
 #' @param k integer vector of numbers of domains
-#' @param zscore,nstart,seed,subsample,maxit,err,label_tol,n_icm see
+#' @param zscore see [hmrfParam()]; `NULL` (default) uses `"feature"` with
+#'   `spat_enr_name` and `"cell"` with expression
+#' @param nstart,seed,subsample,maxit,err,label_tol,n_icm see
 #'   [hmrfParam()]
 #' @param betas numeric vector of `beta` values
 #' @param name prefix of the results
@@ -178,27 +203,45 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' g <- GiottoData::loadGiottoMini("visium")
 #' g <- runHMRF(g, feats_to_use = "hvf", k = 5, betas = c(0, 2),
 #'     nstart = 20)
+#'
+#' # on spatial co-expression module scores
+#' sv <- spatialAutoCor(g, method = "moran", return_gobject = FALSE)
+#' g <- spatialCoexpression(g, feats = head(sv$feats, 200), n_modules = 8)
+#' g <- runHMRF(g, spat_enr_name = "spatial_module", k = 5, nstart = 20,
+#'     name = "hmrf_modules")
 #' @md
 #' @export
 runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
-    expression_values = "scaled", feats_to_use = NULL,
+    expression_values = "scaled", feats_to_use = NULL, spat_enr_name = NULL,
     spatial_network_name = "Delaunay_network", k = 10L, betas = 2,
-    zscore = c("cell", "none"), nstart = 200L, seed = 100L,
+    zscore = NULL, nstart = 200L, seed = 100L,
     subsample = 20000L, maxit = 50L, err = 1e-7, label_tol = 1e-4,
     n_icm = 10L, name = "hmrf", verbose = NULL) {
     cell_ID <- NULL # NSE
     checkmate::assert_class(gobject, "giotto")
     checkmate::assert_numeric(betas, lower = 0, min.len = 1L)
     checkmate::assert_integerish(k, lower = 2, min.len = 1L)
-    zscore <- match.arg(zscore)
+    checkmate::assert_string(spat_enr_name, null.ok = TRUE)
+    zscore <- .hmrf_zscore(zscore, spat_enr_name)
     spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
     feat_type <- set_default_feat_type(gobject = gobject,
         spat_unit = spat_unit, feat_type = feat_type)
 
-    ex <- getExpression(gobject, spat_unit = spat_unit, feat_type = feat_type,
-        values = expression_values, output = "exprObj")
-    feats <- .npca_feats(gobject, feats_to_use, spat_unit, feat_type)
-    x <- t(as.matrix(.read_expr_matrix(ex[], feats)))
+    if (is.null(spat_enr_name)) {
+        ex <- getExpression(gobject, spat_unit = spat_unit,
+            feat_type = feat_type, values = expression_values,
+            output = "exprObj")
+        feats <- .npca_feats(gobject, feats_to_use, spat_unit, feat_type)
+        x <- t(as.matrix(.read_expr_matrix(ex[], feats)))
+    } else {
+        enr <- getSpatialEnrichment(gobject, spat_unit = spat_unit,
+            feat_type = feat_type, name = spat_enr_name,
+            output = "data.table")
+        cols <- setdiff(names(enr)[vapply(enr, is.numeric, logical(1L))],
+            "cell_ID")
+        x <- as.matrix(enr[, cols, with = FALSE])
+        rownames(x) <- enr$cell_ID
+    }
     net <- getSpatialNetwork(gobject, spat_unit = spat_unit,
         name = spatial_network_name, output = "networkDT")
 
@@ -315,6 +358,10 @@ hmrfSummary <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @param spat_unit,feat_type spatial unit and feature type
 #' @param feats_to_use features (character vector or a logical feature
 #'   metadata column such as `"hvf"`)
+#' @param spat_enr_name `"hmrf"` only: a spatial enrichment to fit instead
+#'   of expression, such as the module scores of [spatialCoexpression()]
+#'   (built beforehand, from spatial genes of any [spatialAutoCor()]
+#'   method)
 #' @param k number of domains (`"hmrf"`)
 #' @param beta spatial prior strength (`"hmrf"`)
 #' @param lambda neighbourhood weight (`"neighborhood"`)
@@ -337,7 +384,8 @@ hmrfSummary <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @md
 #' @export
 findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
-    spat_unit = NULL, feat_type = NULL, feats_to_use = "hvf", k = 10L,
+    spat_unit = NULL, feat_type = NULL, feats_to_use = "hvf",
+    spat_enr_name = NULL, k = 10L,
     beta = 2, lambda = 0.8, resolution = 0.8, k_neighbors = 30L,
     seed = 1234L, name = "spatial_domain", ...) {
     method <- match.arg(method)
@@ -371,11 +419,13 @@ findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
         return(update_giotto_params(gobject, description = "_spatial_domains",
             attachments = list(param = param)))
     }
-    param <- do.call(hmrfParam, c(list(k = k, beta = beta),
-        param_args(hmrfParam)))
-    gobject <- quiet(runHMRF(gobject, spat_unit = spat_unit,
-        feat_type = feat_type, feats_to_use = feats_to_use, k = k,
-        betas = beta, name = name, ...))
+    hp <- param_args(hmrfParam)
+    hp$zscore <- .hmrf_zscore(hp$zscore, spat_enr_name)
+    param <- do.call(hmrfParam, c(list(k = k, beta = beta), hp))
+    gobject <- quiet(do.call(runHMRF, c(list(gobject, spat_unit = spat_unit,
+        feat_type = feat_type, feats_to_use = feats_to_use,
+        spat_enr_name = spat_enr_name, k = k, betas = beta, name = name,
+        zscore = hp$zscore), dots[setdiff(names(dots), "zscore")])))
     key <- sprintf("%s_k%d_b%s", name, k, format(beta))
     meta <- pDataDT(gobject, spat_unit = spat_unit, feat_type = feat_type)
     new_meta <- data.table::data.table(cell_ID = meta$cell_ID,
