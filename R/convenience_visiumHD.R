@@ -2105,7 +2105,7 @@ setMethod("$<-", signature("VisiumHDReader"), function(x, name, value) {
         source = rast_corners,
         target = corners
     )
-    affine(gimg, a, pre_multiply = TRUE)
+    affine(gimg, a)
 }
 
 .visiumhd_array_corners <- function(tissue_positions_arrow) {

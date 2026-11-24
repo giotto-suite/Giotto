@@ -16,6 +16,9 @@ runIntegratedUMAP(
   min_dist = 0.01,
   force = FALSE,
   seed = 1234,
+  graph = c("dense", "knn"),
+  network_name = "integrated_kNN",
+  name = "integrated.umap",
   ...
 )
 }
@@ -24,29 +27,53 @@ runIntegratedUMAP(
 
 \item{spat_unit}{spatial unit}
 
-\item{feat_types}{feature types to integrate. Default = c("rna", "protein")}
+\item{feat_types}{feature types that were integrated. The UMAP is stored
+under each of them; the integrated kNN is read from the first.}
 
-\item{integrated_feat_type}{integrated feature type (e.g. 'rna_protein')}
+\item{integrated_feat_type}{(\code{dense} only) integrated feature type
+(e.g. 'rna_protein')}
 
-\item{integration_method}{multiomics integration method used. Default = 'WNN'}
+\item{integration_method}{(\code{dense} only) multiomics integration method
+used. Default = 'WNN'}
 
-\item{matrix_result_name}{Default = 'theta_weighted_matrix'}
+\item{matrix_result_name}{(\code{dense} only) Default = 'theta_weighted_matrix'}
 
-\item{k}{k number}
+\item{k}{number of neighbors (self excluded). With \code{graph = "knn"}, taken
+from the integrated kNN (at most \code{runWNN(integrated_k =)}).}
 
 \item{spread}{UMAP param: spread}
 
 \item{min_dist}{UMAP param: min_dist}
 
-\item{force}{force calculation of integrated kNN. Default = FALSE}
+\item{force}{(\code{dense} only) force calculation of integrated kNN.
+Default = FALSE}
 
 \item{seed}{seed. Default 1234}
 
-\item{...}{additional UMAP parameters}
+\item{graph}{\code{"dense"} (default) or \code{"knn"}, as used in \code{\link[=runWNN]{runWNN()}}.}
+
+\item{network_name}{(\code{knn} only) name of the integrated kNN network made
+by \code{\link[=runWNN]{runWNN()}} or \code{\link[=runBlockPCA]{runBlockPCA()}}. Default \code{"integrated_kNN"}.}
+
+\item{name}{(\code{knn} only) name of the stored UMAP. Default
+\code{"integrated.umap"} (the name \code{graph = "dense"} uses).}
+
+\item{...}{additional parameters for \code{\link[uwot:umap]{uwot::umap()}} (e.g. \code{n_threads})}
 }
 \value{
-A Giotto object with integrated UMAP
+A Giotto object with the integrated UMAP stored as a \code{umap}
+reduction for every feature type in \code{feat_types}.
 }
 \description{
-Run integrated UMAP
+UMAP of the integrated neighbors made by \code{\link[=runWNN]{runWNN()}}, with the same \code{graph}:
+\itemize{
+\item \code{"dense"} (default, Giotto 4.3.6 and earlier, unchanged): builds the
+integrated kNN from the N x N affinity matrix of \code{runWNN(graph = "dense")} unless one is stored (\code{force = TRUE} rebuilds it), and embeds
+it.
+\item \code{"knn"}: uwot embeds the integrated kNN network of \code{runWNN(graph = "knn")} or \code{\link[=runBlockPCA]{runBlockPCA()}} directly (\code{nn_method}), so no data matrix is
+needed.
+}
+
+Arguments marked "\code{dense} only" or "\code{knn} only" are ignored, with a
+warning, by the other \code{graph}.
 }

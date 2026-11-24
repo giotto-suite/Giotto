@@ -14,7 +14,9 @@ findICG(...)
     \item{\code{feat_type}}{feature type}
     \item{\code{spat_unit}}{spatial unit}
     \item{\code{expression_values}}{expression values to use}
-    \item{\code{selected_feats}}{subset of selected features (optional)}
+    \item{\code{selected_feats}}{subset of selected features (optional). On a
+GiottoDisk-backed object only these features are read into memory (all
+features when \code{NULL}), so select them for large panels.}
     \item{\code{cluster_column}}{name of column to use for cell types}
     \item{\code{spatial_network_name}}{name of spatial network to use}
     \item{\code{minimum_unique_cells}}{minimum number of target cells required}

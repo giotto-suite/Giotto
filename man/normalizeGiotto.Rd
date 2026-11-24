@@ -9,7 +9,8 @@ normalizeGiotto(
   spat_unit = NULL,
   feat_type = NULL,
   expression_values = "raw",
-  norm_methods = c("standard", "pearson_resid", "osmFISH", "quantile"),
+  norm_methods = c("standard", "pearson_resid", "osmFISH", "quantile", "clr",
+    "gamma_pearson", "arcsinh"),
   library_size_norm = TRUE,
   scalefactor = 6000,
   log_norm = TRUE,
@@ -20,6 +21,8 @@ normalizeGiotto(
   scale_cells = TRUE,
   scale_order = c("first_feats", "first_cells"),
   theta = 100,
+  cofactor = 5,
+  clip_quantile = c(0.01, 0.99),
   name = "scaled",
   update_slot = deprecated(),
   verbose = TRUE
@@ -56,7 +59,15 @@ normalizeGiotto(
 
 \item{theta}{theta parameter for the pearson residual normalization step}
 
-\item{name}{character. name to use for normalization results}
+\item{cofactor}{cofactor of the \code{"arcsinh"} method: one value, or a value
+per feature, e.g. \code{c(5, CD45 = 150)}. See \link{norm_arcsinh}.}
+
+\item{clip_quantile}{per-feature quantiles at which intensities are clipped
+by the \code{"gamma_pearson"} method. See \link{norm_gamma_pearson}.}
+
+\item{name}{character. name to use for normalization results. The
+\code{"clr"}, \code{"gamma_pearson"} and \code{"arcsinh"} methods write \code{"normalized"}
+unless \code{name} is given.}
 
 \item{update_slot}{deprecated. Use \code{name} param instead}
 
@@ -104,9 +115,19 @@ the ranks from step 1 as indices}
 }
 By default the latter two results will be saved in the Giotto slot for
 scaled expression, this can be changed by changing the update_slot parameters
+
+E. Intensity data such as protein mean intensities (e.g. \code{feat_type = "protein"}) are normalized per cell with \code{\link[=norm_clr]{"clr"}}, per feature
+with \code{\link[=norm_gamma_pearson]{"gamma_pearson"}}, or with
+\code{\link[=norm_arcsinh]{"arcsinh"}}. They expect raw (non-negative) intensities.
+A GiottoDisk-backed matrix is read into memory for these methods, so they
+suit panels of tens of features.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 
 normalizeGiotto(g) # default is method A
+
+x <- getExpression(g, values = "raw", output = "matrix")[1:10, ]
+g <- setExpression(g, createExprObj(x, name = "raw", feat_type = "protein"))
+g <- normalizeGiotto(g, feat_type = "protein", norm_methods = "clr")
 }

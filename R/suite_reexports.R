@@ -129,8 +129,6 @@ GiottoClass::aggregateStacksPolygonOverlaps
 #' @export
 GiottoClass::aggregateStacksPolygons
 #' @export
-GiottoClass::anndataToGiotto
-#' @export
 GiottoClass::annotateGiotto
 #' @export
 GiottoClass::annotateSpatialGrid
@@ -170,8 +168,6 @@ GiottoClass::combineSpatialCellMetadataInfo
 GiottoClass::combineToMultiPolygon
 #' @export
 GiottoClass::convertGiottoLargeImageToMG
-#' @export
-GiottoClass::createBentoAdata
 #' @export
 GiottoClass::createCellMetaObj
 #' @export
@@ -285,12 +281,6 @@ GiottoClass::giottoPolygon
 #' @export
 GiottoClass::giottoToAnnData
 #' @export
-GiottoClass::giottoToSeurat
-#' @export
-GiottoClass::giottoToSeuratV4
-#' @export
-GiottoClass::giottoToSeuratV5
-#' @export
 GiottoClass::giottoToSpatialExperiment
 #' @export
 GiottoClass::hexVertices
@@ -380,12 +370,6 @@ GiottoClass::setSpatialGrid
 GiottoClass::setSpatialLocations
 #' @export
 GiottoClass::setSpatialNetwork
-#' @export
-GiottoClass::seuratToGiotto
-#' @export
-GiottoClass::seuratToGiottoV4
-#' @export
-GiottoClass::seuratToGiottoV5
 #' @export
 GiottoClass::showGiottoCellMetadata
 #' @export

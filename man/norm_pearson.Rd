@@ -61,7 +61,9 @@ https://doi.org/10.1186/s13059-021-02451-7
 
 Other normalization parameters:
 \code{\link{norm_arcsinh}},
+\code{\link{norm_clr}},
 \code{\link{norm_default}},
+\code{\link{norm_gamma_pearson}},
 \code{\link{norm_l2}},
 \code{\link{norm_library}},
 \code{\link{norm_log}},

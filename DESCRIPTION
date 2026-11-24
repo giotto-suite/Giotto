@@ -27,7 +27,7 @@ BugReports: https://github.com/giotto-suite/Giotto/issues
 Depends:
     R (>= 4.4.1),
     methods,
-    GiottoClass (>= 0.7.27)
+    GiottoClass (>= 0.8.0)
 Imports:
     BiocParallel,
     BiocSingular,
@@ -52,7 +52,9 @@ Imports:
 Suggests:
     ArchR,
     arrow,
+    Banksy,
     biomaRt,
+    caret,
     cluster,
     ClusterR,
     clustree,
@@ -83,16 +85,19 @@ Suggests:
     limma,
     MAST,
     miniUI,
+    mistyR,
     multinet (>= 3.0.2),
     networkD3,
     pheatmap,
     plotly,
     harmony,
     R.utils,
+    ranger,
     RcppHNSW,
     remotes,
     rlang,
     rhdf5,
+    ridge,
     rnndescent,
     RTriangle (>= 1.6-0.10),
     Rtsne (>= 0.15),
@@ -125,7 +130,9 @@ Remotes:
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
+    'banksy.R'
     'basilisk.R'
+    'block_pca.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
@@ -157,6 +164,7 @@ Collate:
     'image_registration.R'
     'interactivity.R'
     'kriging.R'
+    'misty.R'
     'pca-param.R'
     'poly_influence.R'
     'python_hmrf.R'
