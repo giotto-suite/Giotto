@@ -108,7 +108,7 @@ setMethod("reduceData",
         }
         k0 <- param$k_geom[1L]
         x <- as.matrix(x)
-        ops <- .neighbor_operators(locs, k0)
+        ops <- neighborhood_operators(locs, k0)
         nbr <- as.matrix(x %*% Matrix::t(ops$w))
         if (isTRUE(param$absolute)) nbr <- abs(nbr)
         rownames(nbr) <- paste0(rownames(x), "_H0")
@@ -116,8 +116,8 @@ setMethod("reduceData",
         blocks <- list(x, nbr)
         if (isTRUE(param$compute_agf)) {
             k1 <- param$k_geom[length(param$k_geom)]
-            if (k1 != k0) ops <- .neighbor_operators(locs, k1)
-            agf <- .neighbor_agf(x, ops)
+            if (k1 != k0) ops <- neighborhood_operators(locs, k1)
+            agf <- neighborhood_agf(x, ops)
             rownames(agf) <- paste0(rownames(x), "_H1")
             blocks <- c(blocks, list(agf))
             # Banksy's getLambdas(): harmonic m weighs lambda * 2^-m, rescaled
@@ -131,12 +131,44 @@ setMethod("reduceData",
     }
 )
 
-# Neighbour operators of each cell's k nearest spatial neighbours (itself
-# excluded), cells x cells, row j for cell j:
-# w   weights exp(-d^2 / median(d)^2) normalized per cell (Banksy kNN_median)
-# wc, ws  w * cos(phi), w * sin(phi), phi the angle from j to the neighbour
-# a   1 / k: the plain neighbour mean (Banksy's fscale() centring)
-.neighbor_operators <- function(locs, k) {
+#' @title Neighbourhood operators of the BANKSY embedding
+#' @name neighborhood_operators
+#' @description Building blocks of [neighborhoodPCAParam()], exported for
+#'   backends that compute the embedding in windows (GiottoDisk).
+#'   `neighborhood_operators()` returns sparse cells x cells operators over
+#'   each cell's `k` nearest spatial neighbours (the cell itself excluded),
+#'   row `j` for cell `j`:
+#'   * `w`: weights `exp(-d^2 / median(d)^2)` normalized per cell, as Banksy's
+#'     `kNN_median`
+#'   * `wc`, `ws`: `w * cos(phi)` and `w * sin(phi)`, `phi` the angle from the
+#'     cell to the neighbour
+#'   * `a`: `1 / k`, the plain neighbour mean
+#'
+#'   `neighborhood_agf()` returns Banksy's azimuthal gradient (harmonic 1,
+#'   centred): per feature and cell, `|sum_i w_i exp(i phi_i) (x_i - mean)|`
+#'   over the cell's neighbours. Rows of `ops` may be a subset of cells as
+#'   long as their columns cover all neighbours.
+#' @param locs cells x 2 coordinates with the cell IDs as row names
+#' @param k integer, number of neighbours
+#' @param x features x cells values, columns in the order of the columns of
+#'   the operators
+#' @param ops operators from `neighborhood_operators()` (`a`, `wc`, `ws`)
+#' @returns `neighborhood_operators()`: a list of sparse matrices `w`, `wc`,
+#'   `ws`, `a`. `neighborhood_agf()`: a features x cells matrix (cells: rows
+#'   of `ops`).
+#' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing and
+#'   tissue domain segmentation for scalable spatial omics data analysis.
+#'   *Nature Genetics* 56, 431-441 (2024). \doi{10.1038/s41588-024-01664-3}
+#' @examples
+#' xy <- matrix(runif(40), ncol = 2, dimnames = list(paste0("c", 1:20), NULL))
+#' ops <- neighborhood_operators(xy, k = 4)
+#' x <- matrix(rpois(60, 3), 3, dimnames = list(NULL, rownames(xy)))
+#' neighborhood_agf(x, ops)[, 1:3]
+#' @md
+#' @export
+neighborhood_operators <- function(locs, k) {
+    checkmate::assert_matrix(locs, min.cols = 2L)
+    checkmate::assert_count(k, positive = TRUE)
     ids <- rownames(locs)
     n <- length(ids)
     nn <- dbscan::kNN(locs[, 1:2, drop = FALSE], k = k)
@@ -155,11 +187,9 @@ setMethod("reduceData",
         a = sp(rep(1 / k, length(i))))
 }
 
-.neighbor_weight_matrix <- function(locs, k) .neighbor_operators(locs, k)$w
-
-# |sum_i w_ji exp(i phi_ji) (x_i - mean of j's neighbours)| per feature, as
-# Banksy's harmonic m = 1 with centring; features x cells
-.neighbor_agf <- function(x, ops) {
+#' @rdname neighborhood_operators
+#' @export
+neighborhood_agf <- function(x, ops) {
     m <- as.matrix(x %*% Matrix::t(ops$a))
     re <- as.matrix(x %*% Matrix::t(ops$wc)) -
         sweep(m, 2L, Matrix::rowSums(ops$wc), "*")

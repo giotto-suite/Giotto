@@ -9,7 +9,7 @@ x <- matrix(rpois(10 * n, 3), nrow = 10,
     dimnames = list(paste0("f", 1:10), rownames(locs)))
 
 test_that("neighbour weights follow Banksy's kNN_median kernel", {
-    w <- Giotto:::.neighbor_weight_matrix(locs, 5L)
+    w <- neighborhood_operators(locs, 5L)$w
     expect_equal(unname(Matrix::rowSums(w)), rep(1, n))
     expect_true(all(Matrix::diag(w) == 0))
     expect_equal(unname(Matrix::rowSums(w > 0)), rep(5, n))
@@ -40,7 +40,7 @@ test_that("matches the Banksy package on expression", {
         spatialCoords = locs)
     se <- Banksy::computeBanksy(se, assay_name = "e", k_geom = 5,
         verbose = FALSE)
-    w <- Giotto:::.neighbor_weight_matrix(locs, 5L)
+    w <- neighborhood_operators(locs, 5L)$w
     expect_equal(as.matrix(x %*% Matrix::t(w)),
         SummarizedExperiment::assay(se, "H0"), ignore_attr = TRUE)
     se <- Banksy::runBanksyPCA(se, lambda = 0.5, npcs = 4, seed = 1)
@@ -70,7 +70,7 @@ test_that("the AGF (gradient) block matches the Banksy package", {
         spatialCoords = locs)
     se <- Banksy::computeBanksy(se, assay_name = "e", k_geom = c(5, 8),
         compute_agf = TRUE, verbose = FALSE)
-    h1 <- Giotto:::.neighbor_agf(x, Giotto:::.neighbor_operators(locs, 8L))
+    h1 <- neighborhood_agf(x, neighborhood_operators(locs, 8L))
     expect_equal(h1, SummarizedExperiment::assay(se, "H1"),
         ignore_attr = TRUE)
     se <- Banksy::runBanksyPCA(se, use_agf = TRUE, lambda = 0.5, npcs = 4,
