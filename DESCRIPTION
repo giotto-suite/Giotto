@@ -166,6 +166,7 @@ Collate:
     'kriging.R'
     'misty.R'
     'pca-param.R'
+    'neighborhood-pca.R'
     'poly_influence.R'
     'python_hmrf.R'
     'python_scrublet.R'

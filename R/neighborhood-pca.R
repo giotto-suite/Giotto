@@ -1,0 +1,448 @@
+#' @include pca-param.R
+NULL
+
+# neighborhoodPCAParam ####
+#
+# A native implementation of the BANKSY embedding (Singhal et al. 2024) as a
+# `reduceData()` verb (adr/0008): each cell's values are joined by the
+# Gaussian-weighted mean of its k nearest spatial neighbours, both blocks are
+# scaled, weighted by sqrt(1 - lambda) and sqrt(lambda), and reduced by PCA.
+# The neighbours are a stored kNN spatial network (`createSpatialNetwork()`)
+# and the PCA is `reduceData(x, pcaParam("irlba"))`; only BANKSY's weights and
+# gradient are new (`neighborhood_operators()`).
+# GiottoConnect::runBanksy() runs the original Bioconductor package with the
+# same verb and defaults, and is the reference.
+
+#' @title Neighborhood PCA parameters
+#' @name neighborhoodPCAParam
+#' @description
+#' Parameters for [reduceData()] that compute the BANKSY embedding of
+#' Singhal et al. (2024): each cell's values are joined by the weighted mean
+#' of its `k_geom` nearest spatial neighbours, the two blocks are scaled
+#' per feature, weighted by \eqn{\sqrt{1 - \lambda}} and
+#' \eqn{\sqrt{\lambda}}, and reduced by PCA. Neighbour weights are
+#' \eqn{\exp(-d^2 / m^2)}, with \eqn{m} the median distance of the cell's
+#' `k_geom` neighbours, normalized to sum to one per cell, as in the
+#' \pkg{Banksy} package.
+#'
+#' With `compute_agf = TRUE` a third block adds BANKSY's azimuthal Gabor
+#' filter (AGF): the magnitude of \eqn{\sum_i w_{ji} e^{i\phi_{ji}}
+#' (x_i - \bar{x}_j)}, the gradient of the neighbourhood around cell
+#' \eqn{j} (\eqn{\phi} the angle to neighbour \eqn{i}, \eqn{\bar{x}_j} the
+#' mean of its neighbours), and \eqn{\lambda} is split over the blocks as
+#' \eqn{\sqrt{1 - \lambda}}, \eqn{\sqrt{2\lambda/3}} and
+#' \eqn{\sqrt{\lambda/3}}, as in \pkg{Banksy}.
+#'
+#' This is a reimplementation of BANKSY's embedding. **If you use it, please
+#' cite the original paper** (see References).
+#' `GiottoConnect::runBanksy()` runs the original \pkg{Banksy} package.
+#' @param lambda numeric in `[0, 1]`, the weight of the neighbourhood. About
+#'   0.2 refines cell types with their surroundings; about 0.8 finds spatial
+#'   domains.
+#' @param k_geom integer, number of neighbours of the kNN spatial network
+#'   [runNeighborhoodPCA()] creates when the object has none; with
+#'   `compute_agf = TRUE` one value, or two (mean and gradient)
+#' @param compute_agf logical, add the AGF (gradient) block
+#' @param npcs integer, number of principal components
+#' @param absolute logical. Take the absolute value of the neighbour means,
+#'   as \pkg{Banksy} 1.6 does. This makes no difference for non-negative
+#'   values such as expression, but discards the sign of signed inputs such
+#'   as an embedding, so it is `FALSE` by default.
+#' @param seed integer, seed of the PCA
+#' @returns A `neighborhoodPCAParam` object.
+#' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing
+#'   and tissue domain segmentation for scalable spatial omics data analysis.
+#'   *Nature Genetics* 56, 431–441 (2024). \doi{10.1038/s41588-024-01664-3}
+#' @seealso [runNeighborhoodPCA()], `GiottoConnect::runBanksy()`
+#' @examples
+#' p <- neighborhoodPCAParam(lambda = 0.8, k_geom = 15)
+#' p$lambda
+#' @md
+#' @export
+neighborhoodPCAParam <- function(lambda = 0.2, k_geom = 15L, npcs = 20L,
+    compute_agf = FALSE, absolute = FALSE, seed = 1234L) {
+    checkmate::assert_number(lambda, lower = 0, upper = 1)
+    checkmate::assert_integerish(k_geom, lower = 1, any.missing = FALSE,
+        min.len = 1L, max.len = 2L)
+    checkmate::assert_flag(compute_agf)
+    checkmate::assert_count(npcs, positive = TRUE)
+    checkmate::assert_flag(absolute)
+    checkmate::assert_count(seed)
+    p <- new("neighborhoodPCAParam", param = list())
+    p$lambda <- lambda
+    p$k_geom <- as.integer(k_geom)
+    p$npcs <- as.integer(npcs)
+    p$compute_agf <- compute_agf
+    p$absolute <- absolute
+    p$seed <- as.integer(seed)
+    p
+}
+
+#' @rdname neighborhoodPCAParam
+#' @exportClass neighborhoodPCAParam
+setClass("neighborhoodPCAParam", contains = "reduceParam")
+
+
+# reduceData(allMatrix, neighborhoodPCAParam) ####
+
+#' @rdname neighborhoodPCAParam
+#' @param x features x cells values (`matrix` or `Matrix`)
+#' @param param a `neighborhoodPCAParam`
+#' @param ... unused
+#' @param spatial_locs cells x 2 (or 3) coordinates, with the cell IDs as
+#'   row names
+#' @param network spatial network of the neighbours: an `igraph` or a
+#'   `data.frame` with `from` and `to` cell IDs. A directed network (kNN) gives
+#'   each cell the neighbours it points to, an undirected one (Delaunay) both
+#'   ends of each edge; a `data.frame` is read as directed.
+#' @param agf_network spatial network of the gradient block (default
+#'   `network`)
+#' @details `reduceData(x, param, spatial_locs = , network = )` returns the
+#'   list of
+#'   [pcaParam()]'s `reduceData()` methods (`u`: cells x `npcs` coordinates,
+#'   `d`, `v`: loadings of the joint features, `sdev`, `eigenvalues`).
+#' @export
+setMethod("reduceData",
+    signature(x = "allMatrix", param = "neighborhoodPCAParam"),
+    function(x, param, ..., spatial_locs, network, agf_network = network) {
+        if (is.null(colnames(x)) || is.null(rownames(spatial_locs))) {
+            stop("[neighborhoodPCAParam] `x` needs cell IDs as column names ",
+                "and `spatial_locs` as row names", call. = FALSE)
+        }
+        locs <- as.matrix(spatial_locs)[colnames(x), , drop = FALSE]
+        if (anyNA(locs)) {
+            stop("[neighborhoodPCAParam] some cells have no spatial location",
+                call. = FALSE)
+        }
+        x <- as.matrix(x)
+        e <- .network_edge_idx(network, rownames(locs))
+        ops <- neighborhood_operators(e$from, e$to, locs)
+        nbr <- as.matrix(x %*% Matrix::t(ops$w))
+        if (isTRUE(param$absolute)) nbr <- abs(nbr)
+        rownames(nbr) <- paste0(rownames(x), "_H0")
+        lam <- c(1 - param$lambda, param$lambda)
+        blocks <- list(x, nbr)
+        if (isTRUE(param$compute_agf)) {
+            if (!identical(agf_network, network)) {
+                e <- .network_edge_idx(agf_network, rownames(locs))
+                ops <- neighborhood_operators(e$from, e$to, locs)
+            }
+            agf <- neighborhood_agf(x, ops)
+            rownames(agf) <- paste0(rownames(x), "_H1")
+            blocks <- c(blocks, list(agf))
+            # Banksy's getLambdas(): harmonic m weighs lambda * 2^-m, rescaled
+            lam <- c(1 - param$lambda, param$lambda * c(2, 1) / 3)
+        }
+        joint <- do.call(rbind, Map(function(l, b) sqrt(l) * .scale_rows(b),
+            lam, blocks))
+        joint <- joint[MatrixGenerics::rowSds(joint) != 0, , drop = FALSE]
+        reduceData(joint, pcaParam("irlba", ncp = param$npcs, center = TRUE,
+            scale = FALSE, seed_number = param$seed))
+    }
+)
+
+#' @title Neighbourhood operators of the BANKSY embedding
+#' @name neighborhood_operators
+#' @description Building blocks of [neighborhoodPCAParam()], exported for
+#'   backends that compute the embedding in windows (GiottoDisk).
+#'   `neighborhood_operators()` turns the directed edges of a spatial network
+#'   (from each cell to its neighbours) into sparse cells x cells operators,
+#'   row `j` for cell `j`:
+#'   * `w`: weights `exp(-d^2 / m^2)`, `m` the median distance of the cell's
+#'     neighbours, normalized per cell, as Banksy's `kNN_median`
+#'   * `wc`, `ws`: `w * cos(phi)` and `w * sin(phi)`, `phi` the angle from the
+#'     cell to the neighbour
+#'   * `a`: one over the cell's number of neighbours, the plain neighbour mean
+#'
+#'   `neighborhood_agf()` returns Banksy's azimuthal gradient (harmonic 1,
+#'   centred): per feature and cell, `|sum_i w_i exp(i phi_i) (x_i - mean)|`
+#'   over the cell's neighbours. Rows of `ops` may be a subset of cells as
+#'   long as their columns cover all neighbours.
+#' @param from,to integer cell indices (rows of `locs`) of the edges: from a
+#'   cell to its neighbour; self edges are dropped
+#' @param locs cells x 2 coordinates, with the cell IDs as row names
+#' @param x features x cells values, columns in the order of the columns of
+#'   the operators
+#' @param ops operators from `neighborhood_operators()` (`a`, `wc`, `ws`)
+#' @returns `neighborhood_operators()`: a list of sparse matrices `w`, `wc`,
+#'   `ws`, `a`. `neighborhood_agf()`: a features x cells matrix (cells: rows
+#'   of `ops`).
+#' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing and
+#'   tissue domain segmentation for scalable spatial omics data analysis.
+#'   *Nature Genetics* 56, 431-441 (2024). \doi{10.1038/s41588-024-01664-3}
+#' @seealso [spatial_smooth_operator()] for a symmetric smoothing operator
+#' @examples
+#' xy <- matrix(runif(40), ncol = 2, dimnames = list(paste0("c", 1:20), NULL))
+#' nn <- dbscan::kNN(xy, k = 4)
+#' ops <- neighborhood_operators(rep(1:20, 4), as.vector(nn$id), xy)
+#' x <- matrix(rpois(60, 3), 3, dimnames = list(NULL, rownames(xy)))
+#' neighborhood_agf(x, ops)[, 1:3]
+#' @md
+#' @export
+neighborhood_operators <- function(from, to, locs) {
+    i <- j <- d <- NULL # NSE
+    checkmate::assert_matrix(locs, min.cols = 2L)
+    n <- nrow(locs)
+    e <- data.table::data.table(i = as.integer(from), j = as.integer(to))
+    e <- e[i != j]
+    dx <- locs[e$j, 1L] - locs[e$i, 1L]
+    dy <- locs[e$j, 2L] - locs[e$i, 2L]
+    e[, d := sqrt(dx^2 + dy^2)]
+    m <- e[, list(m = median(d)), by = i] # grouped median (data.table GForce)
+    med <- numeric(n)
+    med[m$i] <- m$m
+    w <- exp(-e$d^2 / med[e$i]^2)
+    w[!is.finite(w)] <- 1 # all neighbours at distance 0
+    ids <- rownames(locs)
+    sp <- function(v) Matrix::sparseMatrix(i = e$i, j = e$j, x = v,
+        dims = c(n, n), dimnames = list(ids, ids))
+    w <- w / Matrix::rowSums(sp(w))[e$i]
+    phi <- atan2(dy, dx)
+    deg <- tabulate(e$i, nbins = n)
+    list(w = sp(w), wc = sp(w * cos(phi)), ws = sp(w * sin(phi)),
+        a = sp(1 / deg[e$i]))
+}
+
+#' @rdname neighborhood_operators
+#' @export
+neighborhood_agf <- function(x, ops) {
+    m <- as.matrix(x %*% Matrix::t(ops$a))
+    re <- as.matrix(x %*% Matrix::t(ops$wc)) -
+        sweep(m, 2L, Matrix::rowSums(ops$wc), "*")
+    im <- as.matrix(x %*% Matrix::t(ops$ws)) -
+        sweep(m, 2L, Matrix::rowSums(ops$ws), "*")
+    sqrt(re^2 + im^2)
+}
+
+# Network -> list(from, to) of each cell's edges to its neighbours, as
+# indices into `ids` (edges with an end outside `ids` dropped). A directed
+# network (kNN) keeps its direction, so each cell keeps its own neighbours; an
+# undirected one (Delaunay) gives every pair to both cells. A data.frame is
+# read as directed.
+.network_edge_idx <- function(network, ids) {
+    directed <- TRUE
+    el <- if (inherits(network, "igraph")) {
+        directed <- igraph::is_directed(network)
+        igraph::as_data_frame(network, what = "edges")
+    } else {
+        as.data.frame(network)
+    }
+    if (!all(c("from", "to") %in% names(el))) {
+        stop("[neighborhoodPCAParam] `network` needs `from` and `to` columns",
+            call. = FALSE)
+    }
+    i <- match(as.character(el$from), ids)
+    j <- match(as.character(el$to), ids)
+    keep <- !is.na(i) & !is.na(j)
+    i <- i[keep]
+    j <- j[keep]
+    if (!directed) {
+        k <- i
+        i <- c(i, j)
+        j <- c(j, k)
+    }
+    list(from = i, to = j)
+}
+
+# z-score each row (feature) across columns (cells), sample SD; constant rows
+# become 0 (Banksy's scaler).
+.scale_rows <- function(x) {
+    mu <- rowMeans(x)
+    s <- MatrixGenerics::rowSds(x)
+    out <- (x - mu) / s
+    out[!is.finite(out)] <- 0
+    out
+}
+
+
+# runNeighborhoodPCA ####
+
+#' @title Neighborhood PCA (BANKSY embedding)
+#' @name runNeighborhoodPCA
+#' @description
+#' Computes the BANKSY embedding of Singhal et al. (2024) natively and stores
+#' it as a dimension reduction: each cell's values are joined by the weighted
+#' mean of its spatial neighbours, weighted by `lambda`, and reduced by PCA
+#' (see [neighborhoodPCAParam()]). Cluster the result with
+#' [createNearestNetwork()] and [doLeidenCluster()] (`lambda` about 0.8 for
+#' spatial domains, about 0.2 for neighbourhood-aware cell types).
+#'
+#' This reimplements BANKSY's embedding, including its gradient (AGF)
+#' features with `compute_agf = TRUE`. **If you use it, please cite the
+#' original paper** (see References). `GiottoConnect::runBanksy()` runs the original \pkg{Banksy}
+#' package.
+#' @param gobject giotto object
+#' @param spat_unit spatial unit
+#' @param feat_type feature type
+#' @param input `"expression"` (default) or `"dim_reduction"`: the values the
+#'   neighbourhood is computed on
+#' @param expression_values expression values to use with
+#'   `input = "expression"`
+#' @param feats_to_use features to use with `input = "expression"`: a
+#'   character vector, or the name of a logical column of the feature
+#'   metadata (e.g. `"hvf"`). `NULL` uses all features.
+#' @param dim_reduction_to_use,dim_reduction_name,dimensions_to_use the
+#'   embedding to use with `input = "dim_reduction"`
+#' @param spat_loc_name name of the spatial locations
+#' @param spatial_network_name spatial network(s) of the neighbours: one
+#'   name, or two with `compute_agf = TRUE` (mean and gradient). `NULL` uses
+#'   the object's default spatial network. BANKSY's own definition is a kNN
+#'   network of 15 neighbours: `createSpatialNetwork(method = "kNN", k = 15)`.
+#' @param create_network logical. When the object has no spatial network,
+#'   create a kNN network of `k_geom` neighbours (`"kNN_network"`, with
+#'   [createSpatialNetwork()]) instead of stopping.
+#' @param lambda,k_geom,npcs,compute_agf,absolute,seed see
+#'   [neighborhoodPCAParam()]
+#' @param name name of the stored dimension reduction (reduction method
+#'   `"neighborhood_pca"`)
+#' @param verbose be verbose
+#' @returns The giotto object with the embedding stored as a dimension
+#'   reduction (method `"neighborhood_pca"`, name `name`).
+#' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing
+#'   and tissue domain segmentation for scalable spatial omics data analysis.
+#'   *Nature Genetics* 56, 431–441 (2024). \doi{10.1038/s41588-024-01664-3}
+#' @seealso [neighborhoodPCAParam()], `GiottoConnect::runBanksy()`
+#' @examples
+#' g <- GiottoData::loadGiottoMini("visium")
+#' g <- runNeighborhoodPCA(g, feats_to_use = "hvf", lambda = 0.8)
+#' g <- createNearestNetwork(g, dim_reduction_to_use = "neighborhood_pca",
+#'     dim_reduction_name = "neighborhood_pca", name = "neighborhood_pca")
+#' g <- doLeidenCluster(g, network_name = "neighborhood_pca",
+#'     name = "nbr_domain")
+#' @md
+#' @export
+runNeighborhoodPCA <- function(
+        gobject,
+        spat_unit = NULL,
+        feat_type = NULL,
+        input = c("expression", "dim_reduction"),
+        expression_values = "normalized",
+        feats_to_use = NULL,
+        dim_reduction_to_use = "pca",
+        dim_reduction_name = NULL,
+        dimensions_to_use = NULL,
+        spat_loc_name = "raw",
+        spatial_network_name = NULL,
+        create_network = TRUE,
+        lambda = 0.2,
+        k_geom = 15L,
+        npcs = 20L,
+        compute_agf = FALSE,
+        absolute = FALSE,
+        seed = 1234L,
+        name = "neighborhood_pca",
+        verbose = NULL) {
+    checkmate::assert_class(gobject, "giotto")
+    input <- match.arg(input)
+    checkmate::assert_string(name)
+    param <- neighborhoodPCAParam(lambda = lambda, k_geom = k_geom,
+        npcs = npcs, compute_agf = compute_agf, absolute = absolute,
+        seed = seed)
+    spat_unit <- set_default_spat_unit(
+        gobject = gobject, spat_unit = spat_unit
+    )
+    feat_type <- set_default_feat_type(
+        gobject = gobject, spat_unit = spat_unit, feat_type = feat_type
+    )
+
+    x <- switch(input,
+        expression = {
+            ex <- getExpression(gobject, spat_unit = spat_unit,
+                feat_type = feat_type, values = expression_values,
+                output = "exprObj")
+            feats <- .npca_feats(gobject, feats_to_use, spat_unit, feat_type)
+            m <- ex[]
+            # a disk store stays on disk: GiottoDisk streams the embedding
+            if (inherits(m, "dataStore")) {
+                if (is.null(feats)) m else m[feats, ]
+            } else {
+                .read_expr_matrix(m, feats)
+            }
+        },
+        dim_reduction = {
+            emb <- getDimReduction(gobject, spat_unit = spat_unit,
+                feat_type = feat_type, reduction = "cells",
+                reduction_method = dim_reduction_to_use,
+                name = dim_reduction_name, output = "matrix")
+            if (!is.null(dimensions_to_use)) {
+                emb <- emb[, intersect(seq_len(ncol(emb)), dimensions_to_use),
+                    drop = FALSE]
+            }
+            t(emb)
+        }
+    )
+    sl <- getSpatialLocations(gobject, spat_unit = spat_unit,
+        name = spat_loc_name, output = "data.table")
+    locs <- as.matrix(sl[, c("sdimx", "sdimy")])
+    rownames(locs) <- sl$cell_ID
+
+    have <- list_spatial_networks_names(gobject, spat_unit = spat_unit)
+    net_names <- spatial_network_name
+    if (is.null(net_names) && length(have)) {
+        net_names <- objName(getSpatialNetwork(gobject, spat_unit = spat_unit,
+            output = "spatialNetworkObj", verbose = FALSE))
+        vmsg(.v = verbose, "runNeighborhoodPCA: spatial network", net_names)
+    }
+    if (is.null(net_names)) {
+        if (!isTRUE(create_network)) {
+            stop("[runNeighborhoodPCA] no spatial network; create one with ",
+                "createSpatialNetwork() or set create_network = TRUE",
+                call. = FALSE)
+        }
+        ks <- if (isTRUE(compute_agf)) unique(param$k_geom) else param$k_geom[1L]
+        net_names <- if (length(ks) == 1L) "kNN_network" else
+            sprintf("kNN_network_k%d", ks)
+        for (i in seq_along(ks)) {
+            vmsg(.v = verbose, "runNeighborhoodPCA: creating", net_names[i])
+            gobject <- createSpatialNetwork(gobject, spat_unit = spat_unit,
+                spat_loc_name = spat_loc_name, method = "kNN", k = ks[i],
+                name = net_names[i], verbose = FALSE)
+        }
+    }
+    checkmate::assert_character(net_names, min.len = 1L, max.len = 2L)
+    missing_nets <- setdiff(net_names,
+        list_spatial_networks_names(gobject, spat_unit = spat_unit))
+    if (length(missing_nets)) {
+        stop("[runNeighborhoodPCA] no spatial network named ",
+            paste(missing_nets, collapse = ", "), call. = FALSE)
+    }
+    nets <- lapply(net_names, function(nm) {
+        getSpatialNetwork(gobject, spat_unit = spat_unit, name = nm,
+            output = "spatialNetworkObj", verbose = FALSE)[]
+    })
+
+    vmsg(.v = verbose, "runNeighborhoodPCA: neighbourhood and PCA")
+    res <- reduceData(x, param, spatial_locs = locs, network = nets[[1L]],
+        agf_network = nets[[length(nets)]])
+    coords <- res$u
+    ids <- if (inherits(x, "dataStore")) rownames(coords) else colnames(x)
+    dimnames(coords) <- list(ids, paste0("Dim.", seq_len(ncol(coords))))
+
+    dim_obj <- createDimObj(
+        coordinates = coords, name = name, spat_unit = spat_unit,
+        feat_type = feat_type, method = "neighborhood_pca",
+        reduction = "cells",
+        misc = list(input = input, eigenvalues = res$eigenvalues,
+            loadings = res$v)
+    )
+    gobject <- setDimReduction(gobject, x = dim_obj, spat_unit = spat_unit,
+        feat_type = feat_type, reduction = "cells",
+        reduction_method = "neighborhood_pca", name = name, verbose = FALSE)
+    update_giotto_params(gobject, description = "_neighborhood_pca",
+        attachments = list(param = param))
+}
+
+# features to use: NULL (all), a character vector, or a logical feature
+# metadata column
+.npca_feats <- function(gobject, feats_to_use, spat_unit, feat_type) {
+    if (is.null(feats_to_use)) return(NULL)
+    if (length(feats_to_use) == 1L) {
+        fm <- fDataDT(gobject, spat_unit = spat_unit, feat_type = feat_type)
+        if (feats_to_use %in% colnames(fm)) {
+            col <- fm[[feats_to_use]]
+            keep <- if (is.logical(col)) col else col %in% c("yes", "TRUE")
+            return(fm$feat_ID[keep])
+        }
+    }
+    feats_to_use
+}
