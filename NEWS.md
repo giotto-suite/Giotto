@@ -192,6 +192,9 @@ Requires GiottoClass 0.8.0.
   longer returns `NULL`s when `calc_centroids = FALSE`.
 
 ## bug fixes
+- `calculateHVF()` shows, saves and returns its plot by default again (a
+  `NULL` `show_plot` / `save_plot` / `return_plot` turned the plot off), and the `cov_loess` / `cov_groups` HVF plots no longer fail
+  on a missing column.
 - `read10xAffineImage()` placed images wrongly when the 10x alignment matrix
   has shear or unequal scale; rotations and uniform scale were unaffected.
 - `normParam("arcsinh", c = )` stopped with "invalid name for slot of class
