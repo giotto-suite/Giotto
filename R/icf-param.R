@@ -72,6 +72,12 @@
 #'     estimated within each region, with a test of whether it differs between
 #'     regions; the table is `$ICFregion` (see
 #'     `edgeicg::edgeicg_region_results()`). The leak model stays global.}
+#'   \item{`leak_genes`}{features the leak (transcripts from touching
+#'     neighbours) is fitted on when only `selected_feats` are tested:
+#'     `"all"` (default; edgeicg >= 0.3.0) fits it on all features, so the
+#'     contact results do not depend on the selection, at the cost of one
+#'     extra pass over all features; `"tested"` fits it on `selected_feats`
+#'     only (faster).}
 #'   \item{other}{passed to `edgeicg::edgeicg()` (e.g. `min_cells`,
 #'     `min_det`, `min_exposed`, `calib_cond`).}
 #' }
@@ -159,13 +165,20 @@ setMethod("analyzeData",
         if (length(missing)) {
             .gstop(length(missing), "cell(s) have no cell type label")
         }
+        genes <- NULL
         if (!is.null(feats)) {
             keep <- which(rownames(x) %in% feats)
-            # a matrix is subset in memory; a store keeps a lazy view
-            x <- if (is.matrix(x) || inherits(x, "Matrix")) {
-                x[keep, , drop = FALSE]
+            if (utils::packageVersion("edgeicg") >= "0.3.0") {
+                # all features go in: the leak is fitted on all of them
+                # (leak_genes = "all", the default) and only feats are tested
+                genes <- rownames(x)[keep]
             } else {
-                x[keep, ]
+                # a matrix is subset in memory; a store keeps a lazy view
+                x <- if (is.matrix(x) || inherits(x, "Matrix")) {
+                    x[keep, , drop = FALSE]
+                } else {
+                    x[keep, ]
+                }
             }
         }
         a <- param@param
@@ -196,7 +209,7 @@ setMethod("analyzeData",
             calibrate = param$calibrate,
             min_shift = param$min_shift,
             verbose = param$verbose
-        ), extra))
+        ), if (!is.null(genes)) list(genes = genes), extra))
     }
 )
 

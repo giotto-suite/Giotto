@@ -73,6 +73,12 @@ cell (e.g. spatial domains or niches). Every effect is then also
 estimated within each region, with a test of whether it differs between
 regions; the table is \verb{$ICFregion} (see
 \code{edgeicg::edgeicg_region_results()}). The leak model stays global.}
+\item{\code{leak_genes}}{features the leak (transcripts from touching
+neighbours) is fitted on when only \code{selected_feats} are tested:
+\code{"all"} (default; edgeicg >= 0.3.0) fits it on all features, so the
+contact results do not depend on the selection, at the cost of one
+extra pass over all features; \code{"tested"} fits it on \code{selected_feats}
+only (faster).}
 \item{other}{passed to \code{edgeicg::edgeicg()} (e.g. \code{min_cells},
 \code{min_det}, \code{min_exposed}, \code{calib_cond}).}
 }

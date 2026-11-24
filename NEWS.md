@@ -15,6 +15,11 @@ Requires GiottoClass 0.8.0.
   `pattern` of `shared`, `specific`, `opposite` or `variable`). The leak model
   stays global. `plotICFRegion()` draws the effect per region. Needs edgeicg
   >= 0.2.0.
+- `findInteractionChangedFeats()` (edgeicg) with `selected_feats` now fits the
+  leak (transcripts from touching neighbours) on all features and tests only
+  the selected ones, so the contact results no longer depend on the selection.
+  `leak_genes = "tested"` restores the faster fit on the selected features.
+  Needs edgeicg >= 0.3.0 (older versions keep the old behaviour).
 - `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
   `createGiottoCosMxObject(backend =)` creates the `giotto` object as a
   managed on-disk project from the same arguments: polygons from the
