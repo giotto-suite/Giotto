@@ -2,6 +2,11 @@
 
 Requires GiottoClass 0.8.0.
 
+## breaking changes
+- `spatialDE()` and `spatialAEH()` are removed, together with the `"spatialDE"`
+  method of `runPatternSimulation()`. Use `binSpect()` or `spark()` for
+  spatially variable features.
+
 ## new
 - `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
   `createGiottoCosMxObject(backend =)` creates the `giotto` object as a

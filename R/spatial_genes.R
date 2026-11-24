@@ -1967,401 +1967,6 @@ silhouetteRankTest <- function(
 
 
 
-#' @title spatialDE
-#' @name spatialDE
-#' @description Compute spatial variable genes with spatialDE method
-#' @param gobject Giotto object
-#' @param feat_type feature type
-#' @param spat_unit spatial unit
-#' @param spat_loc_name name for spatial locations
-#' @param expression_values gene expression values to use
-#' @param size size of plot
-#' @param color low/medium/high color scheme for plot
-#' @param sig_alpha alpha value for significance
-#' @param unsig_alpha alpha value for unsignificance
-#' @param python_path specify specific path to python if required
-#' @param show_plot show plot
-#' @param return_plot return ggplot object
-#' @param save_plot directly save the plot [boolean]
-#' @param save_param list of saving parameters, see
-#' \code{\link{showSaveParameters}}
-#' @param default_save_name default save name for saving, don't change,
-#' change save_name in save_param
-#' @returns a list of data.frames with results and plot (optional)
-#' @details This function is a wrapper for the SpatialDE method originally
-#' implemented
-#' in python. See publication \doi{10.1038/nmeth.4636}
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' spatialDE(g)
-#' @export
-spatialDE <- function(
-        gobject = NULL,
-        feat_type = NULL,
-        spat_unit = NULL,
-        spat_loc_name = "raw",
-        expression_values = c("raw", "normalized", "scaled", "custom"),
-        size = c(4, 2, 1),
-        color = c("blue", "green", "red"),
-        sig_alpha = 0.5,
-        unsig_alpha = 0.5,
-        python_path = NULL,
-        show_plot = NULL,
-        return_plot = NULL,
-        save_plot = NULL,
-        save_param = list(),
-        default_save_name = "SpatialDE") {
-    # test if SPARK is installed ##
-
-    module_test <- reticulate::py_module_available("SpatialDE")
-    if (module_test == FALSE) {
-        warning("SpatialDE python module is not installed:
-            install in the right environment or python path with:
-
-            'pip install spatialde'
-
-            or from within R in the Giotto environment with:
-
-            conda_path = reticulate::miniconda_path()
-            conda_full_path = paste0(conda_path,'/','bin/conda')
-            full_envname = paste0(conda_path,'/envs/giotto_env')
-            reticulate::py_install(
-            packages = c('NaiveDE', 'patsy', 'SpatialDE'),
-                        envname = full_envname,
-                        method = 'conda',
-                        conda = conda_full_path,
-                        pip = TRUE,
-                        python_version = '3.6')")
-    }
-
-
-    # print message with information #
-    message("using 'SpatialDE' for spatial gene/pattern detection. If used in
-    published research, please cite:
-    Svensson, Valentine, Sarah A. Teichmann, and Oliver Stegle.
-    'SpatialDE: Identification of Spatially Variable Genes.'
-    Nature Methods 15, no. 5 (May 2018): 343-46.
-    https://doi.org/10.1038/nmeth.4636.")
-
-
-
-    # data.table variables
-    cell_ID <- NULL
-
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # expression
-    values <- match.arg(
-        expression_values, c("raw", "normalized", "scaled", "custom")
-    )
-    expr_values <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = values,
-        output = "matrix"
-    )
-
-    ## python path
-    if (is.null(python_path)) {
-        python_path <- instructions(gobject, "python_path")
-    }
-
-    ## source python file
-    reticulate::use_python(required = TRUE, python = python_path)
-    reader_path <- system.file(
-        "python", "SpatialDE_wrapper.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = reader_path)
-
-    ## get spatial locations
-    spatial_locs <- getSpatialLocations(gobject,
-        spat_unit = spat_unit,
-        name = spat_loc_name,
-        output = "data.table"
-    )
-    spatial_locs <- as.data.frame(spatial_locs)
-    rownames(spatial_locs) <- spatial_locs$cell_ID
-    spatial_locs <- subset(spatial_locs, select = -cell_ID)
-
-    ## run spatialDE
-    Spatial_DE_results <- Spatial_DE(
-        as.data.frame(t(as.matrix(expr_values))), spatial_locs
-    )
-
-    results <- as.data.frame(reticulate::py_to_r(Spatial_DE_results[[1]]))
-
-    if (length(Spatial_DE_results) == 2) {
-        ms_results <- as.data.frame(
-            reticulate::py_to_r(Spatial_DE_results[[2]])
-        )
-        spatial_genes_results <- list(results, ms_results)
-        names(spatial_genes_results) <- c("results", "ms_results")
-    } else {
-        spatial_genes_results <- results
-        ms_results <- NULL
-    }
-
-
-    # print, return and save parameters
-    show_plot <- ifelse(is.na(show_plot), instructions(gobject, "show_plot"), show_plot)
-    save_plot <- ifelse(is.na(save_plot), instructions(gobject, "save_plot"), save_plot)
-    return_plot <- ifelse(is.na(return_plot), instructions(gobject, "return_plot"), return_plot)
-
-    ## create plot
-    if (isTRUE(show_plot) ||
-        isTRUE(save_plot) ||
-        isTRUE(return_plot)) {
-        FSV_plot <- FSV_show(
-            results = results,
-            ms_results = ms_results,
-            size = size,
-            color = color,
-            sig_alpha = sig_alpha,
-            unsig_alpha = unsig_alpha
-        )
-    }
-
-    ## print plot
-    if (show_plot == TRUE) {
-        print(FSV_plot)
-    }
-
-    ## save plot
-    if (save_plot == TRUE) {
-        do.call(
-            "all_plots_save_function",
-            c(list(
-                gobject = gobject, plot_object = FSV_plot,
-                default_save_name = default_save_name
-            ), save_param)
-        )
-    }
-
-    ## return results and plot (optional)
-    if (return_plot == TRUE) {
-        return(list(results = spatial_genes_results, plot = FSV_plot))
-    } else {
-        return(list(results = spatial_genes_results))
-    }
-}
-
-
-#' @title spatialAEH
-#' @name spatialAEH
-#' @description Compute spatial variable genes with spatialDE method
-#' @param gobject Giotto object
-#' @param feat_type feature type
-#' @param spat_unit spatial unit
-#' @param spat_loc_name name for spatial locations
-#' @param SpatialDE_results results of \code{\link{spatialDE}} function
-#' @param name_pattern name for the computed spatial patterns
-#' @param expression_values gene expression values to use
-#' @param pattern_num number of spatial patterns to look for
-#' @param l lengthscale
-#' @param python_path specify specific path to python if required
-#' @param return_gobject show plot
-#' @returns An updated giotto object
-#' @details This function is a wrapper for the SpatialAEH method
-#' implemented in the ...
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' spatialAEH(g)
-#' @export
-spatialAEH <- function(
-        gobject = NULL,
-        feat_type = NULL,
-        spat_unit = NULL,
-        spat_loc_name = "raw",
-        SpatialDE_results = NULL,
-        name_pattern = "AEH_patterns",
-        expression_values = c("raw", "normalized", "scaled", "custom"),
-        pattern_num = 6,
-        l = 1.05,
-        python_path = NULL,
-        return_gobject = TRUE) {
-    # data.table variables
-    cell_ID <- NULL
-
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # expression
-    values <- match.arg(
-        expression_values, c("raw", "normalized", "scaled", "custom")
-    )
-    expr_values <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = values
-    )
-
-    ## python path
-    if (is.null(python_path)) {
-        python_path <- instructions(gobject, "python_path")
-    }
-
-    ## source python file
-    reticulate::use_python(required = TRUE, python = python_path)
-    reader_path <- system.file(
-        "python", "SpatialDE_wrapper.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = reader_path)
-
-
-    ## spatial locations
-    spatial_locs <- getSpatialLocations(gobject,
-        spat_unit = spat_unit,
-        name = spat_loc_name
-    )
-    spatial_locs <- as.data.frame(spatial_locs)
-    rownames(spatial_locs) <- spatial_locs$cell_ID
-    spatial_locs <- subset(spatial_locs, select = -cell_ID)
-
-    # extract results you need
-    results <- SpatialDE_results[["results"]][["results"]]
-
-    ## automatic expression histology
-    AEH_results <- Spatial_DE_AEH(
-        filterd_exprs = as.data.frame(t_flex(as.matrix(expr_values))),
-        coordinates = spatial_locs,
-        results = as.data.frame(results),
-        pattern_num = pattern_num,
-        l = l
-    )
-    histology_results <- as.data.frame(reticulate::py_to_r(AEH_results[[1]]))
-    cell_pattern_score <- as.data.frame(reticulate::py_to_r(AEH_results[[2]]))
-
-    spatial_pattern_results <- list(histology_results, cell_pattern_score)
-    names(spatial_pattern_results) <- c(
-        "histology_results", "cell_pattern_score"
-    )
-
-
-    if (return_gobject == TRUE) {
-        dt_res <- data.table::as.data.table(
-            spatial_pattern_results[["cell_pattern_score"]]
-        )
-        dt_res[["cell_ID"]] <- rownames(
-            spatial_pattern_results[["cell_pattern_score"]]
-        )
-        gobject@spatial_enrichment[[name_pattern]] <- dt_res
-        return(gobject)
-    } else {
-        return(list(results = spatial_pattern_results))
-    }
-}
-
-
-#' @title FSV_show
-#' @name FSV_show
-#' @description Visualize spatial variable genes calculated by spatial_DE
-#' @param results results calculated by spatial_DE
-#' @param ms_results ms_results calculated by spatial_DE
-#' @param size indicate different levels of qval
-#' @param color indicate different SV features
-#' @param sig_alpha transparency of significant genes
-#' @param unsig_alpha transparency of unsignificant genes
-#' @returns ggplot object
-#' @keywords internal
-FSV_show <- function(
-        results,
-        ms_results = NULL,
-        size = c(4, 2, 1),
-        color = c("blue", "green", "red"),
-        sig_alpha = 0.5,
-        unsig_alpha = 0.5) {
-    results$FSV95conf <- 2 * sqrt(results$s2_FSV)
-    results$intervals <- cut(
-        results$FSV95conf, c(0, 1e-1, 1e0, Inf),
-        label = FALSE
-    )
-    results$log_pval <- log10(results$pval)
-
-    if (is.null(ms_results)) {
-        results$model_bic <- results$model
-    } else {
-        results <- merge(results, ms_results[, c("g", "model")],
-            by.x = "g", by.y = "g", all.x = TRUE,
-            suffixes = (c(" ", "_bic"))
-        )
-    }
-
-    results$model_bic <- factor(results$model_bic)
-    results$intervals <- factor(results$intervals)
-
-
-    pl <- ggplot2::ggplot()
-    pl <- pl + ggplot2::theme_bw()
-    pl <- pl + ggplot2::geom_point(
-        data = results[results$qval < 0.05, ],
-        GiottoVisuals::aes_string2(
-            x = "FSV", y = "log_pval", fill = "model_bic", size = "intervals"
-        ),
-        show.legend = TRUE, 
-        shape = 21, 
-        alpha = sig_alpha,
-        stroke = 0.1, 
-        color = "black"
-    ) +
-        ggplot2::geom_point(
-            data = results[results$qval > 0.05, ],
-            GiottoVisuals::aes_string2(
-                x = "FSV", 
-                y = "log_pval", 
-                size = "intervals"),
-            show.legend = TRUE, 
-            shape = 21, 
-            alpha = unsig_alpha,
-            fill = "black", # size = size[results_cp_ns$inftervals],
-            stroke = 0.1, 
-            color = "black"
-        ) +
-        ggplot2::scale_size_manual(values = size, guide = FALSE) +
-        ggplot2::scale_color_manual(values = color) +
-        ggplot2::scale_fill_discrete(
-            name = "Spatial Patterns",
-            breaks = c("linear", "PER", "SE"),
-            labels = c("linear", "periodical", "general")
-        ) +
-        ggplot2::geom_hline(yintercept = max(results[
-            results$qval < 0.05,
-        ]$log_pval), linetype = "dashed") +
-        ggplot2::geom_text(ggplot2::aes(0.9, max(results[
-            results$qval < 0.05,
-        ]$log_pval),
-        label = "FDR = 0.05", vjust = -1
-        )) +
-        ggplot2::scale_y_reverse()
-
-    print(pl)
-}
-
-
-
-
 #' @title trendSceek
 #' @name trendSceek
 #' @description Compute spatial variable genes with trendsceek method
@@ -3482,13 +3087,13 @@ run_spatial_sim_tests_one_rep <- function(
         show_pattern = FALSE,
         spatial_network_name = "kNN_network",
         spat_methods = c(
-            "binSpect_single", "binSpect_multi", "spatialDE",
-            "spark", "silhouetteRank"
+            "binSpect_single", "binSpect_multi", "spark",
+            "silhouetteRank"
         ),
-        spat_methods_params = list(NA, NA, NA, NA, NA),
+        spat_methods_params = list(NA, NA, NA, NA),
         spat_methods_names = c(
-            "binSpect_single", "binSpect_multi", "spatialDE",
-            "spark", "silhouetteRank"
+            "binSpect_single", "binSpect_multi", "spark",
+            "silhouetteRank"
         ),
         save_plot = FALSE,
         save_raw = FALSE,
@@ -3585,7 +3190,7 @@ run_spatial_sim_tests_one_rep <- function(
             selected_method <- spat_methods[test]
             if (!selected_method %in%
                 c(
-                    "binSpect_single", "binSpect_multi", "spatialDE", "spark",
+                    "binSpect_single", "binSpect_multi", "spark",
                     "silhouetteRank"
                 )) {
                 stop(selected_method, " is not a know spatial method")
@@ -3615,15 +3220,6 @@ run_spatial_sim_tests_one_rep <- function(
                             get_av_expr = FALSE,
                             get_high_expr = FALSE,
                             summarize = "adj.p.value"
-                        )
-                    } else if (selected_method == "spatialDE") {
-                        selected_params <- list(
-                            expression_values = "raw",
-                            sig_alpha = 0.5,
-                            unsig_alpha = 0.5,
-                            show_plot = FALSE,
-                            return_plot = FALSE,
-                            save_plot = FALSE
                         )
                     } else if (selected_method == "spark") {
                         selected_params <- list(
@@ -3697,49 +3293,6 @@ run_spatial_sim_tests_one_rep <- function(
                 )
 
                 spatial_gene_results[, method := selected_name]
-            } else if (selected_method == "spatialDE") {
-                start <- proc.time()
-                new_raw_sim_matrix <- getExpression(simulate_patch,
-                    values = "raw",
-                    output = "matrix"
-                )
-                sd_cells <- apply(new_raw_sim_matrix, 2, sd)
-                sd_non_zero_cells <- names(sd_cells[sd_cells != 0])
-                simulate_patch_fix <- subsetGiotto(
-                    simulate_patch,
-                    cell_ids = sd_non_zero_cells
-                )
-
-                spatial_gene_results <- do.call("spatialDE", c(
-                    gobject = simulate_patch_fix,
-                    selected_params
-                ))
-
-                spatialDE_spatialgenes_sim_res <- spatial_gene_results$results$results
-                if (is.null(spatialDE_spatialgenes_sim_res)) {
-                    spatialDE_spatialgenes_sim_res <- spatial_gene_results$results
-                }
-
-                spatialDE_spatialgenes_sim_res <- data.table::as.data.table(
-                    spatialDE_spatialgenes_sim_res
-                )
-                data.table::setorder(spatialDE_spatialgenes_sim_res, qval, pval)
-                spatialDE_result <- spatialDE_spatialgenes_sim_res[
-                    g == gene_name
-                ]
-
-                spatialDE_time <- proc.time() - start
-
-                spatialDE_result[, prob := spatial_prob]
-                spatialDE_result[, time := spatialDE_time[["elapsed"]]]
-
-                spatial_gene_results <- spatialDE_result[
-                    , .(g, qval, prob, time)
-                ]
-                colnames(spatial_gene_results) <- c(
-                    "feats", "adj.p.value", "prob", "time"
-                )
-                spatial_gene_results[, method := "spatialDE"]
             } else if (selected_method == "spark") {
                 ## spark
                 start <- proc.time()
@@ -3819,13 +3372,13 @@ run_spatial_sim_tests_multi <- function(
         reps = 2,
         spatial_network_name = "kNN_network",
         spat_methods = c(
-            "binSpect_single", "binSpect_multi", "spatialDE",
-            "spark", "silhouetteRank"
+            "binSpect_single", "binSpect_multi", "spark",
+            "silhouetteRank"
         ),
-        spat_methods_params = list(NA, NA, NA, NA, NA),
+        spat_methods_params = list(NA, NA, NA, NA),
         spat_methods_names = c(
-            "binSpect_single", "binSpect_multi", "spatialDE",
-            "spark", "silhouetteRank"
+            "binSpect_single", "binSpect_multi", "spark",
+            "silhouetteRank"
         ),
         save_plot = FALSE,
         save_raw = FALSE,
@@ -3941,13 +3494,13 @@ runPatternSimulation <- function(
         reps = 2,
         spatial_network_name = "kNN_network",
         spat_methods = c(
-            "binSpect_single", "binSpect_multi", "spatialDE",
-            "spark", "silhouetteRank"
+            "binSpect_single", "binSpect_multi", "spark",
+            "silhouetteRank"
         ),
-        spat_methods_params = list(NA, NA, NA, NA, NA),
+        spat_methods_params = list(NA, NA, NA, NA),
         spat_methods_names = c(
-            "binSpect_single", "binSpect_multi", "spatialDE",
-            "spark", "silhouetteRank"
+            "binSpect_single", "binSpect_multi", "spark",
+            "silhouetteRank"
         ),
         scalefactor = 6000,
         save_plot = TRUE,
