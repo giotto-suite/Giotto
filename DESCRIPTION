@@ -1,6 +1,6 @@
 Package: Giotto
 Title: Spatial Single-Cell Transcriptomics Toolbox
-Version: 4.3.6
+Version: 4.3.7
 Authors@R: c(
 	person("Ruben", "Dries", email = "rubendries@gmail.com",
 		 role = c("aut", "cre"), comment = c(ORCID = "0000-0001-7650-7754")),
@@ -63,6 +63,7 @@ Suggests:
     DelayedMatrixStats,
     dendextend (>= 1.13.0),
     dplyr,
+    edgeicg,
     FactoMineR,
     factoextra,
     fitdistrplus,
@@ -126,7 +127,8 @@ Remotes:
     giotto-suite/GiottoClass,
     giotto-suite/GiottoVisuals,
     drieslab/spatialDWLS,
-    drieslab/spatialHMRF
+    drieslab/spatialHMRF,
+    drieslab/edgeicg
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
@@ -159,6 +161,8 @@ Collate:
     'globals.R'
     'gstop.R'
     'hmrf.R'
+    'icf-param.R'
+    'icf-visuals.R'
     'suite_reexports.R'
     'image_registration.R'
     'interactivity.R'

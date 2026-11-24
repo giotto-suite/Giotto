@@ -1,8 +1,82 @@
-# Giotto 4.3.6 (in development)
+# Giotto 4.3.7 (in development)
 
 Requires GiottoClass 0.8.0.
 
 ## breaking changes
+- `spatialDE()` and `spatialAEH()` are removed, together with the `"spatialDE"`
+  method of `runPatternSimulation()`. Use `binSpect()` or `spark()` for
+  spatially variable features.
+
+## new
+- `findInteractionChangedFeats()` (edgeicg) gains `region_column`: a cell metadata
+  column with a region per cell (spatial domains, niches). Every effect is then
+  also estimated within each region, with a test of whether it differs between
+  regions (`$ICFregion`: effect, log2 FC, z and q per region; `Q`, `q_het` and a
+  `pattern` of `shared`, `specific`, `opposite` or `variable`). The leak model
+  stays global. `plotICFRegion()` draws the effect per region. Needs edgeicg
+  >= 0.2.0.
+- `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
+  `createGiottoCosMxObject(backend =)` creates the `giotto` object as a
+  managed on-disk project from the same arguments: polygons from the
+  `polygons.csv`, the expression matrix, cell metadata, transcripts and
+  images. `poly_read_fun` repairs a vendor polygon export as it is read; it
+  needs a `backend`.
+- `importCosMx()` / `createGiottoCosMxObject()` read CosMx RNA + protein
+  (multiomic) runs: `protein_dir` points to the protein flat files. Targets
+  become feature type `"protein"`, the isotype controls (`CodeClass`
+  "Negative" in the plex file) `"protein_neg"`; the `Channel-*` columns are
+  not loaded. `keep_cells = "intersect"` keeps the cells with RNA expression,
+  protein expression and a polygon, every feature type in one cell order, and
+  warns with the number dropped per reason. Protein metadata goes to feature
+  type `"protein"` under protein names (`nCount_protein`, ...). With
+  `backend`, the protein arguments are passed to GiottoDisk, which must be
+  reinstalled after this version to use `protein_dir`.
+- `createGiottoCosMxObject()` gains `meta_cols`: with a `backend`, the cell
+  metadata columns to load (ignored with a warning without one).
+
+## changes
+- The CosMx reader reads the exprMat in batches of lines and parses only the
+  rows of the requested `fovs`, so memory follows the selected cells instead
+  of the whole slide (reading the 9-FOV breast subset: 3.0 instead of 7.3 GB).
+  In-memory transcripts and polygons with `FOVs` are read the same way (one
+  FOV of a 3.8 GB transcript file: 7.2 GB before).
+- The in-memory CosMx reader stores `fov` as an integer, as the vendor files,
+  the MERSCOPE reader and the GiottoDisk CosMx reader do (it was text).
+- The in-memory CosMx reader leaves out a cell with NA values in an exprMat
+  as a cell missing from that matrix, with a warning naming it.
+
+## bug fixes
+- CosMx images and label masks of AtoMx exports, whose file names pad the
+  FOV number to five digits (`CellComposite_F00033.jpg`), failed to load
+  ("No images found matching fov [F033]"). The digits are now read from the
+  files, so both these and the three-digit names of older exports load
+  without setting `file_fov_fmt`.
+- CosMx csv polygons with `FOVs` failed on exports that write a coordinate as
+  `1e+05` ("CSV conversion error to int32"); the column types now come from
+  the header.
+- `createGiottoCosMxObject()` in memory matches the RNA cells to the
+  polygons: polygons of cells without expression (e.g. from the CellLabels
+  masks) were kept, so the object failed GiottoClass's ID check later. A
+  warning names the cells left out.
+- CosMx expression splits: a split keyword that matches no feature no longer
+  leaves an empty feature type, and splits that match a single feature (or a
+  single cell) stay matrices.
+- A non-numeric value in a CosMx exprMat stops with the file and column
+  instead of an internal Matrix error; a CosMx load with neither expression
+  nor transcripts stops with a clear message.
+
+# Giotto 4.3.6
+
+Requires GiottoClass 0.8.0.
+
+## breaking changes
+- `findInteractionChangedFeats()` / `findICF()` use `method = "edgeicg"` by
+  default (needs the suggested edgeicg package). The original proximity test
+  is kept as a baseline with `method = "classic"`; its specific arguments
+  (`expression_values`, `diff_test`, `nr_permutations`, ...) are ignored, with
+  a message, by the default method. `filterICF()`, `combineICF()`,
+  `plotCellProximityFeats()` and the spot variants need a classic result and
+  say so; `plotICF()` draws either.
 - The legacy Seurat, AnnData and Bento converters are no longer re-exported:
   `seuratToGiotto()`, `giottoToSeurat()`, `anndataToGiotto()` and
   `createBentoAdata()` are in GiottoConnect. `seuratToGiottoV4/V5()` and
@@ -21,6 +95,18 @@ Requires GiottoClass 0.8.0.
   on its row and column names.
 
 ## new
+- `findInteractionChangedFeats()` gains `method = "edgeicg"` (and `param =`),
+  backed by the suggested [edgeicg](https://github.com/drieslab/edgeicg)
+  package: spillover-aware interaction-changed features at contact, paracrine
+  and niche scale. Transcripts leaked from touching cells (from the cell
+  polygons) are removed per cell before testing; niche hits are calibrated
+  with a spatial null and attributed to senders. `icfParam()` /
+  `edgeIcfParam` make it an `analyzeData()` verb dispatching on the expression
+  object; a GiottoDisk expression store is passed to edgeicg as is and read in
+  spatial windows, never loaded. `"edgeicg"` is
+  the default method; plots for its results are `plotICFOverview()`,
+  `plotICFLeak()`, `plotICFPair()`, `plotICFExposure()` and
+  `plotICFAttribution()`.
 - `normalizeGiotto()` normalizes intensity data such as protein mean
   intensities (CosMx and other imaging panels, e.g. `feat_type = "protein"`)
   with `norm_methods = "clr"` (centred log-ratio per cell, as for CITE-seq
@@ -91,6 +177,9 @@ Requires GiottoClass 0.8.0.
   `backend =`. Its output is unchanged.
 
 ## changes
+- `processData()` and `processExpression()` take a list of params for any data
+  with a method for each param, applied in order; lists worked only on matrices
+  and rasters.
 - `findInteractionChangedFeats()` works on GiottoDisk-backed objects: the
   expression of `selected_feats` (all features when `NULL`) is read into
   memory, as `runMisty()` and the intensity methods of `normalizeGiotto()`
@@ -115,6 +204,9 @@ Requires GiottoClass 0.8.0.
   longer returns `NULL`s when `calc_centroids = FALSE`.
 
 ## bug fixes
+- `calculateHVF()` shows, saves and returns its plot by default again (a
+  `NULL` `show_plot` / `save_plot` / `return_plot` turned the plot off), and the `cov_loess` / `cov_groups` HVF plots no longer fail
+  on a missing column.
 - `read10xAffineImage()` placed images wrongly when the 10x alignment matrix
   has shear or unequal scale; rotations and uniform scale were unaffected.
 - `normParam("arcsinh", c = )` stopped with "invalid name for slot of class

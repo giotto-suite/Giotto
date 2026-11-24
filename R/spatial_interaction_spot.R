@@ -1410,7 +1410,9 @@ findICFSpot <- function(gobject,
 #' @returns icfObject that contains the filtered differential feature scores
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
-#' icfObject <- findInteractionChangedFeats(g, cluster_column = "leiden_clus")
+#' icfObject <- findInteractionChangedFeats(g,
+#'     cluster_column = "leiden_clus", method = "classic"
+#' )
 #'
 #' filterICFSpot(icfObject = icfObject)
 #' @export
@@ -1434,6 +1436,7 @@ filterICFSpot <- function(
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
 
     zscores_column <- match.arg(
         zscores_column,
@@ -1499,6 +1502,7 @@ filterICFSpot <- function(
 #' g <- GiottoData::loadGiottoMini("visium")
 #' icfObject <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 #' )
 #'
@@ -1528,6 +1532,7 @@ plotICFSpot <- function(
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
 
     ICFscores <- icfObject[["ICFscores"]]
 
@@ -1620,7 +1625,9 @@ plotICFSpot <- function(
 #' @returns plot
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
-#' icfObject <- findInteractionChangedFeats(g, cluster_column = "leiden_clus")
+#' icfObject <- findInteractionChangedFeats(g,
+#'     cluster_column = "leiden_clus", method = "classic"
+#' )
 #'
 #' plotCellProximityFeatSpot(
 #'     gobject = g, icfObject = icfObject,
@@ -1654,6 +1661,7 @@ plotCellProximityFeatSpot <- function(
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
 
     # print, return and save parameters
     show_plot <- ifelse(
