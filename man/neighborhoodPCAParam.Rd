@@ -23,9 +23,9 @@ neighborhoodPCAParam(
 0.2 refines cell types with their surroundings; about 0.8 finds spatial
 domains.}
 
-\item{k_geom}{integer, number of spatial neighbours of the kNN spatial
-network \code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}} uses or creates; with \code{compute_agf = TRUE}
-one value, or two (neighbours for the mean and for the gradient)}
+\item{k_geom}{integer, number of neighbours of the kNN spatial network
+\code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}} creates when the object has none; with
+\code{compute_agf = TRUE} one value, or two (mean and gradient)}
 
 \item{npcs}{integer, number of principal components}
 
@@ -48,8 +48,9 @@ as an embedding, so it is \code{FALSE} by default.}
 row names}
 
 \item{network}{spatial network of the neighbours: an `igraph` or a
-`data.frame` with `from` and `to` cell IDs, directed from each cell to its
-neighbours (a kNN network from [createSpatialNetwork()])}
+`data.frame` with `from` and `to` cell IDs. A directed network (kNN) gives
+each cell the neighbours it points to, an undirected one (Delaunay) both
+ends of each edge; a `data.frame` is read as directed.}
 
 \item{agf_network}{spatial network of the gradient block (default
 `network`)}

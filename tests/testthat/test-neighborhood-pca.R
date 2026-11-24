@@ -69,10 +69,44 @@ test_that("runNeighborhoodPCA stores a dimObj and records its param", {
     expect_setequal(rownames(emb), spatIDs(g))
     h <- g@parameters[[length(g@parameters)]]
     expect_s4_class(attr(h, "attachments")$param, "neighborhoodPCAParam")
-    # the kNN spatial network it created is stored and reused
-    expect_true("kNN_network_k15" %in% list_spatial_networks_names(g, spat_unit = "cell"))
     expect_error(runNeighborhoodPCA(g, spatial_network_name = "none",
         verbose = FALSE), "no spatial network")
+})
+
+test_that("runNeighborhoodPCA uses the given, then the default network", {
+    skip_if_not_installed("GiottoData")
+    g <- GiottoData::loadGiottoMini("visium")
+    emb <- function(g) getDimReduction(g, reduction_method =
+        "neighborhood_pca", name = "neighborhood_pca", output = "matrix")
+    g <- createSpatialNetwork(g, method = "kNN", k = 15, name = "knn15",
+        verbose = FALSE)
+    a <- emb(runNeighborhoodPCA(g, feats_to_use = "hvf", npcs = 3,
+        spatial_network_name = "knn15", verbose = FALSE))
+    b <- emb(runNeighborhoodPCA(g, feats_to_use = "hvf", npcs = 3,
+        verbose = FALSE)) # default network: Delaunay_network
+    d <- emb(runNeighborhoodPCA(g, feats_to_use = "hvf", npcs = 3,
+        spatial_network_name = "Delaunay_network", verbose = FALSE))
+    expect_equal(b, d)
+    expect_false(isTRUE(all.equal(a, b)))
+})
+
+test_that("runNeighborhoodPCA creates a kNN network only when none exists", {
+    g <- createGiottoObject(expression = x, spatial_locs = data.table::data.table(
+        cell_ID = rownames(locs), sdimx = locs[, 1], sdimy = locs[, 2]),
+        verbose = FALSE)
+    expect_error(runNeighborhoodPCA(g, expression_values = "raw",
+        create_network = FALSE, npcs = 3, verbose = FALSE),
+        "no spatial network")
+    g <- runNeighborhoodPCA(g, expression_values = "raw", k_geom = 5,
+        npcs = 3, verbose = FALSE)
+    expect_equal(list_spatial_networks_names(g, spat_unit = "cell"),
+        "kNN_network")
+    ref <- reduceData(x, neighborhoodPCAParam(k_geom = 5, npcs = 3),
+        spatial_locs = locs, network = knn(5L))$u
+    got <- getDimReduction(g, reduction_method = "neighborhood_pca",
+        name = "neighborhood_pca", output = "matrix")
+    expect_equal(abs(diag(stats::cor(got[rownames(locs), ], ref))),
+        rep(1, 3), tolerance = 1e-8, ignore_attr = TRUE)
 })
 
 test_that("the AGF (gradient) block matches the Banksy package", {
@@ -92,4 +126,14 @@ test_that("the AGF (gradient) block matches the Banksy package", {
         npcs = 4, compute_agf = TRUE), spatial_locs = locs,
         network = knn(5L), agf_network = knn(8L))$u
     expect_equal(abs(diag(stats::cor(pb, pn))), rep(1, 4), tolerance = 1e-6)
+})
+
+test_that("an undirected network gives each cell all its neighbours", {
+    g <- createNetwork(locs, delaunayNetworkParam(output = "igraph"))
+    expect_false(igraph::is_directed(g))
+    e <- Giotto:::.network_edge_idx(g, rownames(locs))
+    deg <- tabulate(e$from, nbins = n)
+    expect_equal(deg, unname(igraph::degree(g)[rownames(locs)]))
+    w <- neighborhood_operators(e$from, e$to, locs)$w
+    expect_equal(unname(Matrix::rowSums(w)), rep(1, n))
 })

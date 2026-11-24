@@ -39,9 +39,9 @@ NULL
 #' @param lambda numeric in `[0, 1]`, the weight of the neighbourhood. About
 #'   0.2 refines cell types with their surroundings; about 0.8 finds spatial
 #'   domains.
-#' @param k_geom integer, number of spatial neighbours of the kNN spatial
-#'   network [runNeighborhoodPCA()] uses or creates; with `compute_agf = TRUE`
-#'   one value, or two (neighbours for the mean and for the gradient)
+#' @param k_geom integer, number of neighbours of the kNN spatial network
+#'   [runNeighborhoodPCA()] creates when the object has none; with
+#'   `compute_agf = TRUE` one value, or two (mean and gradient)
 #' @param compute_agf logical, add the AGF (gradient) block
 #' @param npcs integer, number of principal components
 #' @param absolute logical. Take the absolute value of the neighbour means,
@@ -92,8 +92,9 @@ setClass("neighborhoodPCAParam", contains = "reduceParam")
 #' @param spatial_locs cells x 2 (or 3) coordinates, with the cell IDs as
 #'   row names
 #' @param network spatial network of the neighbours: an `igraph` or a
-#'   `data.frame` with `from` and `to` cell IDs, directed from each cell to its
-#'   neighbours (a kNN network from [createSpatialNetwork()])
+#'   `data.frame` with `from` and `to` cell IDs. A directed network (kNN) gives
+#'   each cell the neighbours it points to, an undirected one (Delaunay) both
+#'   ends of each edge; a `data.frame` is read as directed.
 #' @param agf_network spatial network of the gradient block (default
 #'   `network`)
 #' @details `reduceData(x, param, spatial_locs = , network = )` returns the
@@ -213,11 +214,15 @@ neighborhood_agf <- function(x, ops) {
     sqrt(re^2 + im^2)
 }
 
-# Network -> list(from, to) of directed edges as indices into `ids` (edges
-# with an end outside `ids` dropped). Unlike the symmetric edge lists of the
-# smoothing and edge statistics, each cell keeps its own neighbours.
+# Network -> list(from, to) of each cell's edges to its neighbours, as
+# indices into `ids` (edges with an end outside `ids` dropped). A directed
+# network (kNN) keeps its direction, so each cell keeps its own neighbours; an
+# undirected one (Delaunay) gives every pair to both cells. A data.frame is
+# read as directed.
 .network_edge_idx <- function(network, ids) {
+    directed <- TRUE
     el <- if (inherits(network, "igraph")) {
+        directed <- igraph::is_directed(network)
         igraph::as_data_frame(network, what = "edges")
     } else {
         as.data.frame(network)
@@ -229,7 +234,14 @@ neighborhood_agf <- function(x, ops) {
     i <- match(as.character(el$from), ids)
     j <- match(as.character(el$to), ids)
     keep <- !is.na(i) & !is.na(j)
-    list(from = i[keep], to = j[keep])
+    i <- i[keep]
+    j <- j[keep]
+    if (!directed) {
+        k <- i
+        i <- c(i, j)
+        j <- c(j, k)
+    }
+    list(from = i, to = j)
 }
 
 # z-score each row (feature) across columns (cells), sample SD; constant rows
@@ -272,10 +284,13 @@ neighborhood_agf <- function(x, ops) {
 #' @param dim_reduction_to_use,dim_reduction_name,dimensions_to_use the
 #'   embedding to use with `input = "dim_reduction"`
 #' @param spat_loc_name name of the spatial locations
-#' @param spatial_network_name kNN spatial network(s) of the neighbours: one
+#' @param spatial_network_name spatial network(s) of the neighbours: one
 #'   name, or two with `compute_agf = TRUE` (mean and gradient). `NULL` uses
-#'   `"kNN_network_k<k_geom>"`, created with [createSpatialNetwork()] when
-#'   the object does not have it yet.
+#'   the object's default spatial network. BANKSY's own definition is a kNN
+#'   network of 15 neighbours: `createSpatialNetwork(method = "kNN", k = 15)`.
+#' @param create_network logical. When the object has no spatial network,
+#'   create a kNN network of `k_geom` neighbours (`"kNN_network"`, with
+#'   [createSpatialNetwork()]) instead of stopping.
 #' @param lambda,k_geom,npcs,compute_agf,absolute,seed see
 #'   [neighborhoodPCAParam()]
 #' @param name name of the stored dimension reduction (reduction method
@@ -308,6 +323,7 @@ runNeighborhoodPCA <- function(
         dimensions_to_use = NULL,
         spat_loc_name = "raw",
         spatial_network_name = NULL,
+        create_network = TRUE,
         lambda = 0.2,
         k_geom = 15L,
         npcs = 20L,
@@ -360,22 +376,37 @@ runNeighborhoodPCA <- function(
     locs <- as.matrix(sl[, c("sdimx", "sdimy")])
     rownames(locs) <- sl$cell_ID
 
-    ks <- if (isTRUE(compute_agf)) param$k_geom else param$k_geom[1L]
-    net_names <- spatial_network_name %||% sprintf("kNN_network_k%d", ks)
-    checkmate::assert_character(net_names, min.len = 1L, max.len = 2L)
     have <- list_spatial_networks_names(gobject, spat_unit = spat_unit)
-    nets <- lapply(seq_along(net_names), function(i) {
-        nm <- net_names[i]
-        if (!nm %in% have) {
-            if (!is.null(spatial_network_name)) {
-                stop("[runNeighborhoodPCA] no spatial network named ", nm,
-                    call. = FALSE)
-            }
-            vmsg(.v = verbose, "runNeighborhoodPCA: creating", nm)
-            gobject <<- createSpatialNetwork(gobject, spat_unit = spat_unit,
-                spat_loc_name = spat_loc_name, method = "kNN",
-                k = ks[min(i, length(ks))], name = nm, verbose = FALSE)
+    net_names <- spatial_network_name
+    if (is.null(net_names) && length(have)) {
+        net_names <- objName(getSpatialNetwork(gobject, spat_unit = spat_unit,
+            output = "spatialNetworkObj", verbose = FALSE))
+        vmsg(.v = verbose, "runNeighborhoodPCA: spatial network", net_names)
+    }
+    if (is.null(net_names)) {
+        if (!isTRUE(create_network)) {
+            stop("[runNeighborhoodPCA] no spatial network; create one with ",
+                "createSpatialNetwork() or set create_network = TRUE",
+                call. = FALSE)
         }
+        ks <- if (isTRUE(compute_agf)) unique(param$k_geom) else param$k_geom[1L]
+        net_names <- if (length(ks) == 1L) "kNN_network" else
+            sprintf("kNN_network_k%d", ks)
+        for (i in seq_along(ks)) {
+            vmsg(.v = verbose, "runNeighborhoodPCA: creating", net_names[i])
+            gobject <- createSpatialNetwork(gobject, spat_unit = spat_unit,
+                spat_loc_name = spat_loc_name, method = "kNN", k = ks[i],
+                name = net_names[i], verbose = FALSE)
+        }
+    }
+    checkmate::assert_character(net_names, min.len = 1L, max.len = 2L)
+    missing_nets <- setdiff(net_names,
+        list_spatial_networks_names(gobject, spat_unit = spat_unit))
+    if (length(missing_nets)) {
+        stop("[runNeighborhoodPCA] no spatial network named ",
+            paste(missing_nets, collapse = ", "), call. = FALSE)
+    }
+    nets <- lapply(net_names, function(nm) {
         getSpatialNetwork(gobject, spat_unit = spat_unit, name = nm,
             output = "spatialNetworkObj", verbose = FALSE)[]
     })
