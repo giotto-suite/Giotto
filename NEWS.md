@@ -2,6 +2,11 @@
 
 Requires GiottoClass 0.8.0.
 
+## breaking changes
+- `spatialDE()` and `spatialAEH()` are removed, together with the `"spatialDE"`
+  method of `runPatternSimulation()`. Use `binSpect()` or `spark()` for
+  spatially variable features.
+
 ## new
 - `findInteractionChangedFeats()` (edgeicg) gains `region_column`: a cell metadata
   column with a region per cell (spatial domains, niches). Every effect is then
