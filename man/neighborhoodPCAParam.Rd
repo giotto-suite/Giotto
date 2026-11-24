@@ -16,16 +16,16 @@ neighborhoodPCAParam(
   seed = 1234L
 )
 
-\S4method{reduceData}{allMatrix,neighborhoodPCAParam}(x, param, ..., spatial_locs)
+\S4method{reduceData}{allMatrix,neighborhoodPCAParam}(x, param, ..., spatial_locs, network, agf_network = network)
 }
 \arguments{
 \item{lambda}{numeric in \verb{[0, 1]}, the weight of the neighbourhood. About
 0.2 refines cell types with their surroundings; about 0.8 finds spatial
 domains.}
 
-\item{k_geom}{integer, number of spatial neighbours; with
-\code{compute_agf = TRUE} one value, or two (neighbours for the mean and for
-the gradient)}
+\item{k_geom}{integer, number of spatial neighbours of the kNN spatial
+network \code{\link[=runNeighborhoodPCA]{runNeighborhoodPCA()}} uses or creates; with \code{compute_agf = TRUE}
+one value, or two (neighbours for the mean and for the gradient)}
 
 \item{npcs}{integer, number of principal components}
 
@@ -46,6 +46,13 @@ as an embedding, so it is \code{FALSE} by default.}
 
 \item{spatial_locs}{cells x 2 (or 3) coordinates, with the cell IDs as
 row names}
+
+\item{network}{spatial network of the neighbours: an `igraph` or a
+`data.frame` with `from` and `to` cell IDs, directed from each cell to its
+neighbours (a kNN network from [createSpatialNetwork()])}
+
+\item{agf_network}{spatial network of the gradient block (default
+`network`)}
 }
 \value{
 A \code{neighborhoodPCAParam} object.
@@ -73,7 +80,8 @@ cite the original paper} (see References).
 \code{GiottoConnect::runBanksy()} runs the original \pkg{Banksy} package.
 }
 \details{
-`reduceData(x, param, spatial_locs = )` returns the list of
+`reduceData(x, param, spatial_locs = , network = )` returns the
+  list of
   [pcaParam()]'s `reduceData()` methods (`u`: cells x `npcs` coordinates,
   `d`, `v`: loadings of the joint features, `sdev`, `eigenvalues`).
 }

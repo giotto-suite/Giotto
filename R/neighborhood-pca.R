@@ -7,8 +7,9 @@ NULL
 # `reduceData()` verb (adr/0008): each cell's values are joined by the
 # Gaussian-weighted mean of its k nearest spatial neighbours, both blocks are
 # scaled, weighted by sqrt(1 - lambda) and sqrt(lambda), and reduced by PCA.
-# The spatial kNN comes from GiottoClass `createNetwork()` and the PCA from
-# `reduceData(x, pcaParam("irlba"))`; only the neighbour weights are new.
+# The neighbours are a stored kNN spatial network (`createSpatialNetwork()`)
+# and the PCA is `reduceData(x, pcaParam("irlba"))`; only BANKSY's weights and
+# gradient are new (`neighborhood_operators()`).
 # GiottoConnect::runBanksy() runs the original Bioconductor package with the
 # same verb and defaults, and is the reference.
 
@@ -38,9 +39,9 @@ NULL
 #' @param lambda numeric in `[0, 1]`, the weight of the neighbourhood. About
 #'   0.2 refines cell types with their surroundings; about 0.8 finds spatial
 #'   domains.
-#' @param k_geom integer, number of spatial neighbours; with
-#'   `compute_agf = TRUE` one value, or two (neighbours for the mean and for
-#'   the gradient)
+#' @param k_geom integer, number of spatial neighbours of the kNN spatial
+#'   network [runNeighborhoodPCA()] uses or creates; with `compute_agf = TRUE`
+#'   one value, or two (neighbours for the mean and for the gradient)
 #' @param compute_agf logical, add the AGF (gradient) block
 #' @param npcs integer, number of principal components
 #' @param absolute logical. Take the absolute value of the neighbour means,
@@ -90,13 +91,19 @@ setClass("neighborhoodPCAParam", contains = "reduceParam")
 #' @param ... unused
 #' @param spatial_locs cells x 2 (or 3) coordinates, with the cell IDs as
 #'   row names
-#' @details `reduceData(x, param, spatial_locs = )` returns the list of
+#' @param network spatial network of the neighbours: an `igraph` or a
+#'   `data.frame` with `from` and `to` cell IDs, directed from each cell to its
+#'   neighbours (a kNN network from [createSpatialNetwork()])
+#' @param agf_network spatial network of the gradient block (default
+#'   `network`)
+#' @details `reduceData(x, param, spatial_locs = , network = )` returns the
+#'   list of
 #'   [pcaParam()]'s `reduceData()` methods (`u`: cells x `npcs` coordinates,
 #'   `d`, `v`: loadings of the joint features, `sdev`, `eigenvalues`).
 #' @export
 setMethod("reduceData",
     signature(x = "allMatrix", param = "neighborhoodPCAParam"),
-    function(x, param, ..., spatial_locs) {
+    function(x, param, ..., spatial_locs, network, agf_network = network) {
         if (is.null(colnames(x)) || is.null(rownames(spatial_locs))) {
             stop("[neighborhoodPCAParam] `x` needs cell IDs as column names ",
                 "and `spatial_locs` as row names", call. = FALSE)
@@ -106,17 +113,19 @@ setMethod("reduceData",
             stop("[neighborhoodPCAParam] some cells have no spatial location",
                 call. = FALSE)
         }
-        k0 <- param$k_geom[1L]
         x <- as.matrix(x)
-        ops <- neighborhood_operators(locs, k0)
+        e <- .network_edge_idx(network, rownames(locs))
+        ops <- neighborhood_operators(e$from, e$to, locs)
         nbr <- as.matrix(x %*% Matrix::t(ops$w))
         if (isTRUE(param$absolute)) nbr <- abs(nbr)
         rownames(nbr) <- paste0(rownames(x), "_H0")
         lam <- c(1 - param$lambda, param$lambda)
         blocks <- list(x, nbr)
         if (isTRUE(param$compute_agf)) {
-            k1 <- param$k_geom[length(param$k_geom)]
-            if (k1 != k0) ops <- neighborhood_operators(locs, k1)
+            if (!identical(agf_network, network)) {
+                e <- .network_edge_idx(agf_network, rownames(locs))
+                ops <- neighborhood_operators(e$from, e$to, locs)
+            }
             agf <- neighborhood_agf(x, ops)
             rownames(agf) <- paste0(rownames(x), "_H1")
             blocks <- c(blocks, list(agf))
@@ -135,21 +144,22 @@ setMethod("reduceData",
 #' @name neighborhood_operators
 #' @description Building blocks of [neighborhoodPCAParam()], exported for
 #'   backends that compute the embedding in windows (GiottoDisk).
-#'   `neighborhood_operators()` returns sparse cells x cells operators over
-#'   each cell's `k` nearest spatial neighbours (the cell itself excluded),
+#'   `neighborhood_operators()` turns the directed edges of a spatial network
+#'   (from each cell to its neighbours) into sparse cells x cells operators,
 #'   row `j` for cell `j`:
-#'   * `w`: weights `exp(-d^2 / median(d)^2)` normalized per cell, as Banksy's
-#'     `kNN_median`
+#'   * `w`: weights `exp(-d^2 / m^2)`, `m` the median distance of the cell's
+#'     neighbours, normalized per cell, as Banksy's `kNN_median`
 #'   * `wc`, `ws`: `w * cos(phi)` and `w * sin(phi)`, `phi` the angle from the
 #'     cell to the neighbour
-#'   * `a`: `1 / k`, the plain neighbour mean
+#'   * `a`: one over the cell's number of neighbours, the plain neighbour mean
 #'
 #'   `neighborhood_agf()` returns Banksy's azimuthal gradient (harmonic 1,
 #'   centred): per feature and cell, `|sum_i w_i exp(i phi_i) (x_i - mean)|`
 #'   over the cell's neighbours. Rows of `ops` may be a subset of cells as
 #'   long as their columns cover all neighbours.
-#' @param locs cells x 2 coordinates with the cell IDs as row names
-#' @param k integer, number of neighbours
+#' @param from,to integer cell indices (rows of `locs`) of the edges: from a
+#'   cell to its neighbour; self edges are dropped
+#' @param locs cells x 2 coordinates, with the cell IDs as row names
 #' @param x features x cells values, columns in the order of the columns of
 #'   the operators
 #' @param ops operators from `neighborhood_operators()` (`a`, `wc`, `ws`)
@@ -159,32 +169,37 @@ setMethod("reduceData",
 #' @references Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing and
 #'   tissue domain segmentation for scalable spatial omics data analysis.
 #'   *Nature Genetics* 56, 431-441 (2024). \doi{10.1038/s41588-024-01664-3}
+#' @seealso [spatial_smooth_operator()] for a symmetric smoothing operator
 #' @examples
 #' xy <- matrix(runif(40), ncol = 2, dimnames = list(paste0("c", 1:20), NULL))
-#' ops <- neighborhood_operators(xy, k = 4)
+#' nn <- dbscan::kNN(xy, k = 4)
+#' ops <- neighborhood_operators(rep(1:20, 4), as.vector(nn$id), xy)
 #' x <- matrix(rpois(60, 3), 3, dimnames = list(NULL, rownames(xy)))
 #' neighborhood_agf(x, ops)[, 1:3]
 #' @md
 #' @export
-neighborhood_operators <- function(locs, k) {
+neighborhood_operators <- function(from, to, locs) {
+    i <- j <- d <- NULL # NSE
     checkmate::assert_matrix(locs, min.cols = 2L)
-    checkmate::assert_count(k, positive = TRUE)
-    ids <- rownames(locs)
-    n <- length(ids)
-    nn <- dbscan::kNN(locs[, 1:2, drop = FALSE], k = k)
-    d2 <- nn$dist^2
-    w <- exp(-d2 / MatrixGenerics::rowMedians(nn$dist)^2)
+    n <- nrow(locs)
+    e <- data.table::data.table(i = as.integer(from), j = as.integer(to))
+    e <- e[i != j]
+    dx <- locs[e$j, 1L] - locs[e$i, 1L]
+    dy <- locs[e$j, 2L] - locs[e$i, 2L]
+    e[, d := sqrt(dx^2 + dy^2)]
+    m <- e[, list(m = median(d)), by = i] # grouped median (data.table GForce)
+    med <- numeric(n)
+    med[m$i] <- m$m
+    w <- exp(-e$d^2 / med[e$i]^2)
     w[!is.finite(w)] <- 1 # all neighbours at distance 0
-    w <- w / rowSums(w)
-    i <- rep(seq_len(n), k)
-    j <- as.vector(nn$id)
-    rm(nn, d2)
-    phi <- atan2(locs[j, 2] - locs[i, 2], locs[j, 1] - locs[i, 1])
-    w <- as.vector(w)
-    sp <- function(v) Matrix::sparseMatrix(i = i, j = j, x = v,
+    ids <- rownames(locs)
+    sp <- function(v) Matrix::sparseMatrix(i = e$i, j = e$j, x = v,
         dims = c(n, n), dimnames = list(ids, ids))
+    w <- w / Matrix::rowSums(sp(w))[e$i]
+    phi <- atan2(dy, dx)
+    deg <- tabulate(e$i, nbins = n)
     list(w = sp(w), wc = sp(w * cos(phi)), ws = sp(w * sin(phi)),
-        a = sp(rep(1 / k, length(i))))
+        a = sp(1 / deg[e$i]))
 }
 
 #' @rdname neighborhood_operators
@@ -196,6 +211,25 @@ neighborhood_agf <- function(x, ops) {
     im <- as.matrix(x %*% Matrix::t(ops$ws)) -
         sweep(m, 2L, Matrix::rowSums(ops$ws), "*")
     sqrt(re^2 + im^2)
+}
+
+# Network -> list(from, to) of directed edges as indices into `ids` (edges
+# with an end outside `ids` dropped). Unlike the symmetric edge lists of the
+# smoothing and edge statistics, each cell keeps its own neighbours.
+.network_edge_idx <- function(network, ids) {
+    el <- if (inherits(network, "igraph")) {
+        igraph::as_data_frame(network, what = "edges")
+    } else {
+        as.data.frame(network)
+    }
+    if (!all(c("from", "to") %in% names(el))) {
+        stop("[neighborhoodPCAParam] `network` needs `from` and `to` columns",
+            call. = FALSE)
+    }
+    i <- match(as.character(el$from), ids)
+    j <- match(as.character(el$to), ids)
+    keep <- !is.na(i) & !is.na(j)
+    list(from = i[keep], to = j[keep])
 }
 
 # z-score each row (feature) across columns (cells), sample SD; constant rows
@@ -238,6 +272,10 @@ neighborhood_agf <- function(x, ops) {
 #' @param dim_reduction_to_use,dim_reduction_name,dimensions_to_use the
 #'   embedding to use with `input = "dim_reduction"`
 #' @param spat_loc_name name of the spatial locations
+#' @param spatial_network_name kNN spatial network(s) of the neighbours: one
+#'   name, or two with `compute_agf = TRUE` (mean and gradient). `NULL` uses
+#'   `"kNN_network_k<k_geom>"`, created with [createSpatialNetwork()] when
+#'   the object does not have it yet.
 #' @param lambda,k_geom,npcs,compute_agf,absolute,seed see
 #'   [neighborhoodPCAParam()]
 #' @param name name of the stored dimension reduction (reduction method
@@ -269,6 +307,7 @@ runNeighborhoodPCA <- function(
         dim_reduction_name = NULL,
         dimensions_to_use = NULL,
         spat_loc_name = "raw",
+        spatial_network_name = NULL,
         lambda = 0.2,
         k_geom = 15L,
         npcs = 20L,
@@ -321,8 +360,29 @@ runNeighborhoodPCA <- function(
     locs <- as.matrix(sl[, c("sdimx", "sdimy")])
     rownames(locs) <- sl$cell_ID
 
+    ks <- if (isTRUE(compute_agf)) param$k_geom else param$k_geom[1L]
+    net_names <- spatial_network_name %||% sprintf("kNN_network_k%d", ks)
+    checkmate::assert_character(net_names, min.len = 1L, max.len = 2L)
+    have <- list_spatial_networks_names(gobject, spat_unit = spat_unit)
+    nets <- lapply(seq_along(net_names), function(i) {
+        nm <- net_names[i]
+        if (!nm %in% have) {
+            if (!is.null(spatial_network_name)) {
+                stop("[runNeighborhoodPCA] no spatial network named ", nm,
+                    call. = FALSE)
+            }
+            vmsg(.v = verbose, "runNeighborhoodPCA: creating", nm)
+            gobject <<- createSpatialNetwork(gobject, spat_unit = spat_unit,
+                spat_loc_name = spat_loc_name, method = "kNN",
+                k = ks[min(i, length(ks))], name = nm, verbose = FALSE)
+        }
+        getSpatialNetwork(gobject, spat_unit = spat_unit, name = nm,
+            output = "spatialNetworkObj", verbose = FALSE)[]
+    })
+
     vmsg(.v = verbose, "runNeighborhoodPCA: neighbourhood and PCA")
-    res <- reduceData(x, param, spatial_locs = locs)
+    res <- reduceData(x, param, spatial_locs = locs, network = nets[[1L]],
+        agf_network = nets[[length(nets)]])
     coords <- res$u
     ids <- if (inherits(x, "dataStore")) rownames(coords) else colnames(x)
     dimnames(coords) <- list(ids, paste0("Dim.", seq_len(ncol(coords))))

@@ -5,14 +5,15 @@
 \alias{neighborhood_agf}
 \title{Neighbourhood operators of the BANKSY embedding}
 \usage{
-neighborhood_operators(locs, k)
+neighborhood_operators(from, to, locs)
 
 neighborhood_agf(x, ops)
 }
 \arguments{
-\item{locs}{cells x 2 coordinates with the cell IDs as row names}
+\item{from, to}{integer cell indices (rows of \code{locs}) of the edges: from a
+cell to its neighbour; self edges are dropped}
 
-\item{k}{integer, number of neighbours}
+\item{locs}{cells x 2 coordinates, with the cell IDs as row names}
 
 \item{x}{features x cells values, columns in the order of the columns of
 the operators}
@@ -27,15 +28,15 @@ of \code{ops}).
 \description{
 Building blocks of \code{\link[=neighborhoodPCAParam]{neighborhoodPCAParam()}}, exported for
 backends that compute the embedding in windows (GiottoDisk).
-\code{neighborhood_operators()} returns sparse cells x cells operators over
-each cell's \code{k} nearest spatial neighbours (the cell itself excluded),
+\code{neighborhood_operators()} turns the directed edges of a spatial network
+(from each cell to its neighbours) into sparse cells x cells operators,
 row \code{j} for cell \code{j}:
 \itemize{
-\item \code{w}: weights \code{exp(-d^2 / median(d)^2)} normalized per cell, as Banksy's
-\code{kNN_median}
+\item \code{w}: weights \code{exp(-d^2 / m^2)}, \code{m} the median distance of the cell's
+neighbours, normalized per cell, as Banksy's \code{kNN_median}
 \item \code{wc}, \code{ws}: \code{w * cos(phi)} and \code{w * sin(phi)}, \code{phi} the angle from the
 cell to the neighbour
-\item \code{a}: \code{1 / k}, the plain neighbour mean
+\item \code{a}: one over the cell's number of neighbours, the plain neighbour mean
 }
 
 \code{neighborhood_agf()} returns Banksy's azimuthal gradient (harmonic 1,
@@ -45,7 +46,8 @@ long as their columns cover all neighbours.
 }
 \examples{
 xy <- matrix(runif(40), ncol = 2, dimnames = list(paste0("c", 1:20), NULL))
-ops <- neighborhood_operators(xy, k = 4)
+nn <- dbscan::kNN(xy, k = 4)
+ops <- neighborhood_operators(rep(1:20, 4), as.vector(nn$id), xy)
 x <- matrix(rpois(60, 3), 3, dimnames = list(NULL, rownames(xy)))
 neighborhood_agf(x, ops)[, 1:3]
 }
@@ -53,4 +55,7 @@ neighborhood_agf(x, ops)[, 1:3]
 Singhal V, Chou N, Lee J, et al. BANKSY unifies cell typing and
 tissue domain segmentation for scalable spatial omics data analysis.
 \emph{Nature Genetics} 56, 431-441 (2024). \doi{10.1038/s41588-024-01664-3}
+}
+\seealso{
+\code{\link[GiottoClass:spatial_smooth_operator]{spatial_smooth_operator()}} for a symmetric smoothing operator
 }
