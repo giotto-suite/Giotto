@@ -222,3 +222,40 @@ test_that("classic downstream functions refuse an edgeicg result clearly", {
     expect_error(combineICF(res), "classic test")
     expect_error(plotCellProximityFeats(s$g, res), "classic test")
 })
+
+test_that("region_column gives region effects, $ICFregion and plotICFRegion()", {
+    skip_if_not_installed("edgeicg", "0.2.0")
+    sim <- edgeicg::simulate_edgeicg(n = 3000, G = 160, seed = 3, region_gamma = 1.2)
+    ids <- colnames(sim$counts)
+    g <- createGiottoObject(
+        expression = sim$counts,
+        spatial_locs = data.frame(
+            sdimx = sim$coords[, 1], sdimy = sim$coords[, 2], cell_ID = ids
+        ),
+        verbose = FALSE
+    )
+    g <- addCellMetadata(g,
+        new_metadata = data.frame(cell_ID = ids, ct = sim$types, half = sim$region),
+        by_column = TRUE, column_cell_ID = "cell_ID"
+    )
+    res <- findInteractionChangedFeats(g, cluster_column = "ct",
+        region_column = "half", min_shift = 150, B = 4)
+    expect_true(data.table::is.data.table(res$ICFregion))
+    expect_true(all(c("feats", "cell_type", "int_cell_type", "region",
+        "effect", "q", "q_het", "pattern") %in% names(res$ICFregion)))
+    expect_setequal(unique(res$ICFregion$region), c("left", "right"))
+    f <- head(sim$truth[region == "right", gene], 2)
+    pl <- plotICFRegion(g, res, receiver = "t1", sender = "t2", feats = f,
+        scale = "contact", return_plot = TRUE, show_plot = FALSE,
+        save_plot = FALSE)
+    expect_s3_class(pl, "ggplot")
+    expect_error(
+        findInteractionChangedFeats(g, cluster_column = "ct",
+            region_column = "nope", min_shift = 150, B = 4),
+        "not a cell metadata column"
+    )
+    res0 <- findInteractionChangedFeats(g, cluster_column = "ct",
+        min_shift = 150, B = 4)
+    expect_null(res0$ICFregion)
+    expect_error(plotICFRegion(g, res0, "t1", "t2", f), "no region effects")
+})

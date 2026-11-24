@@ -67,6 +67,11 @@
 #'   \item{`spatial_df`, `covariate_scope`}{spline degrees of freedom per axis
 #'     of the spatial basis (default 6) and where it enters: `"niche"`
 #'     (default) or `"all"` tests.}
+#'   \item{`region_column`}{optional cell metadata column with a region per
+#'     cell (e.g. spatial domains or niches). Every effect is then also
+#'     estimated within each region, with a test of whether it differs between
+#'     regions; the table is `$ICFregion` (see
+#'     `edgeicg::edgeicg_region_results()`). The leak model stays global.}
 #'   \item{other}{passed to `edgeicg::edgeicg()` (e.g. `min_cells`,
 #'     `min_det`, `min_exposed`, `calib_cond`).}
 #' }
@@ -137,6 +142,7 @@ icfParam <- function(method = "edgeicg", ...) {
 #' @param spill_edges optional touching-cell edges (`recv`, `send`, `w`) with
 #'   `recv` / `send` indexing `colnames(x)`.
 #' @param feats optional subset of features to test.
+#' @param region optional region per cell, named by cell ID.
 #' @param ... unused. Declared because [analyzeData()] carries it.
 #' @md
 #' @returns an `EdgeICG` fit (see `edgeicg::edgeicg()`).
@@ -145,7 +151,7 @@ icfParam <- function(method = "edgeicg", ...) {
 setMethod("analyzeData",
     signature(x = "ANY", param = "edgeIcfParam"),
     function(x, param, ..., coords, cell_type, lib, spill_edges = NULL,
-    feats = NULL) {
+    feats = NULL, region = NULL) {
         package_check("edgeicg", repository = "github:drieslab/edgeicg")
         ids <- colnames(x)
         if (is.null(ids)) .gstop("expression needs cell IDs as column names")
@@ -166,7 +172,13 @@ setMethod("analyzeData",
         extra <- a[setdiff(names(a), c("expression_values", "use_polygons",
             "report_q", "min_lfc", "spatial_covariates", "spatial_df",
             "covariate_scope", "block_genes", "workers", "calibrate",
-            "min_shift", "verbose"))]
+            "min_shift", "verbose", "region_column"))]
+        if (!is.null(region)) {
+            if (utils::packageVersion("edgeicg") < "0.2.0") {
+                .gstop("region_column needs edgeicg >= 0.2.0")
+            }
+            extra$region <- as.character(region[ids])
+        }
         if (isTRUE(param$spatial_covariates)) {
             extra$covariates <- edgeicg::spatial_basis(
                 coords[ids, , drop = FALSE], df = param$spatial_df
@@ -222,6 +234,18 @@ setMethod("analyzeData",
         cell_type <- stats::setNames(
             as.character(meta[[cluster_column]]), meta[["cell_ID"]]
         )
+        region <- NULL
+        if (!is.null(param$region_column)) {
+            if (!param$region_column %in% colnames(meta)) {
+                .gstop(sprintf(
+                    "region_column '%s' is not a cell metadata column",
+                    param$region_column
+                ))
+            }
+            region <- stats::setNames(
+                as.character(meta[[param$region_column]]), meta[["cell_ID"]]
+            )
+        }
         sl <- getSpatialLocations(x,
             spat_unit = spat_unit, output = "data.table", copy_obj = TRUE
         )
@@ -239,7 +263,7 @@ setMethod("analyzeData",
         }
         fit <- analyzeData(expr[], param,
             coords = coords, cell_type = cell_type, lib = lib,
-            spill_edges = spill, feats = selected_feats, ...
+            spill_edges = spill, feats = selected_feats, region = region, ...
         )
         .icf_from_edgeicg(fit,
             values = param$expression_values, cluster = cluster_column,
@@ -329,8 +353,23 @@ setMethod("analyzeData",
                 "min_lfc" = min_lfc,
                 "calibrated niche" = !is.null(fit$calibration)
             ),
+            ICFregion = if (!is.null(fit$region)) .icf_region_table(fit,
+                q_thr = min(report_q, 0.05), min_lfc = min_lfc),
             edgeicg = fit
         ),
         class = "icfObject"
     )
+}
+
+# Region effects (edgeicg::edgeicg_region_results) with the ICFscores names:
+# feats, cell_type (receiver), int_cell_type (sender).
+#' @keywords internal
+#' @noRd
+.icf_region_table <- function(fit, q_thr = 0.05, min_lfc = 0.25, all = FALSE) {
+    r <- edgeicg::edgeicg_region_results(fit, q_thr = q_thr, min_lfc = min_lfc,
+        all = all)
+    data.table::setnames(r, c("receiver", "sender", "gene"),
+        c("cell_type", "int_cell_type", "feats"))
+    data.table::setcolorder(r, c("feats", "cell_type", "int_cell_type"))
+    r[]
 }

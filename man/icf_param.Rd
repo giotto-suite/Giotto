@@ -68,6 +68,11 @@ large-scale zonation from niche hits; slower (default \code{FALSE}).}
 \item{\code{spatial_df}, \code{covariate_scope}}{spline degrees of freedom per axis
 of the spatial basis (default 6) and where it enters: \code{"niche"}
 (default) or \code{"all"} tests.}
+\item{\code{region_column}}{optional cell metadata column with a region per
+cell (e.g. spatial domains or niches). Every effect is then also
+estimated within each region, with a test of whether it differs between
+regions; the table is \verb{$ICFregion} (see
+\code{edgeicg::edgeicg_region_results()}). The leak model stays global.}
 \item{other}{passed to \code{edgeicg::edgeicg()} (e.g. \code{min_cells},
 \code{min_det}, \code{min_exposed}, \code{calib_cond}).}
 }
