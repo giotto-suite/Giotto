@@ -94,6 +94,22 @@ test_that("classic-test arguments are reported as ignored by the default route",
     )
 })
 
+test_that("selected_feats: the leak is fitted on all features unless leak_genes = 'tested'", {
+    skip_if_not_installed("edgeicg", minimum_version = "0.3.0")
+    s <- .icf_sim_giotto()
+    sel <- rownames(s$sim$counts)[1:10]
+    run <- function(...) suppressMessages(findInteractionChangedFeats(s$g,
+        cluster_column = "ct", min_shift = 150, B = 4, selected_feats = sel,
+        verbose = FALSE, ...))
+    full <- suppressMessages(findInteractionChangedFeats(s$g,
+        cluster_column = "ct", min_shift = 150, B = 4, verbose = FALSE))
+    a <- run(); tt <- run(leak_genes = "tested")
+    expect_equal(sort(a$edgeicg$genes), sort(intersect(sel, full$edgeicg$genes)))
+    expect_match(a$edgeicg$settings$leak_genes, "^all")
+    expect_match(tt$edgeicg$settings$leak_genes, "^tested")
+    expect_equal(a$edgeicg$pairs$lambda, full$edgeicg$pairs$lambda)
+})
+
 test_that("a GiottoDisk store is read by edgeicg without loading and equals the matrix route", {
     skip_if_not_installed("edgeicg")
     skip_if_not_installed("GiottoDisk")
