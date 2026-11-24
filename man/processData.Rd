@@ -2,6 +2,7 @@
 % Please edit documentation in R/normalize.R
 \name{processData}
 \alias{processData}
+\alias{processData,ANY,list-method}
 \alias{processData,giottoLargeImage,list-method}
 \alias{processData,giottoLargeImage,processParam-method}
 \alias{processData,exprObj,list-method}
@@ -12,6 +13,8 @@
 \alias{processData,allMatrix,list-method}
 \title{Composable Data Processing}
 \usage{
+\S4method{processData}{ANY,list}(x, param, ...)
+
 \S4method{processData}{giottoLargeImage,list}(x, param, name = NULL, ...)
 
 \S4method{processData}{giottoLargeImage,processParam}(x, param, name = NULL, ...)
@@ -35,6 +38,8 @@
 params affecting it. Can also be a list of several of these objects, acting
 as a pipeline.}
 
+\item{\dots}{additional params to pass}
+
 \item{name}{character (optional). \link[GiottoClass:giotto_schema]{Object name}
 to assign to the output. Default \code{name} changes based on \code{param} input:
 \itemize{
@@ -44,8 +49,6 @@ to assign to the output. Default \code{name} changes based on \code{param} input
 \item when \code{param} is \code{osmFISHNormParam}: \code{name = "custom"}
 \item when \code{param} is \code{pearsonResidNormParam}: \code{name = "scaled"}
 }}
-
-\item{\dots}{additional params to pass}
 }
 \value{
 The same class as \code{x}

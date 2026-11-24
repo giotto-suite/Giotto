@@ -3,6 +3,11 @@
 Requires GiottoClass 0.8.0.
 
 ## breaking changes
+- The legacy Seurat, AnnData and Bento converters are no longer re-exported:
+  `seuratToGiotto()`, `giottoToSeurat()`, `anndataToGiotto()` and
+  `createBentoAdata()` are in GiottoConnect. `seuratToGiottoV4/V5()` and
+  `giottoToSeuratV4/V5()` are replaced by GiottoConnect's `seuratToGiotto()` /
+  `giottoToSeurat()`.
 - 10x feature names are the same whichever file they come from.
   `get10Xmatrix_h5()` names repeated features like `get10Xmatrix()` and
   GiottoDisk: every copy gets `--N` (`Ptp4a1--1`, `Ptp4a1--2`; it gave
@@ -34,6 +39,66 @@ Requires GiottoClass 0.8.0.
   reinstalled after this version to use `protein_dir`.
 - `createGiottoCosMxObject()` gains `meta_cols`: with a `backend`, the cell
   metadata columns to load (ignored with a warning without one).
+- `normalizeGiotto()` normalizes intensity data such as protein mean
+  intensities (CosMx and other imaging panels, e.g. `feat_type = "protein"`)
+  with `norm_methods = "clr"` (centred log-ratio per cell, as for CITE-seq
+  antibody tags, in the form of established packages), `"gamma_pearson"`
+  (per-feature Gamma GLM Pearson residuals with a total-intensity offset, as
+  in Bruker's reference code; `clip_quantile`) or `"arcsinh"` (`cofactor`:
+  one value, or one per feature). They write `"normalized"` unless `name` is
+  given, are linear in the number of cells, and run on GiottoDisk-backed
+  objects by reading the matrix into memory. The same methods are
+  `normParam("clr")`, `normParam("gamma_pearson")` and
+  `normParam("arcsinh", c =)` for `processData()`; each is cited on its help
+  page (`?norm_clr`, `?norm_gamma_pearson`, `?norm_arcsinh`). `log(x + 1)`
+  is `normParam("log", base = exp(1))`.
+- `runMisty()` explains each target feature (e.g. a protein) from views of
+  the same cell, its direct neighbours (juxtaview), the tissue around it
+  (paraview) and, optionally, the neighbourhood's cell-type composition and
+  other feature types (e.g. RNA), as MISTy (Tanevski et al. 2022) does. Views
+  are sparse network products and the meta-model's p-values are computed
+  without an N x N matrix, so it runs on whole slides and on GiottoDisk-backed
+  objects. On the same views it gives mistyR's results (random forest through
+  ranger, or linear models), writes mistyR's result files (read by
+  `mistyR::collect_results()`) and stores each target's R2 in the feature
+  metadata. `sample_by` fits one model per sample (e.g. per FOV) on views
+  built from the whole slide, as mistyR's `run_misty()` per sample and
+  `collect_results()`; samples run in parallel on a `future` plan.
+- `runBanksy()` finds spatial domains with BANKSY (Singhal et al. 2024,
+  package \pkg{Banksy}) from a stored dimension reduction and the spatial
+  locations; with `runBlockPCA()`'s joint embedding the domains use RNA and
+  protein together. Only the embedding is passed, so it works on whole slides
+  and GiottoDisk-backed objects.
+- `runBlockPCA()` integrates two or more feature types by block-weighted PCs:
+  each feature type's PCs are scaled to unit total variance, weighted (equally
+  by default), concatenated and rotated to their principal axes. Linear in the
+  number of cells, so it runs on whole slides and on GiottoDisk-backed
+  objects. The joint embedding is stored under every integrated feature type
+  (reduction method `"blockpca"`), and its integrated kNN, with an optional
+  sNN, under the first, with the same arguments as `runWNN()`
+  (`integrated_k`, `integrated_network_name`, `integrated_snn`, ...): cluster
+  on the sNN and embed with `runIntegratedUMAP(graph = "knn")`, as for WNN.
+- `runWNN()` and `runIntegratedUMAP()` gain `graph`. `"dense"` (default)
+  runs their code of Giotto 4.3.6 unchanged: the same weights, N x N
+  `theta_weighted_matrix`, integrated kNN and UMAP; from 20,000 cells a
+  message gives the size of its N x N matrices. `"knn"` computes the method
+  of the WNN paper (Hao et al. 2021) on k-nearest-neighbor lists only
+  (memory O(N knn_range), time linear in N), so it runs on whole slides and
+  on GiottoDisk-backed objects, for two or more feature types: `runWNN()`
+  builds the integrated kNN (`integrated_kNN`, `integrated_k` neighbors)
+  that `runIntegratedUMAP(graph = "knn")` embeds directly. Its options:
+  `l2_norm`, per-feature-type `dimensions_to_use` and `network_names`,
+  `engine = "hnsw"`, `integrated_snn` (a shared nearest neighbor network of
+  the integrated kNN for clustering: `"giotto"` as
+  `createNearestNetwork(type = "sNN")` builds it, or `"jaccard"`),
+  `add_to_metadata` (the weights as cell metadata) and `matrix_result_name`
+  (the affinity restricted to the integrated kNN as a sparse matrix). Scores
+  are capped and the softmax is computed in log-sum-exp form, so no weight
+  is `NaN`. Arguments of the other `graph` are ignored with a warning.
+- `runWNN()` `reduction_names` defaults to the stored
+  `"<feat_type>.<method>"` embedding, else `"<method>"`, so both the earlier
+  default (`"rna.pca"`) and the names `runPCA()` gives (`"pca"`,
+  `"protein.pca"`) are found.
 - `importVisium()` creates a `VisiumReader` with `load_expression()`,
   `load_tissue_position()`, `load_cellmeta()`, `load_scalefactors()`,
   `load_micron_scale()`, `load_image()`, `load_polygon()` and
@@ -53,6 +118,15 @@ Requires GiottoClass 0.8.0.
   the MERSCOPE reader and the GiottoDisk CosMx reader do (it was text).
 - The in-memory CosMx reader leaves out a cell with NA values in an exprMat
   as a cell missing from that matrix, with a warning naming it.
+- `processData()` and `processExpression()` take a list of params for any data
+  with a method for each param, applied in order; lists worked only on matrices
+  and rasters.
+- `findInteractionChangedFeats()` works on GiottoDisk-backed objects: the
+  expression of `selected_feats` (all features when `NULL`) is read into
+  memory, as `runMisty()` and the intensity methods of `normalizeGiotto()`
+  read theirs.
+- `runWNN(graph = "knn")` stops on embeddings with NA or infinite values, and
+  on a feature type with one dimension with `l2_norm = TRUE`.
 - `createGiottoVisiumObject()` folder reading takes `tissue_positions.csv`
   (Space Ranger >= 2) when the spatial folder also holds other
   `tissue_positions*` files, and falls back to the `.h5` when the matrix
@@ -91,6 +165,17 @@ Requires GiottoClass 0.8.0.
 - A non-numeric value in a CosMx exprMat stops with the file and column
   instead of an internal Matrix error; a CosMx load with neither expression
   nor transcripts stops with a clear message.
+- `normParam("arcsinh", c = )` stopped with "invalid name for slot of class
+  arcsinhNormParam"; the cofactor is now set, also per feature.
+- `findInteractionChangedFeats()` with one `selected_feats` stopped with
+  `could not find function ":="`; it now gives one row per cell type pair,
+  the same values as for that feature tested with others (t.test, wilcox,
+  limma and permutation).
+- `runWNN()` stores the second weight as `w_<feat_type>`; it was stored
+  under the name `NA`.
+- `runIntegratedUMAP()` stops after `subsetGiotto()` instead of embedding the
+  integrated kNN of the cells before the subset; rerun `runWNN()` or
+  `runBlockPCA()`.
 - Visium `micron_scale` is measured on the spot grid (spots two array columns
   apart are 100 um apart) instead of taken as `65 / spot_diameter_fullres`.
   10x documents `spot_diameter_fullres` as a drawing size of 60-70 um, so the

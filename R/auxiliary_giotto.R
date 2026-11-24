@@ -931,3 +931,16 @@ findNetworkNeighbors <- function(gobject,
 
     return(nb_annot)
 }
+
+
+# a GiottoDisk store is narrowed to `feats` before it is read into memory
+.read_expr_matrix <- function(m, feats = NULL) {
+    if (inherits(m, "dataStore")) {
+        package_check("GiottoDisk",
+            repository = "github:giotto-suite/GiottoDisk")
+        if (!is.null(feats)) m <- m[feats, ]
+        return(GiottoDisk::storeRead(m, output = "dgcmatrix",
+            max_rows = Inf, max_cols = Inf))
+    }
+    if (is.null(feats)) m else m[feats, , drop = FALSE]
+}
