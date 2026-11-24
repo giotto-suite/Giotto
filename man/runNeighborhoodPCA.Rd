@@ -15,6 +15,7 @@ runNeighborhoodPCA(
   dim_reduction_name = NULL,
   dimensions_to_use = NULL,
   spat_loc_name = "raw",
+  spatial_network_name = NULL,
   lambda = 0.2,
   k_geom = 15L,
   npcs = 20L,
@@ -46,6 +47,11 @@ metadata (e.g. \code{"hvf"}). \code{NULL} uses all features.}
 embedding to use with \code{input = "dim_reduction"}}
 
 \item{spat_loc_name}{name of the spatial locations}
+
+\item{spatial_network_name}{kNN spatial network(s) of the neighbours: one
+name, or two with \code{compute_agf = TRUE} (mean and gradient). \code{NULL} uses
+\code{"kNN_network_k<k_geom>"}, created with \code{\link[=createSpatialNetwork]{createSpatialNetwork()}} when
+the object does not have it yet.}
 
 \item{lambda, k_geom, npcs, compute_agf, absolute, seed}{see
 \code{\link[=neighborhoodPCAParam]{neighborhoodPCAParam()}}}
