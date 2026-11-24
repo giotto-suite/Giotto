@@ -9,7 +9,7 @@ calculateHVF(
   spat_unit = NULL,
   feat_type = NULL,
   expression_values = c("normalized", "scaled", "custom"),
-  method = c("cov_groups", "cov_loess", "var_p_resid"),
+  method = c("cov_groups", "cov_loess", "var_p_resid", "var"),
   reverse_log_scale = FALSE,
   logbase = 2,
   expression_threshold = 0,
@@ -17,8 +17,10 @@ calculateHVF(
   zscore_threshold = 1.5,
   HVFname = "hvf",
   difference_in_cov = 0.1,
-  var_threshold = 1.5,
-  var_number = NULL,
+  var_threshold = 1,
+  n_top_feats = 2000,
+  theta = 100,
+  var_number = deprecated(),
   random_subset = NULL,
   set_seed = TRUE,
   seed_number = 1234,
@@ -60,11 +62,23 @@ cov_groups}
 \item{difference_in_cov}{(cov_loess) minimum difference in coefficient of
 variance required}
 
-\item{var_threshold}{(var_p_resid) variance threshold for features for
-var_p_resid method}
+\item{var_threshold}{(var_p_resid) noise floor on the residual variance.
+Under analytic Pearson residuals a feature with no biological signal has
+variance close to 1 by construction, so the default \code{1} drops features that
+are \emph{less} variable than Poisson noise. It is a guard, not a selector: on
+real data it keeps most features (94.5\% of a Stereo-seq transcriptome, 82\%
+of a Xenium panel). Raise it to select on variance alone. \code{NULL} disables it.}
 
-\item{var_number}{(var_p_resid) number of top variance features for
-var_p_resid method}
+\item{n_top_feats}{maximum number of features to keep, taken from the top of
+that method's own ranking. Default \code{2000}. Applies to every method.
+\code{NULL} disables it.}
+
+\item{theta}{(var_p_resid) negative-binomial overdispersion used when
+forming the Pearson residuals. Default 100, following Lause/Kobak and
+matching \code{normalizeGiotto(norm_methods = "pearson_resid")}. Larger values
+approach a Poisson model.}
+
+\item{var_number}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} use \code{n_top_feats}.}
 
 \item{random_subset}{random subset to perform HVF detection on.
 Passing \code{NULL} runs HVF on all cells.}
@@ -100,7 +114,7 @@ giotto object highly variable features appended to feature metadata
 compute highly variable features
 }
 \details{
-Currently we provide 2 ways to calculate highly variable genes:
+Currently we provide 4 ways to calculate highly variable genes:
 
 \strong{1. high coeff of variance (COV) within groups: } \cr
 First genes are binned (\emph{nr_expression_groups}) into average expression
@@ -113,7 +127,37 @@ A predicted COV is calculated for each feature using loess regression
 (COV~log(mean expression))
 Features that show a higher than predicted COV (\emph{difference_in_cov})
 are considered highly variable. \cr
+
+\strong{3. variance of Pearson residuals (\code{var_p_resid}): } \cr
+see \code{var_threshold}. \cr
+
+\strong{4. variance (\code{var}): } \cr
+the \code{n_top_feats} features with the highest variance of
+\code{expression_values} (by default the normalized values). It favours highly
+expressed features. \cr
 }
+\section{Feature selection}{
+Every method applies two constraints and the more restrictive one decides:
+its own threshold (\code{zscore_threshold} for \code{cov_groups},
+\code{difference_in_cov} for \code{cov_loess}, \code{var_threshold} for \code{var_p_resid})
+and the shared \code{n_top_feats} count. Setting either to \code{NULL} falls back to
+the other.
+
+The two cover different failure modes. A count keeps the selection a
+predictable size across samples, but pads the list when a dataset has few
+genuinely variable features, and cannot bind at all on a panel smaller than
+\code{n_top_feats}. A threshold is scale-free but its yield swings with the
+data.
+
+Each method ranks on its own score — residual variance, within-bin COV
+z-score, or COV above the LOESS fit. For \code{cov_groups} the z-score is
+standardised within expression bins, so a global ranking stays balanced
+across expression levels: on a Stereo-seq transcriptome a top-2000 cut drew
+9.6-12.4\% from each of 19 of 20 bins, the exception being the
+highest-expression bin, where COV is compressed by construction.
+Ties resolve by \code{order()}, so the selected count is exact.
+}
+
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 

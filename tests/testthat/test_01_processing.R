@@ -79,6 +79,21 @@ test_that("var_p_resid warns that expression_values is ignored", {
     )
 })
 
+test_that("highly variable features by plain variance", {
+    rlang::local_options(lifecycle_verbosity = "quiet")
+    g <- setFeatureMetadata(g, NULL, spat_unit = "cell", feat_type = "rna",
+        verbose = FALSE)
+    g <- calculateHVF(g, method = "var", n_top_feats = 50,
+        show_plot = FALSE, return_plot = FALSE, save_plot = FALSE)
+    fm <- fDataDT(g)
+    x <- getExpression(g, values = "normalized", output = "matrix")
+    v <- apply(as.matrix(x), 1, stats::var)
+    top <- names(sort(v[v > 0], decreasing = TRUE))[1:50]
+    expect_setequal(fm[hvf == "yes"]$feat_ID, top)
+    expect_equal(fm$var[match(top, fm$feat_ID)], unname(v[top]),
+        tolerance = 1e-8)
+})
+
 test_that("var_p_resid row variance matches base variance on Giotto matrices", {
     rlang::local_options(lifecycle_verbosity = "quiet")
 
