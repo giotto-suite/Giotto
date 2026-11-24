@@ -366,7 +366,9 @@ plotICFRegion <- function(gobject, icfObject, receiver, sender, feats,
     # log2 FC and its interval on the same scale (lfc is linear in the effect
     # for small effects)
     k <- ifelse(abs(r$effect) > 0, r$lfc / r$effect, NA_real_)
-    r[, `:=`(lo = lfc - 1.96 * se * abs(k), hi = lfc + 1.96 * se * abs(k),
+    cap <- log2(1.9 / 0.1) # the bound of edgeicg's log2 FC
+    r[, `:=`(lo = pmax(lfc - 1.96 * se * abs(k), -cap),
+        hi = pmin(lfc + 1.96 * se * abs(k), cap),
         sig = !is.na(q) & q < q_thr & abs(lfc) >= min_lfc)]
     r[, panel := sprintf("%s (%s)", feats, pattern)]
     r[, panel := factor(panel, unique(panel[match(fs, feats)]))]
