@@ -47,6 +47,9 @@
 #'   unexposed receivers.
 #' * `plotICFAttribution()`: for niche hits, how much of the evidence each
 #'   sender type explains (Wakefield attribution with a 95% credible set).
+#' * `plotICFRegion()`: for a fit with `region_column`, the effect of each
+#'   feature within each region (log2 FC with a 95% interval; filled =
+#'   significant in that region), titled with the between-region pattern.
 #' @inheritParams data_access_params
 #' @inheritParams plot_output_params
 #' @param icfObject output of `findInteractionChangedFeats(method = "edgeicg")`
@@ -61,6 +64,7 @@
 #' @param n_labels features labelled per class
 #' @param feats features to show
 #' @param n_bins number of exposure bins for the exposed receivers
+#' @param regions optional regions to show, in this order
 #' @returns ggplot
 #' @seealso [findInteractionChangedFeats()], [icfParam()]
 #' @md
@@ -320,6 +324,67 @@ plotICFAttribution <- function(gobject, icfObject, receiver, feats,
         ggplot2::labs(x = "attribution weight", y = "sender",
             title = sprintf("Which neighbour type explains the niche effect in %s?",
                 receiver)) +
+        .icf_theme()
+    GiottoVisuals::plot_output_handler(
+        gobject = gobject, plot_object = pl, save_plot = save_plot,
+        return_plot = return_plot, show_plot = show_plot,
+        default_save_name = default_save_name, save_param = save_param,
+        else_return = NULL
+    )
+}
+
+#' @rdname plotICF_edgeicg
+#' @export
+plotICFRegion <- function(gobject, icfObject, receiver, sender, feats,
+    scale = c("contact", "paracrine", "niche"), regions = NULL,
+    q_thr = 0.05, min_lfc = 0.25,
+    show_plot = NULL, return_plot = NULL, save_plot = NULL,
+    save_param = list(), default_save_name = "plotICFRegion") {
+    fit <- .icf_edgeicg_fit(icfObject)
+    if (is.null(fit$region)) {
+        .gstop("the fit has no region effects; rerun",
+            "findInteractionChangedFeats() with region_column")
+    }
+    scale <- match.arg(scale)
+    # local copies first: the table has columns named like these arguments
+    rcv <- receiver
+    snd <- sender
+    fs <- feats
+    sc <- scale
+    region <- lfc <- se <- effect <- q <- z <- pattern <- panel <- NULL
+    lo <- hi <- sig <- NULL
+    r <- .icf_region_table(fit, q_thr = q_thr, min_lfc = min_lfc, all = TRUE)
+    r <- r[r$cell_type == rcv & r$int_cell_type == snd & r$scale == sc &
+        r$feats %in% fs]
+    if (!nrow(r)) {
+        .gstop("no region tests for", receiver, "next to", sender, "at",
+            scale, "scale for these features")
+    }
+    lv <- if (is.null(regions)) fit$region$labels else regions
+    r <- r[r$region %in% lv]
+    r[, region := factor(region, rev(lv))]
+    # log2 FC and its interval on the same scale (lfc is linear in the effect
+    # for small effects)
+    k <- ifelse(abs(r$effect) > 0, r$lfc / r$effect, NA_real_)
+    r[, `:=`(lo = lfc - 1.96 * se * abs(k), hi = lfc + 1.96 * se * abs(k),
+        sig = !is.na(q) & q < q_thr & abs(lfc) >= min_lfc)]
+    r[, panel := sprintf("%s (%s)", feats, pattern)]
+    r[, panel := factor(panel, unique(panel[match(fs, feats)]))]
+    pl <- ggplot2::ggplot(r, ggplot2::aes(lfc, region)) +
+        ggplot2::geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey50") +
+        ggplot2::geom_errorbarh(ggplot2::aes(xmin = lo, xmax = hi),
+            height = 0, linewidth = 0.5, colour = "grey40") +
+        ggplot2::geom_point(ggplot2::aes(shape = sig), size = 2.4,
+            colour = "#1b1b1b", fill = "#d95f02") +
+        ggplot2::scale_shape_manual(values = c(`TRUE` = 21, `FALSE` = 1),
+            labels = c(`TRUE` = "significant", `FALSE` = "not significant"),
+            name = NULL) +
+        ggplot2::facet_wrap(~panel, scales = "free_x") +
+        ggplot2::labs(
+            x = "log2 FC within the region (high vs low exposure)", y = NULL,
+            title = sprintf("%s next to %s by region (%s scale)", receiver,
+                sender, scale)
+        ) +
         .icf_theme()
     GiottoVisuals::plot_output_handler(
         gobject = gobject, plot_object = pl, save_plot = save_plot,

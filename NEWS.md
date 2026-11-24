@@ -3,6 +3,13 @@
 Requires GiottoClass 0.8.0.
 
 ## new
+- `findInteractionChangedFeats()` (edgeicg) gains `region_column`: a cell metadata
+  column with a region per cell (spatial domains, niches). Every effect is then
+  also estimated within each region, with a test of whether it differs between
+  regions (`$ICFregion`: effect, log2 FC, z and q per region; `Q`, `q_het` and a
+  `pattern` of `shared`, `specific`, `opposite` or `variable`). The leak model
+  stays global. `plotICFRegion()` draws the effect per region. Needs edgeicg
+  >= 0.2.0.
 - `importCosMx(backend =)` returns `GiottoDisk::importCosMxDisk()`, and
   `createGiottoCosMxObject(backend =)` creates the `giotto` object as a
   managed on-disk project from the same arguments: polygons from the

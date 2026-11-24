@@ -14,7 +14,8 @@
   cell_type,
   lib,
   spill_edges = NULL,
-  feats = NULL
+  feats = NULL,
+  region = NULL
 )
 
 \S4method{analyzeData}{giotto,icfParam}(
@@ -46,6 +47,8 @@ loading it.}
 \code{recv} / \code{send} indexing \code{colnames(x)}.}
 
 \item{feats}{optional subset of features to test.}
+
+\item{region}{optional region per cell, named by cell ID.}
 
 \item{spat_unit, feat_type}{spatial unit and feature type}
 

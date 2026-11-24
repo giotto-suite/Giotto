@@ -7,6 +7,7 @@
 \alias{plotICFPair}
 \alias{plotICFExposure}
 \alias{plotICFAttribution}
+\alias{plotICFRegion}
 \title{Plots for edgeicg interaction-changed features}
 \usage{
 plotICFOverview(
@@ -80,6 +81,23 @@ plotICFAttribution(
   save_param = list(),
   default_save_name = "plotICFAttribution"
 )
+
+plotICFRegion(
+  gobject,
+  icfObject,
+  receiver,
+  sender,
+  feats,
+  scale = c("contact", "paracrine", "niche"),
+  regions = NULL,
+  q_thr = 0.05,
+  min_lfc = 0.25,
+  show_plot = NULL,
+  return_plot = NULL,
+  save_plot = NULL,
+  save_param = list(),
+  default_save_name = "plotICFRegion"
+)
 }
 \arguments{
 \item{gobject}{giotto object}
@@ -121,6 +139,8 @@ change save_name in save_param}
 \item{spat_unit}{spatial unit (e.g. "cell")}
 
 \item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
+
+\item{regions}{optional regions to show, in this order}
 }
 \value{
 ggplot
@@ -141,6 +161,9 @@ against exposure to the sender, in exposure bins; the first bin holds the
 unexposed receivers.
 \item \code{plotICFAttribution()}: for niche hits, how much of the evidence each
 sender type explains (Wakefield attribution with a 95\% credible set).
+\item \code{plotICFRegion()}: for a fit with \code{region_column}, the effect of each
+feature within each region (log2 FC with a 95\% interval; filled =
+significant in that region), titled with the between-region pattern.
 }
 }
 \seealso{
