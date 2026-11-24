@@ -54,6 +54,7 @@ Create barplot to visualize interaction changed features
 g <- GiottoData::loadGiottoMini("visium")
 icfObject <- findInteractionChangedFeats(g,
     cluster_column = "leiden_clus",
+    method = "classic",
     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 )
 

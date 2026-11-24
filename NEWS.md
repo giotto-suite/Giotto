@@ -3,6 +3,13 @@
 Requires GiottoClass 0.8.0.
 
 ## breaking changes
+- `findInteractionChangedFeats()` / `findICF()` use `method = "edgeicg"` by
+  default (needs the suggested edgeicg package). The original proximity test
+  is kept as a baseline with `method = "classic"`; its specific arguments
+  (`expression_values`, `diff_test`, `nr_permutations`, ...) are ignored, with
+  a message, by the default method. `filterICF()`, `combineICF()`,
+  `plotCellProximityFeats()` and the spot variants need a classic result and
+  say so; `plotICF()` draws either.
 - The legacy Seurat, AnnData and Bento converters are no longer re-exported:
   `seuratToGiotto()`, `giottoToSeurat()`, `anndataToGiotto()` and
   `createBentoAdata()` are in GiottoConnect. `seuratToGiottoV4/V5()` and
@@ -21,6 +28,18 @@ Requires GiottoClass 0.8.0.
   on its row and column names.
 
 ## new
+- `findInteractionChangedFeats()` gains `method = "edgeicg"` (and `param =`),
+  backed by the suggested [edgeicg](https://github.com/drieslab/edgeicg)
+  package: spillover-aware interaction-changed features at contact, paracrine
+  and niche scale. Transcripts leaked from touching cells (from the cell
+  polygons) are removed per cell before testing; niche hits are calibrated
+  with a spatial null and attributed to senders. `icfParam()` /
+  `edgeIcfParam` make it an `analyzeData()` verb dispatching on the expression
+  object; a GiottoDisk expression store is passed to edgeicg as is and read in
+  spatial windows, never loaded. `"edgeicg"` is
+  the default method; plots for its results are `plotICFOverview()`,
+  `plotICFLeak()`, `plotICFPair()`, `plotICFExposure()` and
+  `plotICFAttribution()`.
 - `normalizeGiotto()` normalizes intensity data such as protein mean
   intensities (CosMx and other imaging panels, e.g. `feat_type = "protein"`)
   with `norm_methods = "clr"` (centred log-ratio per cell, as for CITE-seq

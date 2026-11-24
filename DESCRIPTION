@@ -63,6 +63,7 @@ Suggests:
     DelayedMatrixStats,
     dendextend (>= 1.13.0),
     dplyr,
+    edgeicg,
     FactoMineR,
     factoextra,
     fitdistrplus,
@@ -124,7 +125,8 @@ Remotes:
     giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
     giotto-suite/GiottoVisuals,
-    drieslab/spatialDWLS
+    drieslab/spatialDWLS,
+    drieslab/edgeicg
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
@@ -156,6 +158,8 @@ Collate:
     'giotto_viewer.R'
     'globals.R'
     'gstop.R'
+    'icf-param.R'
+    'icf-visuals.R'
     'suite_reexports.R'
     'image_registration.R'
     'interactivity.R'

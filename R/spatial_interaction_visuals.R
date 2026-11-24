@@ -1479,7 +1479,9 @@ cellProximityVisPlot <- function(
 #' @returns volcano, cell_barplot, cell-cell, cell_sankey, heatmap, or dotplot
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
-#' icfObject <- findInteractionChangedFeats(g, cluster_column = "leiden_clus")
+#' icfObject <- findInteractionChangedFeats(g,
+#'     cluster_column = "leiden_clus", method = "classic"
+#' )
 #'
 #' plotCellProximityFeats(
 #'     gobject = g, icfObject = icfObject,
@@ -1513,6 +1515,7 @@ plotCellProximityFeats <- function(
         stop("icfObject needs to be the output from
             findInteractionChangedFeats() or findICF()")
     }
+    .icf_require_classic(icfObject)
 
     # print, return and save parameters
     show_plot <- ifelse(
@@ -1867,6 +1870,7 @@ plotCellProximityFeats <- function(
 #' g <- GiottoData::loadGiottoMini("visium")
 #' icfObject <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 #' )
 #'
@@ -1938,6 +1942,7 @@ plotCPF <- function(
 #' g <- GiottoData::loadGiottoMini("visium")
 #' icfObject <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 #' )
 #'
@@ -2061,6 +2066,7 @@ plotInteractionChangedFeats <- function(
 #' g <- GiottoData::loadGiottoMini("visium")
 #' icfObject <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 #' )
 #'
@@ -2125,6 +2131,7 @@ plotICF <- function(
 #'
 #' g_icf <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 #' )
 #'
@@ -2337,6 +2344,7 @@ plotCombineInteractionChangedFeats <- function(
 #'
 #' g_icf <- findInteractionChangedFeats(g,
 #'     cluster_column = "leiden_clus",
+#'     method = "classic",
 #'     selected_feats = c("Gna12", "Ccnd2", "Btbd17"), nr_permutations = 10
 #' )
 #'
