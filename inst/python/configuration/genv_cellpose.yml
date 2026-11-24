@@ -15,5 +15,4 @@ dependencies:
   - pip:
     - cellpose
     - python-louvain
-    - smfishHmrf
     - git+https://github.com/wwang-chcn/bento-tools.git@giotto_install
