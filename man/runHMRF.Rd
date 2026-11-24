@@ -10,10 +10,11 @@ runHMRF(
   feat_type = NULL,
   expression_values = "scaled",
   feats_to_use = NULL,
+  spat_enr_name = NULL,
   spatial_network_name = "Delaunay_network",
   k = 10L,
   betas = 2,
-  zscore = c("cell", "none"),
+  zscore = NULL,
   nstart = 200L,
   seed = 100L,
   subsample = 20000L,
@@ -34,7 +35,10 @@ runHMRF(
 
 \item{feats_to_use}{features: a character vector (e.g. spatial genes from
 \code{\link[=binSpect]{binSpect()}}) or the name of a logical feature metadata column such as
-\code{"hvf"}}
+\code{"hvf"}; ignored with \code{spat_enr_name}}
+
+\item{spat_enr_name}{name of a spatial enrichment to use instead of
+expression, e.g. the module scores of \code{\link[=spatialCoexpression]{spatialCoexpression()}}}
 
 \item{spatial_network_name}{spatial network}
 
@@ -42,7 +46,10 @@ runHMRF(
 
 \item{betas}{numeric vector of \code{beta} values}
 
-\item{zscore, nstart, seed, subsample, maxit, err, label_tol, n_icm}{see
+\item{zscore}{see \code{\link[=hmrfParam]{hmrfParam()}}; \code{NULL} (default) uses \code{"feature"} with
+\code{spat_enr_name} and \code{"cell"} with expression}
+
+\item{nstart, seed, subsample, maxit, err, label_tol, n_icm}{see
 \code{\link[=hmrfParam]{hmrfParam()}}}
 
 \item{name}{prefix of the results}
@@ -62,9 +69,14 @@ to the cell metadata (column \verb{<name>_k<k>_b<beta>}) and the posterior
 domain probabilities stored as a
 spatial enrichment of the same name. All \code{beta} share one k-means start.
 
-This reimplements the model of \pkg{smfishHmrf} without its
-spatial gene selection: pass the features with \code{feats_to_use}. \strong{If you use
-it, please cite the original paper} (see References).
+The input is either expression of the features in \code{feats_to_use}, or a
+stored spatial enrichment (\code{spat_enr_name}) such as the module scores of
+\code{\link[=spatialCoexpression]{spatialCoexpression()}}: a few spatially informed values per cell that
+make a fast and stable start. Selecting spatial genes and building the
+modules are separate steps (e.g. \code{\link[=spatialAutoCor]{spatialAutoCor()}} with any of its
+methods, then \code{\link[=spatialCoexpression]{spatialCoexpression()}}), so any method that stores a
+spatial enrichment can feed HMRF. \strong{If you use it, please cite the
+original paper} (see References).
 }
 \details{
 Choosing \code{k} and \code{beta}: fit a grid, compare the settings with
@@ -75,6 +87,12 @@ Choosing \code{k} and \code{beta}: fit a grid, compare the settings with
 g <- GiottoData::loadGiottoMini("visium")
 g <- runHMRF(g, feats_to_use = "hvf", k = 5, betas = c(0, 2),
     nstart = 20)
+
+# on spatial co-expression module scores
+sv <- spatialAutoCor(g, method = "moran", return_gobject = FALSE)
+g <- spatialCoexpression(g, feats = head(sv$feats, 200), n_modules = 8)
+g <- runHMRF(g, spat_enr_name = "spatial_module", k = 5, nstart = 20,
+    name = "hmrf_modules")
 }
 \references{
 Zhu Q, Shah S, Dries R, Cai L, Yuan GC. Identification of
