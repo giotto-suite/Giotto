@@ -14,7 +14,8 @@ setClass(
         poly_pref = "character",
         offsets = "ANY",
         calls = "list",
-        paths = "list"
+        paths = "list",
+        helpers = "list"
     ),
     prototype = list(
         version = "default",
@@ -24,7 +25,8 @@ setClass(
         poly_pref = "mask",
         offsets = NULL,
         calls = list(),
-        paths = list()
+        paths = list(),
+        helpers = list()
     )
 )
 
@@ -294,6 +296,52 @@ setMethod(
             .Object@poly_pref <- poly_pref
         }
 
+        # protein parsing: the vendor's file format, independent of where the
+        # matrix is stored. Subclass readers (CosMxDiskReader) call these
+        # through @helpers instead of keeping copies; each reader keeps its
+        # own storage step. Returns the checked split_keyword.
+        protein_spec <- function(path,
+        feat_type = c("protein", "protein_neg"),
+        split_keyword = NULL,
+        plex_path = .Object@paths$protein_plex_path) {
+            if (!length(path) || !file.exists(path)) {
+                stop(wrap_txt(
+                    "[CosmxReader] no protein exprMat_file found.
+                    Set `protein_dir` or pass `path`."
+                ), call. = FALSE)
+            }
+            if (is.null(split_keyword)) {
+                plex_path <- plex_path %null% .detect_in_dir(
+                    dirname(path), "^plex-.*[.]txt$",
+                    platform = "CosMx protein", warn = FALSE)
+                split_keyword <- if (length(feat_type) > 1L) {
+                    .cosmx_protein_negatives(plex_path, path)
+                } else {
+                    list()
+                }
+            }
+            .cosmx_check_protein_header(.cosmx_csv_header(path),
+                split_keyword, basename(path))
+            if (length(feat_type) != length(split_keyword) + 1L) {
+                stop(wrap_txt(sprintf(
+                    "[CosmxReader] %d feat_type(s) given for %d feature
+                    groups (the targets plus one per split_keyword).",
+                    length(feat_type), length(split_keyword) + 1L
+                )), call. = FALSE)
+            }
+            split_keyword
+        }
+        # a subclass installed against an older CosmxReader has no @helpers
+        if (methods::.hasSlot(.Object, "helpers")) {
+            .Object@helpers <- list(
+                protein_paths = .cosmx_protein_paths,
+                protein_spec = protein_spec,
+                protein_meta_names = .cosmx_protein_meta_names,
+                match_cells = .cosmx_match_cells,
+                report_cells = .cosmx_report_cells
+            )
+        }
+
         # NULL case
         if (length(.Object@cosmx_dir) == 0) {
             return(.Object) # return early if no path given
@@ -481,28 +529,7 @@ setMethod(
         drop_cols = "^Channel-",
         cores = determine_cores(),
         verbose = NULL) {
-            if (is.null(path)) {
-                stop(wrap_txt(
-                    "[CosmxReader] no protein exprMat_file found.
-                    Set `protein_dir` or pass `path`."
-                ), call. = FALSE)
-            }
-            if (is.null(split_keyword)) {
-                split_keyword <- if (length(feat_type) > 1L) {
-                    .cosmx_protein_negatives(protein_plex_path, path)
-                } else {
-                    list()
-                }
-            }
-            .cosmx_check_protein_header(.cosmx_csv_header(path),
-                split_keyword, basename(path))
-            if (length(feat_type) != length(split_keyword) + 1L) {
-                stop(wrap_txt(sprintf(
-                    "[CosmxReader] %d feat_type(s) given for %d feature
-                    groups (the targets plus one per split_keyword).",
-                    length(feat_type), length(split_keyword) + 1L
-                )), call. = FALSE)
-            }
+            split_keyword <- protein_spec(path, feat_type, split_keyword)
             .cosmx_expression(
                 path = path,
                 fovs = .Object@fovs %none% NULL,
@@ -920,13 +947,21 @@ setMethod("$<-", signature("CosmxReader"), function(x, name, value) {
     )
     if (length(protein_dir) == 0L) return(out)
     checkmate::assert_directory_exists(protein_dir)
-    .detect <- function(pattern, warn = TRUE) {
-        .detect_in_dir(pattern = pattern, path = protein_dir,
-                       platform = "CosMx protein", warn = warn)
+    .detect <- function(pattern, what, warn = TRUE) {
+        f <- .detect_in_dir(pattern = pattern, path = protein_dir,
+                            platform = "CosMx protein", warn = warn,
+                            first = FALSE)
+        if (length(f) > 1L) {
+            warning(sprintf(
+                "[CosmxReader] %d %s files in protein_dir; using %s",
+                length(f), what, basename(f[[1L]])), call. = FALSE)
+        }
+        if (length(f)) f[[1L]]
     }
-    out["protein_expr_path"] <- list(.detect("exprMat_file"))
-    out["protein_meta_path"] <- list(.detect("metadata_file"))
-    out["protein_plex_path"] <- list(.detect("^plex-.*[.]txt$", warn = FALSE))
+    out["protein_expr_path"] <- list(.detect("exprMat_file", "exprMat_file"))
+    out["protein_meta_path"] <- list(.detect("metadata_file", "metadata_file"))
+    out["protein_plex_path"] <- list(.detect("^plex-.*[.]txt$", "plex",
+                                             warn = FALSE))
     out
 }
 
