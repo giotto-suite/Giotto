@@ -29,7 +29,7 @@ hmrfParam(
 
 \item{beta}{numeric, strength of the spatial prior (0: no prior)}
 
-\item{zscore}{\code{"cell"} (default, as \code{\link[=initHMRF_V2]{initHMRF_V2()}}): z-score each cell
+\item{zscore}{\code{"cell"} (default, as \pkg{smfishHmrf} in Giotto): z-score each cell
 across the features after the input values; \code{"none"}: use the values as
 given}
 
@@ -79,8 +79,8 @@ An \code{hmrfParam} object.
 }
 \description{
 Parameters for \code{\link[=clusterData]{clusterData()}} that fit the hidden Markov random field
-(HMRF) model of Zhu et al. (2018), as in the \pkg{smfishHmrf} package used
-by \code{\link[=doHMRF_V2]{doHMRF_V2()}}: each cell's z-scored expression of spatial genes follows
+(HMRF) model of Zhu et al. (2018), as in the \pkg{smfishHmrf} package:
+each cell's z-scored expression of spatial genes follows
 a multivariate Gaussian per domain, and a Potts prior of strength \code{beta}
 favours domains shared with spatial neighbours. Fitted by EM with
 iterated conditional modes over the colour classes of the spatial network,
@@ -109,5 +109,5 @@ fluorescence in situ hybridization data. \emph{Nature Biotechnology} 36,
 1183–1190 (2018). \doi{10.1038/nbt.4260}
 }
 \seealso{
-\code{\link[=runHMRF]{runHMRF()}}, \code{\link[=doHMRF_V2]{doHMRF_V2()}}
+\code{\link[=runHMRF]{runHMRF()}}
 }

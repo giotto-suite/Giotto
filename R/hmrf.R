@@ -15,8 +15,8 @@ NULL
 #' @name hmrfParam
 #' @description
 #' Parameters for [clusterData()] that fit the hidden Markov random field
-#' (HMRF) model of Zhu et al. (2018), as in the \pkg{smfishHmrf} package used
-#' by [doHMRF_V2()]: each cell's z-scored expression of spatial genes follows
+#' (HMRF) model of Zhu et al. (2018), as in the \pkg{smfishHmrf} package:
+#' each cell's z-scored expression of spatial genes follows
 #' a multivariate Gaussian per domain, and a Potts prior of strength `beta`
 #' favours domains shared with spatial neighbours. Fitted by EM with
 #' iterated conditional modes over the colour classes of the spatial network,
@@ -27,7 +27,7 @@ NULL
 #' (see References).
 #' @param k integer, number of domains
 #' @param beta numeric, strength of the spatial prior (0: no prior)
-#' @param zscore `"cell"` (default, as [initHMRF_V2()]): z-score each cell
+#' @param zscore `"cell"` (default, as \pkg{smfishHmrf} in Giotto): z-score each cell
 #'   across the features after the input values; `"none"`: use the values as
 #'   given
 #' @param nstart integer, k-means starts (\pkg{smfishHmrf}: 1000)
@@ -50,7 +50,7 @@ NULL
 #'   spatially associated subpopulations by combining scRNAseq and sequential
 #'   fluorescence in situ hybridization data. *Nature Biotechnology* 36,
 #'   1183–1190 (2018). \doi{10.1038/nbt.4260}
-#' @seealso [runHMRF()], [doHMRF_V2()]
+#' @seealso [runHMRF()]
 #' @examples
 #' p <- hmrfParam(k = 5, beta = 2)
 #' @md
@@ -145,13 +145,12 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' domain probabilities stored as a
 #' spatial enrichment of the same name. All `beta` share one k-means start.
 #'
-#' This reimplements the model of \pkg{smfishHmrf} ([doHMRF_V2()]) without its
+#' This reimplements the model of \pkg{smfishHmrf} without its
 #' spatial gene selection: pass the features with `feats_to_use`. **If you use
 #' it, please cite the original paper** (see References).
 #' @param gobject giotto object
 #' @param spat_unit,feat_type spatial unit and feature type
-#' @param expression_values expression values (default `"scaled"`, as
-#'   [initHMRF_V2()])
+#' @param expression_values expression values (default `"scaled"`)
 #' @param feats_to_use features: a character vector (e.g. spatial genes from
 #'   [binSpect()]) or the name of a logical feature metadata column such as
 #'   `"hvf"`
@@ -174,7 +173,7 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #'   spatially associated subpopulations by combining scRNAseq and sequential
 #'   fluorescence in situ hybridization data. *Nature Biotechnology* 36,
 #'   1183–1190 (2018). \doi{10.1038/nbt.4260}
-#' @seealso [hmrfParam()], [hmrfSummary()], [doHMRF_V2()]
+#' @seealso [hmrfParam()], [hmrfSummary()]
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #' g <- runHMRF(g, feats_to_use = "hvf", k = 5, betas = c(0, 2),

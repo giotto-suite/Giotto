@@ -30,8 +30,7 @@ runHMRF(
 
 \item{spat_unit, feat_type}{spatial unit and feature type}
 
-\item{expression_values}{expression values (default \code{"scaled"}, as
-\code{\link[=initHMRF_V2]{initHMRF_V2()}})}
+\item{expression_values}{expression values (default \code{"scaled"})}
 
 \item{feats_to_use}{features: a character vector (e.g. spatial genes from
 \code{\link[=binSpect]{binSpect()}}) or the name of a logical feature metadata column such as
@@ -63,7 +62,7 @@ to the cell metadata (column \verb{<name>_k<k>_b<beta>}) and the posterior
 domain probabilities stored as a
 spatial enrichment of the same name. All \code{beta} share one k-means start.
 
-This reimplements the model of \pkg{smfishHmrf} (\code{\link[=doHMRF_V2]{doHMRF_V2()}}) without its
+This reimplements the model of \pkg{smfishHmrf} without its
 spatial gene selection: pass the features with \code{feats_to_use}. \strong{If you use
 it, please cite the original paper} (see References).
 }
@@ -84,5 +83,5 @@ fluorescence in situ hybridization data. \emph{Nature Biotechnology} 36,
 1183–1190 (2018). \doi{10.1038/nbt.4260}
 }
 \seealso{
-\code{\link[=hmrfParam]{hmrfParam()}}, \code{\link[=hmrfSummary]{hmrfSummary()}}, \code{\link[=doHMRF_V2]{doHMRF_V2()}}
+\code{\link[=hmrfParam]{hmrfParam()}}, \code{\link[=hmrfSummary]{hmrfSummary()}}
 }
