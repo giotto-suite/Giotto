@@ -347,8 +347,12 @@ findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
     # inner wrappers do not record history (nested calls); one entry below
     quiet <- function(code) gwith_options(list(giotto.update_param = FALSE),
         code)
+    # `...` reaches the wrapper; its param keeps the arguments it takes
+    dots <- list(...)
+    param_args <- function(f) dots[intersect(names(dots), names(formals(f)))]
     if (method == "neighborhood") {
-        param <- neighborhoodPCAParam(lambda = lambda, ...)
+        param <- do.call(neighborhoodPCAParam,
+            c(list(lambda = lambda), param_args(neighborhoodPCAParam)))
         gobject <- quiet(runNeighborhoodPCA(gobject, spat_unit = spat_unit,
             feat_type = feat_type, feats_to_use = feats_to_use,
             lambda = lambda, name = name, ...))
@@ -367,7 +371,8 @@ findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
         return(update_giotto_params(gobject, description = "_spatial_domains",
             attachments = list(param = param)))
     }
-    param <- hmrfParam(k = k, beta = beta, ...)
+    param <- do.call(hmrfParam, c(list(k = k, beta = beta),
+        param_args(hmrfParam)))
     gobject <- quiet(runHMRF(gobject, spat_unit = spat_unit,
         feat_type = feat_type, feats_to_use = feats_to_use, k = k,
         betas = beta, name = name, ...))

@@ -77,3 +77,16 @@ test_that("runHMRF fits a k x beta grid and hmrfSummary compares it", {
     expect_true(all(s$confidence > 0 & s$confidence <= 1))
     expect_gt(s[k == 3 & beta == 4]$coherence, s[k == 3 & beta == 0]$coherence)
 })
+
+test_that("findSpatialDomains passes wrapper arguments through", {
+    skip_if_not_installed("GiottoData")
+    g <- GiottoData::loadGiottoMini("visium")
+    g <- createSpatialNetwork(g, method = "kNN", k = 15, name = "knn15",
+        verbose = FALSE)
+    g <- findSpatialDomains(g, method = "neighborhood",
+        spatial_network_name = "knn15", npcs = 10, name = "dom",
+        verbose = FALSE)
+    expect_false(anyNA(pDataDT(g)$dom))
+    h <- g@parameters[[length(g@parameters)]]
+    expect_equal(attr(h, "attachments")$param$npcs, 10L)
+})
