@@ -8,6 +8,9 @@ Requires GiottoClass 0.8.0.
   spatially variable features.
 
 ## new
+- `calculateHVF(method = "var")` selects the `n_top_feats` features with the
+  highest variance of `expression_values`, from the same statistics pass as
+  `cov_groups`, so it also runs on GiottoDisk stores.
 - `findInteractionChangedFeats()` (edgeicg) gains `region_column`: a cell metadata
   column with a region per cell (spatial domains, niches). Every effect is then
   also estimated within each region, with a test of whether it differs between

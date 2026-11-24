@@ -316,7 +316,7 @@ setClass("varParam", contains = "analyzeParam")
 #' @returns giotto object highly variable features appended to feature metadata
 #' (`fDataDT()`)
 #' @details
-#' Currently we provide 2 ways to calculate highly variable genes:
+#' Currently we provide 4 ways to calculate highly variable genes:
 #'
 #' \strong{1. high coeff of variance (COV) within groups: } \cr
 #' First genes are binned (\emph{nr_expression_groups}) into average expression
@@ -330,6 +330,14 @@ setClass("varParam", contains = "analyzeParam")
 #' Features that show a higher than predicted COV (\emph{difference_in_cov})
 #' are considered highly variable. \cr
 #'
+#' \strong{3. variance of Pearson residuals (`var_p_resid`): } \cr
+#' see `var_threshold`. \cr
+#'
+#' \strong{4. variance (`var`): } \cr
+#' the `n_top_feats` features with the highest variance of
+#' `expression_values` (by default the normalized values). It favours highly
+#' expressed features. \cr
+#'
 #' @md
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -341,7 +349,7 @@ calculateHVF <- function(
         spat_unit = NULL,
         feat_type = NULL,
         expression_values = c("normalized", "scaled", "custom"),
-        method = c("cov_groups", "cov_loess", "var_p_resid"),
+        method = c("cov_groups", "cov_loess", "var_p_resid", "var"),
         reverse_log_scale = FALSE,
         logbase = 2,
         expression_threshold = 0,
@@ -365,7 +373,7 @@ calculateHVF <- function(
         calc_gini = FALSE,
         verbose = TRUE) {
     # NSE vars
-    selected <- feats <- var <- NULL
+    selected <- feats <- var <- sd <- NULL
 
     # `var_number` was var_p_resid-only; the top-N cut now applies to every
     # method, so it is exposed under a name that does not imply variance.
@@ -398,7 +406,7 @@ calculateHVF <- function(
     # get fetched depends on it.
     method <- match.arg(
         method,
-        choices = c("cov_groups", "cov_loess", "var_p_resid")
+        choices = c("cov_groups", "cov_loess", "var_p_resid", "var")
     )
 
     # expression values to be used
@@ -498,6 +506,21 @@ calculateHVF <- function(
             )]
             dt
         },
+        "var" = {
+            # the per-feature sd comes from the same stats pass as cov_groups,
+            # on every expression backend
+            dt <- analyzeData(
+                expr_values,
+                analyzeParam("cov_groups",
+                    nr_expression_groups = nr_expression_groups,
+                    detection_threshold = expression_threshold,
+                    use_parallel = use_parallel)
+            )
+            dt <- dt[, .(feats, mean_expr, var = sd^2)]
+            data.table::setorder(dt, -var)
+            dt[, selected := .hvf_select(rep(TRUE, .N), var, n_top_feats)]
+            dt
+        },
         "cov_loess" = {
             dt <- analyzeData(
                 expr_values,
@@ -528,6 +551,8 @@ calculateHVF <- function(
                 n_top_feats = n_top_feats
             )
             feat_in_cells_detected[, rank := NULL]
+        } else if (method == "var") {
+            pl <- .create_var_hvf_plot(data.table::copy(feat_in_cells_detected))
         } else if (method == "cov_groups") {
             prob_seq <- seq(0, 1, 1 / nr_expression_groups)
             prob_seq[length(prob_seq)] <- 1
@@ -619,7 +644,7 @@ calculateHVF <- function(
             ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
         }
 
-        if (method == "var_p_resid") {
+        if (method %in% c("var_p_resid", "var")) {
             HVGfeats <- feat_in_cells_detected[, .(feats, var, selected)]
             data.table::setnames(HVGfeats, "selected", HVFname)
         } else {
@@ -654,6 +679,18 @@ calculateHVF <- function(
 
 
 # plot generation ####
+.create_var_hvf_plot <- function(dt) {
+    ggplot2::ggplot(dt, GiottoVisuals::aes_string2(x = "mean_expr", y = "var",
+        color = "selected")) +
+        ggplot2::geom_point() +
+        ggplot2::scale_color_manual(values = c(no = "lightgrey",
+            yes = "orange"), guide = ggplot2::guide_legend(title = "HVF",
+            override.aes = list(size = 5))) +
+        ggplot2::labs(x = "mean expression", y = "variance",
+            title = "HVF by variance") +
+        ggplot2::theme_classic()
+}
+
 .create_cov_group_hvf_plot <- function(feat_in_cells_detected,
     nr_expression_groups) {
     pl <- ggplot2::ggplot()
