@@ -231,8 +231,6 @@ GiottoClass::fDataDT
 #' @export
 GiottoClass::featureNetwork
 #' @export
-GiottoClass::gefToGiotto
-#' @export
 GiottoClass::getCellMetadata
 #' @export
 GiottoClass::getDimReduction

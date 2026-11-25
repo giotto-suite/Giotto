@@ -16,6 +16,8 @@ Requires GiottoClass 0.8.0.
 - `giottoToAnnData()`, `giottoToSpatialExperiment()` and
   `spatialExperimentToGiotto()` are no longer re-exported; use the
   GiottoConnect versions.
+- `gefToGiotto()` is no longer re-exported (it is removed from GiottoClass).
+  `importStereoSeq()` reads Stereo-seq GEF files.
 
 ## new
 - Library normalization accepts `scalefactor = "median"` (in `normParam("library")`,
