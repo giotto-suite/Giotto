@@ -141,10 +141,18 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 }
 
 
-# NULL: "feature" on a spatial enrichment (few values per cell on different
-# scales), "cell" on expression
-.hmrf_zscore <- function(zscore, spat_enr_name) {
-    zscore <- zscore %null% if (is.null(spat_enr_name)) "cell" else "feature"
+# NULL: "none" on a dimension reduction (factors as given), "feature" on a
+# spatial enrichment (few values per cell on different scales), "cell" on
+# expression
+.hmrf_zscore <- function(zscore, spat_enr_name = NULL,
+    dim_reduction_to_use = NULL) {
+    zscore <- zscore %null% if (!is.null(dim_reduction_to_use)) {
+        "none"
+    } else if (!is.null(spat_enr_name)) {
+        "feature"
+    } else {
+        "cell"
+    }
     match.arg(zscore, c("cell", "feature", "none"))
 }
 
@@ -161,26 +169,32 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' domain probabilities stored as a
 #' spatial enrichment of the same name. All `beta` share one k-means start.
 #'
-#' The input is either expression of the features in `feats_to_use`, or a
-#' stored spatial enrichment (`spat_enr_name`) such as the module scores of
-#' [spatialCoexpression()]: a few spatially informed values per cell that
-#' make a fast and stable start. Selecting spatial genes and building the
-#' modules are separate steps (e.g. [spatialAutoCor()] with any of its
-#' methods, then [spatialCoexpression()]), so any method that stores a
-#' spatial enrichment can feed HMRF. **If you use it, please cite the
-#' original paper** (see References).
+#' The input is expression of the features in `feats_to_use`, a stored
+#' dimension reduction (`dim_reduction_to_use`), or a stored spatial
+#' enrichment (`spat_enr_name`). A few spatially informed values per cell
+#' make a fast and stable start, for example NMF factors of spatial genes
+#' ([spatialAutoCor()], then [runNMF()] on its top genes) or the module
+#' scores of [spatialCoexpression()]. These are separate steps, so any gene
+#' test, reduction or module method can feed HMRF. **If you use it, please
+#' cite the original paper** (see References).
 #' @param gobject giotto object
 #' @param spat_unit,feat_type spatial unit and feature type
 #' @param expression_values expression values (default `"scaled"`)
 #' @param feats_to_use features: a character vector (e.g. spatial genes from
 #'   [binSpect()]) or the name of a logical feature metadata column such as
-#'   `"hvf"`; ignored with `spat_enr_name`
+#'   `"hvf"`; ignored with `dim_reduction_to_use` or `spat_enr_name`
+#' @param dim_reduction_to_use reduction method of a stored dimension
+#'   reduction to use instead of expression (e.g. `"nmf"` or `"pca"`)
+#' @param dim_reduction_name its name; `NULL` uses `dim_reduction_to_use`
+#' @param dimensions_to_use its dimensions; `NULL` uses all
 #' @param spat_enr_name name of a spatial enrichment to use instead of
 #'   expression, e.g. the module scores of [spatialCoexpression()]
 #' @param spatial_network_name spatial network
 #' @param k integer vector of numbers of domains
-#' @param zscore see [hmrfParam()]; `NULL` (default) uses `"feature"` with
-#'   `spat_enr_name` and `"cell"` with expression
+#' @param zscore see [hmrfParam()]; `NULL` (default) uses `"none"` with
+#'   a dimension reduction, `"feature"` with `spat_enr_name` and `"cell"`
+#'   with expression. PCs usually work better scaled (`"feature"`), as the
+#'   first PCs otherwise dominate.
 #' @param nstart,seed,subsample,maxit,err,label_tol,n_icm see
 #'   [hmrfParam()]
 #' @param betas numeric vector of `beta` values
@@ -204,6 +218,14 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' g <- runHMRF(g, feats_to_use = "hvf", k = 5, betas = c(0, 2),
 #'     nstart = 20)
 #'
+#' # on NMF factors of spatially variable genes
+#' sv <- spatialAutoCor(g, method = "binspect", return_gobject = FALSE)
+#' g <- runNMF(g, feats_to_use = head(sv$feats, 200), k = 5,
+#'     name = "spatial_nmf", verbose = FALSE)
+#' g <- runHMRF(g, dim_reduction_to_use = "nmf",
+#'     dim_reduction_name = "spatial_nmf", k = 5, nstart = 20,
+#'     name = "hmrf_nmf")
+#'
 #' # on spatial co-expression module scores
 #' sv <- spatialAutoCor(g, method = "moran", return_gobject = FALSE)
 #' g <- spatialCoexpression(g, feats = head(sv$feats, 200), n_modules = 8)
@@ -212,7 +234,9 @@ setMethod("clusterData", signature("allMatrix", "hmrfParam"),
 #' @md
 #' @export
 runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
-    expression_values = "scaled", feats_to_use = NULL, spat_enr_name = NULL,
+    expression_values = "scaled", feats_to_use = NULL,
+    dim_reduction_to_use = NULL, dim_reduction_name = NULL,
+    dimensions_to_use = NULL, spat_enr_name = NULL,
     spatial_network_name = "Delaunay_network", k = 10L, betas = 2,
     zscore = NULL, nstart = 200L, seed = 100L,
     subsample = 20000L, maxit = 50L, err = 1e-7, label_tol = 1e-4,
@@ -222,12 +246,25 @@ runHMRF <- function(gobject, spat_unit = NULL, feat_type = NULL,
     checkmate::assert_numeric(betas, lower = 0, min.len = 1L)
     checkmate::assert_integerish(k, lower = 2, min.len = 1L)
     checkmate::assert_string(spat_enr_name, null.ok = TRUE)
-    zscore <- .hmrf_zscore(zscore, spat_enr_name)
+    checkmate::assert_string(dim_reduction_to_use, null.ok = TRUE)
+    if (!is.null(spat_enr_name) && !is.null(dim_reduction_to_use)) {
+        stop("[runHMRF] use either `dim_reduction_to_use` or ",
+            "`spat_enr_name`", call. = FALSE)
+    }
+    zscore <- .hmrf_zscore(zscore, spat_enr_name, dim_reduction_to_use)
     spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
     feat_type <- set_default_feat_type(gobject = gobject,
         spat_unit = spat_unit, feat_type = feat_type)
 
-    if (is.null(spat_enr_name)) {
+    if (!is.null(dim_reduction_to_use)) {
+        x <- getDimReduction(gobject, spat_unit = spat_unit,
+            feat_type = feat_type, reduction_method = dim_reduction_to_use,
+            name = dim_reduction_name %null% dim_reduction_to_use,
+            output = "matrix")
+        if (!is.null(dimensions_to_use)) {
+            x <- x[, dimensions_to_use, drop = FALSE]
+        }
+    } else if (is.null(spat_enr_name)) {
         ex <- getExpression(gobject, spat_unit = spat_unit,
             feat_type = feat_type, values = expression_values,
             output = "exprObj")
@@ -358,10 +395,13 @@ hmrfSummary <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @param spat_unit,feat_type spatial unit and feature type
 #' @param feats_to_use features (character vector or a logical feature
 #'   metadata column such as `"hvf"`)
+#' @param dim_reduction_to_use,dim_reduction_name `"hmrf"` only: a stored
+#'   dimension reduction to fit instead of expression, such as NMF factors
+#'   of spatial genes ([runNMF()] on the top genes of any [spatialAutoCor()]
+#'   method); more arguments of [runHMRF()], e.g. `dimensions_to_use`, go
+#'   through `...`
 #' @param spat_enr_name `"hmrf"` only: a spatial enrichment to fit instead
 #'   of expression, such as the module scores of [spatialCoexpression()]
-#'   (built beforehand, from spatial genes of any [spatialAutoCor()]
-#'   method)
 #' @param k number of domains (`"hmrf"`)
 #' @param beta spatial prior strength (`"hmrf"`)
 #' @param lambda neighbourhood weight (`"neighborhood"`)
@@ -385,6 +425,7 @@ hmrfSummary <- function(gobject, spat_unit = NULL, feat_type = NULL,
 #' @export
 findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
     spat_unit = NULL, feat_type = NULL, feats_to_use = "hvf",
+    dim_reduction_to_use = NULL, dim_reduction_name = NULL,
     spat_enr_name = NULL, k = 10L,
     beta = 2, lambda = 0.8, resolution = 0.8, k_neighbors = 30L,
     seed = 1234L, name = "spatial_domain", ...) {
@@ -420,10 +461,12 @@ findSpatialDomains <- function(gobject, method = c("neighborhood", "hmrf"),
             attachments = list(param = param)))
     }
     hp <- param_args(hmrfParam)
-    hp$zscore <- .hmrf_zscore(hp$zscore, spat_enr_name)
+    hp$zscore <- .hmrf_zscore(hp$zscore, spat_enr_name, dim_reduction_to_use)
     param <- do.call(hmrfParam, c(list(k = k, beta = beta), hp))
     gobject <- quiet(do.call(runHMRF, c(list(gobject, spat_unit = spat_unit,
         feat_type = feat_type, feats_to_use = feats_to_use,
+        dim_reduction_to_use = dim_reduction_to_use,
+        dim_reduction_name = dim_reduction_name,
         spat_enr_name = spat_enr_name, k = k, betas = beta, name = name,
         zscore = hp$zscore), dots[setdiff(names(dots), "zscore")])))
     key <- sprintf("%s_k%d_b%s", name, k, format(beta))

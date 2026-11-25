@@ -10,6 +10,9 @@ runHMRF(
   feat_type = NULL,
   expression_values = "scaled",
   feats_to_use = NULL,
+  dim_reduction_to_use = NULL,
+  dim_reduction_name = NULL,
+  dimensions_to_use = NULL,
   spat_enr_name = NULL,
   spatial_network_name = "Delaunay_network",
   k = 10L,
@@ -35,7 +38,14 @@ runHMRF(
 
 \item{feats_to_use}{features: a character vector (e.g. spatial genes from
 \code{\link[=binSpect]{binSpect()}}) or the name of a logical feature metadata column such as
-\code{"hvf"}; ignored with \code{spat_enr_name}}
+\code{"hvf"}; ignored with \code{dim_reduction_to_use} or \code{spat_enr_name}}
+
+\item{dim_reduction_to_use}{reduction method of a stored dimension
+reduction to use instead of expression (e.g. \code{"nmf"} or \code{"pca"})}
+
+\item{dim_reduction_name}{its name; \code{NULL} uses \code{dim_reduction_to_use}}
+
+\item{dimensions_to_use}{its dimensions; \code{NULL} uses all}
 
 \item{spat_enr_name}{name of a spatial enrichment to use instead of
 expression, e.g. the module scores of \code{\link[=spatialCoexpression]{spatialCoexpression()}}}
@@ -46,8 +56,10 @@ expression, e.g. the module scores of \code{\link[=spatialCoexpression]{spatialC
 
 \item{betas}{numeric vector of \code{beta} values}
 
-\item{zscore}{see \code{\link[=hmrfParam]{hmrfParam()}}; \code{NULL} (default) uses \code{"feature"} with
-\code{spat_enr_name} and \code{"cell"} with expression}
+\item{zscore}{see \code{\link[=hmrfParam]{hmrfParam()}}; \code{NULL} (default) uses \code{"none"} with
+a dimension reduction, \code{"feature"} with \code{spat_enr_name} and \code{"cell"}
+with expression. PCs usually work better scaled (\code{"feature"}), as the
+first PCs otherwise dominate.}
 
 \item{nstart, seed, subsample, maxit, err, label_tol, n_icm}{see
 \code{\link[=hmrfParam]{hmrfParam()}}}
@@ -69,14 +81,14 @@ to the cell metadata (column \verb{<name>_k<k>_b<beta>}) and the posterior
 domain probabilities stored as a
 spatial enrichment of the same name. All \code{beta} share one k-means start.
 
-The input is either expression of the features in \code{feats_to_use}, or a
-stored spatial enrichment (\code{spat_enr_name}) such as the module scores of
-\code{\link[=spatialCoexpression]{spatialCoexpression()}}: a few spatially informed values per cell that
-make a fast and stable start. Selecting spatial genes and building the
-modules are separate steps (e.g. \code{\link[=spatialAutoCor]{spatialAutoCor()}} with any of its
-methods, then \code{\link[=spatialCoexpression]{spatialCoexpression()}}), so any method that stores a
-spatial enrichment can feed HMRF. \strong{If you use it, please cite the
-original paper} (see References).
+The input is expression of the features in \code{feats_to_use}, a stored
+dimension reduction (\code{dim_reduction_to_use}), or a stored spatial
+enrichment (\code{spat_enr_name}). A few spatially informed values per cell
+make a fast and stable start, for example NMF factors of spatial genes
+(\code{\link[=spatialAutoCor]{spatialAutoCor()}}, then \code{\link[=runNMF]{runNMF()}} on its top genes) or the module
+scores of \code{\link[=spatialCoexpression]{spatialCoexpression()}}. These are separate steps, so any gene
+test, reduction or module method can feed HMRF. \strong{If you use it, please
+cite the original paper} (see References).
 }
 \details{
 Choosing \code{k} and \code{beta}: fit a grid, compare the settings with
@@ -87,6 +99,14 @@ Choosing \code{k} and \code{beta}: fit a grid, compare the settings with
 g <- GiottoData::loadGiottoMini("visium")
 g <- runHMRF(g, feats_to_use = "hvf", k = 5, betas = c(0, 2),
     nstart = 20)
+
+# on NMF factors of spatially variable genes
+sv <- spatialAutoCor(g, method = "binspect", return_gobject = FALSE)
+g <- runNMF(g, feats_to_use = head(sv$feats, 200), k = 5,
+    name = "spatial_nmf", verbose = FALSE)
+g <- runHMRF(g, dim_reduction_to_use = "nmf",
+    dim_reduction_name = "spatial_nmf", k = 5, nstart = 20,
+    name = "hmrf_nmf")
 
 # on spatial co-expression module scores
 sv <- spatialAutoCor(g, method = "moran", return_gobject = FALSE)
