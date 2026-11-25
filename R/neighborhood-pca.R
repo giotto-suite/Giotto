@@ -82,6 +82,18 @@ neighborhoodPCAParam <- function(lambda = 0.2, k_geom = 15L, npcs = 20L,
 #' @exportClass neighborhoodPCAParam
 setClass("neighborhoodPCAParam", contains = "reduceParam")
 
+# the paper of the method this reimplements (BANKSY), shown once per session
+# and listed by objCitations()
+setMethod("methodCitation", signature("neighborhoodPCAParam"), function(x, ...) {
+    utils::bibentry("Article",
+        author = c("Vipul Singhal", "Nigel Chou", "Joseph Lee", "others"),
+        title = paste("BANKSY unifies cell typing and tissue domain",
+            "segmentation for scalable spatial omics data analysis"),
+        journal = "Nature Genetics", year = 2024, volume = 56,
+        pages = "431--441", doi = "10.1038/s41588-024-01664-3"
+    )
+})
+
 
 # reduceData(allMatrix, neighborhoodPCAParam) ####
 
