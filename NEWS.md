@@ -3,6 +3,13 @@
 Requires GiottoClass 0.8.0.
 
 ## breaking changes
+- `spatCellCellcom()` defaults to `method = "lrmap"`: multi-scale
+  ligand-receptor co-location from the lrmap package
+  (github: drieslab/lrmap). The original Delaunay test stays available as
+  `method = "classic"`; classic-test arguments given with the default method
+  are reported as ignored. The lrmap result has one row per pair, cell-type
+  pair and `scale`; the classic consumers (`combCCcom()`,
+  `plotCCcomHeatmap()`, `plotCCcomDotplot()`) take one scale of it.
 - `spatialDE()` and `spatialAEH()` are removed, together with the `"spatialDE"`
   method of `runPatternSimulation()`. Use `binSpect()` or `spark()` for
   spatially variable features.
@@ -20,6 +27,15 @@ Requires GiottoClass 0.8.0.
   `importStereoSeq()` reads Stereo-seq GEF files.
 
 ## new
+- `cccParam("lrmap")` and `analyzeData()` methods for ligand-receptor
+  co-location (lrmap): contact, paracrine and niche scale, a toroidal-shift
+  null, a default test of co-location beyond that of the two cell types,
+  removal of transcripts leaked between touching cells (estimated on all
+  features), complexes through `lr_table`, and an optional expression-only
+  reference scale. Runs on in-memory and GiottoDisk-backed expression.
+- `plotLRmapOverview()`, `plotLRmapPair()` (tissue map of per-cell local
+  scores, or a zoom with ligand and receptor) and `plotLRmapCompare()`
+  (expression-only calls versus spatial support).
 - Library normalization accepts `scalefactor = "median"` (in `normParam("library")`,
   `normParam("default")` and `normalizeGiotto()`): values are scaled to the
   median library size of the cells, so they stay on the scale of the counts.

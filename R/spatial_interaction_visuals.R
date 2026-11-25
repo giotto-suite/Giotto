@@ -2439,6 +2439,7 @@ plotCombineICF <- function(
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik"
 #' )
 #' spatialCC <- spatCellCellcom(
+#'     method = "classic",
 #'     gobject = g, cluster_column = "leiden_clus",
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik", verbose = "a lot"
 #' )
@@ -2651,6 +2652,7 @@ plotCombineCellCellCommunication <- function(
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik"
 #' )
 #' spatialCC <- spatCellCellcom(
+#'     method = "classic",
 #'     gobject = g, cluster_column = "leiden_clus",
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik", verbose = "a lot"
 #' )
@@ -2750,6 +2752,7 @@ plotCCcomHeatmap <- function(
         save_plot = NULL,
         save_param = list(),
         default_save_name = "plotCCcomHeatmap") {
+    .ccc_one_scale(comScores, "plotCCcomHeatmap()")
     # get parameters
     cor_method <- match.arg(
         cor_method,
@@ -2906,6 +2909,7 @@ plotCCcomDotplot <- function(
         save_plot = NULL,
         save_param = list(),
         default_save_name = "plotCCcomDotplot") {
+    .ccc_one_scale(comScores, "plotCCcomDotplot()")
     # get parameters
     cor_method <- match.arg(
         cor_method,
@@ -3067,6 +3071,7 @@ plotCCcomDotplot <- function(
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik"
 #' )
 #' spatialCC <- spatCellCellcom(
+#'     method = "classic",
 #'     gobject = g, cluster_column = "leiden_clus",
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik", verbose = "a lot",
 #'     random_iter = 10
@@ -3267,6 +3272,7 @@ plotRankSpatvsExpr <- function(
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik"
 #' )
 #' spatialCC <- spatCellCellcom(
+#'     method = "classic",
 #'     gobject = g, cluster_column = "leiden_clus",
 #'     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik", verbose = "a lot",
 #'     random_iter = 10

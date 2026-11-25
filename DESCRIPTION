@@ -81,6 +81,7 @@ Suggests:
     kableExtra,
     knitr,
     limma,
+    lrmap,
     MAST,
     miniUI,
     mistyR,
@@ -125,17 +126,19 @@ Remotes:
     giotto-suite/GiottoVisuals,
     drieslab/spatialDWLS,
     drieslab/spatialHMRF,
-    drieslab/edgeicg
+    drieslab/edgeicg,
+    drieslab/lrmap
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
     'basilisk.R'
     'block_pca.R'
+    'ccc-param.R'
+    'ccc-visuals.R'
     'cell_segmentation.R'
     'package_imports.R'
     'normalize.R'
     'clustering.R'
-    'convenience_xenium.R'
     'convenience_atera.R'
     'convenience_cosmx.R'
     'convenience_general.R'
@@ -143,6 +146,7 @@ Collate:
     'convenience_stereoseq.r'
     'convenience_visium.R'
     'convenience_visiumHD.R'
+    'convenience_xenium.R'
     'cross_section.R'
     'dd.R'
     'deconv-param.R'
@@ -189,3 +193,4 @@ biocViews: Software, Technology, Spatial, SingleCell, Transcriptomics
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0
+RoxygenNote: 7.3.3
