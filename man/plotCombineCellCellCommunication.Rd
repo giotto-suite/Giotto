@@ -80,6 +80,7 @@ exprCC <- exprCellCellcom(g,
     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik"
 )
 spatialCC <- spatCellCellcom(
+    method = "classic",
     gobject = g, cluster_column = "leiden_clus",
     feat_set_1 = "Gm19935", feat_set_2 = "9630013A20Rik", verbose = "a lot"
 )

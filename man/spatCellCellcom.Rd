@@ -26,7 +26,11 @@ spatCellCellcom(
   cores = NA,
   set_seed = TRUE,
   seed_number = 1234,
-  verbose = c("a little", "a lot", "none")
+  verbose = c("a little", "a lot", "none"),
+  method = c("lrmap", "classic"),
+  param = NULL,
+  lr_table = NULL,
+  ...
 )
 
 specificCellCellcommunicationScores(
@@ -97,6 +101,34 @@ considered}
 
 \item{verbose}{verbose}
 
+\item{method}{\code{"lrmap"} (default): multi-scale ligand-receptor co-location
+of the \pkg{lrmap} package. For every sender cell type (ligand), receiver
+cell type (receptor) and pair it scores how much ligand from sender cells
+surrounds receptor-expressing receiver cells at contact, paracrine and
+niche scale, tests it against toroidal shifts of the sender layer, and by
+default asks whether ligand-high senders sit nearer receptor-high
+receivers than the two cell types do on average. Transcripts leaked
+between touching cells are estimated and removed first. It uses raw
+counts and works on GiottoDisk-backed objects; see \code{\link[=cccParam]{cccParam()}}.
+Arguments specific to the classic test (\code{spatial_network_name},
+\code{random_iter}, \code{log2FC_addendum}, ...) are then ignored, and \code{feat_set_1}
+/ \code{feat_set_2} are the ligands and receptors.
+\code{"classic"}: the original test described in Details, kept as a baseline.
+It compares the mean ligand + receptor expression of cells that are
+neighbours in a spatial network with random cell positions, at contact
+range only, without modelling leaked transcripts.}
+
+\item{param}{optional \code{\link[=cccParam]{cccParam()}} object; overrides \code{method}.}
+
+\item{lr_table}{with \code{method = "lrmap"}, optional ligand-receptor table
+used instead of \code{feat_set_1} / \code{feat_set_2}: columns \code{ligand}, \code{receptor}
+and optionally \code{ligand_subunits}, \code{receptor_subunits} (genes joined by
+\code{"_"}; a complex ligand is the minimum over its subunits, a complex
+receptor the mean), e.g. converted from CellPhoneDB.}
+
+\item{...}{with \code{method = "lrmap"}, settings passed to \code{\link[=cccParam]{cccParam()}}, e.g.
+\code{scales}, \code{leak}, \code{threads}, \code{sigma_p}, \code{B}.}
+
 \item{cell_type_1}{character. First cell type}
 
 \item{cell_type_2}{character. Second cell type}
@@ -110,6 +142,16 @@ Spatial Cell-Cell communication scores based on spatial
 expression of interacting cells
 }
 \details{
+With \code{method = "lrmap"} the result has one row per ligand-receptor
+pair, sender / receiver cell type and scale (\code{scale}), with the columns
+below where they apply (\code{lig_cell_type} = sender, \code{rec_cell_type} =
+receiver, \code{LR_expr} = the co-location score, \code{rand_expr} = its expectation
+under the chosen test, \code{p.adj} = BH within each scale) and the lrmap
+columns \code{z}, \code{fold_coloc}, \code{p.adj_coloc}, \code{fold_type}, \code{p.adj_type},
+\code{p.adj_shuffle}, \code{lig_det}, \code{rec_det}. The full fit is kept in
+\code{attr(result, "lrmap")}; see \code{\link[=plotLRmapOverview]{plotLRmapOverview()}} and \code{\link[=plotLRmapPair]{plotLRmapPair()}}.
+
+Classic method:
 Statistical framework to identify if pairs of genes
 (such as ligand-receptor combinations)
 are expressed at higher levels than expected based on a reshuffled null
@@ -143,6 +185,23 @@ LR_expr and rand_expr over all random spatial permutations
 }
 }
 \examples{
+# lrmap (default): leak-aware, contact / paracrine / niche scale. The mini
+# object is small, hence two scales, few shifts and a short min_shift;
+# keep the defaults on real tissue sections.
+if (requireNamespace("lrmap", quietly = TRUE)) {
+    gv <- GiottoData::loadGiottoMini("vizgen")
+    res0 <- spatCellCellcom(gv,
+        spat_unit = "aggregate",
+        cluster_column = "leiden_clus",
+        feat_set_1 = "Cxcl12",
+        feat_set_2 = "Cxcr4",
+        scales = c("contact", "paracrine"),
+        B = 20, min_shift = 100, leak = FALSE
+    )
+    force(res0)
+}
+
+# the original test, kept as a baseline
 g <- GiottoData::loadGiottoMini("visium")
 
 res1 <- spatCellCellcom(
@@ -150,6 +209,7 @@ res1 <- spatCellCellcom(
     cluster_column = "leiden_clus",
     feat_set_1 = "Gm19935",
     feat_set_2 = "9630013A20Rik",
+    method = "classic",
     verbose = "a lot",
     random_iter = 10
 )

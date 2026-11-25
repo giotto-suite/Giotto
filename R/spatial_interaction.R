@@ -2620,9 +2620,43 @@ exprCellCellcom <- function(gobject,
 #' @param set_seed set a seed for reproducibility
 #' @param seed_number seed number
 #' @param verbose verbose
+#' @param method `"lrmap"` (default): multi-scale ligand-receptor co-location
+#'   of the \pkg{lrmap} package. For every sender cell type (ligand), receiver
+#'   cell type (receptor) and pair it scores how much ligand from sender cells
+#'   surrounds receptor-expressing receiver cells at contact, paracrine and
+#'   niche scale, tests it against toroidal shifts of the sender layer, and by
+#'   default asks whether ligand-high senders sit nearer receptor-high
+#'   receivers than the two cell types do on average. Transcripts leaked
+#'   between touching cells are estimated and removed first. It uses raw
+#'   counts and works on GiottoDisk-backed objects; see [cccParam()].
+#'   Arguments specific to the classic test (`spatial_network_name`,
+#'   `random_iter`, `log2FC_addendum`, ...) are then ignored, and `feat_set_1`
+#'   / `feat_set_2` are the ligands and receptors.
+#'   `"classic"`: the original test described in Details, kept as a baseline.
+#'   It compares the mean ligand + receptor expression of cells that are
+#'   neighbours in a spatial network with random cell positions, at contact
+#'   range only, without modelling leaked transcripts.
+#' @param param optional [cccParam()] object; overrides `method`.
+#' @param lr_table with `method = "lrmap"`, optional ligand-receptor table
+#'   used instead of `feat_set_1` / `feat_set_2`: columns `ligand`, `receptor`
+#'   and optionally `ligand_subunits`, `receptor_subunits` (genes joined by
+#'   `"_"`; a complex ligand is the minimum over its subunits, a complex
+#'   receptor the mean), e.g. converted from CellPhoneDB.
+#' @param ... with `method = "lrmap"`, settings passed to [cccParam()], e.g.
+#'   `scales`, `leak`, `threads`, `sigma_p`, `B`.
 #' @returns Cell-Cell communication scores for feature pairs based on spatial
 #' interaction
-#' @details Statistical framework to identify if pairs of genes
+#' @details With `method = "lrmap"` the result has one row per ligand-receptor
+#' pair, sender / receiver cell type and scale (`scale`), with the columns
+#' below where they apply (`lig_cell_type` = sender, `rec_cell_type` =
+#' receiver, `LR_expr` = the co-location score, `rand_expr` = its expectation
+#' under the chosen test, `p.adj` = BH within each scale) and the lrmap
+#' columns `z`, `fold_coloc`, `p.adj_coloc`, `fold_type`, `p.adj_type`,
+#' `p.adj_shuffle`, `lig_det`, `rec_det`. The full fit is kept in
+#' `attr(result, "lrmap")`; see [plotLRmapOverview()] and [plotLRmapPair()].
+#'
+#' Classic method:
+#' Statistical framework to identify if pairs of genes
 #' (such as ligand-receptor combinations)
 #' are expressed at higher levels than expected based on a reshuffled null
 #' distribution of feature expression values in cells that are spatially in
@@ -2654,6 +2688,23 @@ exprCellCellcom <- function(gobject,
 #'
 #' @md
 #' @examples
+#' # lrmap (default): leak-aware, contact / paracrine / niche scale. The mini
+#' # object is small, hence two scales, few shifts and a short min_shift;
+#' # keep the defaults on real tissue sections.
+#' if (requireNamespace("lrmap", quietly = TRUE)) {
+#'     gv <- GiottoData::loadGiottoMini("vizgen")
+#'     res0 <- spatCellCellcom(gv,
+#'         spat_unit = "aggregate",
+#'         cluster_column = "leiden_clus",
+#'         feat_set_1 = "Cxcl12",
+#'         feat_set_2 = "Cxcr4",
+#'         scales = c("contact", "paracrine"),
+#'         B = 20, min_shift = 100, leak = FALSE
+#'     )
+#'     force(res0)
+#' }
+#'
+#' # the original test, kept as a baseline
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
 #' res1 <- spatCellCellcom(
@@ -2661,6 +2712,7 @@ exprCellCellcom <- function(gobject,
 #'     cluster_column = "leiden_clus",
 #'     feat_set_1 = "Gm19935",
 #'     feat_set_2 = "9630013A20Rik",
+#'     method = "classic",
 #'     verbose = "a lot",
 #'     random_iter = 10
 #' )
@@ -2698,7 +2750,11 @@ spatCellCellcom <- function(gobject,
     cores = NA,
     set_seed = TRUE,
     seed_number = 1234,
-    verbose = c("a little", "a lot", "none")) {
+    verbose = c("a little", "a lot", "none"),
+    method = c("lrmap", "classic"),
+    param = NULL,
+    lr_table = NULL,
+    ...) {
     verbose <- match.arg(verbose, choices = c("a little", "a lot", "none"))
 
     # Set feat_type and spat_unit
@@ -2711,6 +2767,48 @@ spatCellCellcom <- function(gobject,
         spat_unit = spat_unit,
         feat_type = feat_type
     )
+
+    # model-based engines: cccParam -> analyzeData() (see ccc-param.R)
+    method <- match.arg(method)
+    if (method != "classic" || !is.null(param)) {
+        classic_args <- c(
+            "spatial_network_name", "random_iter", "log2FC_addendum",
+            "min_observations", "detailed", "adjust_method", "adjust_target",
+            "do_parallel", "cores", "set_seed", "seed_number"
+        )
+        fenv <- environment()
+        given <- classic_args[!vapply(classic_args, function(a) {
+            eval(call("missing", as.name(a)), fenv)
+        }, logical(1L))]
+        if (length(given)) {
+            wrap_msg(sprintf(
+                "Ignoring %s: classic-test arguments (method = \"%s\"). Use method = \"classic\" for the original test.",
+                paste0("`", given, "`", collapse = ", "), method
+            ))
+        }
+        if (is.null(lr_table)) {
+            if (!is.null(gene_set_1)) feat_set_1 <- gene_set_1
+            if (!is.null(gene_set_2)) feat_set_2 <- gene_set_2
+            if (missing(feat_set_1) || missing(feat_set_2)) {
+                .gstop("give ligands and receptors as feat_set_1 / feat_set_2",
+                    "or a table as lr_table")
+            }
+            if (length(feat_set_1) != length(feat_set_2)) {
+                .gstop("feat_set_1 and feat_set_2 must have the same length")
+            }
+            lr_table <- data.frame(ligand = feat_set_1, receptor = feat_set_2)
+        }
+        if (is.null(param)) {
+            param <- cccParam(method, verbose = verbose != "none", ...)
+        }
+        if (!methods::is(param, "cccParam")) {
+            .gstop("`param` must be a cccParam (see ?cccParam)")
+        }
+        return(analyzeData(gobject, param,
+            spat_unit = spat_unit, feat_type = feat_type,
+            cluster_column = cluster_column, lr = lr_table
+        ))
+    }
 
     ## check if spatial network exists ##
     spat_networks <- list_spatial_networks_names(gobject,
@@ -3148,6 +3246,7 @@ specificCellCellcommunicationScores <- function(
 #' )
 #'
 #' spatialCC <- spatCellCellcom(
+#'     method = "classic",
 #'     gobject = g,
 #'     cluster_column = "leiden_clus",
 #'     feat_set_1 = "Gm19935",
@@ -3167,6 +3266,7 @@ combCCcom <- function(spatialCC,
     min_log2fc = 0,
     min_av_diff = 0,
     detailed = FALSE) {
+    .ccc_one_scale(spatialCC, "combCCcom()")
     # data.table variables
     lig_nr <- rec_nr <- p.adj <- log2fc <- av_diff <- NULL
 
