@@ -18,6 +18,9 @@ Requires GiottoClass 0.8.0.
   GiottoConnect versions.
 
 ## new
+- Library normalization accepts `scalefactor = "median"` (in `normParam("library")`,
+  `normParam("default")` and `normalizeGiotto()`): values are scaled to the
+  median library size of the cells, so they stay on the scale of the counts.
 - `runHMRF()` and `findSpatialDomains(method = "hmrf")` gain
   `dim_reduction_to_use` / `dim_reduction_name`: fit HMRF on a stored
   dimension reduction, such as `runNMF()` factors of spatially variable

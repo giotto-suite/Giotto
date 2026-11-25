@@ -22,7 +22,8 @@ a custom scale-factor.
 \tabular{ll}{
 \code{library_size_norm} \tab logical (default = \code{TRUE}). whether to perform
 library size normalization \cr
-\code{scalefactor} \tab numeric (default = 6000). Scalefactor to use after
+\code{scalefactor} \tab numeric (default = 6000), or \code{"median"} for the
+median library size of the cells. Scalefactor to use after
 library size normalization. (skipped if \code{library_size_norm = FALSE}) \cr
 \code{log_norm} \tab logical (default = \code{TRUE}). Whether to transform values to
 log-scale. \cr
