@@ -82,6 +82,19 @@ hmrfParam <- function(k = 10L, beta = 2, zscore = c("cell", "feature", "none"),
 #' @exportClass hmrfParam
 setClass("hmrfParam", contains = "BlusterParam", slots = list(param = "list"))
 
+# the paper, shown once per session and listed by objCitations()
+setMethod("methodCitation", signature("hmrfParam"), function(x, ...) {
+    utils::bibentry("Article",
+        author = c("Qian Zhu", "Sheel Shah", "Ruben Dries", "Long Cai",
+            "Guo-Cheng Yuan"),
+        title = paste("Identification of spatially associated subpopulations",
+            "by combining scRNAseq and sequential fluorescence in situ",
+            "hybridization data"),
+        journal = "Nature Biotechnology", year = 2018, volume = 36,
+        pages = "1183--1190", doi = "10.1038/nbt.4260"
+    )
+})
+
 #' @rdname hmrfParam
 #' @param x cells x features values (`matrix` or `Matrix`), cell IDs as row
 #'   names (the orientation of the other `clusterData()` methods)

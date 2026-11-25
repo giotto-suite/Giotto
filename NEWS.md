@@ -18,6 +18,9 @@ Requires GiottoClass 0.8.0.
   GiottoConnect versions.
 
 ## new
+- `runHMRF()` and `runNeighborhoodPCA()` declare their papers
+  (`methodCitation()`; Zhu et al. 2018 and BANKSY, Singhal et al. 2024): the
+  citation is shown once per session and `objCitations()` lists it.
 - `runHMRF()` and `findSpatialDomains(method = "hmrf")` gain
   `dim_reduction_to_use` / `dim_reduction_name`: fit HMRF on a stored
   dimension reduction, such as `runNMF()` factors of spatially variable
