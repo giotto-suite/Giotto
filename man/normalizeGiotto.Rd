@@ -41,7 +41,8 @@ normalizeGiotto(
 
 \item{library_size_norm}{normalize cells by library size}
 
-\item{scalefactor}{scale factor to use after library size normalization}
+\item{scalefactor}{scale factor to use after library size normalization:
+a number, or \code{"median"} for the median library size of the cells}
 
 \item{log_norm}{transform values to log-scale}
 

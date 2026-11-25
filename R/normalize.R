@@ -174,7 +174,8 @@ NULL
 #' \tabular{ll}{
 #'   `library_size_norm` \tab logical (default = `TRUE`). whether to perform
 #'   library size normalization \cr
-#'   `scalefactor` \tab numeric (default = 6000). Scalefactor to use after
+#'   `scalefactor` \tab numeric (default = 6000), or `"median"` for the
+#'   median library size of the cells. Scalefactor to use after
 #'   library size normalization. (skipped if `library_size_norm = FALSE`) \cr
 #'   `log_norm` \tab logical (default = `TRUE`). Whether to transform values to
 #'   log-scale. \cr
@@ -214,7 +215,9 @@ NULL
 #' 
 #' \tabular{ll}{
 #'   `scalefactor` \tab numeric (default = 6000). Scalefactor to use after 
-#'   library size normalization. Expressed as ***k*** in the above equation
+#'   library size normalization. Expressed as ***k*** in the above equation.
+#'   `"median"` uses the median library size of the cells (cells with a
+#'   library size of 0 left out), so values stay on the scale of the counts.
 #' }
 #' @md
 #' @family normalization parameters
@@ -1128,7 +1131,8 @@ setMethod("processData",
     function(x, param, ...) {
         libsizes <- colSums_flex(x)
         .libzero_warn(libsizes = libsizes)
-        t_flex(t_flex(x) / libsizes) * param$scalefactor
+        t_flex(t_flex(x) / libsizes) *
+            .lib_scalefactor(param$scalefactor, libsizes)
     }
 )
 setMethod("processData",
@@ -1137,8 +1141,8 @@ setMethod("processData",
         libsizes <- colSums_flex(x)
         .libzero_warn(libsizes = libsizes)
         # x / colSums(x) equivalent for dgc
-        x@x <- .dgc_div_csum_sparse_vector(x, colsums = libsizes) * 
-            param$scalefactor
+        x@x <- .dgc_div_csum_sparse_vector(x, colsums = libsizes) *
+            .lib_scalefactor(param$scalefactor, libsizes)
         x
     }
 )
@@ -1516,7 +1520,8 @@ processExpression <- function(gobject, param,
 #' @param expression_values expression values to use
 #' @param norm_methods normalization method to use
 #' @param library_size_norm normalize cells by library size
-#' @param scalefactor scale factor to use after library size normalization
+#' @param scalefactor scale factor to use after library size normalization:
+#' a number, or `"median"` for the median library size of the cells
 #' @param log_norm transform values to log-scale
 #' @param log_offset offset value to add to expression matrix, default = 1
 #' @param logbase log base to use to log normalize expression values
@@ -2061,11 +2066,24 @@ normalizeGiotto <- function(gobject,
     inherits(x, "parquetExprStore")
 }
 
+# scalefactor of a library normalization: a number, or "median" for the
+# median library size of the cells with any counts
+#' @keywords internal
+#' @noRd
+.lib_scalefactor <- function(scalefactor, libsizes) {
+    if (identical(scalefactor, "median")) {
+        return(stats::median(libsizes[libsizes > 0]))
+    }
+    checkmate::assert_number(scalefactor, lower = 0, finite = TRUE)
+    scalefactor
+}
+
 #' @keywords internal
 #' @noRd
 .lib_norm_giotto <- function(mymatrix, scalefactor) {
     libsizes <- colSums_flex(mymatrix)
     .libzero_warn(libsizes = libsizes)
+    scalefactor <- .lib_scalefactor(scalefactor, libsizes)
 
     libsizes[libsizes == 0] <- 1 # Prevent matrix densification via div by 0
 

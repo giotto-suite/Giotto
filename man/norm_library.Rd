@@ -29,7 +29,9 @@ feature \eqn{i} in sample \eqn{j}
 
 \tabular{ll}{
 \code{scalefactor} \tab numeric (default = 6000). Scalefactor to use after
-library size normalization. Expressed as \emph{\strong{k}} in the above equation
+library size normalization. Expressed as \emph{\strong{k}} in the above equation.
+\code{"median"} uses the median library size of the cells (cells with a
+library size of 0 left out), so values stay on the scale of the counts.
 }
 }
 
