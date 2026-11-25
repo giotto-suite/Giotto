@@ -110,3 +110,27 @@ test_that("runHMRF and findSpatialDomains fit a spatial enrichment", {
     expect_equal(attr(h, "attachments")$param@param$zscore, "feature")
     expect_equal(attr(h, "attachments")$param@param$nstart, 5L)
 })
+
+test_that("runHMRF and findSpatialDomains fit a dimension reduction", {
+    skip_if_not_installed("spatialHMRF")
+    skip_if_not_installed("RcppML")
+    skip_if_not_installed("GiottoData")
+    g <- GiottoData::loadGiottoMini("visium")
+    sv <- spatialAutoCor(g, method = "binspect", return_gobject = FALSE)
+    g <- runNMF(g, feats_to_use = head(sv$feats, 200), k = 5,
+        name = "spatial_nmf", verbose = FALSE)
+    g <- runHMRF(g, dim_reduction_to_use = "nmf",
+        dim_reduction_name = "spatial_nmf", k = 4, nstart = 5,
+        verbose = FALSE)
+    expect_false(anyNA(pDataDT(g)$hmrf_k4_b2))
+    h <- g@parameters[[length(g@parameters)]]
+    expect_equal(attr(h, "attachments")$param@param$zscore, "none")
+    g <- findSpatialDomains(g, method = "hmrf", dim_reduction_to_use = "nmf",
+        dim_reduction_name = "spatial_nmf", k = 4, nstart = 5,
+        dimensions_to_use = 1:3, name = "dom")
+    expect_equal(sort(unique(pDataDT(g)$dom)), 1:4)
+    h <- g@parameters[[length(g@parameters)]]
+    expect_equal(attr(h, "attachments")$param@param$zscore, "none")
+    expect_error(runHMRF(g, dim_reduction_to_use = "nmf",
+        spat_enr_name = "x"), "either")
+})

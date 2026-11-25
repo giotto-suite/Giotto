@@ -18,6 +18,11 @@ Requires GiottoClass 0.8.0.
   GiottoConnect versions.
 
 ## new
+- `runHMRF()` and `findSpatialDomains(method = "hmrf")` gain
+  `dim_reduction_to_use` / `dim_reduction_name`: fit HMRF on a stored
+  dimension reduction, such as `runNMF()` factors of spatially variable
+  genes (`zscore` then defaults to `"none"`). RcppML is now listed in
+  Suggests (used by `runNMF()`).
 - `runHMRF()` and `findSpatialDomains(method = "hmrf")` gain `spat_enr_name`:
   fit HMRF on a stored spatial enrichment, such as the module scores of
   `spatialCoexpression()`, instead of expression. `hmrfParam(zscore =

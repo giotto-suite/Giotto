@@ -92,6 +92,7 @@ Suggests:
     R.utils,
     ranger,
     RcppHNSW,
+    RcppML,
     remotes,
     rlang,
     rhdf5,

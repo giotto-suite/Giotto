@@ -10,6 +10,8 @@ findSpatialDomains(
   spat_unit = NULL,
   feat_type = NULL,
   feats_to_use = "hvf",
+  dim_reduction_to_use = NULL,
+  dim_reduction_name = NULL,
   spat_enr_name = NULL,
   k = 10L,
   beta = 2,
@@ -31,10 +33,14 @@ findSpatialDomains(
 \item{feats_to_use}{features (character vector or a logical feature
 metadata column such as \code{"hvf"})}
 
+\item{dim_reduction_to_use, dim_reduction_name}{\code{"hmrf"} only: a stored
+dimension reduction to fit instead of expression, such as NMF factors
+of spatial genes (\code{\link[=runNMF]{runNMF()}} on the top genes of any \code{\link[=spatialAutoCor]{spatialAutoCor()}}
+method); more arguments of \code{\link[=runHMRF]{runHMRF()}}, e.g. \code{dimensions_to_use}, go
+through \code{...}}
+
 \item{spat_enr_name}{\code{"hmrf"} only: a spatial enrichment to fit instead
-of expression, such as the module scores of \code{\link[=spatialCoexpression]{spatialCoexpression()}}
-(built beforehand, from spatial genes of any \code{\link[=spatialAutoCor]{spatialAutoCor()}}
-method)}
+of expression, such as the module scores of \code{\link[=spatialCoexpression]{spatialCoexpression()}}}
 
 \item{k}{number of domains (\code{"hmrf"})}
 
