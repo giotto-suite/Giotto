@@ -34,6 +34,11 @@ Requires GiottoClass 0.8.0.
   `importStereoSeq()` reads Stereo-seq GEF files.
 - `getGEFtxCoords()` is removed. `importStereoSeq()` reads Stereo-seq GEF files.
 
+- `doScrubletDetect()` moves to GiottoConnect as `runScrublet()`, which gives
+  the same scores (columns `scrublet_score` / `scrublet_doublet`) and installs
+  Python's scrublet with `reticulate::py_require()` instead of the Giotto
+  conda environment.
+
 ## new
 - Library normalization accepts `scalefactor = "median"` (in `normParam("library")`,
   `normParam("default")` and `normalizeGiotto()`): values are scaled to the

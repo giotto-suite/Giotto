@@ -165,7 +165,6 @@ Collate:
     'pca-param.R'
     'neighborhood-pca.R'
     'poly_influence.R'
-    'python_scrublet.R'
     'spatautocor-stats.R'
     'spatautocor-param.R'
     'spatautocor-methods.R'
