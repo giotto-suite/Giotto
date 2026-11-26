@@ -341,7 +341,7 @@ addPolygonCells <- function(
 #' @param expression_values gene expression values to use
 #' ("normalized", "scaled", "custom")
 #' @param method method to use to detect differentially expressed feats
-#' ("scran", "gini", "mast")
+#' ("scran", "gini")
 #' @param \dots Arguments passed to \link[ComplexHeatmap]{Heatmap}
 #'
 #' @returns A ComplexHeatmap::Heatmap object

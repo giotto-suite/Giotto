@@ -30,7 +30,7 @@ comparePolygonExpression(
 ("normalized", "scaled", "custom")}
 
 \item{method}{method to use to detect differentially expressed feats
-("scran", "gini", "mast")}
+("scran", "gini")}
 
 \item{\dots}{Arguments passed to \link[ComplexHeatmap]{Heatmap}}
 }
