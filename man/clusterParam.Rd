@@ -39,7 +39,6 @@ relevant parameters in an easily accessible format.
 
 \itemize{
 \item \code{\link[=LeidenIgraphClusParam-class]{"leiden_igraph"}} - Leiden clustering via igraph
-\item \code{\link[=LeidenPythonClusParam-class]{"leiden_python"}} - Leiden clustering with python \pkg{leidenalg}
 \item \code{\link[=LouvainCommunityClusParam-class]{"louvain_community"}} - Louvain clustering with python \pkg{community}
 \item \code{\link[=LouvainMultinetClusParam-class]{"louvain_multinet"}} - generalized Louvain clustering with \pkg{multinet}
 }
