@@ -222,7 +222,7 @@ doCellposeSegmentation <- function(
     # cellpose runs in a worker R session (GiottoUtils::py_run()) with its
     # own environment, or the Python given in python_env
     GiottoUtils::py_run(.cellpose_worker, args = args,
-        requirements = "cellpose>=3.1.0,<4", python_version = "<3.13",
+        requirements = "cellpose==3.1.0", python_version = "<3.13",
         name = "cellpose", python = python_env %null%
             GiottoUtils:::.py_user_python("cellpose"),
         verbose = isTRUE(verbose))
@@ -235,7 +235,7 @@ doCellposeSegmentation <- function(
     stitch_threshold, min_size, max_size_fraction, niter, augment,
     tile_overlap, bsize, dP_smooth, interp, compute_masks, progress,
     verbose = NULL) {
-    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(...)
+    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     cellpose <- reticulate::import("cellpose")
     np <- reticulate::import("numpy")
     cv2 <- reticulate::import("cv2")
@@ -261,32 +261,26 @@ doCellposeSegmentation <- function(
     vmsg(.v = verbose, "Segmenting Image...")
     segmentation <- model_to_seg$eval
 
-    result <- segmentation(img,
-        diameter = diameter,
-        channels = channel_to_seg,
-        batch_size = as.integer(batch_size),
-        resample = resample,
-        channel_axis = channel_axis,
-        z_axis = z_axis,
-        normalize = normalize,
-        invert = invert,
-        rescale = rescale,
-        flow_threshold = flow_threshold,
-        cellprob_threshold = cellprob_threshold,
-        do_3D = do_3D,
-        anisotropy = anisotropy,
-        stitch_threshold = stitch_threshold,
+    opts <- list(diameter = diameter, channels = channel_to_seg,
+        batch_size = as.integer(batch_size), resample = resample,
+        channel_axis = channel_axis, z_axis = z_axis, normalize = normalize,
+        invert = invert, rescale = rescale, flow_threshold = flow_threshold,
+        cellprob_threshold = cellprob_threshold, do_3D = do_3D,
+        anisotropy = anisotropy, stitch_threshold = stitch_threshold,
         min_size = as.integer(min_size),
-        max_size_fraction = max_size_fraction,
-        niter = niter,
-        augment = augment,
-        tile_overlap = tile_overlap,
-        bsize = as.integer(bsize),
-        dP_smooth = as.integer(dP_smooth),
-        interp = interp,
-        compute_masks = compute_masks,
-        progress = progress
-    )
+        max_size_fraction = max_size_fraction, niter = niter,
+        augment = augment, tile_overlap = tile_overlap,
+        bsize = as.integer(bsize), dP_smooth = as.integer(dP_smooth),
+        interp = interp, compute_masks = compute_masks, progress = progress)
+    # pass only the options this cellpose version's eval() takes
+    sig <- function(f) unlist(reticulate::import_builtins()$list(
+        reticulate::import("inspect")$signature(f)$parameters$keys()))
+    known <- union(sig(segmentation), sig(cellpose$models$CellposeModel$eval))
+    if (any(!names(opts) %in% known)) {
+        vmsg(.v = verbose, "not supported by this cellpose version, ignored:",
+            paste(setdiff(names(opts), known), collapse = ", "))
+    }
+    result <- do.call(segmentation, c(list(img), opts[names(opts) %in% known]))
     masks <- result[[1]]
     vmsg(
         .v = verbose, .is_debug = FALSE,
@@ -351,7 +345,7 @@ doMesmerSegmentation <- function(input,
 
 .mesmer_worker <- function(input, mask_output, nucleus_channel,
     membrane_channel, micron_scale, verbose = NULL) {
-    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(...)
+    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     np <- reticulate::import("numpy")
     deepcell <- reticulate::import("deepcell.applications")
 
@@ -440,7 +434,7 @@ doStardistSegmentation <- function(input,
 
 .stardist_worker <- function(input, mask_output, model_name, nuclei_channel,
     prob_thresh, nms_thresh, verbose = NULL) {
-    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(...)
+    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     stardist <- reticulate::import("stardist.models")
     csbdeep <- reticulate::import("csbdeep.utils")
     np <- reticulate::import("numpy")
