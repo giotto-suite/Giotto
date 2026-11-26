@@ -14,3 +14,4 @@ merfish_preoptic/
 
 *.DS_Store
 .positai
+tests/testthat/_problems/

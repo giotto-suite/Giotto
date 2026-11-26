@@ -452,6 +452,15 @@ setMethod("clusterData", signature("nnNetObj", "NNClusParam"), function(x, param
     )
 })
 
+# weights given as an edge attribute name become that attribute's values
+.edge_weights <- function(g, weights) {
+    if (!is.character(weights)) return(weights)
+    if (!weights %in% igraph::edge_attr_names(g)) {
+        stop("weight column is not an igraph attribute", call. = FALSE)
+    }
+    igraph::edge_attr(g, weights)
+}
+
 # * igraph / LouvIgraph ####
 #' @rdname clusterData
 #' @export
@@ -464,13 +473,7 @@ setMethod("clusterData", signature("igraph", "LouvainIgraphClusParam"), function
         GiottoUtils::local_seed(seed_number)
     }
     g <- igraph::as.undirected(x)
-    weights <- param$weights
-    if (is.character(weights)) {
-        if (!weights %in% igraph::edge_attr_names(g)) {
-            stop("weight column is not an igraph attribute", call. = FALSE)
-        }
-        weights <- igraph::edge_attr(g, weights)
-    }
+    weights <- .edge_weights(g, param$weights)
     louvain_clusters <- igraph::cluster_louvain(g,
         weights = weights,
         resolution = param$resolution
@@ -557,7 +560,7 @@ setMethod("clusterData", signature("igraph", "LeidenIgraphClusParam"), function(
         objective_function = objective_function,
         resolution = param$resolution,
         beta = param$beta,
-        weights = param$weights,
+        weights = .edge_weights(graph_object_undirected, param$weights),
         initial_membership = param$initial_membership,
         n_iterations = param$n_iterations,
         ...
@@ -875,7 +878,7 @@ doLeidenClusterIgraph <- function(
     p$beta <- beta
     p$weights <- weights
     p$objective_function <- objective_function
-    clusterData(gobject, p,
+    res <- clusterData(gobject, p,
         name = name,
         spat_unit = spat_unit,
         feat_type = feat_type,
@@ -883,10 +886,13 @@ doLeidenClusterIgraph <- function(
         network_name = network_name,
         set_seed = set_seed,
         seed_number = seed_number,
-        output = "gobject",
+        output = if (isTRUE(return_gobject)) "gobject" else "data.table",
         .n = 3L,
         ...
     )
+    if (isTRUE(return_gobject)) return(res)
+    data.table::setnames(res, old = "cluster", new = name)
+    res
 }
 
 #' @rdname doLeidenCluster
@@ -2481,15 +2487,17 @@ sweepClusterK <- function(gobject = NULL,
 #' @param network_name name of NN network to use
 #' @param cluster_method community cluster method to use
 #' @param pyth_leid_resolution resolution for leiden
-#' @param pyth_leid_weight_col column to use for weights
-#' @param pyth_leid_part_type partition type to use
+#' @param pyth_leid_weight_col edge attribute with the weights; \code{NA} gives
+#' every edge weight 1
+#' @param pyth_leid_part_type kept for compatibility: both partition types
+#' run igraph's modularity objective with \code{pyth_leid_resolution}
 #' @param pyth_leid_init_memb initial membership
 #' @param pyth_leid_iterations number of iterations
 #' @param pyth_louv_resolution resolution for louvain (igraph)
 #' @param pyth_louv_weight_col louvain (igraph) edge attribute with the
-#' weights; `NULL` gives every edge weight 1
+#' weights; \code{NULL} gives every edge weight 1
 #' @param python_louv_random deprecated
-#' @param python_path specify specific path to python if required
+#' @param python_path deprecated.
 #' @param louvain_gamma louvain param: gamma or resolution
 #' @param louvain_omega louvain param: omega
 #' @param walk_steps randomwalk: number of steps
@@ -2550,7 +2558,7 @@ clusterCells <- function(
         pyth_louv_resolution = 1,
         pyth_louv_weight_col = NULL,
         python_louv_random = deprecated(),
-        python_path = NULL,
+        python_path = deprecated(),
         louvain_gamma = 1,
         louvain_omega = 1,
         walk_steps = 4,
@@ -2585,6 +2593,9 @@ clusterCells <- function(
         set_seed = TRUE,
         seed_number = 1234,
         ...) {
+    if (is_present(python_path)) {
+        deprecate_warn(when = "4.3.7", what = "clusterCells(python_path)")
+    }
     ## select cluster method
     cluster_method <- match.arg(
         arg = cluster_method,
@@ -2606,11 +2617,9 @@ clusterCells <- function(
             name = name,
             nn_network_to_use = nn_network_to_use,
             network_name = network_name,
-            python_path = python_path,
             resolution = pyth_leid_resolution,
-            weight_col = pyth_leid_weight_col,
-            partition_type = pyth_leid_part_type,
-            init_membership = pyth_leid_init_memb,
+            weights = pyth_leid_weight_col,
+            initial_membership = pyth_leid_init_memb,
             n_iterations = pyth_leid_iterations,
             return_gobject = return_gobject,
             set_seed = set_seed,
@@ -2745,7 +2754,7 @@ clusterCells <- function(
 #' @param n_iterations number of iterations to run the Leiden algorithm.
 #' @param gamma gamma
 #' @param omega omega
-#' @param python_path specify specific path to python if required
+#' @param python_path deprecated.
 #' @param nn_network_to_use type of NN network to use (kNN vs sNN)
 #' @param network_name name of NN network to use
 #' @param return_gobject logical. return `giotto` object (default = TRUE)
@@ -2815,11 +2824,14 @@ subClusterCells <- function(gobject,
     n_iterations = 20,
     gamma = 1,
     omega = 1,
-    python_path = NULL,
+    python_path = deprecated(),
     nn_network_to_use = "sNN",
     network_name = "sNN.pca",
     return_gobject = TRUE,
     verbose = TRUE) {
+    if (is_present(python_path)) {
+        deprecate_warn(when = "4.3.7", what = "subClusterCells(python_path)")
+    }
     ## select cluster method
     cluster_method <- match.arg(arg = cluster_method, choices = c(
         "leiden",
@@ -2871,7 +2883,6 @@ subClusterCells <- function(gobject,
                 list(
                     resolution = resolution,
                     n_iterations = n_iterations,
-                    python_path = python_path,
                     toplevel = 4
                 )
             ))
@@ -2929,12 +2940,15 @@ doLeidenSubCluster <- function(
         k_neighbors = 10,
         resolution = 0.5,
         n_iterations = 20,
-        python_path = NULL,
+        python_path = deprecated(),
         nn_network_to_use = "sNN",
         network_name = "sNN.pca",
         return_gobject = TRUE,
         toplevel = 2,
         verbose = TRUE) {
+    if (is_present(python_path)) {
+        deprecate_warn(when = "4.3.7", what = "doLeidenSubCluster(python_path)")
+    }
     # specify feat_type
     if (is.null(feat_type)) {
         feat_type <- gobject@expression_feat[[1]]
@@ -3063,7 +3077,6 @@ doLeidenSubCluster <- function(
                 feat_type = feat_type,
                 resolution = resolution,
                 n_iterations = n_iterations,
-                python_path = python_path,
                 name = "tempclus",
                 return_gobject = FALSE
             )
@@ -3509,11 +3522,14 @@ doLouvainSubCluster <- function(
         resolution = 0.5,
         gamma = 1,
         omega = 1,
-        python_path = NULL,
+        python_path = deprecated(),
         nn_network_to_use = "sNN",
         network_name = "sNN.pca",
         return_gobject = TRUE,
         verbose = TRUE) {
+    if (is_present(python_path)) {
+        deprecate_warn(when = "4.3.7", what = "doLouvainSubCluster(python_path)")
+    }
     ## louvain clustering version to use
     version <- match.arg(version, c("igraph", "multinet"))
 
