@@ -12,6 +12,6 @@ via \pkg{bluster}.
 }
 \seealso{
 concrete class examples:
-\link[=LeidenIgraphClusParam-class]{LeidenIgraphClusParam}, \link[=LouvainCommunityClusParam-class]{LouvainCommunityClusParam},
+\link[=LeidenIgraphClusParam-class]{LeidenIgraphClusParam}, \link[=LouvainIgraphClusParam-class]{LouvainIgraphClusParam},
 \link[=LouvainMultinetClusParam-class]{LouvainMultinetClusParam}
 }

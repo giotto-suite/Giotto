@@ -6,7 +6,7 @@
 \usage{
 clusterCells(
   gobject,
-  cluster_method = c("leiden", "louvain_community", "louvain_multinet", "randomwalk",
+  cluster_method = c("leiden", "louvain_igraph", "louvain_multinet", "randomwalk",
     "sNNclust", "kmeans", "hierarchical"),
   name = "cluster_name",
   nn_network_to_use = "sNN",
@@ -18,7 +18,7 @@ clusterCells(
   pyth_leid_iterations = 1000,
   pyth_louv_resolution = 1,
   pyth_louv_weight_col = NULL,
-  python_louv_random = FALSE,
+  python_louv_random = deprecated(),
   python_path = NULL,
   louvain_gamma = 1,
   louvain_omega = 1,
@@ -71,11 +71,12 @@ clusterCells(
 
 \item{pyth_leid_iterations}{number of iterations}
 
-\item{pyth_louv_resolution}{resolution for louvain}
+\item{pyth_louv_resolution}{resolution for louvain (igraph)}
 
-\item{pyth_louv_weight_col}{python louvain param: weight column}
+\item{pyth_louv_weight_col}{louvain (igraph) edge attribute with the
+weights; `NULL` gives every edge weight 1}
 
-\item{python_louv_random}{python louvain param: random}
+\item{python_louv_random}{deprecated}
 
 \item{python_path}{specify specific path to python if required}
 
@@ -147,7 +148,6 @@ clusterCells(g)
 }
 \seealso{
 \code{\link{doLeidenCluster}},
-\code{\link{.doLouvainCluster_community}},
 \code{\link{.doLouvainCluster_multinet}},
 \code{\link{doLouvainCluster}}, \code{\link{doRandomWalkCluster}},
 \code{\link{doSNNCluster}},

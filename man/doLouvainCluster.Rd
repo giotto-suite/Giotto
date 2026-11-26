@@ -8,7 +8,7 @@ doLouvainCluster(
   gobject,
   spat_unit = NULL,
   feat_type = NULL,
-  version = c("community", "multinet"),
+  version = c("igraph", "multinet"),
   name = "louvain_clus",
   nn_network_to_use = "sNN",
   network_name = "sNN.pca",
@@ -17,9 +17,9 @@ doLouvainCluster(
   weight_col = NULL,
   gamma = 1,
   omega = 1,
-  louv_random = FALSE,
+  louv_random = deprecated(),
   return_gobject = TRUE,
-  set_seed = FALSE,
+  set_seed = TRUE,
   seed_number = 1234,
   ...
 )
@@ -31,7 +31,9 @@ doLouvainCluster(
 
 \item{feat_type}{feature type (e.g. "rna", "dna", "protein")}
 
-\item{version}{implemented version of Louvain clustering to use}
+\item{version}{implemented version of Louvain clustering to use: `"igraph"`
+([igraph::cluster_louvain()]) or `"multinet"` (generalized Louvain of
+\pkg{multinet})}
 
 \item{name}{name for cluster, default to "louvain_clus"}
 
@@ -42,27 +44,28 @@ doLouvainCluster(
 
 \item{python_path}{deprecated.}
 
-\item{resolution}{[community] resolution, default = 1}
+\item{resolution}{`[igraph]` resolution, default = 1. Higher values give
+more, smaller clusters.}
 
-\item{weight_col}{weight column name}
+\item{weight_col}{`[igraph]` edge attribute with the weights; `NULL`
+(default) gives every edge weight 1}
 
-\item{gamma}{[multinet] Resolution parameter for modularity in the
+\item{gamma}{`[multinet]` Resolution parameter for modularity in the
 generalized louvain method, default = 1}
 
-\item{omega}{[multinet] Inter-layer weight parameter in the generalized
+\item{omega}{`[multinet]` Inter-layer weight parameter in the generalized
 louvain method, default = 1}
 
-\item{louv_random}{[community] Will randomize the node evaluation order and
-the community evaluation order to get different partitions at each call
-(default = FALSE)}
+\item{louv_random}{deprecated: igraph's Louvain visits the vertices in a
+random order; use `set_seed` and `seed_number`.}
 
 \item{return_gobject}{boolean: return giotto object (default = TRUE)}
 
-\item{set_seed}{set seed (default = FALSE)}
+\item{set_seed}{set seed (default = TRUE)}
 
 \item{seed_number}{number for seed}
 
-\item{...}{arguments passed to \code{\link{.doLouvainCluster_community}}}
+\item{...}{not used}
 }
 \value{
 giotto object with new clusters appended to cell metadata
@@ -71,15 +74,12 @@ giotto object with new clusters appended to cell metadata
 cluster cells using a NN-network and the Louvain algorithm.
 }
 \details{
-Louvain clustering using the community or multinet implementation
-of the louvain clustering algorithm.
+Louvain clustering using the igraph or multinet implementation
+of the louvain clustering algorithm. See [LouvainIgraphClusParam-class] and
+[LouvainMultinetClusParam-class] for the [clusterData()] params they use.
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
 
 doLouvainCluster(g)
-}
-\seealso{
-\code{\link{.doLouvainCluster_community}} and
-\code{\link{.doLouvainCluster_multinet}}
 }

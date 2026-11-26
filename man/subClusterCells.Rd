@@ -9,7 +9,7 @@
 subClusterCells(
   gobject,
   name = "sub_clus",
-  cluster_method = c("leiden", "louvain_community", "louvain_multinet"),
+  cluster_method = c("leiden", "louvain_igraph", "louvain_multinet"),
   cluster_column = NULL,
   selected_clusters = NULL,
   hvg_param = deprecated(),
@@ -70,7 +70,7 @@ doLeidenSubCluster(
 doLouvainSubCluster(
   gobject,
   name = "sub_louvain_clus",
-  version = c("community", "multinet"),
+  version = c("igraph", "multinet"),
   cluster_column = NULL,
   selected_clusters = NULL,
   hvg_param = deprecated(),
@@ -103,7 +103,7 @@ doLouvainSubCluster(
 \item{name}{name for new clustering result}
 
 \item{cluster_method}{clustering method to use. Currently one of "leiden"
-(default), "louvain_community", "louvain_multinet"}
+(default), "louvain_igraph", "louvain_multinet"}
 
 \item{cluster_column}{cluster column to subcluster}
 
@@ -160,8 +160,8 @@ input for PCA}
 
 \item{toplevel}{do not use}
 
-\item{version}{version of Louvain algorithm to use. One of "community" or
-"multinet", with the default being "community"}
+\item{version}{version of Louvain algorithm to use. One of "igraph" or
+"multinet", with the default being "igraph"}
 }
 \value{
 \code{giotto} object with new subclusters appended to cell metadata
@@ -205,7 +205,7 @@ subClusterCells(g, cluster_column = "leiden_clus")
 # use louvain instead
 subClusterCells(g,
     cluster_column = "leiden_clus",
-    cluster_method = "louvain_community"
+    cluster_method = "louvain_igraph"
 )
 
 # directly call the more specific functions

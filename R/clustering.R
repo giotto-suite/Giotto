@@ -29,7 +29,7 @@
 #' @section giotto-specific (works on networks): 
 #' 
 #' * [`"leiden_igraph"`][LeidenIgraphClusParam-class] - Leiden clustering via igraph
-#' * [`"louvain_community"`][LouvainCommunityClusParam-class] - Louvain clustering with python \pkg{community}
+#' * [`"louvain_igraph"`][LouvainIgraphClusParam-class] - Louvain clustering via igraph
 #' * [`"louvain_multinet"`][LouvainMultinetClusParam-class] - generalized Louvain clustering with \pkg{multinet}
 #' @param method character. Parameter class to generate
 #' @param \dots additional params to pass to the param class creator.
@@ -124,7 +124,7 @@ NULL
 #' via \pkg{bluster}.
 #' @md
 #' @seealso concrete class examples:
-#' [LeidenIgraphClusParam-class], [LouvainCommunityClusParam-class],
+#' [LeidenIgraphClusParam-class], [LouvainIgraphClusParam-class],
 #' [LouvainMultinetClusParam-class]
 NULL
 
@@ -163,24 +163,26 @@ NULL
 NULL
 
 #' @title Louvain Clustering
-#' @name LouvainCommunityClusParam-class
-#' @aliases LouvainCommunityClusParam
+#' @name LouvainIgraphClusParam-class
+#' @aliases LouvainIgraphClusParam
 #' @description
-#' Cluster cells using a NN-network and the Louvain algorithm. This utilizes the
-#' \{community\} package from python.
+#' Cluster cells using a NN-network and the Louvain algorithm as implemented
+#' in igraph (\code{\link[igraph]{cluster_louvain}}). The network is made
+#' undirected first. Louvain visits the vertices in a random order, so set a
+#' seed for reproducible clusters (`clusterData(set_seed = TRUE)`, the default).
 #' 
 #' @section params: 
 #' 
 #' \tabular{ll}{
-#'   `resolution` \tab numeric (default = 1). Clustering resolution. \cr
-#'   `weight_col` \tab character (default = `NULL`). Weight column name. \cr
-#'   `louv_random` \tab (default = `FALSE`) Will randomize the node evaluation
-#'   order and the community evaluation order to get different partitions at 
-#'   each call
+#'   `resolution` \tab numeric (default = 1). Clustering resolution: higher
+#'   values give more, smaller clusters. \cr
+#'   `weights` \tab (default = `NULL`) edge weights: `NULL` uses the
+#'   network's `weight` edge attribute, `NA` gives every edge weight 1, and a
+#'   character value names another edge attribute.
 #' }
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
-#' clusterData(g, clusterParam("louvain_community", resolution = 0.5))
+#' clusterData(g, clusterParam("louvain_igraph", resolution = 0.5))
 #' @md
 NULL
 
@@ -227,13 +229,12 @@ setClass("LeidenIgraphClusParam", contains = "LeidenClusParam",
     )
 )
 
-#' @rdname LouvainCommunityClusParam-class
+#' @rdname LouvainIgraphClusParam-class
 #' @export
-setClass("LouvainCommunityClusParam", contains = "LouvainClusParam",
+setClass("LouvainIgraphClusParam", contains = "LouvainClusParam",
     slots = list(
         resolution = "numeric",
-        weight_col = "ANY",
-        louv_random = "logical"
+        weights = "ANY"
     )
 )
 
@@ -451,63 +452,32 @@ setMethod("clusterData", signature("nnNetObj", "NNClusParam"), function(x, param
     )
 })
 
-# * igraph / LouvCommunity ####
+# * igraph / LouvIgraph ####
 #' @rdname clusterData
 #' @export
-setMethod("clusterData", signature("igraph", "LouvainCommunityClusParam"), function(x, param,
+setMethod("clusterData", signature("igraph", "LouvainIgraphClusParam"), function(x, param,
     set_seed = TRUE,
     seed_number = 1234,
     output = c("data.table", "factor")) {
     output <- match.arg(output, choices = c("data.table", "factor"))
-    weight_col <- param$weight_col
-    
-    # source python louvain script
-    python_louvain_function <- system.file("python", "python_louvain.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_louvain_function)
-    # seed setting
-    .py_set_seed(set_seed, seed_number)
-    
-    # prep data ------------------------------------------------------------#
-    ## extract NN network
-    network_edge_dt <- data.table::setDT(
-        igraph::as_data_frame(x = x, what = "edges")
-    )
-    
-    if (!is.null(weight_col)) {
-        if (!weight_col %in% colnames(network_edge_dt)) {
-            stop("weight column is not an igraph attribute")
-        } else {
-            # weight is defined by attribute of igraph object
-            network_edge_dt <- network_edge_dt[
-                , c("from", "to", weight_col),
-                with = FALSE
-            ]
-            setnames(network_edge_dt, weight_col, "weight")
+    if (isTRUE(set_seed)) {
+        GiottoUtils::local_seed(seed_number)
+    }
+    g <- igraph::as.undirected(x)
+    weights <- param$weights
+    if (is.character(weights)) {
+        if (!weights %in% igraph::edge_attr_names(g)) {
+            stop("weight column is not an igraph attribute", call. = FALSE)
         }
-    } else {
-        # weight is the same
-        network_edge_dt <- network_edge_dt[, c("from", "to"), with = FALSE]
-        network_edge_dt[, "weight" := 1]
+        weights <- igraph::edge_attr(g, weights)
     }
-    
-    # run louvain
-    if (param$louv_random) {
-        pyth_louv_result <- python_louvain(
-            df = network_edge_dt, 
-            resolution = param$resolution, 
-            random_state = seed_number
-        )
-    } else {
-        pyth_louv_result <- python_louvain(
-            df = network_edge_dt, 
-            resolution = param$resolution, 
-            randomize = FALSE
-        )
-    }
+    louvain_clusters <- igraph::cluster_louvain(g,
+        weights = weights,
+        resolution = param$resolution
+    )
     ident_clusters_dt <- data.table::data.table(
-        cell_ID = rownames(pyth_louv_result), "cluster" = pyth_louv_result[[1]]
+        "cell_ID" = louvain_clusters$names,
+        "cluster" = louvain_clusters$membership
     )
     switch(output,
         "data.table" = return(ident_clusters_dt),
@@ -734,19 +704,6 @@ setMethod("clusterData", signature("gAny", "NNClusParam"), function(x, param,
 
 
 
-.py_set_seed <- function(set_seed = TRUE, seed_number = 1234) {
-    # set seed
-    if (isTRUE(set_seed)) {
-        seed_number <- as.integer(seed_number)
-    } else {
-        seed_number <- as.integer(sample(x = seq(10000), size = 1))
-    }
-    reticulate::py_set_seed(
-        seed = seed_number,
-        disable_hash_randomization = TRUE
-    )
-}
-
 # param factory ####
 
 #' @rdname clusterParam
@@ -756,7 +713,7 @@ clusterParam <- function(method, ...) {
     method <- match.arg(method,
         c("kmeans", "affinity", "som", "agnes", "diana", "hclust", "dbscan",
           "dmm", "twostep", "clara", "mbkmeans", "pam", "leiden_igraph",
-          "louvain_community", "louvain_multinet")
+          "louvain_igraph", "louvain_multinet")
     )
     switch(method,
         "kmeans" = bluster::KmeansParam(...),
@@ -784,7 +741,7 @@ clusterParam <- function(method, ...) {
         },
         "pam" = bluster::PamParam(...),
         "leiden_igraph" = .clus_param_leiden_igraph(...),
-        "louvain_community" = .clus_param_louvain_community(...),
+        "louvain_igraph" = .clus_param_louvain_igraph(...),
         "louvain_multinet" = .clus_param_louvain_multinet(...)
     )
 }
@@ -824,11 +781,9 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 }
 
 # param setup helpers ####
-.clus_param_louvain_community <- function(...) {
-    p <- new("LouvainCommunityClusParam", ...)
+.clus_param_louvain_igraph <- function(...) {
+    p <- new("LouvainIgraphClusParam", ...)
     p$resolution <- p$resolution %none% 1
-    p$weight_col <- p$weight_col %none% "weight"
-    p$louv_random <- p$louv_random %none% FALSE
     p
 }
 
@@ -1030,220 +985,6 @@ doGiottoClustree <- function(
 }
 
 
-#' @title doLouvainCluster community
-#' @name .doLouvainCluster_community
-#' @description cluster cells using a NN-network and the Louvain algorithm
-#' from the community module in Python
-#' @param gobject giotto object
-#' @param spat_unit spatial unit (e.g. "cell")
-#' @param feat_type feature type (e.g. "rna", "dna", "protein")
-#' @param name name for cluster, default to "louvain_clus"
-#' @param nn_network_to_use type of NN network to use (kNN vs sNN), default to
-#' "sNN"
-#' @param network_name name of NN network to use, default to "sNN.pca"
-#' @param python_path specify specific path to python if required
-#' @param resolution resolution, default = 1
-#' @param weight_col weight column to use for edges
-#' @param louv_random Will randomize the node evaluation order and the
-#' community evaluation order to get different partitions at each call
-#' (default = FALSE)
-#' @param return_gobject logical. return giotto object (default = TRUE)
-#' @param set_seed set seed (default = FALSE)
-#' @param seed_number number for seed
-#' @param \dots additional params to pass
-#' @returns giotto object with new clusters appended to cell metadata
-#' @details This function is a wrapper for the Louvain algorithm implemented in
-#' Python, which can detect communities in graphs of nodes (cells).
-#' See the
-#' [readthedocs](https://python-louvain.readthedocs.io/en/latest/index.html)
-#' page for more information.
-#'
-#' Set \emph{weight_col = NULL} to give equal weight (=1) to each edge.
-#' @md
-#' @keywords internal
-.doLouvainCluster_community <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        name = "louvain_clus",
-        nn_network_to_use = "sNN",
-        network_name = "sNN.pca",
-        python_path = NULL,
-        resolution = 1,
-        weight_col = NULL,
-        louv_random = FALSE,
-        return_gobject = TRUE,
-        set_seed = FALSE,
-        seed_number = 1234,
-        ...) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-
-    ## get cell IDs ##
-    cell_ID_vec <- gobject@cell_ID[[spat_unit]]
-
-    ## select network to use
-    igraph_object <- getNearestNetwork(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        nn_type = nn_network_to_use,
-        name = network_name,
-        output = "igraph"
-    )
-
-    ## check or make paths
-    # python path
-    if (is.null(python_path)) {
-        python_path <- instructions(gobject, "python_path")
-    }
-
-    # prepare python path and louvain script
-    reticulate::use_python(required = TRUE, python = python_path)
-    python_louvain_function <- system.file(
-        "python", "python_louvain.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_louvain_function)
-
-    # set seed
-    if (isTRUE(set_seed)) {
-        seed_number <- as.integer(seed_number)
-    } else {
-        seed_number <- as.integer(sample(x = seq(10000), size = 1))
-    }
-
-    network_edge_dt <- data.table::as.data.table(igraph::as_data_frame(
-        x = igraph_object, what = "edges"
-    ))
-
-    # data.table variables
-    weight <- NULL
-
-    if (!is.null(weight_col)) {
-        if (!weight_col %in% colnames(network_edge_dt)) {
-            stop("weight column is not an igraph attribute")
-        } else {
-            # weight is defined by attribute of igraph object
-            network_edge_dt <- network_edge_dt[
-                , c("from", "to", weight_col),
-                with = FALSE
-            ]
-            setnames(network_edge_dt, weight_col, "weight")
-        }
-    } else {
-        # weight is the same
-        network_edge_dt <- network_edge_dt[, c("from", "to"), with = FALSE]
-        network_edge_dt[, weight := 1]
-    }
-
-    # do python louvain clustering
-    if (louv_random == FALSE) {
-        reticulate::py_set_seed(
-            seed = seed_number, disable_hash_randomization = TRUE
-        )
-        pyth_louv_result <- python_louvain(
-            df = network_edge_dt, resolution = resolution, randomize = FALSE
-        )
-    } else {
-        reticulate::py_set_seed(
-            seed = seed_number, disable_hash_randomization = TRUE
-        )
-        pyth_louv_result <- python_louvain(
-            df = network_edge_dt,
-            resolution = resolution,
-            random_state = seed_number
-        )
-    }
-    ident_clusters_DT <- data.table::data.table(
-        cell_ID = rownames(pyth_louv_result), "name" = pyth_louv_result[[1]]
-    )
-    data.table::setnames(ident_clusters_DT, "name", name)
-
-
-    ## return
-    if (isTRUE(return_gobject)) {
-        # get cell metadata names
-        cluster_names <- names(pDataDT(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type
-        ))
-
-
-        # set name/cluster results to NULL if already exist
-        if (name %in% cluster_names) {
-            cat(name, " has already been used, will be overwritten")
-            cell_metadata <- getCellMetadata(gobject,
-                spat_unit = spat_unit,
-                feat_type = feat_type,
-                output = "cellMetaObj",
-                copy_obj = TRUE
-            )
-
-            cell_metadata[][, eval(name) := NULL]
-
-            ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-            gobject <- setCellMetadata(gobject,
-                x = cell_metadata,
-                verbose = FALSE,
-                initialize = FALSE
-            )
-            ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-        }
-
-
-        # add new metadata information
-        gobject <- addCellMetadata(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            new_metadata = ident_clusters_DT[
-                , c("cell_ID", name),
-                with = FALSE
-            ],
-            by_column = TRUE, column_cell_ID = "cell_ID"
-        )
-
-        ## update parameters used ##
-
-        # 1. get parent function name
-        cl <- sys.call(-1)
-
-        # 2. check if this function call is within doLouvainCluster
-        if (is.null(cl)) {
-            gobject <- update_giotto_params(gobject, description = "_cluster")
-        } else {
-            fname <- as.character(cl[[1]])
-            if (fname == "doLouvainCluster") {
-                gobject <- update_giotto_params(gobject,
-                    description = "_cluster",
-                    toplevel = 3
-                )
-            } else {
-                gobject <- update_giotto_params(gobject,
-                    description = "_cluster"
-                )
-            }
-        }
-
-        return(gobject)
-    } else {
-        # else return clustering result
-        return(ident_clusters_DT)
-    }
-}
-
-
 #' @title doLouvainCluster multinet
 #' @name .doLouvainCluster_multinet
 #' @description cluster cells using a NN-network and the Louvain algorithm from
@@ -1419,31 +1160,33 @@ doGiottoClustree <- function(
 #' @param gobject giotto object
 #' @param spat_unit spatial unit (e.g. "cell")
 #' @param feat_type feature type (e.g. "rna", "dna", "protein")
-#' @param version implemented version of Louvain clustering to use
+#' @param version implemented version of Louvain clustering to use: `"igraph"`
+#' ([igraph::cluster_louvain()]) or `"multinet"` (generalized Louvain of
+#' \pkg{multinet})
 #' @param name name for cluster, default to "louvain_clus"
 #' @param nn_network_to_use type of NN network to use (kNN vs sNN), default to
 #' "sNN"
 #' @param network_name name of NN network to use, default to "sNN.pca"
 #' @param python_path deprecated.
-#' @param resolution [community] resolution, default = 1
-#' @param louv_random [community] Will randomize the node evaluation order and
-#' the community evaluation order to get different partitions at each call
-#' (default = FALSE)
-#' @param weight_col weight column name
-#' @param gamma [multinet] Resolution parameter for modularity in the
+#' @param resolution `[igraph]` resolution, default = 1. Higher values give
+#' more, smaller clusters.
+#' @param weight_col `[igraph]` edge attribute with the weights; `NULL`
+#' (default) gives every edge weight 1
+#' @param louv_random deprecated: igraph's Louvain visits the vertices in a
+#' random order; use `set_seed` and `seed_number`.
+#' @param gamma `[multinet]` Resolution parameter for modularity in the
 #' generalized louvain method, default = 1
-#' @param omega [multinet] Inter-layer weight parameter in the generalized
+#' @param omega `[multinet]` Inter-layer weight parameter in the generalized
 #' louvain method, default = 1
 #' @param return_gobject boolean: return giotto object (default = TRUE)
-#' @param set_seed set seed (default = FALSE)
-#' @param ... arguments passed to \code{\link{.doLouvainCluster_community}}
+#' @param set_seed set seed (default = TRUE)
 #' @param seed_number number for seed
+#' @param ... not used
 #'
 #' @returns giotto object with new clusters appended to cell metadata
-#' @details Louvain clustering using the community or multinet implementation
-#' of the louvain clustering algorithm.
-#' @seealso \code{\link{.doLouvainCluster_community}} and
-#' \code{\link{.doLouvainCluster_multinet}}
+#' @details Louvain clustering using the igraph or multinet implementation
+#' of the louvain clustering algorithm. See [LouvainIgraphClusParam-class] and
+#' [LouvainMultinetClusParam-class] for the [clusterData()] params they use.
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
@@ -1453,7 +1196,7 @@ doLouvainCluster <- function(
         gobject,
         spat_unit = NULL,
         feat_type = NULL,
-        version = c("community", "multinet"),
+        version = c("igraph", "multinet"),
         name = "louvain_clus",
         nn_network_to_use = "sNN",
         network_name = "sNN.pca",
@@ -1462,9 +1205,9 @@ doLouvainCluster <- function(
         weight_col = NULL,
         gamma = 1,
         omega = 1,
-        louv_random = FALSE,
+        louv_random = deprecated(),
         return_gobject = TRUE,
-        set_seed = FALSE,
+        set_seed = TRUE,
         seed_number = 1234,
         ...) {
     if (is_present(python_path)) {
@@ -1473,15 +1216,21 @@ doLouvainCluster <- function(
             what = "doLouvainCluster(python_path)"
         )
     }
-    
+    if (is_present(louv_random)) {
+        deprecate_warn(
+            when = "4.3.7",
+            what = "doLouvainCluster(louv_random)",
+            details = "Use `set_seed` and `seed_number`."
+        )
+    }
+
     ## louvain clustering version to use
-    version <- match.arg(version, c("community", "multinet"))
+    version <- match.arg(version, c("igraph", "multinet"))
     switch(version,
-        "community" = {
-            p <- clusterParam("louvain_community")
+        "igraph" = {
+            p <- clusterParam("louvain_igraph")
             p$resolution <- resolution
-            p$weight_col <- weight_col
-            p$louv_random <- louv_random
+            p$weights <- weight_col %null% NA
         },
         "multinet" = {
             p <- clusterParam("louvain_multinet")
@@ -2736,9 +2485,10 @@ sweepClusterK <- function(gobject = NULL,
 #' @param pyth_leid_part_type partition type to use
 #' @param pyth_leid_init_memb initial membership
 #' @param pyth_leid_iterations number of iterations
-#' @param pyth_louv_resolution resolution for louvain
-#' @param pyth_louv_weight_col python louvain param: weight column
-#' @param python_louv_random python louvain param: random
+#' @param pyth_louv_resolution resolution for louvain (igraph)
+#' @param pyth_louv_weight_col louvain (igraph) edge attribute with the
+#' weights; `NULL` gives every edge weight 1
+#' @param python_louv_random deprecated
 #' @param python_path specify specific path to python if required
 #' @param louvain_gamma louvain param: gamma or resolution
 #' @param louvain_omega louvain param: omega
@@ -2769,7 +2519,6 @@ sweepClusterK <- function(gobject = NULL,
 #' @returns giotto object with new clusters appended to cell metadata
 #' @details Wrapper for the different clustering methods.
 #' @seealso \code{\link{doLeidenCluster}},
-#' \code{\link{.doLouvainCluster_community}},
 #' \code{\link{.doLouvainCluster_multinet}},
 #' \code{\link{doLouvainCluster}}, \code{\link{doRandomWalkCluster}},
 #' \code{\link{doSNNCluster}},
@@ -2783,7 +2532,7 @@ clusterCells <- function(
         gobject,
         cluster_method = c(
             "leiden",
-            "louvain_community", "louvain_multinet",
+            "louvain_igraph", "louvain_multinet",
             "randomwalk", "sNNclust",
             "kmeans", "hierarchical"
         ),
@@ -2800,7 +2549,7 @@ clusterCells <- function(
         pyth_leid_iterations = 1000,
         pyth_louv_resolution = 1,
         pyth_louv_weight_col = NULL,
-        python_louv_random = FALSE,
+        python_louv_random = deprecated(),
         python_path = NULL,
         louvain_gamma = 1,
         louvain_omega = 1,
@@ -2841,7 +2590,7 @@ clusterCells <- function(
         arg = cluster_method,
         choices = c(
             "leiden",
-            "louvain_community",
+            "louvain_igraph",
             "louvain_multinet",
             "randomwalk",
             "sNNclust",
@@ -2867,17 +2616,15 @@ clusterCells <- function(
             set_seed = set_seed,
             seed_number = seed_number
         )
-    } else if (cluster_method == "louvain_community") {
-        result <- .doLouvainCluster_community(
+    } else if (cluster_method == "louvain_igraph") {
+        result <- doLouvainCluster(
             gobject = gobject,
+            version = "igraph",
             name = name,
             nn_network_to_use = nn_network_to_use,
             network_name = network_name,
-            python_path = python_path,
             resolution = pyth_louv_resolution,
             weight_col = pyth_louv_weight_col,
-            louv_random = python_louv_random,
-            return_gobject = return_gobject,
             set_seed = set_seed,
             seed_number = seed_number
         )
@@ -2975,7 +2722,7 @@ clusterCells <- function(
 #' @param gobject `giotto` object
 #' @param name name for new clustering result
 #' @param cluster_method clustering method to use. Currently one of "leiden"
-#' (default), "louvain_community", "louvain_multinet"
+#' (default), "louvain_igraph", "louvain_multinet"
 #' @param cluster_column cluster column to subcluster
 #' @param selected_clusters only do subclustering on these clusters
 #' @param hvf_param list of parameters for [calculateHVF()]
@@ -3024,7 +2771,7 @@ clusterCells <- function(
 #' # use louvain instead
 #' subClusterCells(g,
 #'     cluster_column = "leiden_clus",
-#'     cluster_method = "louvain_community"
+#'     cluster_method = "louvain_igraph"
 #' )
 #'
 #' # directly call the more specific functions
@@ -3043,7 +2790,7 @@ subClusterCells <- function(gobject,
     name = "sub_clus",
     cluster_method = c(
         "leiden",
-        "louvain_community",
+        "louvain_igraph",
         "louvain_multinet"
     ),
     cluster_column = NULL,
@@ -3076,7 +2823,7 @@ subClusterCells <- function(gobject,
     ## select cluster method
     cluster_method <- match.arg(arg = cluster_method, choices = c(
         "leiden",
-        "louvain_community",
+        "louvain_igraph",
         "louvain_multinet"
     ))
 
@@ -3129,13 +2876,10 @@ subClusterCells <- function(gobject,
                 )
             ))
         },
-        "louvain_community" = {
-            do.call(.doLouvainSubCluster_community, args = c(
+        "louvain_igraph" = {
+            do.call(.doLouvainSubCluster_igraph, args = c(
                 common_args,
-                list(
-                    resolution = resolution,
-                    python_path = python_path
-                )
+                list(resolution = resolution)
             ))
         },
         "louvain_multinet" = {
@@ -3364,11 +3108,10 @@ doLeidenSubCluster <- function(
 }
 
 
-# subcluster cells using a NN-network and the Louvain community
-# detection algorithm
-.doLouvainSubCluster_community <- function(
+# subcluster cells using a NN-network and the Louvain algorithm (igraph)
+.doLouvainSubCluster_igraph <- function(
         gobject,
-        name = "sub_louvain_comm_clus",
+        name = "sub_louvain_igraph_clus",
         cluster_column = NULL,
         selected_clusters = NULL,
         hvf_param = list(
@@ -3384,7 +3127,6 @@ doLeidenSubCluster <- function(
         nn_param = list(dimensions_to_use = 1:20),
         k_neighbors = 10,
         resolution = 0.5,
-        python_path = NULL,
         nn_network_to_use = "sNN",
         network_name = "sNN.pca",
         return_gobject = TRUE,
@@ -3483,13 +3225,12 @@ doLeidenSubCluster <- function(
             )
 
             ## TO DO: expand to all clustering options
-            temp_cluster <- .doLouvainCluster_community(
-                gobject = temp_giotto,
-                resolution = resolution,
-                python_path = python_path,
-                name = "tempclus",
-                return_gobject = FALSE
+            temp_cluster <- clusterData(temp_giotto,
+                clusterParam("louvain_igraph", resolution = resolution,
+                    weights = NA),
+                output = "data.table"
             )
+            data.table::setnames(temp_cluster, "cluster", "tempclus")
 
             # data.table variables
             parent_cluster <- NULL
@@ -3740,13 +3481,13 @@ doLeidenSubCluster <- function(
 
 #' @describeIn subClusterCells subcluster cells using a NN-network and the
 #' Louvain algorithm
-#' @param version version of Louvain algorithm to use. One of "community" or
-#' "multinet", with the default being "community"
+#' @param version version of Louvain algorithm to use. One of "igraph" or
+#' "multinet", with the default being "igraph"
 #' @export
 doLouvainSubCluster <- function(
         gobject,
         name = "sub_louvain_clus",
-        version = c("community", "multinet"),
+        version = c("igraph", "multinet"),
         cluster_column = NULL,
         selected_clusters = NULL,
         hvg_param = deprecated(),
@@ -3774,7 +3515,7 @@ doLouvainSubCluster <- function(
         return_gobject = TRUE,
         verbose = TRUE) {
     ## louvain clustering version to use
-    version <- match.arg(version, c("community", "multinet"))
+    version <- match.arg(version, c("igraph", "multinet"))
 
     # deprecations
     .dep_param <- function(x, y) {
@@ -3814,13 +3555,10 @@ doLouvainSubCluster <- function(
     ))
 
     result <- switch(version,
-        "community" = {
-            do.call(.doLouvainSubCluster_community, args = c(
+        "igraph" = {
+            do.call(.doLouvainSubCluster_igraph, args = c(
                 common_args,
-                list(
-                    resolution = resolution,
-                    python_path = python_path
-                )
+                list(resolution = resolution)
             ))
         },
         "multinet" = {

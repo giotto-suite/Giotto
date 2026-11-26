@@ -8,7 +8,7 @@
 \alias{clusterData,dimObj,BlusterParam-method}
 \alias{clusterData,spatEnrObj,BlusterParam-method}
 \alias{clusterData,nnNetObj,NNClusParam-method}
-\alias{clusterData,igraph,LouvainCommunityClusParam-method}
+\alias{clusterData,igraph,LouvainIgraphClusParam-method}
 \alias{clusterData,igraph,LouvainMultinetClusParam-method}
 \alias{clusterData,igraph,LeidenIgraphClusParam-method}
 \alias{clusterData,gAny,BlusterParam-method}
@@ -71,7 +71,7 @@
   ...
 )
 
-\S4method{clusterData}{igraph,LouvainCommunityClusParam}(
+\S4method{clusterData}{igraph,LouvainIgraphClusParam}(
   x,
   param,
   set_seed = TRUE,
