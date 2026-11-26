@@ -234,7 +234,7 @@ doCellposeSegmentation <- function(
     rescale, diameter, flow_threshold, cellprob_threshold, do_3D, anisotropy,
     stitch_threshold, min_size, max_size_fraction, niter, augment,
     tile_overlap, bsize, dP_smooth, interp, compute_masks, progress,
-    verbose) {
+    verbose = NULL) {
     vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(...)
     cellpose <- reticulate::import("cellpose")
     np <- reticulate::import("numpy")
@@ -350,7 +350,7 @@ doMesmerSegmentation <- function(input,
 }
 
 .mesmer_worker <- function(input, mask_output, nucleus_channel,
-    membrane_channel, micron_scale, verbose) {
+    membrane_channel, micron_scale, verbose = NULL) {
     vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(...)
     np <- reticulate::import("numpy")
     deepcell <- reticulate::import("deepcell.applications")
@@ -439,7 +439,7 @@ doStardistSegmentation <- function(input,
 }
 
 .stardist_worker <- function(input, mask_output, model_name, nuclei_channel,
-    prob_thresh, nms_thresh, verbose) {
+    prob_thresh, nms_thresh, verbose = NULL) {
     vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(...)
     stardist <- reticulate::import("stardist.models")
     csbdeep <- reticulate::import("csbdeep.utils")
