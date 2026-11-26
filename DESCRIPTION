@@ -110,7 +110,6 @@ Suggests:
     smotifrs,
     spatialDWLS,
     spatialHMRF,
-    SPARK,
     SpatialExperiment,
     spdep,
     STexampleData,

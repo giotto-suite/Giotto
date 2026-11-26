@@ -1675,165 +1675,6 @@ binSpectMultiMatrix <- function(
 
 
 
-#' @title spark
-#' @name spark
-#' @description Compute spatially expressed genes with SPARK method
-#' @param gobject giotto object
-#' @param feat_type feature type
-#' @param spat_unit spatial unit
-#' @param spat_loc_name name for spatial locations
-#' @param percentage The percentage of cells that are expressed for analysis
-#' @param min_count minimum number of counts for a gene to be included
-#' @param expression_values type of values to use (raw by default)
-#' @param num_core number of cores to use
-#' @param covariates The covariates in experiments, i.e. confounding
-#' factors/batch effect. Column name of giotto cell metadata.
-#' @param return_object type of result to return (data.table or spark object)
-#' @param \dots Additional parameters to the \code{\link[SPARK]{spark.vc}}
-#' function
-#' @returns data.table with SPARK spatial genes results or the SPARK object
-#' @details This function is a wrapper for the method implemented in the
-#' SPARK package:
-#' \pkg{SPARK} package:
-#'   1. **CreateSPARKObject** create a SPARK object from a giotto object
-#'   2. **spark.vc** Fits the count-based spatial model to estimate the
-#'   parameters, see \code{\link[SPARK]{spark.vc}} for additional parameters
-#'   3. **spark.test** Testing multiple kernel matrices
-#'
-#' Publication: \doi{doi:10.1101/810903}
-#' @md
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' spark(g)
-#' @export
-spark <- function(
-        gobject,
-        spat_loc_name = "raw",
-        feat_type = NULL,
-        spat_unit = NULL,
-        percentage = 0.1,
-        min_count = 10,
-        expression_values = "raw",
-        num_core = 5,
-        covariates = NULL,
-        return_object = c("data.table", "spark"),
-        ...) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # determine parameter
-    return_object <- match.arg(return_object, c("data.table", "spark"))
-
-    # data.table variables
-    genes <- adjusted_pvalue <- combined_pvalue <- NULL
-
-    ## test if SPARK is installed ##
-    package_check(
-        pkg_name = "SPARK",
-        repository = c("github"),
-        github_repo = "xzhoulab/SPARK"
-    )
-
-
-    # print message with information #
-    message("using 'SPARK' for spatial gene/pattern detection. If used in
-    published research, please cite:
-    Sun, Shiquan, Jiaqiang Zhu, and Xiang Zhou. 'Statistical Analysis of
-    Spatial Expression Pattern for Spatially Resolved Transcriptomic Studies.'
-    BioRxiv, October 21, 2019, 810903. https://doi.org/10.1101/810903.")
-
-
-    ## extract expression values from gobject
-    expr <- getExpression(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        values = expression_values
-    )
-
-    ## extract coordinates from gobject
-    locs <- getSpatialLocations(gobject,
-        spat_unit = spat_unit,
-        name = spat_loc_name
-    )
-    locs <- as.data.frame(locs)
-    rownames(locs) <- colnames(expr)
-
-    ## create SPARK object for analysis and filter out lowly expressed genes
-    sobject <- SPARK::CreateSPARKObject(
-        counts = expr,
-        location = locs[, seq_len(2)],
-        percentage = percentage,
-        min_total_counts = min_count
-    )
-
-    ## total counts for each cell
-    sobject@lib_size <- apply(sobject@counts, 2, sum)
-
-    ## extract covariates ##
-    if (!is.null(covariates)) {
-        # first filter giotto object based on spark object
-        filter_cell_ids <- colnames(sobject@counts)
-        filter_gene_ids <- rownames(sobject@counts)
-        tempgobject <- subsetGiotto(gobject,
-            feat_type = feat_type,
-            spat_unit = spat_unit,
-            cell_ids = filter_cell_ids,
-            feat_ids = filter_gene_ids
-        )
-
-        metadata <- pDataDT(tempgobject)
-
-        if (!covariates %in% colnames(metadata)) {
-            warning(covariates, " was not found in the cell metadata of the
-                    giotto object, will be set to NULL")
-            covariates <- NULL
-        } else {
-            covariates <- metadata[[covariates]]
-        }
-    }
-
-    ## Fit statistical model under null hypothesis
-    sobject <- SPARK::spark.vc(sobject,
-        covariates = covariates,
-        lib_size = sobject@lib_size,
-        num_core = num_core,
-        verbose = FALSE,
-        ...
-    )
-
-    ## test spatially expressed pattern genes
-    ## calculating pval
-    sobject <- SPARK::spark.test(sobject,
-        check_positive = TRUE,
-        verbose = FALSE
-    )
-
-    ## return results ##
-    if (return_object == "spark") {
-        return(sobject)
-    } else if (return_object == "data.table") {
-        DT_results <- data.table::as.data.table(sobject@res_mtest)
-        gene_names <- rownames(sobject@counts)
-        DT_results[, genes := gene_names]
-        data.table::setorder(DT_results, adjusted_pvalue, combined_pvalue)
-        return(DT_results)
-    }
-}
-
-
-
-
-
 # * ####
 ## PCA spatial patterns ####
 
@@ -2678,9 +2519,9 @@ run_spatial_sim_tests_one_rep <- function(
         spatial_prob = 0.95,
         show_pattern = FALSE,
         spatial_network_name = "kNN_network",
-        spat_methods = c("binSpect_single", "binSpect_multi", "spark"),
-        spat_methods_params = list(NA, NA, NA),
-        spat_methods_names = c("binSpect_single", "binSpect_multi", "spark"),
+        spat_methods = c("binSpect_single", "binSpect_multi"),
+        spat_methods_params = list(NA, NA),
+        spat_methods_names = c("binSpect_single", "binSpect_multi"),
         save_plot = FALSE,
         save_raw = FALSE,
         save_norm = FALSE,
@@ -2775,7 +2616,7 @@ run_spatial_sim_tests_one_rep <- function(
             # method
             selected_method <- spat_methods[test]
             if (!selected_method %in%
-                c("binSpect_single", "binSpect_multi", "spark")) {
+                c("binSpect_single", "binSpect_multi")) {
                 stop(selected_method, " is not a know spatial method")
             }
 
@@ -2803,14 +2644,6 @@ run_spatial_sim_tests_one_rep <- function(
                             get_av_expr = FALSE,
                             get_high_expr = FALSE,
                             summarize = "adj.p.value"
-                        )
-                    } else if (selected_method == "spark") {
-                        selected_params <- list(
-                            expression_values = "raw",
-                            return_object = "data.table",
-                            percentage = 0.1,
-                            min_count = 10,
-                            num_core = 5
                         )
                     }
                 }
@@ -2864,27 +2697,6 @@ run_spatial_sim_tests_one_rep <- function(
                 )
 
                 spatial_gene_results[, method := selected_name]
-            } else if (selected_method == "spark") {
-                ## spark
-                start <- proc.time()
-                spark_spatialgenes_sim <- do.call("spark", c(
-                    gobject = simulate_patch,
-                    selected_params
-                ))
-
-                spark_result <- spark_spatialgenes_sim[genes == gene_name]
-                spark_time <- proc.time() - start
-
-                spark_result[, prob := spatial_prob]
-                spark_result[, time := spark_time[["elapsed"]]]
-
-                spatial_gene_results <- spark_result[
-                    , .(genes, adjusted_pvalue, prob, time)
-                ]
-                colnames(spatial_gene_results) <- c(
-                    "genes", "adj.p.value", "prob", "time"
-                )
-                spatial_gene_results[, method := "spark"]
             }
 
             result_list[[test]] <- spatial_gene_results
@@ -2915,9 +2727,9 @@ run_spatial_sim_tests_multi <- function(
         spatial_probs = c(0.5, 1),
         reps = 2,
         spatial_network_name = "kNN_network",
-        spat_methods = c("binSpect_single", "binSpect_multi", "spark"),
-        spat_methods_params = list(NA, NA, NA),
-        spat_methods_names = c("binSpect_single", "binSpect_multi", "spark"),
+        spat_methods = c("binSpect_single", "binSpect_multi"),
+        spat_methods_params = list(NA, NA),
+        spat_methods_names = c("binSpect_single", "binSpect_multi"),
         save_plot = FALSE,
         save_raw = FALSE,
         save_norm = FALSE,
@@ -3031,9 +2843,9 @@ runPatternSimulation <- function(
         spatial_probs = c(0.5, 1),
         reps = 2,
         spatial_network_name = "kNN_network",
-        spat_methods = c("binSpect_single", "binSpect_multi", "spark"),
-        spat_methods_params = list(NA, NA, NA),
-        spat_methods_names = c("binSpect_single", "binSpect_multi", "spark"),
+        spat_methods = c("binSpect_single", "binSpect_multi"),
+        spat_methods_params = list(NA, NA),
+        spat_methods_names = c("binSpect_single", "binSpect_multi"),
         scalefactor = 6000,
         save_plot = TRUE,
         save_raw = TRUE,
