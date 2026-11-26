@@ -1675,298 +1675,6 @@ binSpectMultiMatrix <- function(
 
 
 
-#' @title silhouetteRank
-#' @name silhouetteRank
-#' @description Previously: calculate_spatial_genes_python. This method
-#' computes a silhouette score per gene based on the
-#' spatial distribution of two partitions of cells
-#' (expressed L1, and non-expressed L0).
-#' Here, rather than L2 Euclidean norm, it uses a rank-transformed,
-#' exponentially weighted
-#' function to represent the local physical distance between two cells.
-#' New multi aggregator implementation can be found at
-#' \code{\link{silhouetteRankTest}}
-#' @param gobject giotto object
-#' @param expression_values expression values to use
-#' @param metric distance metric to use
-#' @param subset_genes only run on this subset of genes
-#' @param rbp_p fractional binarization threshold
-#' @param examine_top top fraction to evaluate with silhouette
-#' @param python_path specify specific path to python if required
-#' @returns data.table with spatial scores
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' silhouetteRank(g)
-#' @export
-silhouetteRank <- function(
-        gobject,
-        expression_values = c("normalized", "scaled", "custom"),
-        metric = "euclidean",
-        subset_genes = NULL,
-        rbp_p = 0.95,
-        examine_top = 0.3,
-        python_path = NULL) {
-    # expression values
-    values <- match.arg(expression_values, c("normalized", "scaled", "custom"))
-    expr_values <- getExpression(
-        gobject = gobject,
-        values = values,
-        output = "matrix"
-    )
-
-    # subset genes
-    if (!is.null(subset_genes)) {
-        subset_genes <- subset_genes[subset_genes %in% gobject@feat_ID]
-        expr_values <- expr_values[rownames(expr_values) %in% subset_genes, ]
-    }
-
-
-    # data.table variables
-    sdimx <- sdimy <- NULL
-
-    # spatial locations
-    spatlocs <- getSpatialLocations(gobject,
-        spat_unit = "cell",
-        name = "raw",
-        output = "data.table",
-        copy_obj = TRUE
-    )
-    spatlocs <- as.matrix(spatlocs[, .(sdimx, sdimy)])
-
-    # python path
-    if (is.null(python_path)) {
-        python_path <- instructions(gobject, "python_path")
-    }
-
-    ## prepare python path and louvain script
-    reticulate::use_python(required = TRUE, python = python_path)
-    python_silh_function <- system.file(
-        "python", "python_spatial_genes.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_silh_function)
-
-    output_python <- python_spatial_genes(
-        spatial_locations = spatlocs,
-        expression_matrix = as.data.frame(as.matrix(expr_values)),
-        metric = metric,
-        rbp_p = rbp_p,
-        examine_top = examine_top
-    )
-
-    # unlist output
-    genes <- unlist(lapply(output_python, FUN = function(x) {
-        y <- x[1][[1]]
-    }))
-    scores <- unlist(lapply(output_python, FUN = function(x) {
-        y <- x[2][[1]]
-    }))
-
-    spatial_python_DT <- data.table::data.table(genes = genes, scores = scores)
-
-    return(spatial_python_DT)
-}
-
-
-
-
-#' @title silhouetteRankTest
-#' @name silhouetteRankTest
-#' @description Multi parameter aggregator version of
-#' \code{\link{silhouetteRank}}
-#' @param gobject giotto object
-#' @param expression_values expression values to use
-#' @param subset_genes only run on this subset of genes
-#' @param overwrite_input_bin overwrite input bin
-#' @param rbp_ps fractional binarization thresholds
-#' @param examine_tops top fractions to evaluate with silhouette
-#' @param matrix_type type of matrix
-#' @param num_core number of cores to use
-#' @param parallel_path path to GNU parallel function
-#' @param output output directory
-#' @param query_sizes size of query
-#' @param verbose be verbose
-#' @returns data.table with spatial scores
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' silhouetteRankTest(g)
-#' @export
-silhouetteRankTest <- function(
-        gobject,
-        expression_values = c("normalized", "scaled", "custom"),
-        subset_genes = NULL,
-        overwrite_input_bin = TRUE,
-        rbp_ps = c(0.95, 0.99),
-        examine_tops = c(0.005, 0.010, 0.050, 0.100, 0.300),
-        matrix_type = "dissim",
-        num_core = 4,
-        parallel_path = "/usr/bin",
-        output = NULL,
-        query_sizes = 10L,
-        verbose = FALSE) {
-    # data.table variables
-    cell_ID <- sdimx <- sdimy <- sdimz <- NULL
-
-    ## test if R packages are installed
-    # check envstats
-    package_check(pkg_name = "EnvStats", repository = c("CRAN"))
-
-    # check eva
-    if ("eva" %in% rownames(installed.packages()) == FALSE) {
-        stop(
-            "\n package ", "eva", " is not yet installed \n",
-            "To install: \n",
-            "install.packages('eva')"
-        )
-    }
-
-    ## test if python package is installed
-    module_test <- reticulate::py_module_available("silhouetteRank")
-    if (module_test == FALSE) {
-        warning("silhouetteRank python module is not installed:
-            install in the right environment or python path with:
-
-            'pip install silhouetteRank'
-
-            or from within R in the Giotto environment with:
-
-            conda_path = reticulate::miniconda_path()
-            conda_full_path = paste0(conda_path,'/','bin/conda')
-            full_envname = paste0(conda_path,'/envs/giotto_env')
-            reticulate::py_install(
-                packages = 'silhouetteRank',
-                envname = full_envname,
-                method = 'conda',
-                conda = conda_full_path,
-                pip = TRUE,
-                python_version = '3.6')")
-    }
-
-
-
-    # expression values
-    values <- match.arg(expression_values, c("normalized", "scaled", "custom"))
-    expr_values <- getExpression(
-        gobject = gobject,
-        values = values,
-        output = "matrix"
-    )
-
-    # subset genes
-    if (!is.null(subset_genes)) {
-        subset_genes <- subset_genes[subset_genes %in% gobject@gene_ID]
-        expr_values <- expr_values[rownames(expr_values) %in% subset_genes, ]
-    }
-
-    # spatial locations
-    spatlocs <- getSpatialLocations(gobject,
-        name = "raw",
-        output = "data.table",
-        copy_obj = TRUE
-    )
-
-    ## save dir and log
-    if (is.null(output)) {
-        save_dir <- instructions(gobject, "save_dir")
-        silh_output_dir <- paste0(save_dir, "/", "silhouetteRank_output/")
-        if (!file.exists(silh_output_dir)) {
-            dir.create(
-                silh_output_dir,
-                recursive = TRUE
-            )
-        }
-    } else if (file.exists(output)) {
-        silh_output_dir <- paste0(output, "/", "silhouetteRank_output/")
-        if (!file.exists(silh_output_dir)) {
-            dir.create(
-                silh_output_dir,
-                recursive = TRUE
-            )
-        }
-    } else {
-        silh_output_dir <- paste0(output, "/", "silhouetteRank_output/")
-        if (!file.exists(silh_output_dir)) {
-            dir.create(
-                silh_output_dir,
-                recursive = TRUE
-            )
-        }
-    }
-
-    # log directory
-    log_dir <- paste0(silh_output_dir, "/", "logs/")
-    if (!file.exists(log_dir)) dir.create(log_dir, recursive = TRUE)
-
-
-    ## write spatial locations to .txt file
-    if (ncol(spatlocs) == 3) {
-        format_spatlocs <- spatlocs[, .(cell_ID, sdimx, sdimy)]
-        colnames(format_spatlocs) <- c("ID", "x", "y")
-    } else {
-        format_spatlocs <- spatlocs[, .(cell_ID, sdimx, sdimy, sdimz)]
-        colnames(format_spatlocs) <- c("ID", "x", "y", "z")
-    }
-
-    write.table(
-        x = format_spatlocs, row.names = FALSE,
-        file = paste0(silh_output_dir, "/", "format_spatlocs.txt"),
-        quote = FALSE, sep = "\t"
-    )
-
-    spatlocs_path <- paste0(silh_output_dir, "/", "format_spatlocs.txt")
-
-
-    silh_output_dir_norm <- normalizePath(silh_output_dir)
-    expr_values_path_norm <- paste0(silh_output_dir_norm, "/", "expression.txt")
-
-    data.table::fwrite(
-        data.table::as.data.table(
-            expr_values,
-            keep.rownames = "gene"
-        ),
-        file = expr_values_path_norm,
-        quote = FALSE,
-        sep = "\t",
-        col.names = TRUE,
-        row.names = FALSE
-    )
-
-    expr_values_path <- paste0(silh_output_dir, "/", "expression.txt")
-
-    ## prepare python path and louvain script
-    python_path <- instructions(gobject, "python_path")
-    reticulate::use_python(required = TRUE, python = python_path)
-    python_silh_function <- system.file(
-        "python", "silhouette_rank_wrapper.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_silh_function)
-
-
-    output_silh <- silhouette_rank(
-        expr = expr_values_path,
-        centroid = spatlocs_path,
-        overwrite_input_bin = overwrite_input_bin,
-        rbp_ps = rbp_ps,
-        examine_tops = examine_tops,
-        matrix_type = matrix_type,
-        verbose = verbose,
-        num_core = num_core,
-        parallel_path = parallel_path,
-        output = silh_output_dir,
-        query_sizes = as.integer(query_sizes)
-    )
-
-    return(output_silh)
-}
-
-
-
-
-
-
 #' @title spark
 #' @name spark
 #' @description Compute spatially expressed genes with SPARK method
@@ -2970,15 +2678,9 @@ run_spatial_sim_tests_one_rep <- function(
         spatial_prob = 0.95,
         show_pattern = FALSE,
         spatial_network_name = "kNN_network",
-        spat_methods = c(
-            "binSpect_single", "binSpect_multi", "spark",
-            "silhouetteRank"
-        ),
-        spat_methods_params = list(NA, NA, NA, NA),
-        spat_methods_names = c(
-            "binSpect_single", "binSpect_multi", "spark",
-            "silhouetteRank"
-        ),
+        spat_methods = c("binSpect_single", "binSpect_multi", "spark"),
+        spat_methods_params = list(NA, NA, NA),
+        spat_methods_names = c("binSpect_single", "binSpect_multi", "spark"),
         save_plot = FALSE,
         save_raw = FALSE,
         save_norm = FALSE,
@@ -3073,10 +2775,7 @@ run_spatial_sim_tests_one_rep <- function(
             # method
             selected_method <- spat_methods[test]
             if (!selected_method %in%
-                c(
-                    "binSpect_single", "binSpect_multi", "spark",
-                    "silhouetteRank"
-                )) {
+                c("binSpect_single", "binSpect_multi", "spark")) {
                 stop(selected_method, " is not a know spatial method")
             }
 
@@ -3112,18 +2811,6 @@ run_spatial_sim_tests_one_rep <- function(
                             percentage = 0.1,
                             min_count = 10,
                             num_core = 5
-                        )
-                    } else if (selected_method == "silhouetteRank") {
-                        selected_params <- list(
-                            expression_values = "normalized",
-                            overwrite_input_bin = FALSE,
-                            rbp_ps = c(0.95, 0.99),
-                            examine_tops = c(0.005, 0.010),
-                            matrix_type = "dissim",
-                            num_core = 4,
-                            parallel_path = "/usr/bin",
-                            output = NULL,
-                            query_sizes = 10L
                         )
                     }
                 }
@@ -3198,33 +2885,6 @@ run_spatial_sim_tests_one_rep <- function(
                     "genes", "adj.p.value", "prob", "time"
                 )
                 spatial_gene_results[, method := "spark"]
-            } else if (selected_method == "silhouetteRank") {
-                ## silhouetterank
-                start <- proc.time()
-
-                spatial_gene_results <- do.call("silhouetteRankTest", c(
-                    gobject = simulate_patch,
-                    selected_params
-                ))
-
-                data.table::setnames(
-                    spatial_gene_results,
-                    old = "gene", new = "genes"
-                )
-                spatial_gene_results <- spatial_gene_results[genes == gene_name]
-                silh_time <- proc.time() - start
-
-                spatial_gene_results[, prob := spatial_prob]
-                spatial_gene_results[, time := silh_time[["elapsed"]]]
-
-                # silhrank uses qval by default
-                spatial_gene_results <- spatial_gene_results[
-                    , .(genes, qval, prob, time)
-                ]
-                colnames(spatial_gene_results) <- c(
-                    "genes", "adj.p.value", "prob", "time"
-                )
-                spatial_gene_results[, method := "silhouette"]
             }
 
             result_list[[test]] <- spatial_gene_results
@@ -3255,15 +2915,9 @@ run_spatial_sim_tests_multi <- function(
         spatial_probs = c(0.5, 1),
         reps = 2,
         spatial_network_name = "kNN_network",
-        spat_methods = c(
-            "binSpect_single", "binSpect_multi", "spark",
-            "silhouetteRank"
-        ),
-        spat_methods_params = list(NA, NA, NA, NA),
-        spat_methods_names = c(
-            "binSpect_single", "binSpect_multi", "spark",
-            "silhouetteRank"
-        ),
+        spat_methods = c("binSpect_single", "binSpect_multi", "spark"),
+        spat_methods_params = list(NA, NA, NA),
+        spat_methods_names = c("binSpect_single", "binSpect_multi", "spark"),
         save_plot = FALSE,
         save_raw = FALSE,
         save_norm = FALSE,
@@ -3377,15 +3031,9 @@ runPatternSimulation <- function(
         spatial_probs = c(0.5, 1),
         reps = 2,
         spatial_network_name = "kNN_network",
-        spat_methods = c(
-            "binSpect_single", "binSpect_multi", "spark",
-            "silhouetteRank"
-        ),
-        spat_methods_params = list(NA, NA, NA, NA),
-        spat_methods_names = c(
-            "binSpect_single", "binSpect_multi", "spark",
-            "silhouetteRank"
-        ),
+        spat_methods = c("binSpect_single", "binSpect_multi", "spark"),
+        spat_methods_params = list(NA, NA, NA),
+        spat_methods_names = c("binSpect_single", "binSpect_multi", "spark"),
         scalefactor = 6000,
         save_plot = TRUE,
         save_raw = TRUE,

@@ -15,6 +15,9 @@ Requires GiottoClass 0.8.0.
   `chooseAvailableSpatialGenes()`, `checkAndFixSpatialGenes()`. Use
   `runHMRF()`, which needs neither Python nor smfishHmrf, graphcoloring or
   tidygraph.
+- `silhouetteRank()` and `silhouetteRankTest()` are retired, with the
+  `"silhouetteRank"` method of `runPatternSimulation()` and their Python scripts.
+  Use `binSpect()` for spatially variable features.
 - `giottoToAnnData()`, `giottoToSpatialExperiment()` and
   `spatialExperimentToGiotto()` are no longer re-exported; use the
   GiottoConnect versions.
