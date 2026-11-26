@@ -10,7 +10,6 @@
 \alias{clusterData,nnNetObj,NNClusParam-method}
 \alias{clusterData,igraph,LouvainCommunityClusParam-method}
 \alias{clusterData,igraph,LouvainMultinetClusParam-method}
-\alias{clusterData,igraph,LeidenPythonClusParam-method}
 \alias{clusterData,igraph,LeidenIgraphClusParam-method}
 \alias{clusterData,gAny,BlusterParam-method}
 \alias{clusterData,gAny,NNClusParam-method}
@@ -81,14 +80,6 @@
 )
 
 \S4method{clusterData}{igraph,LouvainMultinetClusParam}(
-  x,
-  param,
-  set_seed = TRUE,
-  seed_number = 1234,
-  output = c("data.table", "factor")
-)
-
-\S4method{clusterData}{igraph,LeidenPythonClusParam}(
   x,
   param,
   set_seed = TRUE,

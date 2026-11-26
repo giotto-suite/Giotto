@@ -29,7 +29,6 @@
 #' @section giotto-specific (works on networks): 
 #' 
 #' * [`"leiden_igraph"`][LeidenIgraphClusParam-class] - Leiden clustering via igraph
-#' * [`"leiden_python"`][LeidenPythonClusParam-class] - Leiden clustering with python \pkg{leidenalg}
 #' * [`"louvain_community"`][LouvainCommunityClusParam-class] - Louvain clustering with python \pkg{community}
 #' * [`"louvain_multinet"`][LouvainMultinetClusParam-class] - generalized Louvain clustering with \pkg{multinet}
 #' @param method character. Parameter class to generate
@@ -124,57 +123,9 @@ NULL
 #' methods which are supported via Giotto-specific methods instead of directly
 #' via \pkg{bluster}.
 #' @md
-#' @seealso concrete class examples: [LeidenPythonClusParam-class],
+#' @seealso concrete class examples:
 #' [LeidenIgraphClusParam-class], [LouvainCommunityClusParam-class],
 #' [LouvainMultinetClusParam-class]
-NULL
-
-#' @title Leiden Clustering
-#' @name LeidenPythonClusParam-class
-#' @aliases LeidenPythonClusParam 
-#' @description
-#' Cluster cells using a NN-network and the Leiden community detection algorithm
-#' This version is implemented via the python package \pkg{leidenalg}.
-#' 
-#' @details
-#' This implementation is a wrapper for the Leiden algorithm implemented in python,
-#' which can detect communities in graphs of millions of nodes (cells),
-#' as long as they can fit in memory. See the
-#' [leidenalg](https://github.com/vtraag/leidenalg)
-#' github page or the
-#' [readthedocs](https://leidenalg.readthedocs.io/en/stable/index.html)
-#' page for more information.
-#' 
-#' @section params: 
-#' 
-#' \tabular{ll}{
-#'   `resolution` \tab numeric (default = 1). Clustering resolution. \cr
-#'   `n_iterations` \tab numeric (default = 20). Number of iterations to run
-#'   the Leiden algorithm. If the number of iterations is negative, the Leiden
-#'   algorithm is run until an iteration in which there was no improvement. \cr
-#'   `weight_col` \tab character. (default = `weight`). Weight column in 
-#'   network information to use for edge weights. \cr
-#'   `partition_type` \tab character (default = `"RBConfigurationVertexPartition"`).
-#'   The type of partition to use for optimization. (one of 
-#'   `"RBConfigurationVertexPartition"` or `"ModularityVertexPartition"`) \cr
-#'   `initial_membership` \tab (default = `NULL`) initial membership of cells 
-#'   for the partition
-#' }
-#' 
-#' @section partition types available and information:
-#' * **RBConfigurationVertexPartition:** Implements Reichardt and Bornholdt’s
-#' Potts model with a configuration null model. This quality function is
-#' well-defined only for positive edge weights. This quality function uses a
-#' linear resolution parameter.
-#' * **ModularityVertexPartition:** Implements modularity. This quality
-#' function is well-defined only for positive edge weights. It does \emph{not}
-#' use the resolution parameter
-#' 
-#' Set `weight_col = NULL` to give equal weight (=1) to each edge.
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#' clusterData(g, clusterParam("leiden_python", resolution = 0.5))
-#' @md
 NULL
 
 #' @title Leiden Clustering
@@ -262,18 +213,6 @@ setOldClass("igraph")
 setClass("NNClusParam", contains = c("BlusterParam", "VIRTUAL"))
 setClass("LeidenClusParam", contains = c("NNClusParam", "VIRTUAL"))
 setClass("LouvainClusParam", contains = c("NNClusParam", "VIRTUAL"))
-
-#' @rdname LeidenPythonClusParam-class
-#' @export
-setClass("LeidenPythonClusParam", contains = "LeidenClusParam",
-    slots = list(
-        resolution = "numeric",
-        n_iterations = "numeric",
-        weight_col = "ANY",
-        partition_type = "character",
-        initial_membership = "ANY"
-    )
-)
 
 #' @rdname LeidenIgraphClusParam-class
 #' @export
@@ -623,76 +562,6 @@ setMethod("clusterData", signature("igraph", "LouvainMultinetClusParam"), functi
     )
 })
 
-# * igraph / LeidenPy ####
-#' @rdname clusterData
-#' @export
-setMethod("clusterData", signature("igraph", "LeidenPythonClusParam"), function(x, param,
-    set_seed = TRUE,
-    seed_number = 1234,
-    output = c("data.table", "factor")) {
-    output <- match.arg(output, choices = c("data.table", "factor"))
-    weight_col <- param$weight_col
-    partition_type <- match.arg(param$partition_type, 
-        choices = c(
-            "RBConfigurationVertexPartition",
-            "ModularityVertexPartition"
-        )
-    )
-    
-    # source python leiden script
-    python_leiden_function <- system.file("python", "python_leiden.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_leiden_function)
-    # seed setting
-    .py_set_seed(set_seed, seed_number)
-    
-    # prep data ------------------------------------------------------------#
-    ## extract NN network
-    network_edge_dt <- data.table::setDT(
-        igraph::as_data_frame(x = x, what = "edges")
-    )
-    # add weight for edges or set to 1 for all
-    if (!is.null(weight_col)) {
-        if (!weight_col %in% colnames(network_edge_dt)) {
-            stop("weight column is not an igraph attribute")
-        } else {
-            # weight is defined by attribute of igraph object
-            network_edge_dt <- network_edge_dt[
-                , c("from", "to", weight_col),
-                with = FALSE
-            ]
-            data.table::setnames(network_edge_dt, weight_col, "weight")
-        }
-    } else {
-        # weight is the same
-        network_edge_dt <- network_edge_dt[, c("from", "to"), with = FALSE]
-        network_edge_dt[, "weight" := 1]
-    }
-    
-    ## run leiden
-    pyth_leid_result <- python_leiden(
-        df = network_edge_dt,
-        partition_type = partition_type,
-        initial_membership = param$initial_membership,
-        weights = "weight",
-        n_iterations = as.integer(param$n_iterations),
-        seed = as.integer(seed_number),
-        resolution_parameter = param$resolution
-    )
-    ident_clusters_dt <- data.table::data.table(
-        cell_ID = pyth_leid_result[[1]], "cluster" = pyth_leid_result[[2]]
-    )
-    switch(output,
-        "data.table" = return(ident_clusters_dt),
-        "factor" = {
-            f <- factor(ident_clusters_dt$cluster)
-            names(f) <- ident_clusters_dt$cell_ID
-            return(f)
-        }
-    )
-})
-
 # * igraph / LeidenIgraph ####
 #' @rdname clusterData
 #' @export
@@ -887,7 +756,7 @@ clusterParam <- function(method, ...) {
     method <- match.arg(method,
         c("kmeans", "affinity", "som", "agnes", "diana", "hclust", "dbscan",
           "dmm", "twostep", "clara", "mbkmeans", "pam", "leiden_igraph",
-          "leiden_python", "louvain_community", "louvain_multinet")
+          "louvain_community", "louvain_multinet")
     )
     switch(method,
         "kmeans" = bluster::KmeansParam(...),
@@ -915,7 +784,6 @@ clusterParam <- function(method, ...) {
         },
         "pam" = bluster::PamParam(...),
         "leiden_igraph" = .clus_param_leiden_igraph(...),
-        "leiden_python" = .clus_param_leiden_python(...),
         "louvain_community" = .clus_param_louvain_community(...),
         "louvain_multinet" = .clus_param_louvain_multinet(...)
     )
@@ -972,15 +840,6 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
     p
 }
 
-.clus_param_leiden_python <- function(...) {
-    p <- new("LeidenPythonClusParam", ...)
-    p$resolution <- p$resolution %none% 1
-    p$n_iterations <- p$n_iterations %none% 20
-    p$weight_col = p$weight_col %none% "weight"
-    p$partition_type = p$partition_type %none% "RBConfigurationVertexPartition"
-    p
-}
-
 .clus_param_leiden_igraph <- function(...) {
     p <- new("LeidenIgraphClusParam", ...)
     p$resolution <- p$resolution %none% 1
@@ -993,102 +852,6 @@ setMethod("show", signature("LouvainClusParam"), function(object) {
 
 
 # convenience ####
-
-
-#' @title doLeidenClusterPython
-#' @name doLeidenClusterPython
-#' @description cluster cells using a NN-network and the Leiden community
-#' detection algorithm
-#' @param gobject giotto object
-#' @param spat_unit spatial unit (e.g. "cell")
-#' @param feat_type feature type (e.g. "rna", "dna", "protein")
-#' @param name name for cluster, default to "leiden_clus"
-#' @param nn_network_to_use type of NN network to use (kNN vs sNN), default to
-#' "sNN"
-#' @param network_name name of NN network to use, default to "sNN.pca"
-#' @param python_path deprecated.
-#' @param resolution resolution, default = 1
-#' @param weight_col weight column to use for edges, default to "weight"
-#' @param partition_type The type of partition to use for optimization.
-#' (e.g. "RBConfigurationVertexPartition", "ModularityVertexPartition")
-#' @param init_membership initial membership of cells for the partition
-#' @param n_iterations number of interactions to run the Leiden algorithm.
-#' If the number of iterations is negative, the Leiden algorithm is run until
-#' an iteration in which there was no improvement.
-#' @param return_gobject logical. return giotto object (default = TRUE)
-#' @param set_seed set seed
-#' @param seed_number number for seed
-#' @returns giotto object with new clusters appended to cell metadata
-#' @details
-#' This function is a wrapper for the Leiden algorithm implemented in python,
-#' which can detect communities in graphs of millions of nodes (cells),
-#' as long as they can fit in memory. See the
-#' [leidenalg](https://github.com/vtraag/leidenalg)
-#' github page or the
-#' [readthedocs](https://leidenalg.readthedocs.io/en/stable/index.html)
-#' page for more information.
-#'
-#' Partition types available and information:
-#' * **RBConfigurationVertexPartition:** Implements Reichardt and Bornholdt’s
-#' Potts model with a configuration null model. This quality function is
-#' well-defined only for positive edge weights. This quality function uses a
-#' linear resolution parameter.
-#' * **ModularityVertexPartition:** Implements modularity. This quality
-#' function is well-defined only for positive edge weights. It does \emph{not}
-#' use the resolution parameter
-#'
-#' Set \emph{weight_col = NULL} to give equal weight (=1) to each edge.
-#' @md
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' doLeidenClusterPython(g)
-#' @export
-doLeidenClusterPython <- function(
-        gobject,
-        spat_unit = NULL,
-        feat_type = NULL,
-        name = "leiden_clus",
-        nn_network_to_use = "sNN",
-        network_name = "sNN.pca",
-        python_path = NULL,
-        resolution = 1,
-        weight_col = "weight",
-        partition_type = c(
-            "RBConfigurationVertexPartition",
-            "ModularityVertexPartition"
-        ),
-        init_membership = NULL,
-        n_iterations = 20,
-        return_gobject = TRUE,
-        set_seed = TRUE,
-        seed_number = 1234) {
-    if (!is.null(python_path)) {
-        deprecate_warn(
-            when = "4.2.2",
-            what = "doLeidenClusterPython(python_path)"
-        )
-    }
-
-    p <- clusterParam("leiden_python")
-    p$resolution <- resolution
-    p$n_iterations <- n_iterations
-    p$initial_membership <- init_membership
-    p$weight_col <- weight_col
-    p$partition_type <- partition_type
-    clusterData(gobject, p,
-        name = name,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        nn_network_to_use = nn_network_to_use,
-        network_name = network_name,
-        set_seed = set_seed,
-        seed_number = seed_number,
-        output = "gobject",
-        .n = 3L
-    )
-}
-
 
 
 #' @name doLeidenCluster
@@ -1150,17 +913,6 @@ doLeidenClusterIgraph <- function(
         seed_number = 1234,
         verbose = NULL,
         ...) {
-    # notify of breaking change
-    if (getOption("giotto.warn_leiden_change", TRUE)) {
-        vmsg(
-            .v = verbose,
-            "As of Giotto 4.2.3 doLeidenCluster() works via {igraph}
-            For the python implementation, use doLeidenClusterPython()
-            This message appears once per session."
-        )
-        options("giotto.warn_leiden_change" = FALSE)
-    }
-    
     p <- clusterParam("leiden_igraph")
     p$resolution <- resolution
     p$n_iterations <- n_iterations

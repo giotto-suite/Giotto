@@ -18,6 +18,10 @@ Requires GiottoClass 0.8.0.
 - `giottoToAnnData()`, `giottoToSpatialExperiment()` and
   `spatialExperimentToGiotto()` are no longer re-exported; use the
   GiottoConnect versions.
+- `doLeidenClusterPython()`, `LeidenPythonClusParam` and
+  `clusterParam("leiden_python")` are removed. Use `doLeidenCluster()` or
+  `clusterParam("leiden_igraph")`; its default `"modularity"` objective with
+  `resolution` is leidenalg's `RBConfigurationVertexPartition`.
 - `gefToGiotto()` is no longer re-exported (it is removed from GiottoClass).
   `importStereoSeq()` reads Stereo-seq GEF files.
 - `getGEFtxCoords()` is removed. `importStereoSeq()` reads Stereo-seq GEF files.
