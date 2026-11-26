@@ -13,6 +13,9 @@ Requires GiottoClass 0.8.0.
   `chooseAvailableSpatialGenes()`, `checkAndFixSpatialGenes()`. Use
   `runHMRF()`, which needs neither Python nor smfishHmrf, graphcoloring or
   tidygraph.
+- `spdepAutoCorr()` and `callSpdep()` are removed, and spdep is no longer in
+  Suggests. `spatialAutoCor()` computes Moran's I and Geary's C; Lee's L and
+  `lm.morantest` have no replacement.
 - `giottoToAnnData()`, `giottoToSpatialExperiment()` and
   `spatialExperimentToGiotto()` are no longer re-exported; use the
   GiottoConnect versions.

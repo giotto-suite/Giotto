@@ -113,7 +113,6 @@ Suggests:
     spatialHMRF,
     SPARK,
     SpatialExperiment,
-    spdep,
     STexampleData,
     SummarizedExperiment,
     trendsceek,
@@ -181,7 +180,6 @@ Collate:
     'spatial_interaction_visuals.R'
     'spatial_motif.R'
     'spatial_motif_visuals.R'
-    'spdep.R'
     'variable_genes.R'
     'wnn.R'
     'zzz.R'
