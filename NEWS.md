@@ -14,6 +14,8 @@ Requires GiottoClass 0.8.0.
 - `spark()` is removed, with the `"spark"` method of `runPatternSimulation()`,
   and SPARK is no longer in Suggests. `GiottoConnect::runSparkX()` runs
   SPARK-X, the scalable successor of SPARK.
+- `runPatternSimulation()` and `simulateOneGenePatternGiottoObject()` are
+  retired. Planted spatial patterns with ground truth are planned for CellMix.
 - `trendSceek()` is removed, and trendsceek is no longer in Suggests. Use
   `binSpect()` for spatially variable features.
 - The legacy HMRF workflow is removed: `doHMRF()`, `initHMRF_V2()`,
