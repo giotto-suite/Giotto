@@ -18,6 +18,7 @@ Requires GiottoClass 0.8.0.
   GiottoConnect versions.
 - `gefToGiotto()` is no longer re-exported (it is removed from GiottoClass).
   `importStereoSeq()` reads Stereo-seq GEF files.
+- `getGEFtxCoords()` is removed. `importStereoSeq()` reads Stereo-seq GEF files.
 
 ## new
 - Library normalization accepts `scalefactor = "median"` (in `normParam("library")`,
