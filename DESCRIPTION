@@ -38,12 +38,11 @@ Imports:
     dbscan (>= 1.1-3),
     ggraph,
     ggplot2 (>= 3.1.1),
-    GiottoUtils (>= 0.2.4),
+    GiottoUtils (>= 0.2.11),
     GiottoVisuals (>= 0.2.12),
     igraph (>= 1.2.4.1),
     Matrix (>= 1.6-2),
     MatrixGenerics,
-    reticulate (>= 1.25),
     scales (>= 1.0.0),
     sparseMatrixStats,
     stats,
@@ -93,6 +92,7 @@ Suggests:
     RcppHNSW,
     RcppML,
     remotes,
+    reticulate (>= 1.41),
     rlang,
     rhdf5,
     ridge,
@@ -117,8 +117,8 @@ Suggests:
     testthat (>= 3.0.0),
     rmarkdown
 Remotes:
-    giotto-suite/GiottoUtils,
-    giotto-suite/GiottoClass,
+    giotto-suite/GiottoUtils@python-workers,
+    giotto-suite/GiottoClass@python-workers,
     giotto-suite/GiottoVisuals,
     drieslab/spatialDWLS,
     drieslab/spatialHMRF,
@@ -132,7 +132,6 @@ Collate:
     'package_imports.R'
     'normalize.R'
     'clustering.R'
-    'convenience_xenium.R'
     'convenience_atera.R'
     'convenience_cosmx.R'
     'convenience_general.R'
@@ -140,6 +139,7 @@ Collate:
     'convenience_stereoseq.r'
     'convenience_visium.R'
     'convenience_visiumHD.R'
+    'convenience_xenium.R'
     'cross_section.R'
     'dd.R'
     'deconv-param.R'

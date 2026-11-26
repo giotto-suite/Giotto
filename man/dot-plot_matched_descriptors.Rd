@@ -4,7 +4,15 @@
 \alias{.plot_matched_descriptors}
 \title{plot matched descriptors}
 \usage{
-.plot_matched_descriptors(x, y, keypoints1, keypoints2, match, pkg_ptr)
+.plot_matched_descriptors(
+  x,
+  y,
+  keypoints1,
+  keypoints2,
+  match,
+  pkg_ptr,
+  outpath = NULL
+)
 }
 \arguments{
 \item{x}{source image from .sift_preprocess}
