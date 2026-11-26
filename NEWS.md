@@ -113,6 +113,13 @@ Requires GiottoClass 0.8.0.
   as a cell missing from that matrix, with a warning naming it.
 
 ## bug fixes
+- `clusterCells(cluster_method = "leiden")`, `subClusterCells(cluster_method =
+  "leiden")` and `doLeidenSubCluster()` run again: they passed arguments of the
+  retired Python Leiden to igraph's. `pyth_leid_weight_col` names an edge
+  attribute; both `pyth_leid_part_type` values use igraph's modularity
+  objective. `doLeidenCluster(return_gobject = FALSE)` returns the clusters as
+  a table. `python_path` is deprecated in `clusterCells()`,
+  `subClusterCells()`, `doLeidenSubCluster()` and `doLouvainSubCluster()`.
 - Clustering runs on a `giottoMulti`: `doLeidenCluster()` and
   `clusterData()` write clusters to the multi's joint cell metadata.
 - `addStatistics()` on a `giottoMulti` computes polygon area per sample.

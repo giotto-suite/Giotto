@@ -19,7 +19,7 @@ clusterCells(
   pyth_louv_resolution = 1,
   pyth_louv_weight_col = NULL,
   python_louv_random = deprecated(),
-  python_path = NULL,
+  python_path = deprecated(),
   louvain_gamma = 1,
   louvain_omega = 1,
   walk_steps = 4,
@@ -63,9 +63,11 @@ clusterCells(
 
 \item{pyth_leid_resolution}{resolution for leiden}
 
-\item{pyth_leid_weight_col}{column to use for weights}
+\item{pyth_leid_weight_col}{edge attribute with the weights; \code{NA} gives
+every edge weight 1}
 
-\item{pyth_leid_part_type}{partition type to use}
+\item{pyth_leid_part_type}{kept for compatibility: both partition types
+run igraph's modularity objective with \code{pyth_leid_resolution}}
 
 \item{pyth_leid_init_memb}{initial membership}
 
@@ -74,11 +76,11 @@ clusterCells(
 \item{pyth_louv_resolution}{resolution for louvain (igraph)}
 
 \item{pyth_louv_weight_col}{louvain (igraph) edge attribute with the
-weights; `NULL` gives every edge weight 1}
+weights; \code{NULL} gives every edge weight 1}
 
 \item{python_louv_random}{deprecated}
 
-\item{python_path}{specify specific path to python if required}
+\item{python_path}{deprecated.}
 
 \item{louvain_gamma}{louvain param: gamma or resolution}
 
