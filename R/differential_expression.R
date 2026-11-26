@@ -242,7 +242,7 @@ markersParam <- function(method = "scran", ...) {
 
 # Default names for the two sides of a node, matching what
 # `findGiniMarkers(group_1 = , group_2 = )` would have produced for the same
-# membership, so a pooled result and a delegated one are keyed alike.
+# membership.
 #' @keywords internal
 #' @noRd
 .markers_side_names <- function(set) {
@@ -1028,8 +1028,7 @@ findScranMarkers_one_vs_all <- function(
 #' 10. It therefore carries no magnitude term, and will rank near-noise
 #' features as perfectly selective. These two gates supply that term. The
 #' equivalent for the other methods is `logFC`, which
-#' [findScranMarkers_one_vs_all()] and [findMastMarkers_one_vs_all()] filter
-#' on directly.
+#' [findScranMarkers_one_vs_all()] filters on directly.
 #'
 #' `min_expression_gini` and `min_detection_gini` gate the gini coefficients
 #' themselves, and are off by default. They are best used on a second pass:
@@ -1709,8 +1708,8 @@ setMethod("analyzeData",
     # Gini is scale-free -- a 0.001 vs 0.0001 difference between clusters
     # scores identically to 100 vs 10 -- so it carries no magnitude term of its
     # own and will rank near-noise features as perfectly specific. The
-    # expression and detection floors are that magnitude term; scran and MAST
-    # get theirs for free from logFC. The gini floors are the absolute cutoff
+    # expression and detection floors are that magnitude term; scran gets its
+    # own for free from logFC. The gini floors are the absolute cutoff
     # `comb_rank` cannot express, since it only ever ranks within a cluster.
     top_feats_scores_filtered <- top_feats_scores[comb_rank <= min_feats | (
         expression > min_expression &
@@ -1914,377 +1913,6 @@ findGiniMarkers_one_vs_all <- function(
 
 
 
-#' @title findMastMarkers
-#' @name findMastMarkers
-#' @description Identify marker feats for selected clusters based on the
-#' MAST package.
-#' @param gobject giotto object
-#' @param feat_type feature type
-#' @param spat_unit spatial unit
-#' @param expression_values feat expression values to use
-#' @param cluster_column clusters to use
-#' @param group_1 group 1 cluster IDs from cluster_column for pairwise
-#' comparison
-#' @param group_1_name custom name for group_1 clusters
-#' @param group_2 group 2 cluster IDs from cluster_column for pairwise
-#' comparison
-#' @param group_2_name custom name for group_2 clusters
-#' @param adjust_columns column in pDataDT to adjust for (e.g. detection rate)
-#' @param verbose be verbose
-#' @param ... additional parameters for the zlm function in MAST
-#' @return data.table with marker feats
-#' @details This is a minimal convenience wrapper around the
-#' \code{\link[MAST]{zlm}}
-#' from the MAST package to detect differentially expressed feats. Caution:
-#' with large datasets
-#' MAST might take a long time to run and finish
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' findMastMarkers(
-#'     gobject = g, cluster_column = "leiden_clus", group_1 = 1,
-#'     group_2 = 2
-#' )
-#' @export
-findMastMarkers <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        expression_values = c("normalized", "scaled", "custom"),
-        cluster_column,
-        group_1 = NULL,
-        group_1_name = NULL,
-        group_2 = NULL,
-        group_2_name = NULL,
-        adjust_columns = NULL,
-        verbose = FALSE,
-        ...) {
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # verify if optional package is installed
-    package_check(pkg_name = "MAST", repository = "Bioc")
-
-    # print message with information #
-    if (verbose) {
-        message("using 'MAST' to detect marker feats. If used in published
-        research, please cite: McDavid A, Finak G, Yajima M (2020).
-        MAST: Model-based Analysis of Single Cell Transcriptomics.
-        R package version 1.14.0, https://github.com/RGLab/MAST/.")
-    }
-
-    ## select expression values to use
-    values <- match.arg(
-        expression_values,
-        unique(c("normalized", "scaled", "custom", expression_values))
-    )
-
-    ## cluster column
-    cell_metadata <- getCellMetadata(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        output = "cellMetaObj",
-        copy_obj = TRUE
-    )
-    if (!cluster_column %in% colnames(cell_metadata[])) {
-        stop("cluster column not found")
-    }
-
-    ## select group ids
-    if (is.null(group_1) | is.null(group_2)) {
-        stop("specificy group ids for both group_1 and group_2")
-    }
-
-    ## subset data based on group_1 and group_2
-    cell_metadata[] <- cell_metadata[][
-        get(cluster_column) %in% c(group_1, group_2)
-    ]
-    if (nrow(cell_metadata[]) == 0) {
-        stop("there are no cells for group_1 or group_2, check cluster column")
-    }
-
-    ## create new pairwise group
-    if (is.null(group_1_name)) group_1_name <- paste0(group_1, collapse = "_")
-    if (is.null(group_2_name)) group_2_name <- paste0(group_2, collapse = "_")
-
-    # data.table variables
-    pairwise_select_comp <- NULL
-
-    cell_metadata[][, pairwise_select_comp := ifelse(
-        get(cluster_column) %in% group_1, group_1_name, group_2_name
-    )]
-
-    if (nrow(cell_metadata[][pairwise_select_comp == group_1_name]) == 0) {
-        stop("there are no cells for group_1, check cluster column")
-    }
-
-    if (nrow(cell_metadata[][pairwise_select_comp == group_2_name]) == 0) {
-        stop("there are no cells for group_2, check cluster column")
-    }
-
-    cluster_column <- "pairwise_select_comp"
-
-    # expression data
-    subset_cell_IDs <- cell_metadata[][["cell_ID"]]
-    gobject <- subsetGiotto(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        cell_ids = subset_cell_IDs
-    )
-
-    ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-    gobject <- setGiotto(gobject, cell_metadata, verbose = FALSE)
-    ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-
-    ## START MAST ##
-    ## create mast object ##
-    # expression data
-    values <- match.arg(
-        expression_values,
-        choices = unique(c(
-            "normalized", "scaled", "custom",
-            expression_values
-        ))
-    )
-    expr_data <- getExpression(
-        gobject = gobject,
-        feat_type = feat_type,
-        spat_unit = spat_unit,
-        values = values,
-        output = "matrix"
-    )
-    # column & row data
-    column_data <- getCellMetadata(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        output = "data.table",
-        copy_obj = TRUE
-    )
-    setnames(column_data, "cell_ID", "wellKey")
-    row_data <- getFeatureMetadata(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        output = "data.table",
-        copy_obj = TRUE
-    )
-    setnames(row_data, "feat_ID", "primerid")
-    # mast object
-    mast_data <- MAST::FromMatrix(
-        exprsArray = as.matrix(expr_data)[, column_data[["wellKey"]]],
-        cData = column_data,
-        fData = row_data,
-        check_sanity = FALSE
-    )
-
-    ## set conditions and relevel
-    cond <- factor(SingleCellExperiment::colData(mast_data)[[cluster_column]])
-    cond <- stats::relevel(cond, group_2_name)
-    mast_data@colData[[cluster_column]] <- cond
-
-    ## create formula and run MAST feat regressions
-    if (!is.null(adjust_columns)) {
-        myformula <- stats::as.formula(paste0(
-            "~ 1 + ", cluster_column, " + ",
-            paste(adjust_columns, collapse = " + ")
-        ))
-    } else {
-        myformula <- stats::as.formula(paste0("~ 1 + ", cluster_column))
-    }
-    zlmCond <- MAST::zlm(formula = myformula, sca = mast_data, ...)
-
-    ## run LRT and return data.table with results
-
-    # data.table variables
-    contrast <- component <- primerid <- `Pr(>Chisq)` <- coef <-
-        ci.hi <- ci.lo <- fdr <- NULL
-
-    sample <- paste0(cluster_column, group_1_name)
-    summaryCond <- MAST::summary(zlmCond, doLRT = sample)
-    summaryDt <- summaryCond$datatable
-    fcHurdle <- merge(
-        summaryDt[
-            contrast == sample & component == "H",
-            .(primerid, `Pr(>Chisq)`)
-        ], # hurdle P values
-        summaryDt[
-            contrast == sample & component == "logFC",
-            .(primerid, coef, ci.hi, ci.lo)
-        ],
-        by = "primerid"
-    ) # logFC coefficients
-    fcHurdle[, fdr := stats::p.adjust(`Pr(>Chisq)`, "fdr")]
-    data.table::setorder(fcHurdle, fdr)
-
-    # data.table variables
-    cluster <- NULL
-
-    fcHurdle[, cluster := paste0(group_1_name, "_vs_", group_2_name)]
-    data.table::setnames(fcHurdle, old = "primerid", new = "feats")
-
-    return(fcHurdle)
-}
-
-
-
-
-#' @title findMastMarkers_one_vs_all
-#' @name findMastMarkers_one_vs_all
-#' @description Identify marker feats for all clusters in a one vs all manner
-#' based on the MAST package.
-#' @param gobject giotto object
-#' @param feat_type feature type
-#' @param spat_unit spatial unit
-#' @param expression_values feat expression values to use
-#' @param cluster_column clusters to use
-#' @param subset_clusters selection of clusters to compare
-#' @param adjust_columns column in pDataDT to adjust for (e.g. detection rate)
-#' @param pval filter on minimal p-value
-#' @param logFC filter on logFC
-#' @param min_feats minimum feats to keep per cluster, overrides pval and logFC
-#' @param min_genes deprecated, use min_feats
-#' @param verbose be verbose
-#' @param ... additional parameters for the zlm function in MAST
-#' @returns data.table with marker feats
-#' @seealso \code{\link{findMastMarkers}}
-#' @examples
-#' g <- GiottoData::loadGiottoMini("visium")
-#'
-#' findMastMarkers_one_vs_all(gobject = g, cluster_column = "leiden_clus")
-#' @export
-findMastMarkers_one_vs_all <- function(
-        gobject,
-        feat_type = NULL,
-        spat_unit = NULL,
-        expression_values = c("normalized", "scaled", "custom"),
-        cluster_column,
-        subset_clusters = NULL,
-        adjust_columns = NULL,
-        pval = 0.001,
-        logFC = 1,
-        min_feats = 10,
-        min_genes = NULL,
-        verbose = TRUE,
-        ...) {
-    ## deprecated arguments
-    if (!is.null(min_genes)) {
-        min_feats <- min_genes
-        warning("min_genes argument is deprecated, use min_feats argument in
-                the future")
-    }
-
-    # Set feat_type and spat_unit
-    spat_unit <- set_default_spat_unit(
-        gobject = gobject,
-        spat_unit = spat_unit
-    )
-    feat_type <- set_default_feat_type(
-        gobject = gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type
-    )
-
-    # verify if optional package is installed
-    package_check(pkg_name = "MAST", repository = "Bioc")
-
-    # print message with information #
-    if (verbose) {
-        message("using 'MAST' to detect marker feats. If used in published
-        research, please cite: McDavid A, Finak G, Yajima M (2020).
-        MAST: Model-based Analysis of Single Cell Transcriptomics.
-        R package version 1.14.0, https://github.com/RGLab/MAST/.")
-    }
-
-
-    ## cluster column
-    cell_metadata <- getCellMetadata(gobject,
-        spat_unit = spat_unit,
-        feat_type = feat_type,
-        output = "data.table",
-        copy_obj = TRUE
-    )
-    if (!cluster_column %in% colnames(cell_metadata)) {
-        stop("cluster column not found")
-    }
-
-    # restrict to a subset of clusters
-    if (!is.null(subset_clusters)) {
-        cell_metadata <- cell_metadata[get(cluster_column) %in% subset_clusters]
-        subset_cell_IDs <- cell_metadata[["cell_ID"]]
-        gobject <- subsetGiotto(
-            gobject = gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            cell_ids = subset_cell_IDs,
-            verbose = FALSE
-        )
-        cell_metadata <- getCellMetadata(gobject,
-            spat_unit = spat_unit,
-            feat_type = feat_type,
-            output = "data.table",
-            copy_obj = TRUE
-        )
-    }
-
-    ## sort uniq clusters
-    uniq_clusters <- mixedsort(unique(cell_metadata[[cluster_column]]))
-
-    # save list
-    result_list <- list()
-
-    for (clus_i in seq_along(uniq_clusters)) {
-        selected_clus <- uniq_clusters[clus_i]
-        other_clus <- uniq_clusters[uniq_clusters != selected_clus]
-
-        if (verbose == TRUE) {
-            cat("start with cluster ", selected_clus)
-        }
-
-        temp_mast_markers <- findMastMarkers(
-            gobject = gobject,
-            feat_type = feat_type,
-            spat_unit = spat_unit,
-            expression_values = expression_values,
-            cluster_column = cluster_column,
-            adjust_columns = adjust_columns,
-            group_1 = selected_clus,
-            group_1_name = selected_clus,
-            group_2 = other_clus,
-            group_2_name = "others",
-            verbose = FALSE
-        )
-
-        result_list[[clus_i]] <- temp_mast_markers
-    }
-
-    # filter or retain only selected marker feats
-    result_dt <- do.call("rbind", result_list)
-
-    # data.table variables
-    ranking <- fdr <- coef <- NULL
-
-    result_dt[, ranking := seq_len(.N), by = "cluster"]
-    filtered_result_dt <- result_dt[
-        ranking <= min_feats | (fdr < pval & coef > logFC)
-    ]
-
-    return(filtered_result_dt)
-}
-
-
-
-
-
-
 #' @title findMarkers
 #' @name findMarkers
 #' @description Identify marker feats for selected clusters.
@@ -2316,21 +1944,17 @@ findMastMarkers_one_vs_all <- function(
 #' (default) disables it.
 #' @param min_feats minimum number of top feats to return (for gini)
 #' @param min_genes deprecated, use min_feats
-#' @param group_1_name mast: custom name for group_1 clusters
-#' @param group_2_name mast: custom name for group_2 clusters
-#' @param adjust_columns mast: column in pDataDT to adjust for
-#' (e.g. detection rate)
+#' @param group_1_name custom name for group_1 clusters
+#' @param group_2_name custom name for group_2 clusters
 #' @param min_expr_gini_score `r lifecycle::badge("deprecated")` use
 #' `min_expression`. Despite its name it never gated a gini coefficient.
 #' @param min_det_gini_score `r lifecycle::badge("deprecated")` use
 #' `min_detection`. Despite its name it never gated a gini coefficient.
-#' @param ... additional parameters for the findMarkers function in scran or
-#' zlm function in MAST
+#' @param ... additional parameters for the findMarkers function in scran
 #' @returns data.table with marker feats
 #' @details Wrapper for all individual functions to detect marker feats for
-#' clusters.
-#' @seealso \code{\link{findScranMarkers}}, \code{\link{findGiniMarkers}} and
-#' \code{\link{findMastMarkers}}
+#' clusters. MAST is in GiottoConnect (`GiottoConnect::runMAST()`).
+#' @seealso \code{\link{findScranMarkers}} and \code{\link{findGiniMarkers}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
@@ -2350,7 +1974,7 @@ findMarkers <- function(
         feat_type = NULL,
         expression_values = c("normalized", "scaled", "custom"),
         cluster_column = NULL,
-        method = c("scran", "gini", "mast"),
+        method = c("scran", "gini"),
         subset_clusters = NULL,
         group_1 = NULL,
         group_2 = NULL,
@@ -2365,7 +1989,6 @@ findMarkers <- function(
         min_genes = NULL,
         group_1_name = NULL,
         group_2_name = NULL,
-        adjust_columns = NULL,
         min_expr_gini_score = deprecated(),
         min_det_gini_score = deprecated(),
         ...) {
@@ -2388,7 +2011,7 @@ findMarkers <- function(
     }
 
     # select method
-    method <- match.arg(method, choices = c("scran", "gini", "mast"))
+    method <- match.arg(method, choices = c("scran", "gini"))
 
     if (method == "scran") {
         markers_result <- findScranMarkers(
@@ -2425,20 +2048,6 @@ findMarkers <- function(
             rank_score = rank_score,
             min_feats = min_feats
         )
-    } else if (method == "mast") {
-        markers_result <- findMastMarkers(
-            gobject = gobject,
-            feat_type = feat_type,
-            spat_unit = spat_unit,
-            expression_values = expression_values,
-            cluster_column = cluster_column,
-            group_1 = group_1,
-            group_1_name = group_1_name,
-            group_2 = group_2,
-            group_2_name = group_2_name,
-            adjust_columns = adjust_columns,
-            ...
-        )
     }
 
     return(markers_result)
@@ -2460,7 +2069,7 @@ findMarkers <- function(
 #' warning when they differ. `cluster_column` is required for a plain `hclust`.
 #' `view` names a slotted view: only the cells that survive it are compared.
 #' @param method method used for the comparison at each node. `"scran"` and
-#' `"gini"` take the pooled route described below; `"mast"` is delegated.
+#' `"gini"` take the pooled route described below.
 #' @param lfc_cut,fdr_cut thresholds counting toward `n_strong`
 #' @param min_expression gini: minimum per-side mean expression
 #' @param min_detection gini: minimum fraction of a side's cells with
@@ -2505,12 +2114,9 @@ findMarkers <- function(
 #' | --- | --- | --- |
 #' | `"scran"` (Welch t) | `sum`, `sumsq`, `n` | yes |
 #' | `"gini"` | `sum`, `nnz`, `n` | yes |
-#' | `"mast"` | a per-cell model fit | no --- one call per node |
 #'
 #' A statistic needing a global ordering along the feature axis --- a rank,
-#' a median, Wilcoxon --- cannot pool either, and would be delegated the same
-#' way. The choice is made from the method, so nothing is silently
-#' approximated: a delegated method returns the same numbers, more slowly.
+#' a median, Wilcoxon --- cannot be pooled this way.
 #' @seealso [calculateClusterTree()], [findMarkers()]
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
@@ -2528,7 +2134,7 @@ findClusterTreeMarkers <- function(
         expression_values = c("normalized", "scaled", "custom"),
         cluster_column = NULL,
         view = NULL,
-        method = c("scran", "gini", "mast"),
+        method = c("scran", "gini"),
         lfc_cut = 0.25,
         fdr_cut = 0.01,
         # gini. Defaulted to `findMarkers()`'s values rather than
@@ -2570,7 +2176,7 @@ findClusterTreeMarkers <- function(
         unique(c("normalized", "scaled", "custom", ctx$expression_values))
     )
     cluster_column <- .tree_need_column(ctx$cluster_column, site)
-    method <- match.arg(method, choices = c("scran", "gini", "mast"))
+    method <- match.arg(method, choices = c("scran", "gini"))
     gobject <- .tree_resolve_view(gobject, ctx$view, spat_unit, feat_type)
 
     # The gini arguments are named on this signature, so they travel as named
@@ -2620,16 +2226,11 @@ findClusterTreeMarkers <- function(
         as.character(splits$nodeID)
     )
 
-    mk <- if (identical(method, "mast")) {
-        .node_markers_delegated(gobject, spat_unit, feat_type, values,
-            cluster_column, sets, method, verbose = verbose, ...)
-    } else {
-        do.call(.node_markers_pooled, c(
-            list(gobject, spat_unit, feat_type, values, cluster_column,
-                sets, method),
-            gini_args, list(...)
-        ))
-    }
+    mk <- do.call(.node_markers_pooled, c(
+        list(gobject, spat_unit, feat_type, values, cluster_column,
+            sets, method),
+        gini_args, list(...)
+    ))
 
     # `n_strong` per node, on whichever columns the method reports. gini has no
     # p-value, so there is nothing to threshold and the count is left NA rather
@@ -2686,35 +2287,6 @@ findClusterTreeMarkers <- function(
             sets = sets, ...),
         groups = groups
     )
-    .node_markers_bind(res, sets, method)
-}
-
-
-# The delegated route: one `findMarkers()` call per node. Same numbers, one
-# pass over the values each.
-#' @keywords internal
-#' @noRd
-.node_markers_delegated <- function(gobject, spat_unit, feat_type, values,
-    cluster_column, sets, method, verbose = TRUE, ...) {
-    res <- lapply(names(sets), function(nm) {
-        s <- sets[[nm]]
-        nms <- .markers_side_names(s)
-        out <- findMarkers(
-            gobject = gobject, spat_unit = spat_unit, feat_type = feat_type,
-            expression_values = values, cluster_column = cluster_column,
-            method = method,
-            group_1 = s$left, group_2 = s$right,
-            group_1_name = nms[["left"]], group_2_name = nms[["right"]],
-            ...
-        )
-        # scran and mast return one table per group; keep the left host, the
-        # right being its mirror
-        if (is.list(out) && !data.table::is.data.table(out)) {
-            out <- out[[1L]]
-        }
-        out
-    })
-    names(res) <- names(sets)
     .node_markers_bind(res, sets, method)
 }
 
@@ -2782,8 +2354,8 @@ findClusterTreeMarkers <- function(
 #' @param cluster_column clusters to use
 #' @param method method to use to detect differentially expressed feats
 #' @param subset_clusters selection of clusters to compare
-#' @param pval scran & mast: filter on minimal p-value
-#' @param logFC scan & mast: filter on logFC
+#' @param pval scran: filter on minimal p-value
+#' @param logFC scran: filter on logFC
 #' @param min_feats minimum feats to keep per cluster, overrides pval and logFC
 #' @param min_genes deprecated, use min_feats
 #' @param min_expression gini: minimum per-cluster mean expression
@@ -2801,21 +2373,17 @@ findClusterTreeMarkers <- function(
 #' @param rank_score gini: keep a feature when its cluster is within this
 #' rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 #' (default) disables it.
-#' @param adjust_columns mast: column in pDataDT to adjust for
-#' (e.g. detection rate)
 #' @param verbose be verbose
 #' @param min_expr_gini_score `r lifecycle::badge("deprecated")` use
 #' `min_expression`. Despite its name it never gated a gini coefficient.
 #' @param min_det_gini_score `r lifecycle::badge("deprecated")` use
 #' `min_detection`. Despite its name it never gated a gini coefficient.
-#' @param ... additional parameters for the findMarkers function in scran or
-#' zlm function in MAST
+#' @param ... additional parameters for the findMarkers function in scran
 #' @returns data.table with marker feats
 #' @details Wrapper for all one vs all functions to detect marker feats for
-#' clusters.
-#' @seealso \code{\link{findScranMarkers_one_vs_all}},
-#' \code{\link{findGiniMarkers_one_vs_all}} and
-#' \code{\link{findMastMarkers_one_vs_all}}
+#' clusters. MAST is in GiottoConnect (`GiottoConnect::runMAST()`).
+#' @seealso \code{\link{findScranMarkers_one_vs_all}} and
+#' \code{\link{findGiniMarkers_one_vs_all}}
 #' @examples
 #' g <- GiottoData::loadGiottoMini("visium")
 #'
@@ -2828,8 +2396,8 @@ findMarkers_one_vs_all <- function(
         expression_values = c("normalized", "scaled", "custom"),
         cluster_column,
         subset_clusters = NULL,
-        method = c("scran", "gini", "mast"),
-        # scran & mast
+        method = c("scran", "gini"),
+        # scran
         pval = 0.01,
         logFC = 0.5,
         min_feats = 10,
@@ -2842,8 +2410,6 @@ findMarkers_one_vs_all <- function(
         detection_threshold = 0,
         min_length = 0,
         rank_score = Inf,
-        # mast specific
-        adjust_columns = NULL,
         verbose = TRUE,
         min_expr_gini_score = deprecated(),
         min_det_gini_score = deprecated(),
@@ -2861,7 +2427,7 @@ findMarkers_one_vs_all <- function(
     min_detection <- .dep(min_det_gini_score, min_detection)
 
     # select method
-    method <- match.arg(method, choices = c("scran", "gini", "mast"))
+    method <- match.arg(method, choices = c("scran", "gini"))
 
     if (method == "scran") {
         markers_result <- findScranMarkers_one_vs_all(
@@ -2894,21 +2460,6 @@ findMarkers_one_vs_all <- function(
             rank_score = rank_score,
             min_feats = min_feats,
             verbose = verbose
-        )
-    } else if (method == "mast") {
-        markers_result <- findMastMarkers_one_vs_all(
-            gobject = gobject,
-            feat_type = feat_type,
-            spat_unit = spat_unit,
-            expression_values = expression_values,
-            cluster_column = cluster_column,
-            subset_clusters = subset_clusters,
-            adjust_columns = adjust_columns,
-            pval = pval,
-            logFC = logFC,
-            min_feats = min_feats,
-            verbose = verbose,
-            ...
         )
     }
 

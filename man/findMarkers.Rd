@@ -10,7 +10,7 @@ findMarkers(
   feat_type = NULL,
   expression_values = c("normalized", "scaled", "custom"),
   cluster_column = NULL,
-  method = c("scran", "gini", "mast"),
+  method = c("scran", "gini"),
   subset_clusters = NULL,
   group_1 = NULL,
   group_2 = NULL,
@@ -25,7 +25,6 @@ findMarkers(
   min_genes = NULL,
   group_1_name = NULL,
   group_2_name = NULL,
-  adjust_columns = NULL,
   min_expr_gini_score = deprecated(),
   min_det_gini_score = deprecated(),
   ...
@@ -78,12 +77,9 @@ rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 
 \item{min_genes}{deprecated, use min_feats}
 
-\item{group_1_name}{mast: custom name for group_1 clusters}
+\item{group_1_name}{custom name for group_1 clusters}
 
-\item{group_2_name}{mast: custom name for group_2 clusters}
-
-\item{adjust_columns}{mast: column in pDataDT to adjust for
-(e.g. detection rate)}
+\item{group_2_name}{custom name for group_2 clusters}
 
 \item{min_expr_gini_score}{`r lifecycle::badge("deprecated")` use
 `min_expression`. Despite its name it never gated a gini coefficient.}
@@ -91,8 +87,7 @@ rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 \item{min_det_gini_score}{`r lifecycle::badge("deprecated")` use
 `min_detection`. Despite its name it never gated a gini coefficient.}
 
-\item{...}{additional parameters for the findMarkers function in scran or
-zlm function in MAST}
+\item{...}{additional parameters for the findMarkers function in scran}
 }
 \value{
 data.table with marker feats
@@ -102,7 +97,7 @@ Identify marker feats for selected clusters.
 }
 \details{
 Wrapper for all individual functions to detect marker feats for
-clusters.
+clusters. MAST is in GiottoConnect (`GiottoConnect::runMAST()`).
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -110,6 +105,5 @@ g <- GiottoData::loadGiottoMini("visium")
 findMarkers(g, cluster_column = "leiden_clus")
 }
 \seealso{
-\code{\link{findScranMarkers}}, \code{\link{findGiniMarkers}} and
-\code{\link{findMastMarkers}}
+\code{\link{findScranMarkers}} and \code{\link{findGiniMarkers}}
 }

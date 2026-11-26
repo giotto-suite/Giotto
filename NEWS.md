@@ -3,6 +3,11 @@
 Requires GiottoClass 0.8.0.
 
 ## breaking changes
+- MAST moves to GiottoConnect: `findMastMarkers()` and
+  `findMastMarkers_one_vs_all()` are removed, with `method = "mast"` of
+  `findMarkers()`, `findMarkers_one_vs_all()` and `findClusterTreeMarkers()`
+  and the `adjust_columns` argument. `GiottoConnect::runMAST()` gives the same
+  results. MAST is no longer in Suggests.
 - `spatialDE()` and `spatialAEH()` are removed, together with the `"spatialDE"`
   method of `runPatternSimulation()`. Use `binSpect()` or `spark()` for
   spatially variable features.

@@ -156,8 +156,7 @@ coefficient is scale-free: a feature averaging 0.001 in one cluster against
 10. It therefore carries no magnitude term, and will rank near-noise
 features as perfectly selective. These two gates supply that term. The
 equivalent for the other methods is \code{logFC}, which
-\code{\link[=findScranMarkers_one_vs_all]{findScranMarkers_one_vs_all()}} and \code{\link[=findMastMarkers_one_vs_all]{findMastMarkers_one_vs_all()}} filter
-on directly.
+\code{\link[=findScranMarkers_one_vs_all]{findScranMarkers_one_vs_all()}} filters on directly.
 
 \code{min_expression_gini} and \code{min_detection_gini} gate the gini coefficients
 themselves, and are off by default. They are best used on a second pass:

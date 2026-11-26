@@ -81,7 +81,6 @@ Suggests:
     kableExtra,
     knitr,
     limma,
-    MAST,
     miniUI,
     mistyR,
     multinet (>= 3.0.2),

@@ -12,7 +12,7 @@ findClusterTreeMarkers(
   expression_values = c("normalized", "scaled", "custom"),
   cluster_column = NULL,
   view = NULL,
-  method = c("scran", "gini", "mast"),
+  method = c("scran", "gini"),
   lfc_cut = 0.25,
   fdr_cut = 0.01,
   min_expression = 0.5,
@@ -41,7 +41,7 @@ warning when they differ. `cluster_column` is required for a plain `hclust`.
 `view` names a slotted view: only the cells that survive it are compared.}
 
 \item{method}{method used for the comparison at each node. `"scran"` and
-`"gini"` take the pooled route described below; `"mast"` is delegated.}
+`"gini"` take the pooled route described below.}
 
 \item{lfc_cut, fdr_cut}{thresholds counting toward `n_strong`}
 
@@ -106,12 +106,9 @@ additive across groups:
 | --- | --- | --- |
 | `"scran"` (Welch t) | `sum`, `sumsq`, `n` | yes |
 | `"gini"` | `sum`, `nnz`, `n` | yes |
-| `"mast"` | a per-cell model fit | no --- one call per node |
 
 A statistic needing a global ordering along the feature axis --- a rank,
-a median, Wilcoxon --- cannot pool either, and would be delegated the same
-way. The choice is made from the method, so nothing is silently
-approximated: a delegated method returns the same numbers, more slowly.
+a median, Wilcoxon --- cannot be pooled this way.
 }
 
 \examples{

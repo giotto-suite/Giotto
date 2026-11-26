@@ -11,7 +11,7 @@ findMarkers_one_vs_all(
   expression_values = c("normalized", "scaled", "custom"),
   cluster_column,
   subset_clusters = NULL,
-  method = c("scran", "gini", "mast"),
+  method = c("scran", "gini"),
   pval = 0.01,
   logFC = 0.5,
   min_feats = 10,
@@ -23,7 +23,6 @@ findMarkers_one_vs_all(
   detection_threshold = 0,
   min_length = 0,
   rank_score = Inf,
-  adjust_columns = NULL,
   verbose = TRUE,
   min_expr_gini_score = deprecated(),
   min_det_gini_score = deprecated(),
@@ -45,9 +44,9 @@ findMarkers_one_vs_all(
 
 \item{method}{method to use to detect differentially expressed feats}
 
-\item{pval}{scran & mast: filter on minimal p-value}
+\item{pval}{scran: filter on minimal p-value}
 
-\item{logFC}{scan & mast: filter on logFC}
+\item{logFC}{scran: filter on logFC}
 
 \item{min_feats}{minimum feats to keep per cluster, overrides pval and logFC}
 
@@ -75,9 +74,6 @@ different cluster counts. `0` (the default) never pads.}
 rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 (default) disables it.}
 
-\item{adjust_columns}{mast: column in pDataDT to adjust for
-(e.g. detection rate)}
-
 \item{verbose}{be verbose}
 
 \item{min_expr_gini_score}{`r lifecycle::badge("deprecated")` use
@@ -86,8 +82,7 @@ rank for both `expression` and `detection` (rank 1 = highest). `Inf`
 \item{min_det_gini_score}{`r lifecycle::badge("deprecated")` use
 `min_detection`. Despite its name it never gated a gini coefficient.}
 
-\item{...}{additional parameters for the findMarkers function in scran or
-zlm function in MAST}
+\item{...}{additional parameters for the findMarkers function in scran}
 }
 \value{
 data.table with marker feats
@@ -97,7 +92,7 @@ Identify marker feats for all clusters in a one vs all manner.
 }
 \details{
 Wrapper for all one vs all functions to detect marker feats for
-clusters.
+clusters. MAST is in GiottoConnect (`GiottoConnect::runMAST()`).
 }
 \examples{
 g <- GiottoData::loadGiottoMini("visium")
@@ -105,7 +100,6 @@ g <- GiottoData::loadGiottoMini("visium")
 findMarkers_one_vs_all(g, cluster_column = "leiden_clus")
 }
 \seealso{
-\code{\link{findScranMarkers_one_vs_all}},
-\code{\link{findGiniMarkers_one_vs_all}} and
-\code{\link{findMastMarkers_one_vs_all}}
+\code{\link{findScranMarkers_one_vs_all}} and
+\code{\link{findGiniMarkers_one_vs_all}}
 }

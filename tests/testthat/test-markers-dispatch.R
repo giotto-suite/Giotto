@@ -200,18 +200,6 @@ test_that("cluster column is character for every marker method", {
     expect_gt(nrow(j), 0L)
 })
 
-test_that("MAST labels comparisons rather than bare clusters", {
-    skip_if_not_installed("MAST")
-    g <- .mk_numeric_clus_gobject()
-    res <- findMastMarkers_one_vs_all(g, cluster_column = "clus",
-        verbose = FALSE)
-    # character like the others, but the value is "<clus>_vs_others", not
-    # "<clus>" -- so cross-method joins on `cluster` need a translation step.
-    expect_type(res$cluster, "character")
-    expect_true(all(grepl("_vs_others$", res$cluster)))
-})
-
-
 test_that("findScranMarkers_one_vs_all reports pi and orders by it", {
     skip_if_not_installed("scran")
     fx <- .mk_gobject()
