@@ -33,11 +33,20 @@ Requires GiottoClass 0.8.0.
 - `gefToGiotto()` is no longer re-exported (it is removed from GiottoClass).
   `importStereoSeq()` reads Stereo-seq GEF files.
 - `getGEFtxCoords()` is removed. `importStereoSeq()` reads Stereo-seq GEF files.
-
 - `doScrubletDetect()` moves to GiottoConnect as `runScrublet()`, which gives
   the same scores (columns `scrublet_score` / `scrublet_doublet`) and installs
   Python's scrublet with `reticulate::py_require()` instead of the Giotto
   conda environment.
+- Louvain clustering runs through igraph (`igraph::cluster_louvain()`) instead
+  of Python's community module: `doLouvainCluster(version = "igraph")` (the
+  new default), `clusterParam("louvain_igraph")` (`LouvainIgraphClusParam`),
+  `clusterCells(cluster_method = "louvain_igraph")`,
+  `subClusterCells(cluster_method = "louvain_igraph")` and
+  `doLouvainSubCluster(version = "igraph")`. `"community"` /
+  `"louvain_community"`, `LouvainCommunityClusParam` and
+  `inst/python/python_louvain.py` are removed, and `louv_random` is
+  deprecated. Clusters differ from the Python ones; `doLouvainCluster()` now
+  sets a seed by default (`set_seed = TRUE`) for reproducible clusters.
 
 ## new
 - Library normalization accepts `scalefactor = "median"` (in `normParam("library")`,
