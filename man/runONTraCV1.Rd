@@ -27,7 +27,7 @@ runONTraCV1(
   purity_loss_weight = 300,
   regularization_loss_weight = 0.1,
   beta = 0.03,
-  python_path = "giotto_ontrac_env"
+  python_path = NULL
 )
 }
 \arguments{
@@ -81,8 +81,10 @@ is 0.1}
 
 \item{beta}{the weight of entropy loss. Default is 0.03}
 
-\item{python_path, }{path to python executable within a conda/miniconda
-environment. Default is "giotto_ontrac_env"}
+\item{python_path}{`NULL` (default): ONTraC v1 is installed on first use in
+an environment of its own and run from a worker R session
+(`GiottoUtils::py_run()`). Or the path to a Python executable (or the name
+of a conda environment) that has ONTraC v1 installed.}
 }
 \value{
 none

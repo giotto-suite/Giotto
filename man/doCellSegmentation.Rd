@@ -23,7 +23,9 @@ better in the Mesmer algorithm if its resolution is reduced 4 times.}
 \item{overlapping_pixels}{numeric; the number of pixels to overlap when
 calculating the rolling window}
 
-\item{python_path}{specify specific path to python if required}
+\item{python_path}{`NULL` (default): deepcell is installed on first use and
+run in a worker R session (`GiottoUtils::py_run()`); or the path to a
+Python executable that has deepcell installed}
 }
 \value{
 segmentation results

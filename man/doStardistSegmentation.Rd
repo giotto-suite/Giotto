@@ -7,7 +7,7 @@
 doStardistSegmentation(
   input,
   mask_output,
-  python_env = "giotto_segmentation",
+  python_env = NULL,
   model_name = "2D_versatile_fluo",
   nuclei_channel = NULL,
   prob_thresh = NULL,
@@ -21,9 +21,10 @@ doStardistSegmentation(
 
 \item{mask_output}{required. Provide a path to the output mask file.}
 
-\item{python_env}{python environment with Stardist installed.
-default = "giotto_segmentation". See Stardist official website for more 
-details.}
+\item{python_env}{`NULL` (default): stardist is installed on first use in an
+environment of its own and run in a worker R session
+(`GiottoUtils::py_run()`). Or the path to a Python executable that has
+stardist installed.}
 
 \item{model_name}{Name of the model to run inference. Default to 
 '2D_versatile_fluo'. If using HE model, input image must be RGB, else the 

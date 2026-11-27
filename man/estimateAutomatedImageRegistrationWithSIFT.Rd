@@ -33,7 +33,10 @@ estimation}
 path to save the warpped image.}
 }
 \value{
-a list of the estimated transformation object
+a list: `params` (the estimated transformation matrix),
+`inverse` (its inverse), `type` and `n_matches`. scikit-image runs in a
+worker R session (`GiottoUtils::py_run()`); `plot_match` draws the
+matches from a saved image.
 }
 \description{
 Automatically estimate a transform with SIFT feature detection, descriptor

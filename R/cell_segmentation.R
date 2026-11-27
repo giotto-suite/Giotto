@@ -7,7 +7,9 @@
 #' better in the Mesmer algorithm if its resolution is reduced 4 times.
 #' @param overlapping_pixels numeric; the number of pixels to overlap when
 #' calculating the rolling window
-#' @param python_path specify specific path to python if required
+#' @param python_path `NULL` (default): deepcell is installed on first use and
+#' run in a worker R session (`GiottoUtils::py_run()`); or the path to a
+#' Python executable that has deepcell installed
 #' @returns segmentation results
 #' @details
 #' This function is a wrapper for the Mesmer algorithm implemented in python.
@@ -21,16 +23,26 @@ doCellSegmentation <- function(raster_img,
     reduce_resolution = 4,
     overlapping_pixels = 50,
     python_path = NULL) {
-    package_check("deepcell", repository = "pip")
-    package_check("PIL", repository = "pip")
+    # deepcell runs in a worker R session (GiottoUtils::py_run()); the
+    # raster goes there as a file
+    img_file <- tempfile(fileext = ".tif")
+    on.exit(unlink(img_file), add = TRUE)
+    terra::writeRaster(raster_img, img_file)
+    res <- GiottoUtils::py_run(.cell_segmentation_worker,
+        args = list(img_file = img_file, folder_path = folder_path,
+            reduce_resolution = reduce_resolution,
+            overlapping_pixels = overlapping_pixels,
+            script = system.file("python", "python_segmentation.py",
+                package = "Giotto")),
+        requirements = c("deepcell", "pillow"), python_version = "<3.11",
+        name = "deepcell", python = python_path)
+    print(res)
+}
 
-    # prepare python path and segmentation script
-    reticulate::use_python(required = TRUE, python = python_path)
-    python_segmentation_function <- system.file("python",
-        "python_segmentation.py",
-        package = "Giotto"
-    )
-    reticulate::source_python(file = python_segmentation_function)
+.cell_segmentation_worker <- function(img_file, folder_path,
+    reduce_resolution, overlapping_pixels, script) {
+    raster_img <- terra::rast(img_file)
+    reticulate::source_python(file = script)
 
     # create mesmer app
     mesmer_app <- python_create_mesmer_app()
@@ -79,9 +91,7 @@ doCellSegmentation <- function(raster_img,
         start_x <- end_x - margin
         end_x <- start_x + tile_dim
     }
-
-
-    print(segmentation_result)
+    reticulate::py_to_r(segmentation_result)
 }
 
 
@@ -97,8 +107,10 @@ doCellSegmentation <- function(raster_img,
 #' @name doCellposeSegmentation
 #' @param input character, required. Provide a path to a gray scale or a
 #' three channel image.
-#' @param python_path python environment with cellpose installed.
-#' default = "giotto_segmentation".
+#' @param python_env `NULL` (default): cellpose is installed on first use in an
+#' environment of its own and run in a worker R session
+#' (`GiottoUtils::py_run()`). Or the path to a Python executable that has
+#' cellpose installed.
 #' @param mask_output required. Provide a path to the output mask file.
 #' @param channel_1 channel number for cytoplasm, default to 0(gray scale)
 #' @param channel_2 channel number for Nuclei, default to 0(gray scale)
@@ -170,7 +182,7 @@ doCellSegmentation <- function(raster_img,
 doCellposeSegmentation <- function(
         input,
         mask_output,
-        python_env = "giotto_segmentation",
+        python_env = NULL,
         channel_1 = 0,
         channel_2 = 0,
         model_name = "cyto3",
@@ -199,21 +211,35 @@ doCellposeSegmentation <- function(
         progress = NULL,
         verbose = NULL,
         ...) {
-    ## Load required python libraries
-    set_giotto_python_path(python_env)
-    package_check("cellpose", repository = "pip:cellpose>=3.1.0")
-
     # Check Input arguments
     model_name <- match.arg(
         model_name, unique(c("cyto3", "cyto2", "cyto", "nuclei", model_name))
     )
     if (!is.null(channel_axis)) channel_axis <- as.integer(channel_axis)
+    args <- mget(setdiff(names(formals(.cellpose_worker)), "verbose"))
+    args$verbose <- verbose
+    # cellpose runs in a worker R session (GiottoUtils::py_run()) with its
+    # own environment, or the Python given in python_env
+    GiottoUtils::py_run(.cellpose_worker, args = args,
+        requirements = "cellpose==3.1.0", python_version = "<3.13",
+        name = "cellpose", python = python_env,
+        verbose = isTRUE(verbose))
+    invisible(mask_output)
+}
 
+.cellpose_worker <- function(input, mask_output, channel_1, channel_2,
+    model_name, batch_size, resample, channel_axis, z_axis, normalize, invert,
+    rescale, diameter, flow_threshold, cellprob_threshold, do_3D, anisotropy,
+    stitch_threshold, min_size, max_size_fraction, niter, augment,
+    tile_overlap, bsize, dP_smooth, interp, compute_masks, progress,
+    verbose = NULL) {
+    # self-contained (py_run(package = FALSE)): loading Giotto or GiottoUtils
+    # would load data.table, whose OpenMP runtime crashes PyTorch
+    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     cellpose <- reticulate::import("cellpose")
     np <- reticulate::import("numpy")
     cv2 <- reticulate::import("cv2")
     torch <- reticulate::import("torch")
-    message("successfully loaded giotto environment with cellpose.")
 
     if (!(torch$cuda$is_available())) {
         warning(
@@ -235,32 +261,26 @@ doCellposeSegmentation <- function(
     vmsg(.v = verbose, "Segmenting Image...")
     segmentation <- model_to_seg$eval
 
-    result <- segmentation(img,
-        diameter = diameter,
-        channels = channel_to_seg,
-        batch_size = as.integer(batch_size),
-        resample = resample,
-        channel_axis = channel_axis,
-        z_axis = z_axis,
-        normalize = normalize,
-        invert = invert,
-        rescale = rescale,
-        flow_threshold = flow_threshold,
-        cellprob_threshold = cellprob_threshold,
-        do_3D = do_3D,
-        anisotropy = anisotropy,
-        stitch_threshold = stitch_threshold,
+    opts <- list(diameter = diameter, channels = channel_to_seg,
+        batch_size = as.integer(batch_size), resample = resample,
+        channel_axis = channel_axis, z_axis = z_axis, normalize = normalize,
+        invert = invert, rescale = rescale, flow_threshold = flow_threshold,
+        cellprob_threshold = cellprob_threshold, do_3D = do_3D,
+        anisotropy = anisotropy, stitch_threshold = stitch_threshold,
         min_size = as.integer(min_size),
-        max_size_fraction = max_size_fraction,
-        niter = niter,
-        augment = augment,
-        tile_overlap = tile_overlap,
-        bsize = as.integer(bsize),
-        dP_smooth = as.integer(dP_smooth),
-        interp = interp,
-        compute_masks = compute_masks,
-        progress = progress
-    )
+        max_size_fraction = max_size_fraction, niter = niter,
+        augment = augment, tile_overlap = tile_overlap,
+        bsize = as.integer(bsize), dP_smooth = as.integer(dP_smooth),
+        interp = interp, compute_masks = compute_masks, progress = progress)
+    # pass only the options this cellpose version's eval() takes
+    sig <- function(f) unlist(reticulate::import_builtins()$list(
+        reticulate::import("inspect")$signature(f)$parameters$keys()))
+    known <- union(sig(segmentation), sig(cellpose$models$CellposeModel$eval))
+    if (any(!names(opts) %in% known)) {
+        vmsg(.v = verbose, "not supported by this cellpose version, ignored:",
+            paste(setdiff(names(opts), known), collapse = ", "))
+    }
+    result <- do.call(segmentation, c(list(img), opts[names(opts) %in% known]))
     masks <- result[[1]]
     vmsg(
         .v = verbose, .is_debug = FALSE,
@@ -268,6 +288,7 @@ doCellposeSegmentation <- function(
     )
     rast <- terra::rast(masks)
     terra::writeRaster(rast, mask_output, overwrite = TRUE)
+    TRUE
 }
 
 
@@ -281,9 +302,10 @@ doCellposeSegmentation <- function(
 #' main parameters needed
 #' @name doMesmerSegmentation
 #' @param input character, required. Provide a path to a IF image.
-#' @param python_env python environment with deepcell installed.
-#' default = "giotto_segmentation". See deepcell official website for more 
-#' details.
+#' @param python_env `NULL` (default): deepcell is installed on first use in an
+#' environment of its own and run in a worker R session
+#' (`GiottoUtils::py_run()`). Or the path to a Python executable that has
+#' deepcell installed.
 #' @param mask_output required. Provide a path to the output mask file.
 #' @param nucleus_channel channel number for Nuclei, default to 1
 #' @param membrane_channel channel number for cell boundary, default to 2
@@ -302,19 +324,31 @@ doCellposeSegmentation <- function(
 #' @export
 doMesmerSegmentation <- function(input,
     mask_output,
-    python_env = "giotto_segmentation",
+    python_env = NULL,
     nucleus_channel = 1,
     membrane_channel = 2,
     micron_scale = 0.25,
     verbose = NULL,
     ...) {
-    ## Load required python libraries
-    set_giotto_python_path(python_env)
-    package_check("deepcell", repository = "pip")
-    tiff <- reticulate::import("tifffile")
+    # deepcell runs in a worker R session (GiottoUtils::py_run())
+    GiottoUtils::py_run(.mesmer_worker,
+        args = list(input = input, mask_output = mask_output,
+            nucleus_channel = nucleus_channel,
+            membrane_channel = membrane_channel, micron_scale = micron_scale,
+            verbose = verbose),
+        requirements = "deepcell", python_version = "<3.11",
+        name = "deepcell", python = python_env,
+        verbose = isTRUE(verbose))
+    invisible(mask_output)
+}
+
+.mesmer_worker <- function(input, mask_output, nucleus_channel,
+    membrane_channel, micron_scale, verbose = NULL) {
+    # self-contained (py_run(package = FALSE)): loading Giotto or GiottoUtils
+    # would load data.table, whose OpenMP runtime crashes PyTorch
+    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     np <- reticulate::import("numpy")
     deepcell <- reticulate::import("deepcell.applications")
-    vmsg(.v = verbose, "successfully loaded giotto environment with deepcell.")
 
     # Initialize the Mesmer application from DeepCell
     mesmer <- deepcell$Mesmer()
@@ -341,6 +375,7 @@ doMesmerSegmentation <- function(input,
 
     rast <- terra::rast(mask_r)
     terra::writeRaster(rast, mask_output, overwrite = TRUE)
+    TRUE
 }
 
 
@@ -353,9 +388,10 @@ doMesmerSegmentation <- function(input,
 #' main parameters needed
 #' @name doStardistSegmentation
 #' @param input character, required. Provide a path to an image.
-#' @param python_env python environment with Stardist installed.
-#' default = "giotto_segmentation". See Stardist official website for more 
-#' details.
+#' @param python_env `NULL` (default): stardist is installed on first use in an
+#' environment of its own and run in a worker R session
+#' (`GiottoUtils::py_run()`). Or the path to a Python executable that has
+#' stardist installed.
 #' @param mask_output required. Provide a path to the output mask file.
 #' @param model_name Name of the model to run inference. Default to 
 #' '2D_versatile_fluo'. If using HE model, input image must be RGB, else the 
@@ -377,17 +413,30 @@ doMesmerSegmentation <- function(input,
 #' @export
 doStardistSegmentation <- function(input,
     mask_output,
-    python_env = "giotto_segmentation",
+    python_env = NULL,
     model_name = "2D_versatile_fluo",
     nuclei_channel = NULL,
     prob_thresh = NULL,
     nms_thresh = NULL,
     verbose = NULL,
     ...) {
-    # Import the necessary Python modules
-    ## Load required python libraries
-    set_giotto_python_path(python_env)
-    package_check("stardist", repository = "pip")
+    # stardist runs in a worker R session (GiottoUtils::py_run())
+    GiottoUtils::py_run(.stardist_worker,
+        args = list(input = input, mask_output = mask_output,
+            model_name = model_name, nuclei_channel = nuclei_channel,
+            prob_thresh = prob_thresh, nms_thresh = nms_thresh,
+            verbose = verbose),
+        requirements = c("stardist", "tensorflow"), python_version = "<3.13",
+        name = "stardist", python = python_env,
+        verbose = isTRUE(verbose))
+    invisible(mask_output)
+}
+
+.stardist_worker <- function(input, mask_output, model_name, nuclei_channel,
+    prob_thresh, nms_thresh, verbose = NULL) {
+    # self-contained (py_run(package = FALSE)): loading Giotto or GiottoUtils
+    # would load data.table, whose OpenMP runtime crashes PyTorch
+    vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     stardist <- reticulate::import("stardist.models")
     csbdeep <- reticulate::import("csbdeep.utils")
     np <- reticulate::import("numpy")
@@ -427,4 +476,5 @@ doStardistSegmentation <- function(input,
     vmsg(.v = verbose, "Segmentation finished... Saving mask file...")
     rast_m <- terra::rast(mask)
     terra::writeRaster(rast_m, mask_output, overwrite = TRUE)
+    TRUE
 }

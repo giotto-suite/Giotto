@@ -36,6 +36,9 @@ installGiottoONTraCEnvironment <- function(python_version = "3.11.9",
     force_miniconda = FALSE,
     force_environment = FALSE,
     verbose = NULL) {
+    deprecate_warn("4.3.7", "installGiottoONTraCEnvironment()",
+        details = paste("runONTraCV1() installs ONTraC on first use in an",
+            "environment of its own (GiottoUtils::py_run())."))
     # handle ontrac version
     if (ontrac_version == "latest") {
         ontrac <- "ONTraC"
@@ -185,8 +188,10 @@ getONTraCv1Input <- function(
 #' @param regularization_loss_weight the weight of regularization loss. Default
 #' is 0.1
 #' @param beta the weight of entropy loss. Default is 0.03
-#' @param python_path, path to python executable within a conda/miniconda
-#' environment. Default is "giotto_ontrac_env"
+#' @param python_path `NULL` (default): ONTraC v1 is installed on first use in
+#' an environment of its own and run from a worker R session
+#' (`GiottoUtils::py_run()`). Or the path to a Python executable (or the name
+#' of a conda environment) that has ONTraC v1 installed.
 #' @returns none
 #' @details This function runs ONTraC
 #' @examples
@@ -220,25 +225,18 @@ runONTraCV1 <- function(ONTraC_input,
     purity_loss_weight = 300.0,
     regularization_loss_weight = 0.1,
     beta = 0.03,
-    python_path = "giotto_ontrac_env") {
+    python_path = NULL) {
     # parameters check
     device <- match.arg(device)
-
-    # 1. identify operating system
-    my_os <- get_os()
-
-    # handle conda env
-    set_giotto_python_path(python_path)
-    python_path <- reticulate::conda_python(envname = python_path)
-    if (my_os == "windows") {
-        ONTraC_path <- file.path(dirname(python_path), "Scripts", "ONTraC")
-    } else {
-        ONTraC_path <- file.path(dirname(python_path), "ONTraC")
+    # an own Python: a path, or (older use) a conda environment name
+    if (!is.null(python_path) && !file.exists(python_path)) {
+        package_check("reticulate", repository = "CRAN")
+        python_path <- reticulate::conda_python(envname = python_path)
     }
 
-    # run ONTraC
-    command <- paste(
-        ONTraC_path,
+    # run ONTraC v1 in a worker R session with its own environment
+    # (GiottoUtils::py_run_cli())
+    args <- c(
         "-d", dataset,
         "--preprocessing-dir", preprocessing_dir,
         "--GNN-dir", GNN_dir,
@@ -261,8 +259,9 @@ runONTraCV1 <- function(ONTraC_input,
         "--regularization-loss-weight", regularization_loss_weight,
         "--beta", beta
     )
-    wrap_msg(paste0("+", command))
-    system(command)
+    wrap_msg(paste("+ ONTraC", paste(args, collapse = " ")))
+    GiottoUtils::py_run_cli("ONTraC", args = args, requirements = "ONTraC<2",
+        python_version = "<3.12", python = python_path, verbose = TRUE)
 }
 
 
