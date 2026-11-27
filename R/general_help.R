@@ -943,6 +943,14 @@ get10Xmatrix <- function(
         input = paste0(path_to_data, "/", features_file), header = FALSE
     )
 
+    if (gene_column_index > ncol(featuresDT)) {
+        warning(sprintf(
+            "%s has %d column(s); using column 1 for feature names",
+            features_file, ncol(featuresDT)
+        ), call. = FALSE)
+        gene_column_index <- 1L
+    }
+
     # Split by type of feature (features.tsv 3rd col)
     feat_classes <- unique(featuresDT$V3)
     by_type <- length(feat_classes) > 1 && isTRUE(split_by_type)

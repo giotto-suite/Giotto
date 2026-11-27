@@ -71,3 +71,17 @@ test_that("unsplit matrices count repeats across the whole list", {
     expect_identical(rownames(mtx), nms)
     expect_identical(rownames(h5), nms)
 })
+
+test_that("a one-column features file falls back to column 1", {
+    skip_if_not_installed("R.utils")
+    d <- withr::local_tempdir()
+    .write_mex(d)
+    con <- gzfile(file.path(d, "features.tsv.gz"), "w")
+    writeLines(c("GENE1", "GENE2", "GENE3", "GENE4"), con)
+    close(con)
+    expect_warning(
+        res <- get10Xmatrix(d, gene_column_index = 2),
+        "using column 1"
+    )
+    expect_identical(rownames(res), paste0("GENE", 1:4))
+})
