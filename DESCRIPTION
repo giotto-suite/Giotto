@@ -116,7 +116,7 @@ Suggests:
     testthat (>= 3.0.0),
     rmarkdown
 Remotes:
-    giotto-suite/GiottoUtils@dev,
+    giotto-suite/GiottoUtils,
     giotto-suite/GiottoClass,
     giotto-suite/GiottoVisuals,
     drieslab/spatialDWLS,
