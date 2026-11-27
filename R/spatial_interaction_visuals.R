@@ -1518,18 +1518,15 @@ plotCellProximityFeats <- function(
     .icf_require_classic(icfObject)
 
     # print, return and save parameters
-    show_plot <- ifelse(
-        is.na(show_plot),
-        instructions(gobject, "show_plot"), show_plot
-    )
-    save_plot <- ifelse(
-        is.na(save_plot),
-        instructions(gobject, "save_plot"), save_plot
-    )
-    return_plot <- ifelse(
-        is.na(return_plot),
-        instructions(gobject, "return_plot"), return_plot
-    )
+    if (is.null(show_plot) || is.na(show_plot)) {
+        show_plot <- instructions(gobject, "show_plot")
+    }
+    if (is.null(save_plot) || is.na(save_plot)) {
+        save_plot <- instructions(gobject, "save_plot")
+    }
+    if (is.null(return_plot) || is.na(return_plot)) {
+        return_plot <- instructions(gobject, "return_plot")
+    }
 
 
     ## first filter
