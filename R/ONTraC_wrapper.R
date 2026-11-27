@@ -235,7 +235,7 @@ runONTraCV1 <- function(ONTraC_input,
     }
 
     # run ONTraC v1 in a worker R session with its own environment
-    # (GiottoUtils::py_run()); its program sits next to the worker's Python
+    # (GiottoUtils::py_run_cli())
     args <- c(
         "-d", dataset,
         "--preprocessing-dir", preprocessing_dir,
@@ -260,16 +260,8 @@ runONTraCV1 <- function(ONTraC_input,
         "--beta", beta
     )
     wrap_msg(paste("+ ONTraC", paste(args, collapse = " ")))
-    GiottoUtils::py_run(
-        function(args) {
-            bin <- dirname(reticulate::py_exe())
-            exe <- file.path(bin, if (.Platform$OS.type == "windows")
-                "ONTraC.exe" else "ONTraC")
-            system2(exe, as.character(args))
-        },
-        args = list(args = args), requirements = "ONTraC<2",
-        python_version = "<3.12", name = "ONTraC", python = python_path %null%
-            GiottoUtils:::.py_user_python("ONTraC"), verbose = TRUE)
+    GiottoUtils::py_run_cli("ONTraC", args = args, requirements = "ONTraC<2",
+        python_version = "<3.12", python = python_path, verbose = TRUE)
 }
 
 

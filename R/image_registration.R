@@ -1433,14 +1433,14 @@ preprocessImageToMatrix <- function(
         single_channel_number = NULL,
         pkg_ptr) {
     # scikit-image runs in a worker R session (GiottoUtils::py_run())
-    res <- GiottoUtils::py_run(
-        function(...) Giotto:::.preprocess_image_py(...),
+    res <- GiottoUtils::py_run(.preprocess_image_py,
         args = list(x = x, invert = invert,
             equalize_histogram = equalize_histogram,
             flip_vertical = flip_vertical, flip_horizontal = flip_horizontal,
             rotate_90 = rotate_90, use_single_channel = use_single_channel,
             single_channel_number = single_channel_number),
-        requirements = .sift_requirements, name = "scikit-image"
+        requirements = .sift_requirements, name = "scikit-image",
+        package = TRUE
     )
     attr(res, "py_versions") <- NULL
     res
@@ -1668,34 +1668,38 @@ estimateAutomatedImageRegistrationWithSIFT <- function(
     )
     # scikit-image runs in a worker R session (GiottoUtils::py_run()); the
     # transform comes back as matrices
-    estimation <- GiottoUtils::py_run(
-        function(x, y, max_ratio, estimate_fun, save_warp, plot_file) {
-            xs <- Giotto:::.sift_detect(x)
-            ys <- Giotto:::.sift_detect(y)
-            m <- Giotto:::.match_descriptor_single(xs$descriptors,
-                ys$descriptors, max_ratio = max_ratio)
-            if (!is.null(plot_file)) {
-                reticulate::import("matplotlib")$use("Agg")
-                Giotto:::.plot_matched_descriptors(x, y, xs$keypoints,
-                    ys$keypoints, m, outpath = plot_file)
-            }
-            est <- Giotto:::.estimate_transform_from_matched_descriptor(
-                xs$keypoints, ys$keypoints, m, estimate_fun = estimate_fun)
-            if (!is.null(save_warp)) {
-                Giotto:::.warp_transformed_image(x = x, y = y,
-                    model = est$inverse, outpath = save_warp)
-            }
-            list(params = est$params, inverse = est$inverse$params,
-                type = estimate_fun, n_matches = nrow(m))
-        },
+    estimation <- GiottoUtils::py_run(.sift_worker,
         args = list(x = x, y = y, max_ratio = max_ratio,
             estimate_fun = estimate_fun, save_warp = save_warp,
             plot_file = plot_file),
-        requirements = .sift_requirements, name = "scikit-image"
+        requirements = .sift_requirements, name = "scikit-image",
+        package = TRUE
     )
     if (!is.null(plot_file)) {
         vmsg(.v = verbose, "matched descriptors plotted to", plot_file)
         terra::plotRGB(terra::rast(plot_file))
     }
     estimation
+}
+
+# estimateAutomatedImageRegistrationWithSIFT() in the worker: detect, match
+# and estimate; the transform goes back as matrices
+.sift_worker <- function(x, y, max_ratio, estimate_fun, save_warp, plot_file) {
+    xs <- .sift_detect(x)
+    ys <- .sift_detect(y)
+    m <- .match_descriptor_single(xs$descriptors, ys$descriptors,
+        max_ratio = max_ratio)
+    if (!is.null(plot_file)) {
+        reticulate::import("matplotlib")$use("Agg")
+        .plot_matched_descriptors(x, y, xs$keypoints, ys$keypoints, m,
+            outpath = plot_file)
+    }
+    est <- .estimate_transform_from_matched_descriptor(xs$keypoints,
+        ys$keypoints, m, estimate_fun = estimate_fun)
+    if (!is.null(save_warp)) {
+        .warp_transformed_image(x = x, y = y, model = est$inverse,
+            outpath = save_warp)
+    }
+    list(params = est$params, inverse = est$inverse$params,
+        type = estimate_fun, n_matches = nrow(m))
 }

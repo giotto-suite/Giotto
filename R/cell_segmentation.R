@@ -35,8 +35,7 @@ doCellSegmentation <- function(raster_img,
             script = system.file("python", "python_segmentation.py",
                 package = "Giotto")),
         requirements = c("deepcell", "pillow"), python_version = "<3.11",
-        name = "deepcell", python = python_path %null%
-            GiottoUtils:::.py_user_python("deepcell"))
+        name = "deepcell", python = python_path)
     print(res)
 }
 
@@ -223,8 +222,7 @@ doCellposeSegmentation <- function(
     # own environment, or the Python given in python_env
     GiottoUtils::py_run(.cellpose_worker, args = args,
         requirements = "cellpose==3.1.0", python_version = "<3.13",
-        name = "cellpose", python = python_env %null%
-            GiottoUtils:::.py_user_python("cellpose"),
+        name = "cellpose", python = python_env,
         verbose = isTRUE(verbose))
     invisible(mask_output)
 }
@@ -235,6 +233,8 @@ doCellposeSegmentation <- function(
     stitch_threshold, min_size, max_size_fraction, niter, augment,
     tile_overlap, bsize, dP_smooth, interp, compute_masks, progress,
     verbose = NULL) {
+    # self-contained (py_run(package = FALSE)): loading Giotto or GiottoUtils
+    # would load data.table, whose OpenMP runtime crashes PyTorch
     vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     cellpose <- reticulate::import("cellpose")
     np <- reticulate::import("numpy")
@@ -337,14 +337,15 @@ doMesmerSegmentation <- function(input,
             membrane_channel = membrane_channel, micron_scale = micron_scale,
             verbose = verbose),
         requirements = "deepcell", python_version = "<3.11",
-        name = "deepcell", python = python_env %null%
-            GiottoUtils:::.py_user_python("deepcell"),
+        name = "deepcell", python = python_env,
         verbose = isTRUE(verbose))
     invisible(mask_output)
 }
 
 .mesmer_worker <- function(input, mask_output, nucleus_channel,
     membrane_channel, micron_scale, verbose = NULL) {
+    # self-contained (py_run(package = FALSE)): loading Giotto or GiottoUtils
+    # would load data.table, whose OpenMP runtime crashes PyTorch
     vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     np <- reticulate::import("numpy")
     deepcell <- reticulate::import("deepcell.applications")
@@ -426,14 +427,15 @@ doStardistSegmentation <- function(input,
             prob_thresh = prob_thresh, nms_thresh = nms_thresh,
             verbose = verbose),
         requirements = c("stardist", "tensorflow"), python_version = "<3.13",
-        name = "stardist", python = python_env %null%
-            GiottoUtils:::.py_user_python("stardist"),
+        name = "stardist", python = python_env,
         verbose = isTRUE(verbose))
     invisible(mask_output)
 }
 
 .stardist_worker <- function(input, mask_output, model_name, nuclei_channel,
     prob_thresh, nms_thresh, verbose = NULL) {
+    # self-contained (py_run(package = FALSE)): loading Giotto or GiottoUtils
+    # would load data.table, whose OpenMP runtime crashes PyTorch
     vmsg <- function(.v = NULL, ...) if (isTRUE(.v)) message(paste(...))
     stardist <- reticulate::import("stardist.models")
     csbdeep <- reticulate::import("csbdeep.utils")
