@@ -117,8 +117,8 @@ Suggests:
     rmarkdown
 Remotes:
     giotto-suite/GiottoUtils@dev,
-    giotto-suite/GiottoClass,
-    giotto-suite/GiottoVisuals,
+    giotto-suite/GiottoClass@gsource,
+    giotto-suite/GiottoVisuals@gsource,
     drieslab/spatialDWLS,
     drieslab/spatialHMRF,
     drieslab/edgeicg
