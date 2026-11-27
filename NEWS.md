@@ -38,6 +38,8 @@ Requires GiottoClass 0.8.0.
 - `gefToGiotto()` is no longer re-exported (it is removed from GiottoClass).
   `importStereoSeq()` reads Stereo-seq GEF files.
 - `getGEFtxCoords()` is removed. `importStereoSeq()` reads Stereo-seq GEF files.
+- `giottoToAnndataZarr()` is retired, and basilisk is no longer imported.
+  `GiottoConnect::giottoToAnnData()` writes AnnData (.h5ad) without Python.
 - `doScrubletDetect()` moves to GiottoConnect as `runScrublet()`, which gives
   the same scores (columns `scrublet_score` / `scrublet_doublet`) and installs
   Python's scrublet with `reticulate::py_require()` instead of the Giotto

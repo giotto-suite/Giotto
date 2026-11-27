@@ -31,7 +31,6 @@ Depends:
 Imports:
     BiocParallel,
     BiocSingular,
-    basilisk,
     bluster,
     checkmate,
     data.table (>= 1.12.2),
@@ -126,7 +125,6 @@ Remotes:
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
-    'basilisk.R'
     'block_pca.R'
     'cell_segmentation.R'
     'package_imports.R'
