@@ -440,7 +440,7 @@ spatMotifPlot <- function(gobject,
     save_plot = NULL,
     save_param = list(),
     default_save_name = "spatMotifPlot") {
-    package_check("smotif", repository = "github:drieslab/smotif")
+    package_check("smotif", repository = "r-universe:drieslab/smotif")
     spat_unit <- set_default_spat_unit(gobject = gobject, spat_unit = spat_unit)
     feat_type <- set_default_feat_type(
         gobject = gobject, spat_unit = spat_unit, feat_type = feat_type

@@ -158,7 +158,7 @@ setMethod("analyzeData",
     signature(x = "ANY", param = "edgeIcfParam"),
     function(x, param, ..., coords, cell_type, lib, spill_edges = NULL,
     feats = NULL, region = NULL) {
-        package_check("edgeicg", repository = "github:drieslab/edgeicg")
+        package_check("edgeicg", repository = "r-universe:drieslab/edgeicg")
         ids <- colnames(x)
         if (is.null(ids)) .gstop("expression needs cell IDs as column names")
         missing <- setdiff(ids, names(cell_type))

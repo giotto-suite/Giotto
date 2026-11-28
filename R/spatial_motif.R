@@ -103,7 +103,7 @@ setMethod(
             .gstop(
                 "no motif engine is available.",
                 "Install smotif:",
-                '  package_check("smotif", repository = "github:drieslab/smotif")',
+                '  package_check("smotif", repository = "r-universe:drieslab/smotif")',
                 "or supply another engine as a motifParam subclass.",
                 sep = "\n"
             )
@@ -125,7 +125,7 @@ setMethod(
         if (isTRUE(param$set_seed)) {
             GiottoUtils::local_seed(seed = param$seed_number)
         }
-        package_check("smotif", repository = "github:drieslab/smotif")
+        package_check("smotif", repository = "r-universe:drieslab/smotif")
         if (is.null(cell_type)) {
             .gstop("cell_type labels are required")
         }
