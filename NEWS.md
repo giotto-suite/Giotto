@@ -115,6 +115,7 @@ Requires GiottoClass 0.8.0.
   as a cell missing from that matrix, with a warning naming it.
 
 ## bug fixes
+- `get10Xmatrix()` reads a `features.tsv` with fewer columns than `gene_column_index` again, using column 1 with a warning (broke in 4.3.7 development, e.g. the VisiumHD workshop data).
 - `plotCellProximityFeats()` works with its default `show_plot`, `save_plot` and `return_plot` (`NULL`); it failed with "argument is of length zero".
 - `clusterCells(cluster_method = "leiden")`, `subClusterCells(cluster_method =
   "leiden")` and `doLeidenSubCluster()` run again: they passed arguments of the
