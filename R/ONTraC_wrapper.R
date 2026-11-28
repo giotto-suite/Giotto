@@ -37,8 +37,8 @@ installGiottoONTraCEnvironment <- function(python_version = "3.11.9",
     force_environment = FALSE,
     verbose = NULL) {
     deprecate_warn("4.3.7", "installGiottoONTraCEnvironment()",
-        details = paste("runONTraCV1() installs ONTraC on first use in an",
-            "environment of its own (GiottoUtils::py_run())."))
+        details = paste("GiottoConnect::runONTraC() installs ONTraC on first use",
+            "in an environment of its own (GiottoUtils::py_run())."))
     # handle ontrac version
     if (ontrac_version == "latest") {
         ontrac <- "ONTraC"
@@ -102,6 +102,7 @@ getONTraCv1Input <- function(
         spat_unit = NULL,
         feat_type = NULL,
         verbose = TRUE) {
+    deprecate_warn("4.3.7", "getONTraCv1Input()", "GiottoConnect::runONTraC()")
     # Set feat_type and spat_unit
     spat_unit <- set_default_spat_unit(
         gobject = gobject,
@@ -226,6 +227,7 @@ runONTraCV1 <- function(ONTraC_input,
     regularization_loss_weight = 0.1,
     beta = 0.03,
     python_path = NULL) {
+    deprecate_warn("4.3.7", "runONTraCV1()", "GiottoConnect::runONTraC()")
     # parameters check
     device <- match.arg(device)
     # an own Python: a path, or (older use) a conda environment name
@@ -529,6 +531,7 @@ loadOntraCResults <- function(
             "NTScore_dir"
         ),
         NTScore_reverse = FALSE) {
+    deprecate_warn("4.3.7", "loadOntraCResults()", "GiottoConnect::runONTraC()")
     gobject <- load_cell_NT_score(
         gobject = gobject,
         ontrac_results_dir = ontrac_results_dir,
@@ -587,6 +590,8 @@ plotSpatNicheClusterProb <- function(gobject,
     expression_values = "prob",
     ...,
     default_save_name = "spatNicheClusterProb") {
+    deprecate_warn("4.3.7", "plotSpatNicheClusterProb()", "spatCellPlot2D()",
+        details = "Use spatCellPlot2D(spat_enr_names = \"ontrac\").")
     nc_meta_df <- fDataDT(
         gobject = gobject,
         spat_unit = spat_unit,
@@ -622,6 +627,8 @@ plotSpatNicheClusterBin <- function(gobject,
     feat_type = "niche cluster",
     ...,
     default_save_name = "spatNicheClusterBin") {
+    deprecate_warn("4.3.7", "plotSpatNicheClusterBin()", "spatPlot2D()",
+        details = "Use spatPlot2D(cell_color = \"ontrac_niche_cluster\").")
     # determine the color code
     nc_meta_df <- fDataDT(
         gobject = gobject,
@@ -667,6 +674,8 @@ plotNicheClusterConnectivity <- function(gobject,
     save_plot = NULL,
     save_param = list(),
     default_save_name = "NicheClusterConnectivity") {
+    deprecate_warn("4.3.7", "plotNicheClusterConnectivity()",
+        "GiottoConnect::plotONTraCConnectivity()")
 
     # get the niche cluster connectivity matrix
     niche_cluster_connectivites <- getExpression(
@@ -811,6 +820,9 @@ plotCTCompositionInNicheCluster <- function(gobject,
     save_plot = NULL,
     save_param = list(),
     default_save_name = "CellTypeCompositionInNicheCluster") {
+    deprecate_warn("4.3.7", "plotCTCompositionInNicheCluster()",
+        "plotLabelComposition()",
+        details = "Use plotLabelComposition(groups = \"ontrac_niche_cluster\").")
     normalization <- match.arg(normalization)
 
     # Get the cell type composition within each niche cluster
@@ -948,6 +960,8 @@ plotCellTypeNTScore <- function(
         save_plot = NULL,
         save_param = list(),
         default_save_name = "CellTypeNTScore") {
+    deprecate_warn("4.3.7", "plotCellTypeNTScore()", "ridgePlot()",
+        details = "Use ridgePlot(feats = \"ontrac_NTScore\").")
     # Get the cell type composition within each niche cluster
     data_df <- pDataDT(
         gobject = gobject,
