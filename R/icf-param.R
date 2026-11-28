@@ -325,7 +325,15 @@ setMethod("analyzeData",
 .icf_from_edgeicg <- function(fit, values, cluster, spill, report_q,
     min_lfc = 0.25) {
     r <- edgeicg::edgeicg_results(fit, q_thr = report_q, min_lfc = min_lfc)
-    if (nrow(r)) r <- edgeicg::edgeicg_classify(fit, r)
+    if (nrow(r)) {
+        r <- edgeicg::edgeicg_classify(fit, r)
+    } else {
+        # no hits: edgeicg returns a table without columns
+        r <- data.table::data.table(gene = character(), receiver = character(),
+            sender = character(), scale = character(), effect = numeric(),
+            lfc = numeric(), se = numeric(), z = numeric(), q = numeric(),
+            class = character(), regional = logical())
+    }
     # NSE variables
     receiver <- sender <- gene <- effect <- z <- q <- NULL
     scores <- data.table::data.table(
@@ -341,8 +349,8 @@ setMethod("analyzeData",
         p.adj = r$q,
         class = r$class,
         regional = r$regional,
-        top_sender = if ("top_sender" %in% names(r)) r$top_sender else NA,
-        alpha = if ("alpha" %in% names(r)) r$alpha else NA_real_
+        top_sender = if ("top_sender" %in% names(r)) r$top_sender else rep(NA, nrow(r)),
+        alpha = if ("alpha" %in% names(r)) r$alpha else rep(NA_real_, nrow(r))
     )
     if (nrow(scores)) {
         scores[, `:=`(
