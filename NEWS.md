@@ -104,6 +104,14 @@ Requires GiottoClass 0.8.0.
   metadata columns to load (ignored with a warning without one).
 
 ## changes
+- The ONTraC v1 functions are deprecated in favour of
+  `GiottoConnect::runONTraC()`, which installs ONTraC on first use and stores
+  its results in the object: `getONTraCv1Input()`, `runONTraCV1()` and
+  `loadOntraCResults()`. Their plots move to general ones:
+  `plotSpatNicheClusterProb()` to `spatCellPlot2D()`, `plotSpatNicheClusterBin()`
+  to `spatPlot2D()`, `plotCellTypeNTScore()` to `ridgePlot()`,
+  `plotCTCompositionInNicheCluster()` to `plotLabelComposition()` and
+  `plotNicheClusterConnectivity()` to `GiottoConnect::plotONTraCConnectivity()`.
 - The CosMx reader reads the exprMat in batches of lines and parses only the
   rows of the requested `fovs`, so memory follows the selected cells instead
   of the whole slide (reading the 9-FOV breast subset: 3.0 instead of 7.3 GB).
