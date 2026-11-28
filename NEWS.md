@@ -116,6 +116,7 @@ Requires GiottoClass 0.8.0.
 
 ## bug fixes
 - `findInteractionChangedFeats()` (edgeicg) returns an empty `ICFscores` table when nothing passes, instead of failing with "non-numeric argument to mathematical function".
+- `plotCellProximityFeats()` works with its default `show_plot`, `save_plot` and `return_plot` (`NULL`); it failed with "argument is of length zero".
 - `clusterCells(cluster_method = "leiden")`, `subClusterCells(cluster_method =
   "leiden")` and `doLeidenSubCluster()` run again: they passed arguments of the
   retired Python Leiden to igraph's. `pyth_leid_weight_col` names an edge
