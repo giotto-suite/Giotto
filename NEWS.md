@@ -104,6 +104,8 @@ Requires GiottoClass 0.8.0.
   metadata columns to load (ignored with a warning without one).
 
 ## changes
+- `cellProximityMotifs()` needs smotif and smotifrs 0.2.0 or later (both in
+  Suggests, installed from GitHub); 0.1.0 fails on disk-backed objects.
 - The ONTraC v1 functions are deprecated in favour of
   `GiottoConnect::runONTraC()`, which installs ONTraC on first use and stores
   its results in the object: `getONTraCv1Input()`, `runONTraCV1()` and

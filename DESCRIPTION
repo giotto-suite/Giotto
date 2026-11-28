@@ -105,8 +105,8 @@ Suggests:
     sf,
     shiny,
     SingleCellExperiment,
-    smotif,
-    smotifrs,
+    smotif (>= 0.2.0),
+    smotifrs (>= 0.2.0),
     spatialDWLS,
     spatialHMRF,
     SpatialExperiment,
@@ -121,7 +121,9 @@ Remotes:
     giotto-suite/GiottoVisuals@gsource,
     drieslab/spatialDWLS,
     drieslab/spatialHMRF,
-    drieslab/edgeicg
+    drieslab/edgeicg,
+    drieslab/smotif,
+    drieslab/smotifrs
 Collate:
     'ONTraC_wrapper.R'
     'auxiliary_giotto.R'
